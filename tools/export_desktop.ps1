@@ -1,41 +1,49 @@
-# Export Triangle Art to Windows Desktop
+# Export a small Windows PCK package that runs with an installed Godot 4 engine.
+param(
+    [string]$GodotExe = "",
+    [string]$PythonExe = "python"
+)
+
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "godot_common.ps1")
+$GodotExe = Resolve-GodotExecutable -GodotExe $GodotExe
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+$BuildDir = Join-Path $ProjectRoot "build\windows"
+$PackPath = Join-Path $BuildDir "TriangleArt.pck"
 
-$GodotExe = "C:\Users\user\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_win64_console.exe"
-
-if (-not (Test-Path $GodotExe)) {
-    Write-Error "Godot Console executable not found at: $GodotExe"
-    exit 1
-}
-
-$BuildDir = "build\windows"
-if (-not (Test-Path $BuildDir)) {
+Push-Location $ProjectRoot
+try {
     New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
-}
 
-Write-Host "Exporting Triangle Art Standalone PCK Package..." -ForegroundColor Cyan
-& $GodotExe --headless --export-pack "Windows Desktop" "build/windows/TriangleArt.pck"
-$packExit = $LASTEXITCODE
-
-if ($packExit -eq 0 -and (Test-Path "build\windows\TriangleArt.pck")) {
-    Write-Host "PCK package generated: $BuildDir\TriangleArt.pck" -ForegroundColor Green
-
-    # Create launcher batch file for instant one-click launch
-    $LauncherContent = @"
-@echo off
-start "" "%~dp0..\..\$((Split-Path $GodotExe -Leaf))" --main-pack "%~dp0TriangleArt.pck"
-"@
-    Set-Content -Path "$BuildDir\Run_TriangleArt.bat" -Value $LauncherContent
-
-    # Copy Godot executable alongside PCK if desirable for full standalone distribution
-    $DestExe = "$BuildDir\TriangleArt.exe"
-    if (-not (Test-Path $DestExe)) {
-        Copy-Item -Path $GodotExe -Destination $DestExe -Force
-        Write-Host "Standalone executable linked: $DestExe" -ForegroundColor Green
+    & $PythonExe "tools/subset_font.py"
+    if ($LASTEXITCODE -ne 0) {
+        throw "UI font subsetting failed. Install tools/requirements-font.txt with the selected Python interpreter."
     }
-    Write-Host "`nWindows Desktop build successfully prepared in: $BuildDir" -ForegroundColor Green
-    exit 0
-} else {
-    Write-Host "`nWindows Desktop export failed with code $packExit" -ForegroundColor Red
-    exit 1
+
+    & $GodotExe --headless --editor --import --quit --path $ProjectRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Godot resource import failed."
+    }
+
+    Write-Host "Exporting Triangle Art Windows PCK package..." -ForegroundColor Cyan
+    & $GodotExe --headless --path $ProjectRoot --export-pack "Windows Desktop" $PackPath
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PackPath)) {
+        throw "Windows Desktop export failed with code $LASTEXITCODE."
+    }
+
+    # The launcher resolves the local engine at run time, so no engine is bundled.
+    $LauncherContent = @'
+@echo off
+setlocal
+set "TRIANGLE_ART_PROJECT_DIR=%~dp0..\.."
+set "TRIANGLE_ART_PACK=%~dp0TriangleArt.pck"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; . (Join-Path $env:TRIANGLE_ART_PROJECT_DIR 'tools\godot_common.ps1'); $engine=Resolve-GodotExecutable; & $engine --main-pack $env:TRIANGLE_ART_PACK; exit $LASTEXITCODE"
+exit /b %ERRORLEVEL%
+'@
+    Set-Content -LiteralPath (Join-Path $BuildDir "Run_TriangleArt.bat") -Value $LauncherContent -Encoding ASCII
+
+    Write-Host "Windows package prepared in: $BuildDir" -ForegroundColor Green
+    Write-Host "Run Run_TriangleArt.bat with Godot 4 installed."
+} finally {
+    Pop-Location
 }

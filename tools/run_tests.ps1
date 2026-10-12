@@ -1,18 +1,16 @@
 # Run Headless Test Suite for Triangle Art
+param([string]$GodotExe = "")
+
 $ErrorActionPreference = "Stop"
-
-$GodotExe = "C:\Users\user\AppData\Local\Microsoft\WinGet\Packages\GodotEngine.GodotEngine_Microsoft.Winget.Source_8wekyb3d8bbwe\Godot_v4.7.2-stable_win64_console.exe"
-
-if (-not (Test-Path $GodotExe)) {
-    Write-Error "Godot Console executable not found at: $GodotExe"
-    exit 1
-}
+. (Join-Path $PSScriptRoot "godot_common.ps1")
+$GodotExe = Resolve-GodotExecutable -GodotExe $GodotExe
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
 
 Write-Host "Running Godot Headless Test Runner..." -ForegroundColor Cyan
 $stdoutPath = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 $stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName())
 try {
-    $process = Start-Process -FilePath $GodotExe -ArgumentList @("--headless", "--path", ".", "res://tests/test_runner.tscn") -WorkingDirectory (Get-Location).Path -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -Wait -PassThru
+    $process = Start-Process -FilePath $GodotExe -ArgumentList @("--headless", "--path", ".", "res://tests/test_runner.tscn") -WorkingDirectory $ProjectRoot -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -Wait -PassThru
     $exitCode = $process.ExitCode
     $testOutput = @(Get-Content -LiteralPath $stdoutPath -Encoding UTF8) + @(Get-Content -LiteralPath $stderrPath -Encoding UTF8)
 } finally {

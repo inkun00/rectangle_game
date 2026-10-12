@@ -59,12 +59,12 @@ def create_triangle_art_icon(size=256):
 if __name__ == "__main__":
     os.makedirs("assets/icons", exist_ok=True)
     icon_256 = create_triangle_art_icon(256)
-    icon_256.save("assets/icons/icon.png")
-    icon_256.save("icon.png")
+    icon_256.save("assets/icons/icon.png", optimize=True, compress_level=9)
 
     # Also save direct icons in build/web
     os.makedirs("build/web", exist_ok=True)
-    icon_256.save("build/web/index.png")
-    icon_256.save("build/web/index.icon.png")
-    icon_256.save("build/web/index.apple-touch-icon.png")
+    icon_256.save("build/web/index.icon.png", optimize=True, compress_level=9)
+    icon_256.resize((180, 180), Image.Resampling.LANCZOS).save(
+        "build/web/index.apple-touch-icon.png", optimize=True, compress_level=9
+    )
     print("Triangle Art icons generated successfully!")

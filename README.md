@@ -56,7 +56,9 @@ powershell -File tools/run_tests.ps1
 ```
 
 ### 빌드 및 배포
-웹 빌드에는 Python과 `fontTools`가 필요합니다. 폰트 원본은 `tools/font_sources/korean_font_full.ttf.bin`에 보관되며, 빌드할 때 화면 문구에 필요한 글자만 추려 웹 패키지에 넣습니다.
+빌드에는 Godot 4, Python과 `fontTools`가 필요합니다. 전체 폰트 원본은 `tools/font_sources/korean_font_full.ttf.xz`에 무손실 압축으로 보관됩니다. 빌드 시 원본을 메모리에서 복원하고 화면 문구에 필요한 글자만 추려 웹과 Windows 패키지에 넣습니다.
+
+Godot은 `PATH`, WinGet 설치 위치 또는 CreatorTemp에서 자동으로 찾습니다. 다른 위치에 설치했다면 `GODOT_EXE` 환경 변수나 각 스크립트의 `-GodotExe` 옵션으로 실행 파일을 지정할 수 있습니다. Python도 `-PythonExe` 옵션으로 지정할 수 있습니다.
 
 ```powershell
 python -m pip install -r tools/requirements-font.txt
@@ -64,11 +66,27 @@ python -m pip install -r tools/requirements-font.txt
 # 웹 빌드 내보내기
 powershell -File tools/export_web.ps1
 
-# 윈도우 독립형 패키지 내보내기
+# 설치된 Godot으로 실행하는 가벼운 윈도우 패키지 내보내기
 powershell -File tools/export_desktop.ps1
 ```
 
-웹 내보내기는 Godot 리소스를 다시 가져온 뒤 파일 내용에 따라 WASM·PCK·스크립트의 이름을 정합니다. `vercel.json`은 이 파일들에 장기 캐시를 적용합니다. 새 빌드를 배포할 때는 `build/web/index.html`과 이름이 바뀐 파일들을 함께 배포해야 합니다.
+웹 내보내기는 Godot 리소스를 다시 가져온 뒤 파일 내용에 따라 WASM·PCK·스크립트의 이름을 정합니다. WASM과 PCK는 gzip 압축 파일로 저장하며, 브라우저에서 원래 바이트로 복원하여 실행합니다. 최신 브라우저의 기본 압축 해제 기능을 우선 사용하고, 지원하지 않으면 동봉된 pako 2.2.0을 사용합니다. 일반 정적 서버에서도 실행되며, 별도의 `Content-Encoding` 설정은 필요하지 않습니다. 손상된 파일은 오류 안내로 연결되며, 배포 폴더에는 호환용 코드의 라이선스도 함께 포함됩니다.
+
+`vercel.json`은 내용에 따라 이름이 바뀌는 파일들에 장기 캐시를 적용합니다. 새 빌드를 배포할 때는 `build/web` 폴더 전체를 함께 배포해야 합니다. 로컬에서는 `python tools/serve_web.py`를 실행하고 `http://localhost:8080`에 접속합니다.
+
+Windows 패키지는 `build/windows/Run_TriangleArt.bat`으로 실행합니다. 동일한 Godot 설치를 공유하여 게임마다 큰 엔진 실행 파일을 복사하지 않으므로, 실행할 PC에도 Godot 4가 설치되어 있어야 합니다. 패키지에서 테스트·빌드 산출물·개발 도구를 제외하고, 아이콘은 픽셀과 해상도를 유지하면서 무손실 압축합니다.
+
+### 용량 최적화 결과
+
+소스와 배포 파일 합계는 약 **64.4 MB → 18.3 MB (71.5% 감소)**입니다. Git 이력과 다시 생성되는 Godot 캐시는 이 수치에서 제외합니다.
+
+| 주요 파일 | 기존 용량 | 최적화 후 |
+| --- | ---: | ---: |
+| 웹 엔진 WASM | 39,513,091 B | 10,054,758 B |
+| 전체 폰트 원본 | 13,459,196 B | 5,972,552 B |
+| Windows PCK | 9,403,432 B | 538,856 B |
+
+게임 기능 테스트 1,662개와 웹 빌드 도구 테스트 6개를 통과했습니다. 실제 브라우저에서 기본·호환 압축 해제, 삼각형 추가, 프로젝트 저장, PNG 내보내기와 손상 파일 오류 안내를 확인했습니다.
 
 ---
 

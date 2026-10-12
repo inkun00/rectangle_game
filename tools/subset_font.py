@@ -1,5 +1,7 @@
-"""Build the bundled UI font from the characters used by the game."""
+"""Build the bundled UI font from its losslessly compressed complete source."""
 
+from io import BytesIO
+import lzma
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -8,7 +10,7 @@ from fontTools.ttLib import TTFont
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "tools/font_sources/korean_font_full.ttf.bin"
+SOURCE = ROOT / "tools/font_sources/korean_font_full.ttf.xz"
 OUTPUT = ROOT / "assets/fonts/korean_font.ttf"
 TEXT_SUFFIXES = {".gd", ".tscn", ".tres", ".html"}
 TEXT_ROOTS = (ROOT / "scenes", ROOT / "scripts", ROOT / "assets/theme", ROOT / "web")
@@ -28,7 +30,8 @@ def required_codepoints() -> set[int]:
 
 
 def main() -> None:
-    source = TTFont(SOURCE)
+    source_bytes = lzma.decompress(SOURCE.read_bytes())
+    source = TTFont(BytesIO(source_bytes))
     supported = set(source.getBestCmap())
     wanted = required_codepoints() & supported
     options = subset.Options()
@@ -48,7 +51,11 @@ def main() -> None:
         temporary_path.replace(OUTPUT)
     finally:
         temporary_path.unlink(missing_ok=True)
-    print(f"UI font: {SOURCE.stat().st_size:,} -> {OUTPUT.stat().st_size:,} bytes ({len(wanted)} characters)")
+    source.close()
+    print(
+        f"UI font: {len(source_bytes):,} -> {OUTPUT.stat().st_size:,} bytes "
+        f"({len(wanted)} characters; complete source stored in {SOURCE.stat().st_size:,} bytes)"
+    )
 
 
 if __name__ == "__main__":
