@@ -21,3 +21,4 @@ decoded_conversation.json
 dict_messages.json
 
 .vercel
+.env*

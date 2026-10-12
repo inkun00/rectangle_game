@@ -1,0 +1,6 @@
+# The Godot web export is ready to serve; upload only the site and its config.
+/*
+!/build/
+!/vercel.json
+/build/*
+!/build/web/
