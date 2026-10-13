@@ -1,4 +1,4 @@
-# Export Triangle Art to Web (HTML5/WASM)
+# Export Quadrilateral World to Web (HTML5/WASM)
 param(
     [string]$GodotExe,
     [string]$PythonExe = "python"
@@ -24,7 +24,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "Exporting Triangle Art for Web (Release)..." -ForegroundColor Cyan
+Write-Host "Exporting Quadrilateral World for Web (Release)..." -ForegroundColor Cyan
 & $GodotExe --headless --path . --export-release "Web" "build/web/index.html"
 $exitCode = $LASTEXITCODE
 

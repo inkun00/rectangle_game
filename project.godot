@@ -6,13 +6,13 @@ config_version=5
 
 [application]
 
-config/name="Triangle Art"
-config/description="삼각형으로 만드는 그림 - Triangle Art"
-config/icon="res://assets/icons/icon.png"
+config/name="Quadrilateral World"
+config/description="다섯 가지 사각형으로 만든 나만의 친구와 떠나는 수학 모험"
+config/icon="res://assets/icons/world_icon.svg"
 run/main_scene="res://scenes/main/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/show_image=false
-boot_splash/bg_color=Color(0.024, 0.035, 0.067, 1)
+boot_splash/bg_color=Color(0.973, 0.98, 0.965, 1)
 boot_splash/fullsize=false
 boot_splash/use_filter=false
 
@@ -31,7 +31,6 @@ renderer/rendering_method.web="gl_compatibility"
 
 [gui]
 
-theme/custom="res://assets/theme/app_theme.tres"
 theme/custom_font="res://assets/fonts/korean_font.ttf"
 
 [input_devices]

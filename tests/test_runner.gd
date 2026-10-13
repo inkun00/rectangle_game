@@ -1,138 +1,70 @@
 extends Node
 
-## Headless Test Runner for Triangle Art
-
-const TestTriangleMath = preload("res://tests/test_triangle_math.gd")
-const TestCommandManager = preload("res://tests/test_command_manager.gd")
-const TestTriangleNode = preload("res://tests/test_triangle_node.gd")
-const TestPngExport = preload("res://tests/test_png_export.gd")
-const TestSoundManager = preload("res://tests/test_sound_manager.gd")
-const TestPuzzleEvaluator = preload("res://tests/test_puzzle_evaluator.gd")
-const TestTriangleTemplates = preload("res://tests/test_triangle_templates.gd")
-const TestGroupOperations = preload("res://tests/test_group_operations.gd")
-const TestResponsiveUI = preload("res://tests/test_responsive_ui.gd")
-
-
+const TestGeometry = preload("res://tests/test_quadrilateral_math.gd")
+const TestDocument = preload("res://tests/test_character_document.gd")
+const TestJournal = preload("res://tests/test_quest_journal.gd")
+const TestWorld = preload("res://tests/test_world_game.gd")
+const TestApp = preload("res://tests/test_app_integration.gd")
+const TestSound = preload("res://tests/test_sound_manager.gd")
+const TestSave = preload("res://tests/test_save_store.gd")
+const TestAdventure = preload("res://tests/test_adventure_state.gd")
+const TestCombat = preload("res://tests/test_world_player_combat.gd")
+const TestRpg = preload("res://tests/test_rpg_integration.gd")
 var passed_count: int = 0
 var failed_count: int = 0
 var test_failures: Array[String] = []
 
 func _ready() -> void:
-	print("==================================================")
-	print("  Starting Triangle Art Headless Test Suite")
-	print("==================================================")
+	print("Starting Quadrilateral World Headless Test Suite")
+	print("[Suite] Quadrilateral geometry and classification")
+	TestGeometry.run(self)
+	print("[Suite] Drawing, templates, constrained gestures and undo")
+	TestDocument.run(self)
+	print("[Suite] Curriculum, quests, inventory and save validation")
+	TestJournal.run(self)
+	print("[Suite] Save schema and corrupt file handling")
+	TestSave.run(self)
+	print("[Suite] RPG progression, inventory and side-profile combat")
+	TestAdventure.run(self)
+	await TestCombat.run(self)
+	print("[Suite] World, pickups, physics and navigation")
+	await TestWorld.run(self)
+	print("[Suite] App integration, save/load and workshop-world round trip")
+	await TestApp.run(self)
+	await TestRpg.run(self)
+	print("[Suite] Sound synthesis")
+	TestSound.run(self)
+	await get_tree().process_frame
+	print("Test Results: %d Passed, %d Failed" % [passed_count, failed_count])
+	for failure: String in test_failures: print("FAIL: " + failure)
+	get_tree().quit(0 if failed_count == 0 else 1)
 
-	# 1. Triangle Math Tests
-	print("\n[Suite] Testing TriangleMath...")
-	TestTriangleMath.run(self)
-
-	# 2. Command Manager Tests
-	print("[Suite] Testing CommandManager...")
-	TestCommandManager.run(self)
-
-	# 3. Triangle Node Tests
-	print("[Suite] Testing TriangleNode...")
-	TestTriangleNode.run(self)
-
-	# 4. Sound Manager Tests
-	print("[Suite] Testing SoundManager...")
-	TestSoundManager.run(self)
-
-	# 5. Puzzle Evaluator Tests
-	print("[Suite] Testing PuzzleEvaluator...")
-	TestPuzzleEvaluator.run(self)
-
-	# 6. Triangle Templates Tests
-	print("[Suite] Testing TriangleTemplates...")
-	TestTriangleTemplates.run(self)
-
-	# 7. Group Operations & Lightness Tests
-	print("[Suite] Testing GroupOperations...")
-	TestGroupOperations.run(self)
-
-	# 8. PNG Export Tests
-	print("[Suite] Testing PngExport...")
-	await TestPngExport.run(self)
-
-	# 9. Responsive UI Tests
-	print("[Suite] Testing ResponsiveUI...")
-	TestResponsiveUI.run(self)
-
-
-	# Summary
-	print("\n==================================================")
-	print("  Test Results: %d Passed, %d Failed" % [passed_count, failed_count])
-	print("==================================================")
-
-	if failed_count > 0:
-		print("\nFailures:")
-		for f in test_failures:
-			print("  ❌ " + f)
-		get_tree().quit(1)
-	else:
-		print("  ✅ All tests passed successfully!")
-		get_tree().quit(0)
-
-func assert_true(cond: bool, msg: String = "") -> void:
-	if cond:
-		passed_count += 1
+func assert_true(condition: bool, message: String = "") -> void:
+	if condition: passed_count += 1
 	else:
 		failed_count += 1
-		test_failures.append("Assert True failed: " + msg)
+		test_failures.append(message)
 
-func assert_false(cond: bool, msg: String = "") -> void:
-	if not cond:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert False failed: " + msg)
+func assert_false(condition: bool, message: String = "") -> void:
+	assert_true(not condition, message)
 
-func assert_eq(actual: Variant, expected: Variant, msg: String = "") -> void:
-	if actual == expected:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert Equal failed: %s (Expected: %s, Got: %s)" % [msg, str(expected), str(actual)])
+func assert_eq(actual: Variant, expected: Variant, message: String = "") -> void:
+	assert_true(actual == expected, "%s (expected %s, got %s)" % [message, str(expected), str(actual)])
 
-func assert_float_approx(actual: float, expected: float, eps: float = 0.001, msg: String = "") -> void:
-	if absf(actual - expected) <= eps:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert Approx failed: %s (Expected: %f, Got: %f)" % [msg, expected, actual])
+func assert_float_approx(actual: float, expected: float, epsilon: float = 0.001, message: String = "") -> void:
+	assert_true(absf(actual - expected) <= epsilon, "%s (expected %s, got %s)" % [message, expected, actual])
 
-func assert_not_null(val: Variant, msg: String = "") -> void:
-	if val != null:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert Not Null failed: " + msg)
+func assert_not_null(value: Variant, message: String = "") -> void:
+	assert_true(value != null, message)
 
-func assert_gt(actual: Variant, expected: Variant, msg: String = "") -> void:
-	if actual > expected:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert Greater Than failed: %s (Got: %s, Threshold: %s)" % [msg, str(actual), str(expected)])
+func assert_gt(actual: Variant, expected: Variant, message: String = "") -> void:
+	assert_true(actual > expected, message)
 
-func assert_ge(actual: Variant, expected: Variant, msg: String = "") -> void:
-	if actual >= expected:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert Greater Equal failed: %s (Got: %s, Threshold: %s)" % [msg, str(actual), str(expected)])
+func assert_ge(actual: Variant, expected: Variant, message: String = "") -> void:
+	assert_true(actual >= expected, message)
 
-func assert_lt(actual: Variant, expected: Variant, msg: String = "") -> void:
-	if actual < expected:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert Less Than failed: %s (Got: %s, Threshold: %s)" % [msg, str(actual), str(expected)])
+func assert_lt(actual: Variant, expected: Variant, message: String = "") -> void:
+	assert_true(actual < expected, message)
 
-func assert_le(actual: Variant, expected: Variant, msg: String = "") -> void:
-	if actual <= expected:
-		passed_count += 1
-	else:
-		failed_count += 1
-		test_failures.append("Assert Less Equal failed: %s (Got: %s, Threshold: %s)" % [msg, str(actual), str(expected)])
-
+func assert_le(actual: Variant, expected: Variant, message: String = "") -> void:
+	assert_true(actual <= expected, message)

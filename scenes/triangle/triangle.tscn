@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://scenes/triangle/triangle_node.gd" id="1_triangle"]
-
-[node name="Triangle" type="Node2D"]
-script = ExtResource("1_triangle")

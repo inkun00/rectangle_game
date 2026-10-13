@@ -1,7 +1,7 @@
 class_name SoundManager
 extends Node
 
-## Procedural Sound Effects Engine for Triangle Art.
+## Procedural sound effects shared by the workshop and Quadrilateral World.
 ## Synthesizes clean, high-fidelity 16-bit PCM waveforms directly in memory.
 ## Zero external file dependencies - works identically on Desktop and Web!
 

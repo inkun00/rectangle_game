@@ -215,6 +215,8 @@ def prepare(directory: Path) -> tuple[str, str]:
     # License text accompanies the fallback decoder in the deployed engine JS.
     shutil.copyfile(WEB / "vendor/PAKO-LICENSE.txt", directory / "PAKO-LICENSE.txt")
     shutil.copyfile(WEB / "vendor/ZLIB-LICENSE.txt", directory / "ZLIB-LICENSE.txt")
+    for license_path in (ROOT / "licenses").glob("*.txt"):
+        shutil.copyfile(license_path, directory / license_path.name)
     html_path.write_text(html, encoding="utf-8")
     for imported in directory.glob("*.png.import"):
         imported.unlink()

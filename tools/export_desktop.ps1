@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $GodotExe = Resolve-GodotExecutable -GodotExe $GodotExe
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $BuildDir = Join-Path $ProjectRoot "build\windows"
-$PackPath = Join-Path $BuildDir "TriangleArt.pck"
+$PackPath = Join-Path $BuildDir "QuadrilateralWorld.pck"
 
 Push-Location $ProjectRoot
 try {
@@ -25,7 +25,7 @@ try {
         throw "Godot resource import failed."
     }
 
-    Write-Host "Exporting Triangle Art Windows PCK package..." -ForegroundColor Cyan
+    Write-Host "Exporting Quadrilateral World Windows PCK package..." -ForegroundColor Cyan
     & $GodotExe --headless --path $ProjectRoot --export-pack "Windows Desktop" $PackPath
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $PackPath)) {
         throw "Windows Desktop export failed with code $LASTEXITCODE."
@@ -35,15 +35,17 @@ try {
     $LauncherContent = @'
 @echo off
 setlocal
-set "TRIANGLE_ART_PROJECT_DIR=%~dp0..\.."
-set "TRIANGLE_ART_PACK=%~dp0TriangleArt.pck"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; . (Join-Path $env:TRIANGLE_ART_PROJECT_DIR 'tools\godot_common.ps1'); $engine=Resolve-GodotExecutable; & $engine --main-pack $env:TRIANGLE_ART_PACK; exit $LASTEXITCODE"
+set "QUADRILATERAL_WORLD_PROJECT_DIR=%~dp0"
+set "QUADRILATERAL_WORLD_PACK=%~dp0QuadrilateralWorld.pck"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; . (Join-Path $env:QUADRILATERAL_WORLD_PROJECT_DIR 'godot_common.ps1'); $engine=Resolve-GodotExecutable; & $engine --main-pack $env:QUADRILATERAL_WORLD_PACK; exit $LASTEXITCODE"
 exit /b %ERRORLEVEL%
 '@
-    Set-Content -LiteralPath (Join-Path $BuildDir "Run_TriangleArt.bat") -Value $LauncherContent -Encoding ASCII
+    Set-Content -LiteralPath (Join-Path $BuildDir "Run_QuadrilateralWorld.bat") -Value $LauncherContent -Encoding ASCII
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot "godot_common.ps1") -Destination (Join-Path $BuildDir "godot_common.ps1")
+    Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "licenses") -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $BuildDir $_.Name) }
 
     Write-Host "Windows package prepared in: $BuildDir" -ForegroundColor Green
-    Write-Host "Run Run_TriangleArt.bat with Godot 4 installed."
+    Write-Host "Run Run_QuadrilateralWorld.bat with Godot 4 installed."
 } finally {
     Pop-Location
 }

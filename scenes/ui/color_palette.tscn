@@ -1,6 +1,0 @@
-[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://scenes/ui/color_palette.gd" id="1_palette"]
-
-[node name="ColorPalette" type="HBoxContainer"]
-script = ExtResource("1_palette")

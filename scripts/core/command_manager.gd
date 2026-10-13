@@ -1,85 +1,69 @@
 class_name CommandManager
 extends RefCounted
 
-## Undo/Redo command manager for Triangle Art actions.
-
-const TriangleNode = preload("res://scenes/triangle/triangle_node.gd")
-
+## Commands carry values rather than scene nodes. Weak targets avoid reference cycles.
 signal state_changed
 
-var undo_stack: Array[Variant] = []
-var redo_stack: Array[Variant] = []
-var max_history: int = 60
-var _tracked_triangles: Dictionary = {}
+var undo_stack: Array[RefCounted] = []
+var redo_stack: Array[RefCounted] = []
+var max_history: int = 80
+
+class SnapshotCommand extends RefCounted:
+	var target: WeakRef
+	var method: StringName
+	var before: Dictionary
+	var after: Dictionary
+
+	func _init(object: Object, apply_method: StringName, old_state: Dictionary, new_state: Dictionary) -> void:
+		target = weakref(object)
+		method = apply_method
+		before = old_state.duplicate(true)
+		after = new_state.duplicate(true)
+
+	func execute() -> void:
+		var object: Object = target.get_ref()
+		if is_instance_valid(object):
+			object.call(method, after.duplicate(true))
+
+	func undo() -> void:
+		var object: Object = target.get_ref()
+		if is_instance_valid(object):
+			object.call(method, before.duplicate(true))
 
 func can_undo() -> bool:
-	return undo_stack.size() > 0
+	return not undo_stack.is_empty()
 
 func can_redo() -> bool:
-	return redo_stack.size() > 0
+	return not redo_stack.is_empty()
 
-func push_and_execute(command: Variant) -> void:
-	command.execute()
-	_remember_command_nodes(command)
+func push_snapshot(object: Object, method: StringName, before: Dictionary, after: Dictionary) -> void:
+	push_and_execute(SnapshotCommand.new(object, method, before, after))
+
+func push_and_execute(command: RefCounted) -> void:
+	command.call("execute")
 	undo_stack.append(command)
 	if undo_stack.size() > max_history:
 		undo_stack.pop_front()
 	redo_stack.clear()
-	_cleanup_detached_triangles()
 	state_changed.emit()
 
 func undo() -> void:
 	if undo_stack.is_empty():
 		return
-	var cmd: Variant = undo_stack.pop_back()
-	cmd.undo()
-	redo_stack.append(cmd)
+	var command: RefCounted = undo_stack.pop_back()
+	command.call("undo")
+	redo_stack.append(command)
 	state_changed.emit()
 
 func redo() -> void:
 	if redo_stack.is_empty():
 		return
-	var cmd: Variant = redo_stack.pop_back()
-	cmd.execute()
-	undo_stack.append(cmd)
+	var command: RefCounted = redo_stack.pop_back()
+	command.call("execute")
+	undo_stack.append(command)
 	state_changed.emit()
 
 func clear() -> void:
 	undo_stack.clear()
 	redo_stack.clear()
-	_cleanup_detached_triangles()
 	state_changed.emit()
-
-func _remember_command_nodes(command: Variant) -> void:
-	for property in command.get_property_list():
-		if (int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
-			_collect_triangles(command.get(property["name"]), _tracked_triangles)
-
-func _collect_triangles(value: Variant, result: Dictionary) -> void:
-	if value is TriangleNode:
-		if is_instance_valid(value):
-			result[value] = true
-	elif value is Array:
-		for item in value:
-			_collect_triangles(item, result)
-	elif value is Dictionary:
-		for key in value:
-			_collect_triangles(key, result)
-			_collect_triangles(value[key], result)
-
-func _cleanup_detached_triangles() -> void:
-	var referenced: Dictionary = {}
-	for command in undo_stack:
-		for property in command.get_property_list():
-			if (int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
-				_collect_triangles(command.get(property["name"]), referenced)
-	for command in redo_stack:
-		for property in command.get_property_list():
-			if (int(property["usage"]) & PROPERTY_USAGE_SCRIPT_VARIABLE) != 0:
-				_collect_triangles(command.get(property["name"]), referenced)
-	for triangle in _tracked_triangles.keys():
-		if not is_instance_valid(triangle):
-			_tracked_triangles.erase(triangle)
-		elif triangle.get_parent() == null and not referenced.has(triangle):
-			triangle.free()
-			_tracked_triangles.erase(triangle)

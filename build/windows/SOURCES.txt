@@ -1,0 +1,37 @@
+Quadrilateral World - art provenance and third-party sources
+
+Active game artwork
+assets/generated contains nine images generated specifically for this project
+with the built-in ImageGen tool on 2026-10-13. Backgrounds, scenery, NPCs,
+monsters, items, effects and UI textures use these images. The player character
+is rendered from the user's quadrilateral drawing. Generation prompts and
+atlas layouts: assets/generated/GENERATION.md and EXPANSION-GENERATION.md.
+Notice: GENERATED-ART.txt.
+
+RPG references
+https://github.com/gdquest-demos/godot-open-rpg (MIT)
+https://github.com/nathanhoad/godot_dialogue_manager (MIT)
+https://github.com/matula/example-godot-rpg (reference only; no standard LICENSE)
+These repositories were reviewed for architecture and gameplay conventions.
+No source code or assets from them are redistributed. See docs/RPG_REFERENCES.md
+for the inspected source paths, licensing details and implementation decisions.
+
+Kenney Background Elements (CC0)
+https://kenney.nl/assets/background-elements
+Downloaded 2026-10-13. Legacy PNG decorations retained in assets/kenney.
+They are no longer used by the game and are excluded from current exports.
+License text: KENNEY-CC0.txt.
+
+Godot official 2D Platformer demo (MIT)
+https://github.com/godotengine/godot-demo-projects/tree/master/2d/platformer
+Movement reference reviewed 2026-10-13:
+https://raw.githubusercontent.com/godotengine/godot-demo-projects/master/2d/platformer/player/player.gd
+CharacterBody2D movement conventions informed the original world controller.
+No demo music or character sprites are redistributed. License: GODOT-DEMO-MIT.txt.
+
+Godot Engine
+https://godotengine.org/license/
+Godot runtime's compiled third-party notices are bundled by its export templates.
+
+The Web build also includes pako's MIT and zlib license texts for its gzip fallback.
+No MapleStory artwork, maps, characters, music, or source code is included.
