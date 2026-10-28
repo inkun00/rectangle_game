@@ -42,6 +42,13 @@ func select_kind(kind: String) -> void:
 	selected_kind = kind
 	queue_redraw()
 
+func cancel_gesture() -> void:
+	_dragging = false
+	_creating = false
+	_hover_slot = ""
+	release_focus()
+	queue_redraw()
+
 func set_paint_color(color: Color) -> void:
 	paint_color = color
 	queue_redraw()
@@ -186,7 +193,7 @@ func _snap_slot(point: Vector2, kind: String) -> String:
 	return closest
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color("eff5f4"))
+	draw_texture_rect(GameArt.drafting_paper(), Rect2(Vector2.ZERO, size), false)
 	if document == null or _font == null:
 		return
 	var origin: Vector2 = canvas_origin()
@@ -196,10 +203,6 @@ func _draw() -> void:
 		for y: int in range(int(size.y / spacing) + 2):
 			var dot: Vector2 = Vector2(fmod(origin.x, spacing) + x * spacing, fmod(origin.y, spacing) + y * spacing)
 			draw_circle(dot, 1.0, Color("d5e1df"))
-	# A quiet stage grounds the ghost skeleton without adding authored geometry.
-	draw_set_transform(origin + Vector2(0, 171) * scale, 0, Vector2(1.0, 0.12))
-	draw_circle(Vector2.ZERO, 105.0 * scale, Color(0.16, 0.29, 0.31, 0.065))
-	draw_set_transform(Vector2.ZERO)
 	var template: Dictionary = Templates.get_template(document.template_id)
 	for slot: Dictionary in template.parts:
 		_draw_slot(slot, scale)
@@ -241,10 +244,6 @@ func _draw_slot(slot: Dictionary, scale: float) -> void:
 
 func _draw_shape(shape: Dictionary, position: Vector2, _scale: float) -> void:
 	var points: PackedVector2Array = _screen_polygon(shape.vertices, position)
-	var shadow: PackedVector2Array = PackedVector2Array()
-	for point: Vector2 in points:
-		shadow.append(point + Vector2(0, 4))
-	draw_colored_polygon(shadow, Color(0.10, 0.20, 0.25, 0.11))
 	draw_colored_polygon(points, shape.color)
 	_draw_outline(points, Color(0.13, 0.22, 0.29, 0.28), 1.25, false)
 	if int(shape.id) == document.selected_id:
@@ -293,8 +292,7 @@ static func _default_dimensions(kind: String) -> Vector2:
 		return Vector2(88, 64)
 	return Vector2(70, 70)
 
-static func _bubble_style() -> StyleBoxFlat:
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color("ffffffcc")
-	style.set_corner_radius_all(10)
+static func _bubble_style() -> StyleBoxTexture:
+	var style: StyleBoxTexture = GameArt.panel(0, 0)
+	style.modulate_color.a = 0.8
 	return style

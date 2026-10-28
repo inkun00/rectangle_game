@@ -1,6 +1,10 @@
 # ImageGen 에셋 생성 기록
 
+2026-10-29 초등학생용 건축게임 UI를 위해 새로 생성한 패널·버튼·아이콘·재료·의뢰인·5단계 배지 14종은 [건축게임 제작 기록](construction-game/GENERATION.md)과 해당 폴더의 `prompts.json`에 정리했습니다. [공식 게임 참고 조사](../../docs/CONSTRUCTION_GAME_REFERENCES.md)를 바탕으로 제작했습니다.
+
 생성 방식: 내장 `image_gen` 도구. 외부 CLI/API 키는 사용하지 않았습니다.
+
+2026-10-28 건축·메인·그림/공방 종이·앱 아이콘에 추가한 8개 생성 PNG와 프롬프트는 [이미지 교체 기록](revision/GENERATION.md)에 있습니다. 코드로 그리던 삽화·질감·아이콘과 Kenney 의뢰인 이미지를 대체하며, 자재 40종을 위한 추가 재질 시트를 포함합니다.
 
 추가한 항구·설원·성곽 이미지 4장과 프롬프트는 [확장 지역 제작 기록](EXPANSION-GENERATION.md)에 있습니다.
 
@@ -51,3 +55,6 @@ Correct this transparent4columns2rows8NPC game atlas while preserving the exact 
 ## 배치 기록
 
 환경 아틀라스는 생성 결과를 검토해 행 경계를 0/397/749/1086으로 지정했습니다. 원본을 다시 그리거나 픽셀을 합성하지 않았습니다. 게임의 바닥과 발판은 해당 그림의 영역과 실제 충돌 위치를 맞췄습니다. 모든 생성 이미지의 사각형 요소를 검토했고, 뾰족한 지붕·둥근 빵·둥근 입은 추가 생성 편집으로 교정했습니다.
+# Drawing studio scenes and masterpiece guides
+
+The 30 new drawing backgrounds and 10 original geometric masterpiece studies are documented in [drawing/GENERATION.md](drawing/GENERATION.md), including image prompts and historical metadata sources.

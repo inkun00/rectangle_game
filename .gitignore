@@ -22,3 +22,7 @@ dict_messages.json
 
 .vercel
 .env*
+
+# Local chat attachments and browser automation snapshots
+.codex-attachments/
+.playwright-mcp/
