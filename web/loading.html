@@ -35,8 +35,8 @@ kbd{font:inherit;font-size:13px}
 .help{margin:16px 0 0;color:var(--muted);font-size:13px;line-height:1.6;word-break:keep-all}
 #error-box{margin:0 0 24px;padding:18px;border-left:3px solid var(--error);background:#fbf0ec}
 #error-msg{margin:0 0 16px;color:var(--error);font-size:15px;font-weight:700;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere}
-button{min-height:48px;border:2px solid var(--forest);border-radius:8px;padding:12px 20px;background:var(--forest);color:var(--paper);font:inherit;font-size:15px;font-weight:700;cursor:pointer;touch-action:manipulation;transition:background-color .12s,border-color .12s}
-button:hover{background:#0e5042;border-color:#0e5042}button:active{background:#093e33;border-color:#093e33}
+button{min-height:48px;border:9px solid transparent;border-image:url("button-primary.png") 9 fill / 9px / 0 stretch;padding:4px 18px;background:var(--forest);background-clip:padding-box;color:var(--paper);font:inherit;font-size:18px;font-weight:700;cursor:pointer;touch-action:manipulation}
+button:hover{filter:brightness(1.08)}button:active{filter:brightness(.88)}
 button:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
 details{margin-top:16px;color:var(--muted);font-size:13px;line-height:1.6}summary{width:fit-content;min-height:28px;cursor:pointer}summary:hover{color:var(--ink)}
 #error-details{margin:10px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit}

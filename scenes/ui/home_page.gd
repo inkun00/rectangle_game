@@ -121,17 +121,13 @@ func _button(text: String, action: Callable, primary: bool) -> Button:
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_override("font", QuadTheme.FONT)
 	button.add_theme_font_size_override("font_size", 18)
-	for state: String in ["normal", "hover", "pressed", "disabled"]:
+	for state: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		button.add_theme_stylebox_override(state, Art.button_style(primary, state, 12))
 	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		button.add_theme_color_override(state, Color.WHITE if primary else Art.INK)
-	var focus: StyleBoxFlat = StyleBoxFlat.new()
-	focus.bg_color = Color.TRANSPARENT
-	focus.border_color = Art.ACCENT
-	focus.set_border_width_all(3)
-	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		focus.set_expand_margin(edge, 3)
-	button.add_theme_stylebox_override("focus", focus)
+	button.add_theme_color_override("font_pressed_color", Color.WHITE)
+	button.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
+	button.add_theme_stylebox_override("focus", ButtonArt.focus_style())
 	button.pressed.connect(action)
 	return button
 

@@ -62,3 +62,7 @@ The 30 new drawing backgrounds and 10 original geometric masterpiece studies are
 # 메인·집 짓기 화면 정돈
 
 2026-10-29: 화면 전체로 늘린 장식 패널과 공사장 배경을 제거하고, ImageGen으로 만든 고해상도 저대비 표면을 적용했습니다. [최종 표면과 프롬프트](focused-ui/GENERATION.md), [게임 디자인 참고와 적용](../../docs/FOCUSED_GAME_DESIGN.md)을 확인하세요. 재료·주민·월드의 기존 생성 그림은 유지합니다.
+
+## 공통 버튼
+
+2026-10-29: 모든 게임 화면과 팝업에 적용하는 버튼·체크 표시 네 원본을 ImageGen으로 제작했습니다. [버튼 원본·적용 범위](buttons-v1/GENERATION.md), [전체 프롬프트](buttons-v1/prompts.json)를 보관합니다. 버튼의 한글과 동작은 UI에서 유지합니다.

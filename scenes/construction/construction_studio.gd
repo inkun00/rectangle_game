@@ -129,7 +129,7 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_override("font", QuadTheme.FONT)
 	button.add_theme_font_size_override("font_size", 16)
-	for mode: String in ["normal", "hover", "pressed", "disabled"]:
+	for mode: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		button.add_theme_stylebox_override(mode, Art.button_style(primary, mode, 10))
 	for mode: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		button.add_theme_color_override(mode, Color.WHITE if primary else INK)
@@ -146,11 +146,7 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 		for mode: String in ["icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color"]:
 			button.add_theme_color_override(mode, Color.WHITE)
 		button.add_theme_color_override("icon_disabled_color", Color("8c9891"))
-	var focus: StyleBoxFlat = StyleBoxFlat.new()
-	focus.bg_color = Color.TRANSPARENT
-	focus.border_color = BLUE
-	focus.set_border_width_all(3)
-	button.add_theme_stylebox_override("focus", focus)
+	button.add_theme_stylebox_override("focus", ButtonArt.focus_style())
 	if callback.is_valid(): button.pressed.connect(callback)
 	return button
 
@@ -181,13 +177,9 @@ func _picker(font_size: int = 13) -> OptionButton:
 	picker.get_popup().add_theme_stylebox_override("hover", Art.button_style(false, "hover", 10))
 	picker.get_popup().add_theme_color_override("font_color", INK)
 	picker.get_popup().add_theme_color_override("font_hover_color", INK)
-	for mode: String in ["normal", "hover", "pressed", "disabled"]:
+	for mode: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		picker.add_theme_stylebox_override(mode, Art.button_style(false, mode, 8))
-	var focus: StyleBoxFlat = StyleBoxFlat.new()
-	focus.bg_color = Color.TRANSPARENT
-	focus.border_color = BLUE
-	focus.set_border_width_all(3)
-	picker.add_theme_stylebox_override("focus", focus)
+	picker.add_theme_stylebox_override("focus", ButtonArt.focus_style())
 	return picker
 
 func _money_line(parent: VBoxContainer, title: String, amount: int, emphasis: bool = false, reading: bool = false) -> void:
@@ -389,8 +381,11 @@ func _build_ui() -> void:
 	_compact_edit.custom_minimum_size.y = 44
 	_compact_edit.add_theme_font_override("font", QuadTheme.FONT)
 	_compact_edit.add_theme_font_size_override("font_size", 14)
-	for mode: String in ["normal", "hover", "pressed", "disabled"]: _compact_edit.add_theme_stylebox_override(mode, Art.button_style(false, mode, 8))
+	for mode: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]: _compact_edit.add_theme_stylebox_override(mode, Art.button_style(false, mode, 8))
 	for mode: String in ["font_color", "font_hover_color", "font_pressed_color"]: _compact_edit.add_theme_color_override(mode, INK)
+	_compact_edit.add_theme_color_override("font_pressed_color", Color.WHITE)
+	_compact_edit.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
+	_compact_edit.add_theme_stylebox_override("focus", ButtonArt.focus_style())
 	for text: String in ["선택·이동", "되돌리기", "다시", "복제", "삭제", "회전", "기초 배치 도움", "비우기"]: _compact_edit.get_popup().add_item(text)
 	_compact_edit.get_popup().id_pressed.connect(_compact_edit_action)
 	view_bar.add_child(_compact_edit)
@@ -453,8 +448,11 @@ func _build_ui() -> void:
 	move.custom_minimum_size.y = 44
 	move.add_theme_font_override("font", QuadTheme.FONT)
 	move.add_theme_font_size_override("font_size", 14)
-	for mode: String in ["normal", "hover", "pressed", "disabled"]: move.add_theme_stylebox_override(mode, Art.button_style(false, mode, 8))
+	for mode: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]: move.add_theme_stylebox_override(mode, Art.button_style(false, mode, 8))
 	for mode: String in ["font_color", "font_hover_color", "font_pressed_color"]: move.add_theme_color_override(mode, INK)
+	move.add_theme_color_override("font_pressed_color", Color.WHITE)
+	move.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
+	move.add_theme_stylebox_override("focus", ButtonArt.focus_style())
 	for name: String in ["왼쪽", "오른쪽", "위", "아래"]: move.get_popup().add_item(name)
 	move.get_popup().id_pressed.connect(func(id: int):
 		var directions: Array[Vector2] = [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]

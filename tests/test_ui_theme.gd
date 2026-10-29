@@ -34,10 +34,7 @@ static func _test_button_states(t: Node) -> void:
 			t.assert_not_null(style, "Each button state uses the generated texture theme: " + state)
 			if style == null: continue
 			styles[state] = style
-			var atlas: AtlasTexture = style.texture as AtlasTexture
-			t.assert_not_null(atlas, "State texture comes from an atlas: " + state)
-			if atlas != null:
-				t.assert_true(atlas.atlas.resource_path.ends_with("assets/generated/ui_atlas.png"), "Button styling preserves generated artwork provenance")
+			t.assert_true(_generated_source(style.texture).contains("assets/generated/") and _generated_source(style.texture).contains("button"), "State texture retains its generated button artwork provenance: " + state)
 		for state: String in ["normal", "hover", "pressed"]:
 			var color_key: String = "font_color" if state == "normal" else "font_%s_color" % state
 			t.assert_ge(_minimum_contrast(button.get_theme_color(color_key), styles[state]), 4.5, "Button text is readable in interactive state: " + state)
@@ -54,7 +51,7 @@ static func _test_button_states(t: Node) -> void:
 		for side: int in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
 			t.assert_ge(focus.get_texture_margin(side), 3.0, "Focus indicator has a clearly visible frame")
 			t.assert_ge(focus.get_expand_margin(side), 3.0, "Focus indicator remains outside the label and artwork")
-		t.assert_ge(_minimum_contrast(_sample(focus, 0, 0), GameArt.panel(0)), 3.0, "Focus frame contrasts against surrounding paper")
+		t.assert_ge(_frame_contrast(focus), 3.0, "Focus frame contrasts against surrounding paper")
 		button.free()
 
 static func _test_keyboard_activation(t: Node) -> void:
@@ -88,12 +85,36 @@ static func _minimum_contrast(text_color: Color, style: StyleBoxTexture) -> floa
 	var image: Image = style.texture.get_image()
 	if image.is_compressed(): image.decompress()
 	var minimum: float = INF
-	# Sample the whole source, including texture variation near its edges.
-	for y: int in range(0, image.get_height(), 6):
-		for x: int in range(0, image.get_width(), 6):
+	# Button text sits on the central face. Its transparent outer corners and
+	# narrow decorative rim are not behind the label and use the surrounding UI.
+	var is_button: bool = _generated_source(style.texture).contains("button")
+	var first: Vector2i = Vector2i(floori(float(image.get_width()) * 0.3), floori(float(image.get_height()) * 0.3)) if is_button else Vector2i.ZERO
+	var last: Vector2i = Vector2i(ceili(float(image.get_width()) * 0.7), ceili(float(image.get_height()) * 0.7)) if is_button else image.get_size()
+	for y: int in range(first.y, last.y, 6):
+		for x: int in range(first.x, last.x, 6):
 			var background: Color = _compose(image.get_pixel(x, y), style.modulate_color)
 			minimum = minf(minimum, _contrast(text_color, background))
 	return minimum
+
+static func _generated_source(texture: Texture2D) -> String:
+	if texture is AtlasTexture:
+		return _generated_source((texture as AtlasTexture).atlas)
+	return str(texture.get_meta("generated_source", texture.resource_path))
+
+static func _frame_contrast(style: StyleBoxTexture) -> float:
+	var image: Image = style.texture.get_image()
+	if image.is_compressed(): image.decompress()
+	var contrast: float = 1.0
+	# The opaque parts of the generated frame must be visible over paper. PNG
+	# padding stays transparent and must not be mistaken for the actual frame.
+	for y: int in range(image.get_height()):
+		for x: int in range(image.get_width()):
+			var in_center: bool = float(x) >= style.get_texture_margin(SIDE_LEFT) and float(x) < float(image.get_width()) - style.get_texture_margin(SIDE_RIGHT) and float(y) >= style.get_texture_margin(SIDE_TOP) and float(y) < float(image.get_height()) - style.get_texture_margin(SIDE_BOTTOM)
+			if in_center: continue
+			var pixel: Color = image.get_pixel(x, y)
+			if pixel.a * style.modulate_color.a < 0.9: continue
+			contrast = maxf(contrast, _contrast(_compose(pixel, style.modulate_color), QuadTheme.PAPER))
+	return contrast
 
 static func _sample(style: StyleBoxTexture, x: int, y: int) -> Color:
 	var image: Image = style.texture.get_image()

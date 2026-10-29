@@ -1,0 +1,28 @@
+{
+  "tool": "built-in image_gen",
+  "transparent_background": true,
+  "assets": [
+    {
+      "file": "secondary.png",
+      "mode": "generate",
+      "prompt": "Use case: stylized-concept. Asset type: ONE high-resolution game UI button sprite with real transparency. Make a quiet handcrafted geometry-game SECONDARY BUTTON: a wide horizontal, perfectly rectangular ivory paper-board tile, straight 90-degree corners, width about six times its height, viewed exactly front-on, crisp silhouette. Very thin restrained sage-teal rim, subtle paper edge and shallow bottom layer to suggest a tactile block, almost imperceptible paper grain. Pale ivory center approximately #F5F5E8, uniformly flat and completely empty for live Korean text. Slightly darker thin lower edge only; no glossy highlights. Composition: landscape transparent canvas, the complete single button centered with generous transparent padding all around; NOT a full-page mockup or a sprite sheet. Friendly, careful handmade cut-paper illustration for an elementary geometry game, matching a calm off-white and forest-jade UI. Absolutely no text, letters, numbers, symbols, icons, gold, blue, scenery, objects, ornaments, rounded pill ends, triangular decorations, or busy texture. No shadow extending far outside. Source should be clean enough to scale as a nine-slice button; keep all interest at the narrow perimeter and leave the broad center flat."
+    },
+    {
+      "file": "primary.png",
+      "mode": "edit",
+      "input": "secondary.png",
+      "prompt": "Use case: style-transfer. Edit target: the supplied single transparent ivory game button. Create its matching PRIMARY ACTION variant. Preserve exactly the button's wide rectangular silhouette, thin rim, subtle shallow block edge, paper-board material, front-on orientation, dimensions, placement, transparent background and empty text area. Change only the face and rim palette to muted deep forest jade: broad empty face near #24594F, thin restrained lighter sage-teal top edge, dark jade narrow bottom edge. The face must be dark and uniformly quiet enough for readable white Korean text at small size, no pale spots in the central text area. Keep the handmade paper touch very subtle. No text, no icons, no ornaments, no gold, no blue, no glossy reflection, no additional objects. One button only, full transparency preserved around the complete asset."
+    },
+    {
+      "file": "check-off.png",
+      "mode": "generate",
+      "prompt": "Use case: stylized-concept. Asset type: ONE transparent game UI checkbox-off sprite. A small perfectly square ivory paper-board tile, viewed exactly front-on, straight 90-degree corners. Thin restrained sage-teal rim, quiet ivory center, subtle shallow bottom paper edge. Clean tactile handmade cut-paper geometry-game style, matching a calm off-white and forest-jade interface. No text, no symbol, no checkmark, no icon inside: EMPTY OFF state. Square asset centered on a square transparent canvas, occupying about70 percentwidthandheight, complete silhouette with transparentpadding. At small UI scale the frame must remain crisp and understated. Almost no grain, no gloss, no gold, no blue, no ornaments, no scenery, no other objects, no roundedpillshape, no large cast shadow. Actual transparent alpha all around."
+    },
+    {
+      "file": "check-on.png",
+      "mode": "edit",
+      "input": "check-off.png",
+      "prompt": "Use case: precise-object-edit. Edit the supplied single transparent checkbox sprite to create its matching ON state. Preserve the exact square outline, dimensions, thin rim, shallow edge, front-on placement, paper-board texture and transparent surroundings. Change the empty face to muted deep forest jade around #24594F. Add one large clean ivory checkmark in the center, made from two straight broad paper strips with crisp edges, easy to read at24pixels. No other symbol, no letters, no words, no numbers, no ornaments, no blue or gold, no glossy light. Keep the face dark enough for the ivory checkmark to stand out. One checkbox only, same composition, true alpha preserved."
+    }
+  ]
+}

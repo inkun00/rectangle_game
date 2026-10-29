@@ -100,6 +100,8 @@ func _ready() -> void:
 	_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ui.theme = Theme.new()
 	_ui.theme.default_font = QuadTheme.FONT
+	ButtonArt.install(_ui.theme)
+	get_window().theme = _ui.theme
 	_ui_layer.add_child(_ui)
 	_build_workshop()
 	_build_home()
@@ -272,7 +274,7 @@ func _build_workshop() -> void:
 		picker.add_theme_font_size_override("font_size", 18)
 		for state: String in ["normal", "hover", "pressed", "disabled", "focus"]:
 			picker.add_theme_stylebox_override(state, skin.get_theme_stylebox(state))
-		for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color", "font_focus_color"]:
+		for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_disabled_color", "font_focus_color"]:
 			picker.add_theme_color_override(color_name, skin.get_theme_color(color_name))
 		picker.get_popup().add_theme_font_override("font", QuadTheme.FONT)
 		picker.get_popup().add_theme_font_size_override("font_size", 18)
@@ -369,12 +371,12 @@ func _build_workshop() -> void:
 		var swatch: Button = QuadTheme.button("", func(): _choose_color(color))
 		swatch.tooltip_text = "칠할 색 #" + color.to_html(false).to_upper()
 		swatch.custom_minimum_size = Vector2(44, 44)
-		swatch.add_theme_stylebox_override("normal", QuadTheme.style(color, 12, color.darkened(0.15), 0))
-		swatch.add_theme_stylebox_override("hover", QuadTheme.style(color.lightened(0.12), 12, QuadTheme.INK, 0))
-		swatch.add_theme_stylebox_override("pressed", QuadTheme.style(color, 12, QuadTheme.INK, 0))
+		for state: String in ["normal", "hover", "pressed", "disabled"]:
+			swatch.add_theme_stylebox_override(state, ButtonArt.swatch(color, state))
 		colors.add_child(swatch)
 		_swatches.append(swatch)
 	var custom_color: ColorPickerButton = ColorPickerButton.new()
+	ButtonArt.apply(custom_color, false, 18)
 	custom_color.custom_minimum_size = Vector2(44, 44)
 	custom_color.color = QuadTheme.TEAL
 	custom_color.edit_alpha = false
@@ -585,13 +587,8 @@ func _rpg_bar(tint: Color, height: float) -> ProgressBar:
 
 func _rpg_button(text: String, callback: Callable, item_index: int = -1) -> Button:
 	var button: Button = QuadTheme.button(text, callback)
+	ButtonArt.apply(button, true, 18)
 	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_stylebox_override("normal", GameArt.panel(2, 12))
-	button.add_theme_stylebox_override("hover", GameArt.panel(1, 12))
-	button.add_theme_stylebox_override("pressed", GameArt.panel(1, 12))
-	button.add_theme_color_override("font_color", Color("f8eacb"))
-	button.add_theme_color_override("font_hover_color", Color("ffe2a0"))
-	button.add_theme_color_override("font_pressed_color", Color("ffe2a0"))
 	if item_index >= 0:
 		button.icon = GameArt.item(item_index)
 		button.set_meta("art_icon", button.icon)
@@ -629,7 +626,7 @@ func _select_kind(kind: String) -> void:
 	if _shape_note != null: _shape_note.text = String(SHAPE_NOTES.get(kind, ""))
 	for key: String in _shape_buttons:
 		var b: Button = _shape_buttons[key]
-		b.add_theme_stylebox_override("normal", QuadTheme.style(Color("dff2e9") if key == kind else Color.WHITE, 11, QuadTheme.TEAL if key == kind else QuadTheme.BORDER, 6))
+		ButtonArt.apply(b, key == kind, 18)
 
 func _choose_color(color: Color) -> void:
 	workshop.set_paint_color(color)
@@ -637,7 +634,9 @@ func _choose_color(color: Color) -> void:
 	for i: int in range(_swatches.size()):
 		var c: Color = QuadTheme.COLORS[i]
 		_swatches[i].text = "✓" if c.is_equal_approx(color) else ""
-		_swatches[i].add_theme_color_override("font_color", QuadTheme.INK if c.get_luminance() > 0.55 else Color.WHITE)
+		var ink: Color = QuadTheme.INK if c.get_luminance() > 0.55 else Color.WHITE
+		for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+			_swatches[i].add_theme_color_override(state, ink)
 
 func _choose_template(id: String) -> void:
 	document.set_template(id)
@@ -656,7 +655,7 @@ func _document_changed() -> void:
 	_redo_button.disabled = not document.can_redo()
 	for id: String in _template_buttons:
 		var b: Button = _template_buttons[id]
-		b.add_theme_stylebox_override("normal", QuadTheme.style(Color("dff2e9") if id == document.template_id else Color.WHITE, 11, QuadTheme.TEAL if id == document.template_id else QuadTheme.BORDER, 8))
+		ButtonArt.apply(b, id == document.template_id, 18)
 	var selected: Dictionary = document.get_selected()
 	if selected.is_empty():
 		_inspector.text = "도형을 누르면 변의 길이와 각을 살펴볼 수 있어요.\n\n돌리거나 크기를 바꿔도 선택한 사각형의 성질은 유지돼요."
@@ -1244,6 +1243,7 @@ func _export_png() -> void:
 		_show_toast("캐릭터 PNG를 내려받았어요.")
 	else:
 		var dialog: FileDialog = FileDialog.new()
+		dialog.theme = _ui.theme
 		dialog.access = FileDialog.ACCESS_FILESYSTEM
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 		dialog.filters = PackedStringArray(["*.png ; PNG 이미지"])

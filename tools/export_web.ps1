@@ -25,6 +25,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Exporting Quadrilateral World for Web (Release)..." -ForegroundColor Cyan
+& $GodotExe --headless --path . --script tools/export_button_web.gd
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Generated loading button export failed."
+    exit 1
+}
 & $GodotExe --headless --path . --export-release "Web" "build/web/index.html"
 $exitCode = $LASTEXITCODE
 

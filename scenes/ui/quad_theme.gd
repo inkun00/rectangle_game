@@ -57,36 +57,17 @@ static func button(text: String, callback: Callable, primary: bool = false) -> B
 	b.add_theme_color_override("font_pressed_color", Color.WHITE)
 	b.add_theme_color_override("font_focus_color", Color.WHITE if primary else INK)
 	b.add_theme_color_override("font_disabled_color", Color("536360"))
-	b.add_theme_stylebox_override("normal", _button_style(2 if primary else 0))
-	b.add_theme_stylebox_override("hover", _button_style(2 if primary else 3, Color(1.15, 1.15, 1.15) if primary else Color.WHITE))
-	b.add_theme_stylebox_override("pressed", _button_style(1 if primary else 2))
-	b.add_theme_stylebox_override("disabled", _button_style(0, Color("cdd5cf")))
-	b.add_theme_stylebox_override("focus", _focus_style())
+	ButtonArt.apply(b, primary, BUTTON_FONT_SIZE)
 	if callback.is_valid(): b.pressed.connect(callback)
 	return b
 
 static func _button_style(index: int, tint: Color = Color.WHITE) -> StyleBoxTexture:
-	var result: StyleBoxTexture = GameArt.panel(index, 10)
-	# The lower atlas cells include a decorative seam close to their edge.
-	# Use their quiet interior so bright seams never pass behind button text.
-	var texture: AtlasTexture = GameArt.panel_texture(index).duplicate() as AtlasTexture
-	texture.region = texture.region.grow(-32.0)
-	result.texture = texture
-	result.set_content_margin(SIDE_LEFT, 16.0)
-	result.set_content_margin(SIDE_RIGHT, 16.0)
+	var result: StyleBoxTexture = ButtonArt.style(index in [1, 2])
 	result.modulate_color = tint
 	return result
 
 static func _focus_style() -> StyleBoxTexture:
-	# A hollow frame cut from the generated paper texture keeps both text and
-	# the current button state visible. Expanding it does not move the layout.
-	var result: StyleBoxTexture = GameArt.panel(0, 0)
-	result.modulate_color = INK
-	result.draw_center = false
-	for side: int in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(side, 3.0)
-		result.set_expand_margin(side, 3.0)
-	return result
+	return ButtonArt.focus_style()
 
 static func card(parent: Node, color: Color = Color.WHITE, padding: int = 20) -> VBoxContainer:
 	var p: PanelContainer = PanelContainer.new()

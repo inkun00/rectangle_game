@@ -79,16 +79,7 @@ static func panel(primary: bool = false, padding: int = 14) -> StyleBoxTexture:
 	return result
 
 static func button_style(primary: bool = false, state: String = "normal", padding: int = 12) -> StyleBoxTexture:
-	var result: StyleBoxTexture = panel(primary, 0)
-	for edge: Side in [SIDE_LEFT, SIDE_RIGHT]:
-		result.set_content_margin(edge, float(maxi(padding, 18)))
-	for edge: Side in [SIDE_TOP, SIDE_BOTTOM]:
-		result.set_content_margin(edge, 10.0)
-	result.modulate_color = ACCENT if primary else Color("e6eeea")
-	if state == "hover": result.modulate_color = Color("20564d") if primary else Color("d4e4dc")
-	elif state == "pressed": result.modulate_color = Color("163f39") if primary else ACCENT
-	elif state == "disabled": result.modulate_color = Color("e3e8e4")
-	return result
+	return ButtonArt.style(primary, state, padding)
 
 static func quiet_surface_texture(_primary: bool = false) -> Texture2D:
 	return surface_texture()

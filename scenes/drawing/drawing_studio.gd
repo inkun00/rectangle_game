@@ -5,6 +5,7 @@ const Model = preload("res://scripts/core/drawing_document.gd")
 const Canvas = preload("res://scenes/drawing/drawing_canvas.gd")
 const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 const DrawingExport = preload("res://scripts/export/drawing_exporter.gd")
+const Buttons = preload("res://scripts/ui/button_art.gd")
 const SAVE_PATH: String = "user://quadrilateral_drawing_v1.json"
 const SHAPE_ORDER: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
 const SHAPE_HELP: Dictionary = {
@@ -68,11 +69,7 @@ func _ready() -> void:
 func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var button: Button = QuadTheme.button(text, callback, primary)
 	button.focus_mode = Control.FOCUS_ALL
-	var focus: StyleBoxFlat = StyleBoxFlat.new()
-	focus.bg_color = Color.TRANSPARENT
-	focus.border_color = QuadTheme.TEAL
-	focus.set_border_width_all(3)
-	button.add_theme_stylebox_override("focus", focus)
+	button.add_theme_stylebox_override("focus", Buttons.focus_style())
 	return button
 
 func _build_ui() -> void:
@@ -219,6 +216,7 @@ func _build_ui() -> void:
 		colors.add_child(_make_swatch(PALETTE[index]))
 	colors.add_child(_button("56색 팔레트", _open_colors))
 	_color_picker = ColorPickerButton.new()
+	Buttons.apply(_color_picker)
 	_color_picker.custom_minimum_size = Vector2(52, 44)
 	_color_picker.color = canvas.paint_color
 	_color_picker.edit_alpha = false
@@ -251,12 +249,11 @@ func _add_edit_button(parent: Node, text: String, callback: Callable) -> void:
 
 func _check(text: String, enabled: bool) -> CheckButton:
 	var control: CheckButton = CheckButton.new()
+	Buttons.apply(control, false, 16)
 	control.text = text
 	control.button_pressed = enabled
 	control.custom_minimum_size.y = 44
 	control.add_theme_font_override("font", QuadTheme.FONT)
-	for state: String in ["font_color", "font_pressed_color", "font_hover_color", "font_hover_pressed_color"]:
-		control.add_theme_color_override(state, QuadTheme.INK)
 	return control
 
 func _make_swatch(color: Color) -> Button:
@@ -264,8 +261,8 @@ func _make_swatch(color: Color) -> Button:
 	swatch.custom_minimum_size = Vector2(44, 44)
 	swatch.tooltip_text = "#" + color.to_html(false)
 	swatch.set_meta("paint_color", color)
-	for state: String in ["normal", "hover", "pressed"]:
-		swatch.add_theme_stylebox_override(state, QuadTheme.style(color.lightened(0.12) if state == "hover" else color, 0, Color.TRANSPARENT, 0))
+	for state: String in ["normal", "hover", "pressed", "disabled"]:
+		swatch.add_theme_stylebox_override(state, Buttons.swatch(color, state))
 	_swatches.append(swatch)
 	return swatch
 
@@ -284,12 +281,7 @@ func _open_colors() -> void:
 		_color_dialog.title = "56색 팔레트 · 고른 색이 선택 도형에도 적용돼요"
 		_color_dialog.get_ok_button().text = "닫기"
 		_color_dialog.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
-		_color_dialog.get_ok_button().add_theme_font_override("font", QuadTheme.FONT)
-		for state: String in ["font_color", "font_focus_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
-			_color_dialog.get_ok_button().add_theme_color_override(state, QuadTheme.INK)
-		_color_dialog.get_ok_button().add_theme_stylebox_override("normal", GameArt.panel(0, 12))
-		_color_dialog.get_ok_button().add_theme_stylebox_override("hover", GameArt.panel(3, 12))
-		_color_dialog.get_ok_button().add_theme_stylebox_override("pressed", GameArt.panel(3, 12))
+		Buttons.apply(_color_dialog.get_ok_button())
 		_color_dialog.get_ok_button().custom_minimum_size.y = 44
 		add_child(_color_dialog)
 		# A scroll viewport keeps wrapped text's initial minimum height from
@@ -332,12 +324,7 @@ func _open_gallery(masterpieces: bool) -> void:
 	_gallery.get_ok_button().text = "닫기"
 	_gallery.min_size = Vector2i(500, 400)
 	_gallery.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
-	_gallery.get_ok_button().add_theme_font_override("font", QuadTheme.FONT)
-	for state: String in ["font_color", "font_focus_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
-		_gallery.get_ok_button().add_theme_color_override(state, QuadTheme.INK)
-	_gallery.get_ok_button().add_theme_stylebox_override("normal", GameArt.panel(0, 12))
-	_gallery.get_ok_button().add_theme_stylebox_override("hover", GameArt.panel(3, 12))
-	_gallery.get_ok_button().add_theme_stylebox_override("pressed", GameArt.panel(3, 12))
+	Buttons.apply(_gallery.get_ok_button())
 	_gallery.get_ok_button().custom_minimum_size.y = 44
 	add_child(_gallery)
 	# Scroll the entire choice list so both its first wrapped description and
@@ -405,17 +392,17 @@ func _refresh() -> void:
 		var button: Button = _shape_buttons[kind]
 		var active: bool = canvas.drawing_tool and canvas.selected_kind == kind
 		button.set_pressed_no_signal(active)
-		button.add_theme_stylebox_override("normal", GameArt.panel(3 if active else 0, 12))
+		Buttons.apply(button, active)
 	_select_button.set_pressed_no_signal(not canvas.drawing_tool)
-	_select_button.add_theme_stylebox_override("normal", GameArt.panel(3 if not canvas.drawing_tool else 0, 12))
+	Buttons.apply(_select_button, not canvas.drawing_tool)
 	_shape_hint.text = str(SHAPE_HELP[canvas.selected_kind])
 	_undo.disabled = not document.can_undo()
 	_redo.disabled = not document.can_redo()
 	var selected: Dictionary = document.get_selected()
 	_mode_free.set_pressed_no_signal(document.drawing_mode == "free")
 	_mode_masterpiece.set_pressed_no_signal(document.drawing_mode == "masterpiece")
-	_mode_free.add_theme_stylebox_override("normal", GameArt.panel(3 if document.drawing_mode == "free" else 0, 12))
-	_mode_masterpiece.add_theme_stylebox_override("normal", GameArt.panel(3 if document.drawing_mode == "masterpiece" else 0, 12))
+	Buttons.apply(_mode_free, document.drawing_mode == "free")
+	Buttons.apply(_mode_masterpiece, document.drawing_mode == "masterpiece")
 	_masterpiece_tools.visible = document.drawing_mode == "masterpiece"
 	var backdrop: Dictionary = Catalog.background(document.background_id)
 	_background_button.text = "배경 · " + (str(backdrop.name) if not backdrop.is_empty() else "빈 종이")
@@ -542,6 +529,9 @@ func _export_png() -> void:
 		_set_status("배경과 그림을 PNG로 내려받았어요. 밑그림과 조작 안내는 제외했어요.")
 	else:
 		var dialog: FileDialog = FileDialog.new()
+		dialog.theme = Theme.new()
+		Buttons.install(dialog.theme)
+		dialog.theme.default_font = QuadTheme.FONT
 		dialog.access = FileDialog.ACCESS_FILESYSTEM
 		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 		dialog.filters = PackedStringArray(["*.png ; PNG 이미지"])

@@ -35,18 +35,13 @@ func _ready() -> void:
 	add_theme_font_override("font", QuadTheme.FONT)
 	add_theme_font_size_override("font_size", 14)
 	add_theme_constant_override("h_separation", 10)
-	for state: String in ["normal", "hover", "pressed", "disabled"]:
+	for state: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
 		add_theme_stylebox_override(state, Art.button_style(state == "pressed", state, 8))
 	# Retain full native text for accessibility, while the child labels provide
 	# the compact sample layout without truncating material names.
 	for mode: String in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color", "font_disabled_color", "font_hover_pressed_color"]:
 		add_theme_color_override(mode, Color.TRANSPARENT)
-	var focus: StyleBoxFlat = StyleBoxFlat.new()
-	focus.bg_color = Color.TRANSPARENT
-	focus.border_color = Art.COPPER
-	focus.set_border_width_all(2)
-	focus.set_corner_radius_all(4)
-	add_theme_stylebox_override("focus", focus)
+	add_theme_stylebox_override("focus", ButtonArt.focus_style())
 	_build_content()
 	_update_material()
 	_refresh_colors()
