@@ -52,9 +52,13 @@ powershell -File tools/run_game.ps1
 | 회복약 사용 / 가방 | `Q` / `I` |
 | 부탁 목록 / 지도 | `J` / `M` |
 | 여섯 지역 이야기 | `H` |
+| 모험 메뉴 열기 | `Tab` 또는 `Esc` |
+| 메뉴·대화창 버튼 이동 / 선택 | `Tab`, `Shift+Tab` / `Enter` |
 | 대화·목록 닫기 | `Esc` |
 
 공방 도구로 15° 회전과 같은 비율의 확대·축소를 할 수 있으며, PNG 버튼으로 캐릭터 그림을 내보낼 수 있습니다. `Ctrl+Shift+Z`도 다시 실행으로 동작합니다.
+
+작은 창에서는 공방과 모험 메뉴가 화면에 맞게 재배치됩니다. 글자와 버튼은 월드 축소율과 별도로 표시합니다. 부탁 수첩은 진행 중·새 부탁·완료·전체로 나누어 볼 수 있으며, 긴 대화와 목록은 창 안에서 스크롤됩니다. 메뉴를 닫으면 원래 선택한 버튼으로 돌아갑니다.
 
 캐릭터, 퀘스트, 미리 수집한 물건, 체력·경험치·회복약, 물리친 몬스터, 발견한 지역과 위치는 자동 저장되며 저장·불러오기 버튼으로도 관리할 수 있습니다. 저장 위치는 Godot 사용자 데이터 폴더의 `user://quadrilateral_world_v1.json`입니다. 기존 세 지역에서 진행한 저장도 이어서 사용할 수 있습니다. 모험 상태가 없던 이전 저장은 이미 완료한 부탁의 경험치를 반영합니다. 웹에서는 같은 사이트의 브라우저 저장소를 사용하므로 브라우저 데이터 삭제 시 저장도 사라질 수 있습니다.
 
@@ -72,6 +76,8 @@ powershell -File tools/export_desktop.ps1
 ```
 
 웹 빌드 결과는 `build/web`, Windows 패키지는 `build/windows`에 생성됩니다. Windows 패키지의 `Run_QuadrilateralWorld.bat`이 `QuadrilateralWorld.pck`를 실행하며, 실행할 PC에 Godot 4가 필요합니다. 웹 빌드를 로컬에서 확인하려면 `python tools/serve_web.py`를 실행하고 안내된 주소를 엽니다. 빌드의 한글 폰트 처리에는 Python과 `tools/requirements-font.txt`의 패키지가 필요합니다.
+
+GitHub·Vercel에 새 버전을 올리는 절차는 [배포 안내](docs/DEPLOYMENT.md)를 참고하세요.
 
 ## 참고 자료와 그래픽
 

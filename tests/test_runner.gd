@@ -10,6 +10,8 @@ const TestSave = preload("res://tests/test_save_store.gd")
 const TestAdventure = preload("res://tests/test_adventure_state.gd")
 const TestCombat = preload("res://tests/test_world_player_combat.gd")
 const TestRpg = preload("res://tests/test_rpg_integration.gd")
+const TestUiTheme = preload("res://tests/test_ui_theme.gd")
+const TestUiUsability = preload("res://tests/test_ui_usability.gd")
 var passed_count: int = 0
 var failed_count: int = 0
 var test_failures: Array[String] = []
@@ -32,6 +34,9 @@ func _ready() -> void:
 	print("[Suite] App integration, save/load and workshop-world round trip")
 	await TestApp.run(self)
 	await TestRpg.run(self)
+	print("[Suite] UI contrast, responsive layout and keyboard navigation")
+	await TestUiTheme.run(self)
+	await TestUiUsability.run(self)
 	print("[Suite] Sound synthesis")
 	TestSound.run(self)
 	await get_tree().process_frame

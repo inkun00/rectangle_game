@@ -1,5 +1,8 @@
 {
-  "name": "triangle-art",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "",
+  "installCommand": "",
   "outputDirectory": "build/web",
   "cleanUrls": true,
   "headers": [
