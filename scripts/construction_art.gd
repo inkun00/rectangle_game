@@ -8,13 +8,14 @@ const GAME_ROOT: String = "res://assets/generated/construction-game/"
 const GAME_FILES: Dictionary = {"construction-cover.png": "worksite.png", "client-portraits.png": "client-portraits.png", "construction-materials.png": "material-base.png", "construction-materials-expanded.png": "material-expanded.png", "ui-icons.png": "tool-icons.png"}
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
-const INK: Color = Color("183957")
-const MUTED: Color = Color("4e6478")
-const PAPER: Color = Color("f8f9f5")
-const BOARD: Color = Color("e9ece6")
-const ACCENT: Color = Color("2467c4")
-const COPPER: Color = Color("e99b26")
-const LINE: Color = Color("cfd6d0")
+const INK: Color = Color("263b3d")
+const MUTED: Color = Color("506366")
+const PAPER: Color = Color("f7f9f6")
+const BOARD: Color = Color("e9efec")
+const ACCENT: Color = Color("28665b")
+const COPPER: Color = Color("c59042")
+const LINE: Color = Color("cbd8d1")
+const QUIET_PAPER_PATH: String = "res://assets/generated/focused-ui/paper-v1.png"
 const TOOL_CELLS: Dictionary = {"select": 0, "undo": 1, "redo": 2, "delete": 3, "rotate": 4, "zoom": 5, "fit": 6, "inspect": 7, "receipt": 8, "home": 9, "save": 10, "help": 11, "duplicate": 12, "draw": 13, "adventure": 14, "book": 15}
 const EXPANDED_MATERIAL_CELLS: Dictionary = {"stone": 0, "concrete": 1, "plaster": 2, "green_brick": 3, "frosted_glass": 4, "amber_glass": 5, "teal_glass": 6, "grille": 7, "zinc_roof": 8, "clay_roof": 9, "slate_roof": 10, "metal_roof": 11, "cedar": 12, "louver": 13, "mosaic": 14, "copper": 15}
 static var _textures: Dictionary = {}
@@ -57,21 +58,12 @@ static func game_texture(filename: String) -> Texture2D:
 	if result != null: _textures[key] = result
 	return result
 
-static func surface_texture(primary: bool = false, button: bool = false) -> Texture2D:
-	var filename: String = ("button-blue.png" if primary else "button-light.png") if button else ("panel-dark.png" if primary else "panel-light.png")
-	var key: String = "skin:" + filename
+static func surface_texture(_primary: bool = false, _button: bool = false) -> Texture2D:
+	var key: String = "quiet-paper-v1"
 	if _textures.has(key): return _textures[key] as Texture2D
-	var source: Texture2D = game_texture(filename)
-	if source == null: return _atlas("ui-surfaces.png", (2 if button else 0) + (1 if primary else 0), 2, 2)
-	# Standard runtime slicing/scaling retains the generated painted surface.
-	var pixels: Image = source.get_image()
-	if pixels.is_compressed(): pixels.decompress()
-	var used: Rect2i = pixels.get_used_rect()
-	if used.has_area(): pixels = pixels.get_region(used)
-	# Nine-slice borders are measured in these runtime pixels. A small source
-	# keeps the painted rim narrow instead of expanding it over the label.
-	pixels.resize(96 if button else 160, 32 if button else 64, Image.INTERPOLATE_LANCZOS)
-	var result: ImageTexture = ImageTexture.create_from_image(pixels)
+	# Keep the individual ImageGen source at native resolution. Painted UI frames
+	# are never resized into a full-screen background or sliced across atlas cells.
+	var result: Texture2D = load(QUIET_PAPER_PATH) as Texture2D
 	_textures[key] = result
 	return result
 
@@ -79,37 +71,27 @@ static func panel(primary: bool = false, padding: int = 14) -> StyleBoxTexture:
 	var result: StyleBoxTexture = StyleBoxTexture.new()
 	result.texture = surface_texture(primary)
 	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 14.0 if edge in [SIDE_LEFT, SIDE_RIGHT] else 12.0)
-		result.set_content_margin(edge, float(maxi(padding, 8)))
+		result.set_texture_margin(edge, 0.0)
+		result.set_content_margin(edge, float(padding))
+	result.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	result.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	result.modulate_color = ACCENT if primary else Color.WHITE
 	return result
 
 static func button_style(primary: bool = false, state: String = "normal", padding: int = 12) -> StyleBoxTexture:
-	var result: StyleBoxTexture = StyleBoxTexture.new()
-	result.texture = surface_texture(primary, true)
+	var result: StyleBoxTexture = panel(primary, 0)
 	for edge: Side in [SIDE_LEFT, SIDE_RIGHT]:
-		result.set_texture_margin(edge, 16.0)
 		result.set_content_margin(edge, float(maxi(padding, 18)))
 	for edge: Side in [SIDE_TOP, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 10.0)
 		result.set_content_margin(edge, 10.0)
-	if state == "hover": result.modulate_color = Color(1.08, 1.08, 1.08)
-	elif state == "pressed": result.modulate_color = Color(0.88, 0.92, 0.91)
-	elif state == "disabled":
-		result.texture = surface_texture(false, true)
-		result.modulate_color = Color(0.94, 0.96, 0.98, 0.78)
+	result.modulate_color = ACCENT if primary else Color("e6eeea")
+	if state == "hover": result.modulate_color = Color("20564d") if primary else Color("d4e4dc")
+	elif state == "pressed": result.modulate_color = Color("163f39") if primary else ACCENT
+	elif state == "disabled": result.modulate_color = Color("e3e8e4")
 	return result
 
-static func quiet_surface_texture(primary: bool = false) -> Texture2D:
-	var key: String = "quiet-skin:" + str(primary)
-	if _textures.has(key): return _textures[key] as Texture2D
-	var source: Texture2D = surface_texture(primary)
-	if source == null: return null
-	var center: AtlasTexture = AtlasTexture.new()
-	center.atlas = source
-	center.region = Rect2(Vector2(20, 18), source.get_size() - Vector2(40, 36))
-	center.filter_clip = true
-	_textures[key] = center
-	return center
+static func quiet_surface_texture(_primary: bool = false) -> Texture2D:
+	return surface_texture()
 
 static func material_icon(material_id: String) -> Texture2D:
 	var material: Dictionary = Catalog.material(material_id)

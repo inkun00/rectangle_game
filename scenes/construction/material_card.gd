@@ -111,6 +111,7 @@ func _refresh_colors() -> void:
 	_sample.modulate = Color(1, 1, 1, 0.50 if disabled else 1.0)
 	var badge_style: StyleBoxTexture = StyleBoxTexture.new()
 	badge_style.texture = Art.quiet_surface_texture(active)
+	badge_style.modulate_color = Art.ACCENT if active else Color("e9efec")
 	badge_style.content_margin_left = 5
 	badge_style.content_margin_right = 5
 	badge_style.content_margin_top = 1

@@ -8,8 +8,10 @@ const Art = preload("res://scripts/construction_art.gd")
 const Simulation = preload("res://scenes/construction/construction_physics.gd")
 const BOARD: Rect2 = Rect2(0, 0, 1000, 600)
 const INK: Color = Color("243136")
-const PAPER: Color = Color("f6f7f3")
-const GRID_COLOR: Color = Color("dde2dd")
+const PAPER: Color = Color("fbfcf8")
+const GRID_COLOR: Color = Color("e4eae5")
+const MAJOR_GRID_COLOR: Color = Color("c8d5ce")
+const SURROUND: Color = Color("e9eeea")
 const ACCENT: Color = Color("315f65")
 const COPPER: Color = Color("b57246")
 const REPAIR_COLOR: Color = Color("a74130")
@@ -384,19 +386,19 @@ func _part_at(point: Vector2) -> int:
 	return -1
 
 func _draw() -> void:
-	var worksite: Texture2D = Art.game_texture("worksite.png")
-	if worksite != null:
-		draw_texture_rect(worksite, Rect2(Vector2.ZERO, size), false)
 	var board: Rect2 = Rect2(artwork_to_screen(Vector2.ZERO), BOARD.size * canvas_scale())
-	if not presentation_mode:
-		# This translucent work surface is an editing aid. The illustrated yard
-		# remains visible instead of stretching a framed panel across the board.
-		draw_rect(board, Color("fffdf7a8"))
+	_draw_work_surface(board)
 	if show_grid and not presentation_mode:
 		for x: int in range(0, 1001, 20):
-			draw_line(artwork_to_screen(Vector2(x, 0)), artwork_to_screen(Vector2(x, 560)), GRID_COLOR.darkened(0.035) if x % 100 == 0 else GRID_COLOR, 1.0 if x % 100 == 0 else 0.55)
+			var first: Vector2 = artwork_to_screen(Vector2(x, 0))
+			var last: Vector2 = artwork_to_screen(Vector2(x, Model.GROUND_Y))
+			var pixel_x: float = floorf(first.x) + 0.5
+			draw_line(Vector2(pixel_x, first.y), Vector2(pixel_x, last.y), MAJOR_GRID_COLOR if x % 100 == 0 else GRID_COLOR, 1.0)
 		for y: int in range(0, 561, 20):
-			draw_line(artwork_to_screen(Vector2(0, y)), artwork_to_screen(Vector2(1000, y)), GRID_COLOR.darkened(0.035) if y % 100 == 0 else GRID_COLOR, 1.0 if y % 100 == 0 else 0.55)
+			var first: Vector2 = artwork_to_screen(Vector2(0, y))
+			var last: Vector2 = artwork_to_screen(Vector2(1000, y))
+			var pixel_y: float = floorf(first.y) + 0.5
+			draw_line(Vector2(first.x, pixel_y), Vector2(last.x, pixel_y), MAJOR_GRID_COLOR if y % 100 == 0 else GRID_COLOR, 1.0)
 	_draw_foundation()
 	if document == null:
 		return
@@ -429,7 +431,7 @@ func _draw() -> void:
 		draw_rect(Rect2(label_position, Vector2(92, 24)), Color("fff6d5"))
 		draw_rect(Rect2(label_position, Vector2(92, 24)), REPAIR_COLOR, false, 1.0)
 		draw_string(QuadTheme.FONT, label_position + Vector2(6, 17), "벽 빈틈", HORIZONTAL_ALIGNMENT_LEFT, 80, 14, REPAIR_COLOR)
-	draw_rect(Rect2(Vector2.ZERO, size), Color("c9d0c9"), false, 1.0)
+	draw_rect(Rect2(Vector2.ZERO, size), Color("c9d3cd"), false, 1.0)
 	if has_focus():
 		draw_rect(Rect2(Vector2(1, 1), size - Vector2(2, 2)), ACCENT, false, 2.0)
 	if inspection_running:
@@ -437,8 +439,19 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(12, 12), Vector2(size.x - 24, 6)), Color("d4dfd9"))
 		draw_rect(Rect2(Vector2(12, 12), Vector2((size.x - 24) * progress, 6)), COPPER)
 	if size.x >= 430.0:
+		draw_rect(Rect2(Vector2(1, size.y - 25.0), Vector2(size.x - 2.0, 24.0)), Color("f0f4ef"))
 		var caption: String = "튼튼한지 확인 중" if inspection_running else ("완성 모습" if presentation_mode else "집 앞모습  /  눈금 단위: 칸")
-		draw_string(QuadTheme.FONT, Vector2(34, size.y - 12), caption, HORIZONTAL_ALIGNMENT_LEFT, maxf(0, size.x - 48), 13, Color("64716f"))
+		draw_string(QuadTheme.FONT, Vector2(34, size.y - 9), caption, HORIZONTAL_ALIGNMENT_LEFT, maxf(0, size.x - 48), 13, Color("53675b"))
+
+func _draw_work_surface(board: Rect2) -> void:
+	# The orthographic drafting surface shares the exact transform used by the
+	# grid and materials. Scenic perspective artwork belongs outside this tool.
+	draw_rect(Rect2(Vector2.ZERO, size), SURROUND)
+	draw_rect(board, PAPER)
+	var paper: Texture2D = Art.quiet_surface_texture()
+	if paper != null:
+		draw_texture_rect(paper, board, false, Color(1.0, 1.0, 1.0, 0.12))
+	draw_rect(board, Color("cfd9d2"), false, 1.0)
 
 func _draw_foundation() -> void:
 	var start: Vector2 = artwork_to_screen(Vector2(0, Model.GROUND_Y))
@@ -450,9 +463,10 @@ func _draw_foundation() -> void:
 			var tile_start: Vector2 = start + Vector2(float(offset) * canvas_scale(), 0)
 			var tile_width: float = minf(80.0, 1000.0 - float(offset)) * canvas_scale()
 			draw_texture_rect(surface, Rect2(tile_start, Vector2(tile_width, depth)), false, Color("e2d8cc"))
-	draw_line(start, start + Vector2(width, 0), Color("6b7c72"), 1.5)
+	var baseline_y: float = floorf(start.y) + 0.5
+	draw_line(Vector2(start.x, baseline_y), Vector2(start.x + width, baseline_y), Color("677e70"), 2.0)
 	if not presentation_mode and start.y > 38.0 and start.y < size.y - 28.0:
-		draw_string(QuadTheme.FONT, Vector2(maxf(start.x + 12.0, 34.0), start.y - 7.0), "땅의 높이", HORIZONTAL_ALIGNMENT_LEFT, 100.0, 11, Color("67786f"))
+		draw_string(QuadTheme.FONT, Vector2(maxf(start.x + 12.0, 34.0), start.y - 8.0), "땅의 높이", HORIZONTAL_ALIGNMENT_LEFT, 100.0, 13, Color("536b5b"))
 
 func _document_bounds() -> Rect2:
 	var bounds: Rect2 = QuadrilateralMath.bounds(document.world_vertices(document.parts[0]))
@@ -461,20 +475,20 @@ func _document_bounds() -> Rect2:
 	return bounds
 
 func _draw_rulers() -> void:
-	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, 24.0)), Color("edf0e9"))
-	draw_rect(Rect2(Vector2.ZERO, Vector2(24.0, size.y)), Color("edf0e9"))
+	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, 24.0)), Color("f0f4ef"))
+	draw_rect(Rect2(Vector2.ZERO, Vector2(24.0, size.y)), Color("f0f4ef"))
 	draw_line(Vector2(24, 24), Vector2(size.x, 24), Color("c8d0c8"), 1.0)
 	draw_line(Vector2(24, 24), Vector2(24, size.y), Color("c8d0c8"), 1.0)
 	for x: int in range(0, 1001, 20):
-		var screen_x: float = artwork_to_screen(Vector2(x, 0)).x
+		var screen_x: float = floorf(artwork_to_screen(Vector2(x, 0)).x) + 0.5
 		if screen_x < 30.0 or screen_x > size.x - 12.0: continue
 		draw_line(Vector2(screen_x, 24), Vector2(screen_x, 16 if x % 100 == 0 else 20), Color("8f9d95"), 1.0)
-		if x % 100 == 0: draw_string(QuadTheme.FONT, Vector2(screen_x + 4, 13), str(int(float(x) / 20.0)), HORIZONTAL_ALIGNMENT_LEFT, 28, 11, Color("68796e"))
+		if x % 100 == 0: draw_string(QuadTheme.FONT, Vector2(screen_x + 4, 14), str(int(float(x) / 20.0)), HORIZONTAL_ALIGNMENT_LEFT, 28, 12, Color("5c7062"))
 	for y: int in range(0, 561, 20):
-		var screen_y: float = artwork_to_screen(Vector2(0, y)).y
+		var screen_y: float = floorf(artwork_to_screen(Vector2(0, y)).y) + 0.5
 		if screen_y < 40.0 or screen_y > size.y - 26.0: continue
 		draw_line(Vector2(24, screen_y), Vector2(16 if y % 100 == 0 else 20, screen_y), Color("8f9d95"), 1.0)
-		if y % 100 == 0: draw_string(QuadTheme.FONT, Vector2(2, screen_y - 3), str(int(float(y) / 20.0)), HORIZONTAL_ALIGNMENT_LEFT, 20, 11, Color("68796e"))
+		if y % 100 == 0: draw_string(QuadTheme.FONT, Vector2(2, screen_y - 3), str(int(float(y) / 20.0)), HORIZONTAL_ALIGNMENT_LEFT, 20, 12, Color("5c7062"))
 
 func _draw_dimensions() -> void:
 	if document.parts.is_empty() or inspection_visible: return

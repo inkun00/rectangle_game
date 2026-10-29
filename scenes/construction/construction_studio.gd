@@ -12,10 +12,10 @@ const Language = preload("res://scripts/construction/construction_language.gd")
 const Awards = preload("res://scripts/construction/construction_awards.gd")
 const Exporter = preload("res://scripts/export/construction_exporter.gd")
 const SAVE_PATH: String = "user://quadrilateral_construction_v1.json"
-const INK: Color = Color("183957")
-const BLUE: Color = Color("2467c4")
-const MUTED: Color = Color("4e6478")
-const BG: Color = Color("e9ece6")
+const INK: Color = Art.INK
+const BLUE: Color = Art.ACCENT
+const MUTED: Color = Art.MUTED
+const BG: Color = Art.BOARD
 const GOOD: Color = Color("207450")
 const BAD: Color = Color("a93e35")
 const REPAIRS_PER_PAGE: int = 8
@@ -133,6 +133,8 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 		button.add_theme_stylebox_override(mode, Art.button_style(primary, mode, 10))
 	for mode: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		button.add_theme_color_override(mode, Color.WHITE if primary else INK)
+	button.add_theme_color_override("font_pressed_color", Color.WHITE)
+	button.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
 	button.add_theme_color_override("font_disabled_color", Color("607184"))
 	var icons: Dictionary = {"메인": "home", "저장": "save", "도움말": "help", "선택·이동": "select", "되돌리기": "undo", "다시": "redo", "삭제": "delete", "회전": "rotate", "확대": "zoom", "집에 맞추기": "fit", "시공 검사": "inspect", "의뢰인에게 보여주기": "receipt"}
 	if icons.has(text):
@@ -174,6 +176,11 @@ func _picker(font_size: int = 13) -> OptionButton:
 	picker.get_popup().add_theme_font_size_override("font_size", 15)
 	for mode: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		picker.add_theme_color_override(mode, INK)
+	picker.add_theme_color_override("font_pressed_color", Color.WHITE)
+	picker.get_popup().add_theme_stylebox_override("panel", Art.panel(false, 10))
+	picker.get_popup().add_theme_stylebox_override("hover", Art.button_style(false, "hover", 10))
+	picker.get_popup().add_theme_color_override("font_color", INK)
+	picker.get_popup().add_theme_color_override("font_hover_color", INK)
 	for mode: String in ["normal", "hover", "pressed", "disabled"]:
 		picker.add_theme_stylebox_override(mode, Art.button_style(false, mode, 8))
 	var focus: StyleBoxFlat = StyleBoxFlat.new()
@@ -225,9 +232,10 @@ func _modal_action(text: String, callback: Callable, primary: bool = false) -> B
 
 func _build_ui() -> void:
 	var background: TextureRect = TextureRect.new()
-	background.texture = Art.game_texture("worksite.png")
+	background.texture = Art.quiet_surface_texture()
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	background.stretch_mode = TextureRect.STRETCH_TILE
+	background.self_modulate = BG
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
