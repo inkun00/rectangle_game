@@ -1,0 +1,186 @@
+{
+  "date": "2026-10-28",
+  "mode": "built-in image_gen",
+  "items": [
+    {
+      "id": "city_day",
+      "path": "backgrounds/city_day.png",
+      "source_filename": "exec-3fc217bc-d446-4f00-ac17-7ae856eef3cd.png",
+      "prompt": "Use case: illustration-story. Asset type: actual game art background, landscape 8:5 aspect ratio, full bleed. Primary request: A quiet sunlit colorful CITY in a world made of quadrilaterals, broad pastel blue sky above a small city of rectangular houses, trapezoid rooftops, square windows, distant geometric skyline, a soft green park in foreground. Friendly illustrated papercraft gouache style for a Korean children's quadrilateral drawing studio, sophisticated muted color harmony, subtle paper grain. Background must stay spacious so colorful user-drawn shapes are legible, keep busy objects near edges and lower half. All visible silhouettes use quadrilateral forms, no triangle mountains/roofs, no humans, no UI, no borders, no text, no labels, no watermark. Create one finished scenic background image."
+    },
+    {
+      "id": "city_night",
+      "path": "backgrounds/city_night.png",
+      "source_filename": "exec-4bf88136-b6fa-4f77-9fb1-00fce389d34f.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A tranquil city at NIGHT, indigo sky, softly glowing square windows, low geometric skyline, moon made from pale square layers, empty terrace in foreground. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "seaside",
+      "path": "backgrounds/seaside.png",
+      "source_filename": "exec-a842bb88-56bf-4541-a4e0-7edc55962ecc.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A sunny turquoise SEA, serene broad ocean horizon, sandy beach, geometric white clouds, distant trapezoid boats and square lighthouse on the far edge. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "sunset_beach",
+      "path": "backgrounds/sunset_beach.png",
+      "source_filename": "exec-e291d992-0c62-4ac7-a3b1-da847ba33805.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A SUNSET BEACH with peach orange sky, a square glowing sun at horizon, soft pink ocean bands and quiet pale sand in foreground. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "coral_reef",
+      "path": "backgrounds/coral_reef.png",
+      "source_filename": "exec-99bd9cfc-04e7-411d-a6af-246949f1d68a.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: An UNDERWATER CORAL REEF with pale aqua light from above, angular coral and seaweed only along bottom corners, small quadrilateral fish in distance, calm spacious center. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "space_planets",
+      "path": "backgrounds/space_planets.png",
+      "source_filename": "exec-7e40e9c8-3793-4e17-9183-0b3f57d58495.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: OUTER SPACE with several colorful square and rhombus PLANETS, sparse tiny square stars, soft navy and plum nebula, spacious dark center. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "moon_base",
+      "path": "backgrounds/moon_base.png",
+      "source_filename": "exec-4543fa89-ce82-4a2e-95de-17471c71c769.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A peaceful MOON BASE of white rectangular buildings with blue square windows on gray lunar ground, black space and a blocky Earth far away. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "galaxy",
+      "path": "backgrounds/galaxy.png",
+      "source_filename": "exec-8b417998-4e55-459c-9c27-6f03863fe5fa.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A luminous GALAXY, a gentle diagonal trail of tiny square star dust and angular pastel nebula in deep blue space, serene spacious composition. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "green_mountains",
+      "path": "backgrounds/green_mountains.png",
+      "source_filename": "exec-59d7b5a6-57c3-4790-9327-63eb56f1c02a.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: Layered GREEN MOUNTAINS with trapezoid flat topped peaks, pale blue sky, distant trees built from rectangles, quiet meadow in foreground. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "snowy_mountains",
+      "path": "backgrounds/snowy_mountains.png",
+      "source_filename": "exec-95b80bc3-e877-44f2-9177-78fe736581cc.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: SNOWY MOUNTAINS built of trapezoid flat topped peaks and angular white snowcaps, icy turquoise shadows, spacious pale winter sky and snow field. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "autumn_mountains",
+      "path": "backgrounds/autumn_mountains.png",
+      "source_filename": "exec-d977b75a-d370-4ad0-8db5-76dee06f9401.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: AUTUMN MOUNTAINS as layered trapezoid ridges, rust orange and gold rectangular treetops, quiet ochre foreground, warm cream sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "cozy_home",
+      "path": "backgrounds/cozy_home.png",
+      "source_filename": "exec-8c5d8312-1435-4e0f-b1ce-4dda84cb9cef.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A COZY HOME INTERIOR, cream walls, rectangular window showing garden, a simple sofa on left and low bookshelf on right, spacious rug and wood floor in center. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "treehouse",
+      "path": "backgrounds/treehouse.png",
+      "source_filename": "exec-a36c5387-f3da-4cc1-94d9-5e25b70a9546.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A whimsical TREEHOUSE with square windows, trapezoid roof, chunky rectangular tree branches and foliage, wooden walkway, tranquil green forest. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "country_cottage",
+      "path": "backgrounds/country_cottage.png",
+      "source_filename": "exec-edce67c1-6d45-4456-9f27-2fc89a00c7a1.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A COUNTRY COTTAGE with white rectangular walls and a red trapezoid roof, square windows, small garden fence, broad quiet lawn and soft blue sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "forest",
+      "path": "backgrounds/forest.png",
+      "source_filename": "exec-6fdb0556-5f7e-4049-9720-f34c2cbb52c2.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A tranquil FOREST path framed by blocky rectangular tree trunks and layered quadrilateral green foliage, sunlit clearing, soft spacious center. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "bamboo_forest",
+      "path": "backgrounds/bamboo_forest.png",
+      "source_filename": "exec-ba7c9847-7503-4c98-bac6-1d152dd6acb4.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A quiet BAMBOO FOREST, slim rectangular green stalks, angular long narrow quadrilateral leaves, warm light, winding angular path and broad clearing. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "desert",
+      "path": "backgrounds/desert.png",
+      "source_filename": "exec-62784c9b-668e-447f-b5a2-728bbb700e21.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A quiet DESERT with broad pale sandy bands, flat topped trapezoid mesa formations, peach sky, a few angular cactus shapes near edges. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "oasis",
+      "path": "backgrounds/oasis.png",
+      "source_filename": "exec-e337d2a9-894d-4db5-834e-eaa6d530809c.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A luminous DESERT OASIS with a turquoise quadrilateral pool, sandy trapezoid dunes, angular palm silhouettes at edges, warm pale sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "polar",
+      "path": "backgrounds/polar.png",
+      "source_filename": "exec-a5805163-d731-415c-9341-9b379f715dfc.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A serene POLAR ICE landscape with floating rectangular ice floes, pale cyan ocean and flat topped quadrilateral glaciers, soft lavender sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "meadow",
+      "path": "backgrounds/meadow.png",
+      "source_filename": "exec-10b6af7d-ede1-41fb-b03e-77e165d4b0b0.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A bright FLOWER MEADOW, long green grass bands, small flowers made of tiny squares only along foreground edges, spacious sunlit field and cream blue sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "farm",
+      "path": "backgrounds/farm.png",
+      "source_filename": "exec-fdf74051-b313-4abc-9ac2-e2719b3d5a8e.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A friendly FARM with rectangular barn and trapezoid red roof, distant rectangular crop rows, fence, broad green foreground, sunny pastel sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "garden",
+      "path": "backgrounds/garden.png",
+      "source_filename": "exec-21ecaaf2-0be5-48d9-996e-0987ff4d1acd.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A quiet GARDEN with square flowerbeds, low rectangular hedge maze, stone path, flowers at edges, calm open center and soft sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "castle",
+      "path": "backgrounds/castle.png",
+      "source_filename": "exec-dab2a9d3-440b-4675-b14c-3555660a8d9d.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A storybook CASTLE made of rectangular stone towers with flat battlements and trapezoid roofs, distant hills, broad lawn foreground, soft blue sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "village",
+      "path": "backgrounds/village.png",
+      "source_filename": "exec-b3281c13-655e-4031-b862-ae1cb0d90965.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A peaceful small VILLAGE with white rectangular cottages and colorful trapezoid roofs around a quiet square, sparse trees at edges, spacious foreground. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "harbor",
+      "path": "backgrounds/harbor.png",
+      "source_filename": "exec-451f1eec-f28c-4134-88bb-79c9a62e9f1d.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A quiet HARBOR with geometric boats with trapezoid sails or no sails, rectangular warehouses, a wooden quay, calm blue water and spacious pale sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "river",
+      "path": "backgrounds/river.png",
+      "source_filename": "exec-ba628bd8-b2f9-48a3-a597-4d0f39ddb5c4.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A tranquil RIVERSIDE, wide angular blue river between grassy banks, a low rectangular stone bridge far away, pale sky and quiet foreground. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "lake",
+      "path": "backgrounds/lake.png",
+      "source_filename": "exec-95179ce6-dad2-4d33-a17d-ff2e779b2949.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A serene LAKE, flat turquoise water reflecting trapezoid mountain ridges, rectangular pine silhouettes near edges, pale morning sky and quiet shore. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "waterfall",
+      "path": "backgrounds/waterfall.png",
+      "source_filename": "exec-c838cdd2-9905-4b54-a7d1-c805fc280a13.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A beautiful WATERFALL as broad rectangular ribbons of pale turquoise water dropping from flat topped rock steps into a clear pool, green square foliage at edges. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "rainbow_sky",
+      "path": "backgrounds/rainbow_sky.png",
+      "source_filename": "exec-2a1fa988-a4bb-4282-a683-bcf2012d886d.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: An airy RAINBOW SKY with a stepped rainbow made from translucent rectangular bands, soft square clouds, light blue sky, tiny green hills on lower edge. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    },
+    {
+      "id": "playground",
+      "path": "backgrounds/playground.png",
+      "source_filename": "exec-c3a17f07-babc-4936-9664-384844eb3a69.png",
+      "prompt": "Use case: illustration-story. Asset type: finished background art for children's quadrilateral drawing game, landscape 8:5 aspect ratio, full bleed. Scene: A friendly empty PLAYGROUND with a blocky climbing frame, trapezoid slides and rectangular swings near edges, wide warm sand area, green square shrubs and soft sky. Style: refined colorful papercraft gouache illustration, sophisticated soft pastel color harmony, subtle real paper grain, welcoming and spacious so user-drawn shapes remain clear. All scenery silhouettes are quadrilateral-based (rectangles, squares, trapezoids, rhombi); avoid triangle roofs/peaks. Busy objects stay at edges and lower half. No humans, no UI, no borders, no text, no lettering, no watermark. One complete scenic image."
+    }
+  ]
+}

@@ -45,6 +45,9 @@ var _workshop_steps: Label
 var _workshop_tagline: Label
 var _workshop_bottom_note: Label
 var _workshop_helpers: HFlowContainer
+var _home_screen: HomePage
+var _drawing_screen: DrawingStudio
+var _construction_screen: ConstructionStudio
 var _workshop_screen: Control
 var _world_hud: Control
 var _modal_overlay: Control
@@ -99,6 +102,9 @@ func _ready() -> void:
 	_ui.theme.default_font = QuadTheme.FONT
 	_ui_layer.add_child(_ui)
 	_build_workshop()
+	_build_home()
+	_build_drawing()
+	_build_construction()
 	_build_world_hud()
 	_build_toast()
 	_autosave = Timer.new()
@@ -115,10 +121,82 @@ func _ready() -> void:
 	_journal_changed()
 	_adventure_changed()
 	_responsive()
+	_show_home()
 	# Rendering smoke tests use command-line flags, never bypass player-facing validation.
 	if "--quad-preview-world" in OS.get_cmdline_user_args():
 		document.fill_example()
 		_enter_world()
+	elif "--quad-preview-drawing" in OS.get_cmdline_user_args():
+		_show_drawing()
+	elif "--quad-preview-construction" in OS.get_cmdline_user_args():
+		_show_construction()
+
+func _build_home() -> void:
+	_home_screen = HomePage.new()
+	_home_screen.drawing_requested.connect(_show_drawing)
+	_home_screen.adventure_requested.connect(_show_workshop)
+	_home_screen.construction_requested.connect(_show_construction)
+	_home_screen.notebook_requested.connect(_show_notebook)
+	_ui.add_child(_home_screen)
+
+func _build_drawing() -> void:
+	_drawing_screen = DrawingStudio.new()
+	_drawing_screen.testing = testing
+	_drawing_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_drawing_screen.home_requested.connect(_show_home)
+	_drawing_screen.hide()
+	_ui.add_child(_drawing_screen)
+
+func _build_construction() -> void:
+	_construction_screen = ConstructionStudio.new()
+	_construction_screen.testing = testing
+	_construction_screen.home_requested.connect(_show_home)
+	_construction_screen.hide()
+	_ui.add_child(_construction_screen)
+
+func _leave_activity() -> void:
+	_close_modal()
+	var save_adventure: bool = _in_world or _workshop_screen.visible
+	if _drawing_screen.visible:
+		_drawing_screen.cancel_gesture()
+		if not testing: _drawing_screen.save_drawing(false)
+	if _construction_screen.visible:
+		_construction_screen.cancel_activity()
+	workshop.cancel_gesture()
+	if world != null:
+		_world_data = world.serialize()
+		world.set_controls_enabled(false)
+		world.process_mode = Node.PROCESS_MODE_DISABLED
+		world.hide()
+		world.camera.enabled = false
+	_in_world = false
+	_home_screen.hide()
+	_drawing_screen.hide()
+	_construction_screen.hide()
+	_workshop_screen.hide()
+	_world_hud.hide()
+	if _toast != null: _toast.hide()
+	if save_adventure: _save(false)
+
+func _show_home() -> void:
+	_leave_activity()
+	_home_screen.show()
+	_responsive()
+
+func _show_drawing() -> void:
+	_leave_activity()
+	_drawing_screen.show()
+	_responsive()
+
+func _show_construction() -> void:
+	_leave_activity()
+	_construction_screen.show()
+	_responsive()
+
+func _show_workshop() -> void:
+	_leave_activity()
+	_workshop_screen.show()
+	_responsive()
 
 func _process(delta: float) -> void:
 	if _in_world:
@@ -164,6 +242,7 @@ func _build_workshop() -> void:
 	brand.add_child(QuadTheme.label("사각형 월드", 29))
 	_workshop_tagline = QuadTheme.label("나의 그림이 모험이 되는 곳", 15, QuadTheme.MUTED)
 	brand.add_child(_workshop_tagline)
+	header.add_child(QuadTheme.button("메인으로", _show_home))
 	header.add_child(QuadTheme.button("도형 도감", _show_notebook))
 	header.add_child(QuadTheme.button("불러오기", func(): _load(true)))
 	header.add_child(QuadTheme.button("저장", func(): _save(true)))
@@ -812,7 +891,7 @@ func _enter_world() -> void:
 	if not bool(document.completion()["ready"]):
 		_show_toast("골격을 모두 채운 뒤 출발해 주세요.")
 		return
-	_close_modal()
+	_leave_activity()
 	if world == null:
 		world = QuadrilateralWorld.new()
 		world.setup(document.character_data(), journal)
@@ -836,6 +915,7 @@ func _enter_world() -> void:
 	_in_world = true
 	_workshop_screen.hide()
 	_world_hud.show()
+	_responsive()
 	_adventure_changed()
 	_world_region.text = "사각형 월드  ·  " + world.get_current_region()
 	_sound.play_create()
@@ -844,18 +924,7 @@ func _enter_world() -> void:
 	_save(false)
 
 func _return_workshop() -> void:
-	_close_modal()
-	if world != null:
-		_world_data = world.serialize()
-		world.hide()
-		world.set_controls_enabled(false)
-		world.process_mode = Node.PROCESS_MODE_DISABLED
-		var camera: Camera2D = get_viewport().get_camera_2d()
-		if camera != null: camera.enabled = false
-	_in_world = false
-	_workshop_screen.show()
-	_world_hud.hide()
-	_save(false)
+	_show_workshop()
 
 func _talk_to_npc(npc_id: String) -> void:
 	for quest: Dictionary in QuestCatalog.all_quests():
@@ -1194,6 +1263,11 @@ func _export_png() -> void:
 
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
+	var window: Window = get_window()
+	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or _drawing_screen.visible or _construction_screen.visible)
+	var desired_size: Vector2i = Vector2i(maxi(window.size.x, 800), maxi(window.size.y, 600)) if creation_visible else Vector2i(1600, 900)
+	if window.content_scale_size != desired_size:
+		window.content_scale_size = desired_size
 	# Counter only the UI stretch. World coordinates and player artwork stay intact.
 	var stretch: Vector2 = get_viewport().get_stretch_transform().get_scale()
 	stretch = Vector2(maxf(stretch.x, 0.01), maxf(stretch.y, 0.01))
@@ -1228,11 +1302,13 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo: return
+	if _drawing_screen.visible or _construction_screen.visible: return
 	if event.keycode == KEY_ESCAPE:
 		_close_modal()
 		get_viewport().set_input_as_handled()
 		return
 	if is_instance_valid(_modal_overlay): return
+	if _home_screen.visible: return
 	if event.ctrl_pressed and event.keycode == KEY_S:
 		_save(true)
 		get_viewport().set_input_as_handled()

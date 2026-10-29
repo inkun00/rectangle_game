@@ -28,6 +28,7 @@ static func run(t: Node) -> void:
 	# This suite exercises UI state; audio playback has its own suite.
 	app._sound.sound_enabled = false
 	await _settle(t)
+	app._show_workshop()
 	app.document.fill_example()
 	app._enter_world()
 	app.world.set_controls_enabled(false)

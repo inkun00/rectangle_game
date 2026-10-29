@@ -244,6 +244,11 @@ static func _test_rpg_services_combat_and_travel(runner: Node) -> void:
 		runner.assert_false(world.travel_to(region_id), "A new region needs exploration before travel: " + region_id)
 		world.player.position = World.REGION_SPAWNS[region_id]
 		await _frames(runner, 3)
+		# Discovery runs in _process. Catch-up physics ticks can finish before
+		# an idle update, and process_frame itself is emitted before _process.
+		for idle_frame: int in range(8):
+			if adventure.discovered_regions.has(region_id): break
+			await runner.get_tree().process_frame
 		runner.assert_true(adventure.discovered_regions.has(region_id), "Walking into a new region unlocks it: " + region_id)
 		runner.assert_true(world.travel_to(region_id), "Discovered expansion region permits return travel: " + region_id)
 	runner.assert_false(World.is_valid_save({"checkpoint_region": "missing"}), "Unknown checkpoint is rejected")

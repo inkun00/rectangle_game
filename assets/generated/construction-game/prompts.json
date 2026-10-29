@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-29",
+  "mode": "built-in image_gen",
+  "references": [
+    "https://thunderfulgames.com/games/lego-bricktales/",
+    "https://rawfury.com/games/townscaper/",
+    "https://store.steampowered.com/app/1190970/House_Flipper_2/",
+    "https://www.nintendo.com/en-gb/Games/Nintendo-Switch-games/DRAGON-QUEST-BUILDERS-2-1514364.html"
+  ],
+  "assets": [
+    {
+      "file": "worksite.png",
+      "transparent": false,
+      "source_filename": "exec-dde99bec-fc5e-45ba-9ba9-546edfeec145.png",
+      "prompt": "Use case: illustration-story. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. Landscape 16:9 background for a construction play yard. A broad quiet cream-and-sand rectangular building lot occupies the middle 70%, lush blocky trees and colorful finished toy houses far behind, small timber stacks, a friendly yellow construction crane at far left and wheelbarrow at far right. Objects stay along outer perimeter and upper distant horizon. Quad based geometry, trapezoid roofs and flat roof variety, inviting day sky. No people, no UI panels. Center empty, quiet and uncluttered so user's own 2D house is clear."
+    },
+    {
+      "file": "panel-light.png",
+      "transparent": true,
+      "source_filename": "exec-96baa904-1f1e-4f67-8de3-b587de4a5208.png",
+      "prompt": "Use case: ui-mockup. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. ONE isolated large wide rounded-rectangle game inventory panel, front-facing orthographic. Warm ivory cream interior completely empty smooth and very low texture, substantial cobalt blue rim, small friendly wooden corner fasteners and subtle yellow accent. Rounded-square corners, soft short shadow. Center must stretch cleanly using nine-slice scaling, no ornament inside central90%, no holes, transparent outside. Not a screen mockup."
+    },
+    {
+      "file": "panel-dark.png",
+      "transparent": true,
+      "source_filename": "exec-7e02f6f1-085d-4ecf-af40-0e7f87b5b38c.png",
+      "prompt": "Use case: ui-mockup. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. ONE isolated wide rounded-rectangle game selected-card panel, front-facing orthographic. Deep cobalt-blue empty interior for white text, thick warm golden edge, rounded-square corners, toy plastic bevel, soft short shadow. Central90% empty and uniform, nine-slice friendly, no icons or ornament in center. Transparent outside. Not a screen mockup."
+    },
+    {
+      "file": "button-light.png",
+      "transparent": true,
+      "source_filename": "exec-482fba3c-a43d-4fe5-8299-f714f84c29a9.png",
+      "prompt": "Use case: ui-mockup. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. ONE isolated wide capsule-like rounded rectangular game BUTTON for toolbar, front facing orthographic, ratio4:1. Pale buttery cream-yellow smooth empty center for dark navy text, thick cobalt blue outer outline, chunky toy bevel with tiny warm shadow underneath, satisfying tactile friendly plastic. Nine-slice corners, center stretchable, no symbols/icons/text. Transparent outside."
+    },
+    {
+      "file": "button-blue.png",
+      "transparent": true,
+      "source_filename": "exec-42ddaeeb-2ea0-48a8-9a80-3b9e51808a25.png",
+      "prompt": "Use case: ui-mockup. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. ONE isolated wide capsule-like rounded rectangular PRIMARY game BUTTON, front facing orthographic, ratio4:1. Deep saturated cobalt blue smooth empty center for WHITE text, thick warm golden yellow outline, chunky toy bevel and short shadow below, satisfying friendly plastic. Nine-slice corners, center stretchable, no symbols/icons/text. Transparent outside."
+    },
+    {
+      "file": "tool-icons.png",
+      "transparent": true,
+      "source_filename": "exec-ec83eb07-6777-416b-8d38-f9c7e7ed2d61.png",
+      "prompt": "Use case: illustration-story. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. One coherent 4x4 tool ICON SPRITE SHEET, precisely equal16cells, no gutters, each icon centered alone inside its cell with ample transparent padding. Order row-major: 1 hand pointer/select,2 curved undo arrow left,3 curved redo arrow right,4 trashcan,5 circular rotation arrow,6 magnifyingglass plus,7 frame fit arrows,8 yellow hardhat with checkmark,9 reward coin receipt,10 smallhouse home,11 floppy disk save,12 questionmark help,13 two overlappingblocks duplicate,14 pencil draw,15 golden coin,16 trophy. Big readable chunky colorful toy icons, cobalt outlines, golden accents. Fully transparent background, no sheet borders."
+    },
+    {
+      "file": "material-base.png",
+      "transparent": true,
+      "source_filename": "exec-7e3e6fe4-ddb7-4acb-ac38-c9e3bf74e604.png",
+      "prompt": "Use case: stylized-concept. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. One coherent 4x2 construction MATERIAL TEXTURE SPRITE SHEET with8equal cells no gutters. Row-major: single red clay brick face; warm cream wall block/plaster; blueglass squarewindow frame; teal woodenfrontdoor withtinybrasshandle; honeywood beam texture; blue-green roof shingle texture; ivory decorative walltile; colorful mosaic diamond tile. Orthographic flat front-facing square swatches fill each cell, clean borders, realistic toy material microtexture, not isometric objects. Transparent only outside intended square cells if any. No labels or UI."
+    },
+    {
+      "file": "material-expanded.png",
+      "transparent": false,
+      "source_filename": "exec-4254438a-a4f4-4c2b-b712-bbbef31efb6b.png",
+      "prompt": "Use case: stylized-concept. Asset type: original production UI artwork for a playful quadrilateral house-building game for elementary school children. Visual direction informed by the accessible build-test progression of LEGO Bricktales, simple colorful selection of Townscaper and tool clarity of House Flipper 2, but create wholly original assets, no copied game art, logos, named characters or trademarks. Bright polished tactile toy-diorama game style, warm sunlight, cobalt blue, butter yellow, cream, coral and mint, rounded chunky bevels, clean readable silhouettes, subtle handcrafted texture. No text, no lettering, no numbers, no watermark. One seamless-layout 4x4 MATERIAL TEXTURE ATLAS,16equal squarecells, no gutters no labels, orthographicfrontfacing fill each cell. Row-major: graystone; creamconcrete; warmplaster; mintgreenbricks; pale frostedglass; amberglass; turquoiseglass; darkventgrille; bluezincoof; coralclayrooftiles; violetslateroof; bluemetalroof; honeycedarwood; mintwoodlouver; colorfulpastelmosaic; burnishedcopper. Clearly different polished toy building materials. Square flat swatches not isometric blocks. No shadows crossing cell edges."
+    },
+    {
+      "file": "client-portraits.png",
+      "transparent": true,
+      "source_filename": "exec-3f7bff35-8e9e-4eb0-8902-02ed37ca2093.png",
+      "prompt": "Use case: illustration-story. Original friendly polished colorful toy construction game artwork. No text, logos or watermark. One3x2equal-cell portrait SPRITE SHEET of6different friendly originaltoy village house clients, all cheerful frontfacing busts intheir own cells, no overlap. Row1: grandmam gardener in mintcardigan, youngwomanbaker in coralapron, friendlybeardedcraftsman in blueoveralls. Row2: womanartist in lavenderhat, dadwithglasses yellowshirt, friendlyelderlibrarian tealvest. Rounded stylizedexpressive faces, thicksofttoyshading, eachholds small rolledhouseplan orflower, not brandedcharacters. Transparent background, no frames/text."
+    },
+    {
+      "file": "badge-1.png",
+      "transparent": true,
+      "source_filename": "exec-9aa3178b-9508-4833-bb85-ba4af6b80aab.png",
+      "prompt": "Use case: illustration-story. Asset type: one transparent achievement BADGE icon for house building game and top-left overlay on exportedhouseimage. Original friendly polished colorful toy construction game artwork. No text, logos or watermark. Tier1 copper bronze house-shaped medal with one small central star, short plain creamribbon, modest polishedwood-and-copper charm, simple and inviting. One centered isolatedbadge viewed straight-on, readable at96px, bold distinctsilhouette, generous transparentpadding, squarecanvas. Quadrilateral gem andhouse forms. No numerals, no words, no typography, no opaque background, no borderframe."
+    },
+    {
+      "file": "badge-2.png",
+      "transparent": true,
+      "source_filename": "exec-04558398-4aca-4e7b-ba23-956fd988cde9.png",
+      "prompt": "Use case: illustration-story. Asset type: one transparent achievement BADGE icon for house building game and top-left overlay on exportedhouseimage. Original friendly polished colorful toy construction game artwork. No text, logos or watermark. Tier2 silver house-shaped medal, two small sapphire square gems, skyblue pairedribbons, more decorative than bronze, polishedsilver toy enamel. One centered isolatedbadge viewed straight-on, readable at96px, bold distinctsilhouette, generous transparentpadding, squarecanvas. Quadrilateral gem andhouse forms. No numerals, no words, no typography, no opaque background, no borderframe."
+    },
+    {
+      "file": "badge-3.png",
+      "transparent": true,
+      "source_filename": "exec-58b11453-32bd-4386-8fd3-850b53ebba50.png",
+      "prompt": "Use case: illustration-story. Asset type: one transparent achievement BADGE icon for house building game and top-left overlay on exportedhouseimage. Original friendly polished colorful toy construction game artwork. No text, logos or watermark. Tier3 warm gold house-shaped medal surrounded by a small emerald laurel, three tiny diamond gems, teal pairedribbons, clearly luxurious trophy pin. One centered isolatedbadge viewed straight-on, readable at96px, bold distinctsilhouette, generous transparentpadding, squarecanvas. Quadrilateral gem andhouse forms. No numerals, no words, no typography, no opaque background, no borderframe."
+    },
+    {
+      "file": "badge-4.png",
+      "transparent": true,
+      "source_filename": "exec-a682b887-466a-450f-9108-3196dd707007.png",
+      "prompt": "Use case: illustration-story. Asset type: one transparent achievement BADGE icon for house building game and top-left overlay on exportedhouseimage. Original friendly polished colorful toy construction game artwork. No text, logos or watermark. Tier4 brilliant platinum house-shaped medal, large blue diamond center, gold doublelaurel and ornate cobalt ribbons, luminous crisp highlights, exceptional prestige. One centered isolatedbadge viewed straight-on, readable at96px, bold distinctsilhouette, generous transparentpadding, squarecanvas. Quadrilateral gem andhouse forms. No numerals, no words, no typography, no opaque background, no borderframe."
+    },
+    {
+      "file": "badge-5.png",
+      "transparent": true,
+      "source_filename": "exec-8473f432-125d-4c60-9a67-25bec0beba9f.png",
+      "prompt": "Use case: illustration-story. Asset type: one transparent achievement BADGE icon for house building game and top-left overlay on exportedhouseimage. Original friendly polished colorful toy construction game artwork. No text, logos or watermark. Tier5 magnificent rainbow crystal house-shaped crown medal, five sparkling colored diamond gems, intricate golden laurelwings, royalpurple and gold layeredribbons, most elaborate prestigious award, controlled little sparkles around silhouette. One centered isolatedbadge viewed straight-on, readable at96px, bold distinctsilhouette, generous transparentpadding, squarecanvas. Quadrilateral gem andhouse forms. No numerals, no words, no typography, no opaque background, no borderframe."
+    }
+  ]
+}

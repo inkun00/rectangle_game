@@ -70,6 +70,13 @@ static func panel_texture(index: int) -> AtlasTexture:
 	_cells[key] = result
 	return result
 
+static func drafting_paper() -> Texture2D:
+	# Both sources are ImageGen originals. The earlier paper remains usable
+	# while a fresh checkout imports the revision atlas for the first time.
+	if ResourceLoader.exists("res://assets/generated/revision/ui-surfaces.png"):
+		return cell("revision/ui-surfaces", 0, 2, 2, false)
+	return panel_texture(0)
+
 static func view(texture: Texture2D, dimensions: Vector2 = Vector2(56, 56)) -> TextureRect:
 	var result: TextureRect = TextureRect.new()
 	result.texture = texture

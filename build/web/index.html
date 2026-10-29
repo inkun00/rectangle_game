@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#e9f3ee">
-<title>사각형 월드 · 내가 그린 친구와 떠나는 수학 모험</title>
+<title>사각형 월드 · 그림 그리기와 집 짓기, 수학 모험</title>
 <link id="-gd-engine-icon" rel="icon" type="image/png" href="index.icon.png" />
 <link rel="apple-touch-icon" href="index.apple-touch-icon.png"/>
 <script>window.addEventListener('contextmenu', function(e) { e.preventDefault(); });</script>
@@ -17,6 +17,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--page)
 #canvas:focus-visible{outline:4px solid var(--sun);outline-offset:-6px}
 #loading{position:fixed;inset:0;display:grid;place-items:center;overflow-y:auto;overscroll-behavior:contain;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));background:var(--page);z-index:10}
 .card{width:min(100%,520px);margin:auto;padding:36px;background:var(--paper);border:1px solid var(--line);border-radius:24px;text-align:left}
+.mark{display:block;width:80px;height:80px;object-fit:contain;margin:0 0 20px}
 h1{margin:0;font-size:clamp(34px,7vw,48px);font-weight:800;line-height:1.2;letter-spacing:-.045em;word-break:keep-all;text-wrap:balance}
 .intro{margin:16px 0 30px;color:var(--muted);font-size:17px;line-height:1.75;word-break:keep-all;overflow-wrap:anywhere}
 .progress-heading{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:14px;font-weight:700}
@@ -28,6 +29,7 @@ progress::-moz-progress-bar{background:var(--forest)}
 #stage{min-height:3em;margin:12px 0 22px;color:var(--muted);font-size:14px;line-height:1.6;word-break:keep-all}
 .controls{padding-top:22px;border-top:1px solid var(--line)}
 .controls h2{margin:0 0 15px;font-size:16px;font-weight:700}
+.home-note{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.7;word-break:keep-all}
 dl{display:grid;grid-template-columns:1fr 1fr;gap:12px 26px;margin:0;font-size:14px}
 dl div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
 dt{color:var(--muted)}dd{margin:0;font-weight:700;white-space:nowrap}
@@ -48,20 +50,22 @@ noscript{display:block;margin-top:20px;color:var(--error);line-height:1.6}
 </head>
 <body>
 <canvas id="canvas" tabindex="-1" aria-label="사각형 월드 게임" aria-describedby="game-controls" aria-busy="true">브라우저에서 캔버스를 지원해야 플레이할 수 있어요.</canvas>
-<p id="game-controls" class="sr-only">공방에서 사각형으로 친구를 완성하면 모험을 시작할 수 있어요. 모험에서는 방향키 또는 A와 D로 이동하고, Space로 점프해요. G로 물품을 줍고 E로 주민과 대화해요. Z 또는 F로 공격하고 Q로 물약을 사용해요. J는 부탁 목록, M은 지도, Esc는 열린 창을 닫는 키예요.</p>
+<p id="game-controls" class="sr-only">메인페이지에서 그림 그리기, 집 짓기, 모험을 골라요. 공방에서 사각형으로 친구를 완성하면 모험을 시작할 수 있어요. 모험에서는 방향키 또는 A와 D로 이동하고, Space로 점프해요. G로 물품을 줍고 E로 주민과 대화해요. Z 또는 F로 공격하고 Q로 물약을 사용해요. J는 부탁 목록, M은 지도, Esc는 열린 창을 닫는 키예요.</p>
 <section id="loading" aria-labelledby="loading-title">
   <div class="card">
+    <img class="mark" src="index.icon.png" width="80" height="80" alt="">
     <h1 id="loading-title">사각형 월드</h1>
-    <p class="intro">사각형으로 나만의 친구를 만들고,<br>주민들의 부탁을 풀며 모험해요.</p>
+    <p class="intro">다섯 가지 사각형으로 그림과 집을 만들고<br>나만의 친구와 마을을 탐험해요.</p>
     <div class="progress-heading" aria-hidden="true"><span>게임 파일 준비</span><span id="progress-value">0%</span></div>
     <progress id="progress" max="100" value="0" aria-label="게임 파일 준비 진행률"></progress>
-    <p id="stage" role="status" aria-live="polite" aria-atomic="true">공방과 모험길을 준비하고 있어요…</p>
+    <p id="stage" role="status" aria-live="polite" aria-atomic="true">그림 도구와 건축 재료를 준비하고 있어요…</p>
     <div id="error-box" hidden>
       <p id="error-msg"></p>
       <button id="retry-btn" type="button" aria-describedby="error-msg">다시 불러오기</button>
       <details><summary>자세한 오류 내용</summary><pre id="error-details"></pre></details>
     </div>
     <div class="controls">
+      <p class="home-note">메인페이지에서 그림 그리기 · 집 짓기 · 모험을 골라요.</p>
       <h2>모험에서는 이렇게 움직여요</h2>
       <dl>
         <div><dt>이동</dt><dd><kbd>← →</kbd> / <kbd>A D</kbd></dd></div>
@@ -128,7 +132,7 @@ noscript{display:block;margin-top:20px;color:var(--error);line-height:1.6}
     const milestone = Math.floor(percent / 25) * 25;
     if (milestone <= announcedMilestone) return;
     announcedMilestone = milestone;
-    if (percent === 100) announce('파일을 다 받았어요. 공방을 여는 중…');
+    if (percent === 100) announce('파일을 다 받았어요. 메인페이지를 여는 중…');
     else if (milestone > 0) announce('게임 파일을 ' + milestone + '% 받았어요. 조금만 기다려 주세요…');
   }
 
@@ -142,7 +146,7 @@ noscript{display:block;margin-top:20px;color:var(--error);line-height:1.6}
       fail('지원되지 않는 기능: ' + missing.join(', '), '이 브라우저에서는 게임을 실행할 수 없어요. 브라우저를 업데이트하거나 다른 최신 브라우저에서 열어 주세요.');
       return;
     }
-    const config = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"engine-805e53486be8","experimentalVK":false,"fileSizes":{"engine-805e53486be8.wasm":39514754,"art-c1af91479edb.pck":19769716},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"art-c1af91479edb.pck"};
+    const config = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"engine-805e53486be8","experimentalVK":false,"fileSizes":{"engine-805e53486be8.wasm":39514754,"art-e3930dd5858e.pck":37209812},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"art-e3930dd5858e.pck"};
     const engine = new Engine(config);
     engine.startGame({onProgress:updateProgress}).then(() => {
       if (settled) return;

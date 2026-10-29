@@ -19,7 +19,7 @@ function shell(options = {}) {
   const document = {activeElement: null, getElementById: id => elements.get(id)};
   for (const match of html.matchAll(/<[a-z][^>]*\bid="([^"]+)"[^>]*>/g)) {
     const attributes = new Map([...match[0].matchAll(/([\w-]+)="([^"]*)"/g)].map(item => [item[1], item[2]]));
-    let text = match[1] === 'stage' ? '공방과 모험길을 준비하고 있어요…' : '';
+    let text = match[1] === 'stage' ? '그림 도구와 건축 재료를 준비하고 있어요…' : '';
     elements.set(match[1], {
       attributes, writes: [], listeners: {}, removed: false,
       hidden: /\bhidden\b/.test(match[0]), tabIndex: Number(attributes.get('tabindex') || 0),
@@ -93,7 +93,7 @@ test('100% download does not start play until the engine is ready', async () => 
   const run = shell();
   run.state.progress(100, 100);
   assert.equal(run.elements.get('loading').removed, false);
-  assert.match(run.elements.get('stage').textContent, /공방을 여는 중/);
+  assert.match(run.elements.get('stage').textContent, /메인페이지를 여는 중/);
   assert.equal(run.document.activeElement, null);
   run.resolve();
   await flush();

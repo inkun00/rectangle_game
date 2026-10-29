@@ -1,0 +1,64 @@
+KENNEY CONSTRUCTION ASSET NOTICES
+Downloaded from Kenney official pages on 2026-10-27.
+Selected files live in assets/construction/.
+Exact source mapping: docs/CONSTRUCTION_ASSETS.md.
+All three asset packs use Creative Commons Zero / CC0 1.0:
+https://creativecommons.org/publicdomain/zero/1.0/
+This notice applies to these third-party assets, not to all original game code.
+
+=== Modular Characters ===
+Source: https://kenney.nl/assets/modular-characters
+###############################################################################
+
+	Character pack by Kenney Vleugels (www.kenney.nl)
+
+			------------------------------
+
+			        License (CC0)
+	       http://creativecommons.org/publicdomain/zero/1.0/
+
+	You may use these graphics in personal and commercial projects.
+	Credit (Kenney or www.kenney.nl) would be nice but is not mandatory.
+
+###############################################################################
+=== UI Pack 2.0 ===
+Source: https://kenney.nl/assets/ui-pack
+
+
+	UI Pack (2.0)
+
+	Created/distributed by Kenney (www.kenney.nl)
+	Creation date: 12-06-2024
+
+			------------------------------
+
+	License: (Creative Commons Zero, CC0)
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	This content is free to use in personal, educational and commercial projects.
+
+	Support us by crediting Kenney or www.kenney.nl (this is not mandatory)
+
+			------------------------------
+
+	Donate:   http://support.kenney.nl
+	Patreon:  http://patreon.com/kenney/
+
+	Follow on Twitter for updates:
+	http://twitter.com/KenneyNL
+=== Platformer Art Buildings ===
+Source: https://kenney.nl/assets/platformer-art-buildings
+
+###############################################################################
+
+	Platformer graphics (Buildings) by Kenney Vleugels (www.kenney.nl)
+
+	------------------------------
+
+		License (CC0)
+	http://creativecommons.org/publicdomain/zero/1.0/
+
+	You may use these graphics in personal and commercial projects.
+	Credit (Kenney or www.kenney.nl) would be nice but is not mandatory.
+
+###############################################################################
