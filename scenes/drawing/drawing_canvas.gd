@@ -454,7 +454,7 @@ func _draw() -> void:
 		_draw_snap()
 	draw_rect(board, Color("c9d9d1"), false, 1.0)
 	if has_focus():
-		draw_rect(Rect2(Vector2(1, 1), size - Vector2(2, 2)), QuadTheme.TEAL, false, 2.0)
+		draw_rect(Rect2(Vector2(1, 1), size - Vector2(2, 2)), Color("0c6658"), false, 2.0)
 
 func _draw_part(vertices: PackedVector2Array, position: Vector2, color: Color, selected: bool) -> void:
 	var points: PackedVector2Array = PackedVector2Array()
@@ -463,7 +463,7 @@ func _draw_part(vertices: PackedVector2Array, position: Vector2, color: Color, s
 	draw_colored_polygon(points, color)
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(points[0])
-	draw_polyline(outline, QuadTheme.INK if selected else color.darkened(0.18), 2.5 if selected else 1.0, true)
+	draw_polyline(outline, Color("213b42") if selected else color.darkened(0.18), 2.5 if selected else 1.0, true)
 
 func _draw_selection(part: Dictionary) -> void:
 	var vertices: PackedVector2Array = part.vertices
@@ -479,7 +479,7 @@ func _draw_selection(part: Dictionary) -> void:
 			distance = midpoint.distance_to(handle)
 			closest = midpoint
 	# Keep the connector behind the opaque measurement pills.
-	draw_line(closest, handle, QuadTheme.TEAL, 1.5, true)
+	draw_line(closest, handle, Color("0c6658"), 1.5, true)
 	for index: int in range(4):
 		var first: Vector2 = artwork_to_screen(position + vertices[index])
 		var second: Vector2 = artwork_to_screen(position + vertices[(index + 1) % 4])
@@ -488,18 +488,18 @@ func _draw_selection(part: Dictionary) -> void:
 		var normal: Vector2 = Vector2(edge.y, -edge.x).normalized() * winding
 		var hovered: bool = int(_hover.get("index", -1)) == index and str(_hover.get("mode", "")) == "edge"
 		if hovered:
-			draw_line(first, second, QuadTheme.TEAL, 5.0, true)
+			draw_line(first, second, Color("0c6658"), 5.0, true)
 		draw_circle(first, 5.0, Color.WHITE)
-		draw_arc(first, 5.0, 0.0, TAU, 20, QuadTheme.INK, 1.5, true)
+		draw_arc(first, 5.0, 0.0, TAU, 20, Color("213b42"), 1.5, true)
 		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), Color.WHITE)
-		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), QuadTheme.TEAL, false, 1.5)
+		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), Color("0c6658"), false, 1.5)
 		_draw_length_label(midpoint + normal * 23.0, QuadrilateralMath.measurement_label(lengths[index] / 20.0) + "칸")
 	draw_circle(handle, 11.0, Color.WHITE)
-	draw_arc(handle, 11.0, 0.0, TAU, 24, QuadTheme.TEAL, 2.0, true)
-	draw_arc(handle, 5.5, -PI * 0.85, PI * 0.65, 18, QuadTheme.TEAL, 1.7, true)
+	draw_arc(handle, 11.0, 0.0, TAU, 24, Color("0c6658"), 2.0, true)
+	draw_arc(handle, 5.5, -PI * 0.85, PI * 0.65, 18, Color("0c6658"), 1.7, true)
 	var arrow: Vector2 = handle + Vector2.from_angle(PI * 0.65) * 5.5
-	draw_line(arrow, arrow + Vector2(0.5, -4.0), QuadTheme.TEAL, 1.7, true)
-	draw_line(arrow, arrow + Vector2(4.0, -0.5), QuadTheme.TEAL, 1.7, true)
+	draw_line(arrow, arrow + Vector2(0.5, -4.0), Color("0c6658"), 1.7, true)
+	draw_line(arrow, arrow + Vector2(4.0, -0.5), Color("0c6658"), 1.7, true)
 
 func _draw_length_label(center: Vector2, text: String) -> void:
 	var font: Font = QuadTheme.FONT
@@ -512,15 +512,15 @@ func _draw_length_label(center: Vector2, text: String) -> void:
 	box.set_border_width_all(1)
 	box.set_corner_radius_all(4)
 	draw_style_box(box, Rect2(top_left, dimensions))
-	draw_string(font, top_left + Vector2(5, 3 + font.get_ascent(font_size)), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, QuadTheme.INK)
+	draw_string(font, top_left + Vector2(5, 3 + font.get_ascent(font_size)), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color("213b42"))
 
 func _draw_snap() -> void:
 	var source: Vector2 = artwork_to_screen(_snap_from)
 	var target: Vector2 = artwork_to_screen(_snap_to)
 	if _snap_edge.size() == 2:
-		draw_line(artwork_to_screen(_snap_edge[0]), artwork_to_screen(_snap_edge[1]), QuadTheme.TEAL, 3.0, true)
-	draw_dashed_line(source, target, QuadTheme.TEAL, 1.5, 4.0, true)
+		draw_line(artwork_to_screen(_snap_edge[0]), artwork_to_screen(_snap_edge[1]), Color("0c6658"), 3.0, true)
+	draw_dashed_line(source, target, Color("0c6658"), 1.5, 4.0, true)
 	draw_circle(target, 7.0, Color.WHITE)
-	draw_arc(target, 7.0, 0.0, TAU, 24, QuadTheme.TEAL, 2.0, true)
-	draw_line(target - Vector2(10, 0), target + Vector2(10, 0), QuadTheme.TEAL, 1.0, true)
-	draw_line(target - Vector2(0, 10), target + Vector2(0, 10), QuadTheme.TEAL, 1.0, true)
+	draw_arc(target, 7.0, 0.0, TAU, 24, Color("0c6658"), 2.0, true)
+	draw_line(target - Vector2(10, 0), target + Vector2(10, 0), Color("0c6658"), 1.0, true)
+	draw_line(target - Vector2(0, 10), target + Vector2(0, 10), Color("0c6658"), 1.0, true)

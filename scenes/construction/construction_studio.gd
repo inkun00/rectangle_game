@@ -16,8 +16,8 @@ const INK: Color = Art.INK
 const BLUE: Color = Art.ACCENT
 const MUTED: Color = Art.MUTED
 const BG: Color = Art.BOARD
-const GOOD: Color = Color("186b48")
-const BAD: Color = Color("a9382e")
+const GOOD: Color = Color("90e6b2")
+const BAD: Color = Color("ff9b97")
 const REPAIRS_PER_PAGE: int = 8
 const MATERIAL_CATEGORIES: Array[String] = ["all", "wall", "opening", "roof", "decor"]
 const MATERIAL_FAMILIES: Array[String] = ["all", "trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
@@ -287,10 +287,10 @@ func _modal_action(text: String, callback: Callable, primary: bool = false) -> B
 
 func _build_ui() -> void:
 	var background: TextureRect = TextureRect.new()
-	background.texture = Art.quiet_surface_texture()
+	background.texture = StarfrontArt.scene(7)
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_TILE
-	background.self_modulate = Color("d8ebe6")
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	background.self_modulate = Color("607488")
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
@@ -327,7 +327,7 @@ func _build_ui() -> void:
 	_cash_pill = PanelContainer.new()
 	_cash_pill.add_theme_stylebox_override("panel", Art.gold_panel(6))
 	header.add_child(_cash_pill)
-	_cash = _label("", 15, Color("613b08"))
+	_cash = _label("", 15, Color("ffd18a"))
 	_cash.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_cash.custom_minimum_size.x = 132
 	_cash_pill.add_child(_cash)
@@ -379,7 +379,7 @@ func _build_ui() -> void:
 	_stage_card.visible = false
 	_stage_card.add_theme_stylebox_override("panel", Art.gold_panel(8))
 	palette_box.add_child(_stage_card)
-	_stage_summary = _label("", 13, Color("663e08"))
+	_stage_summary = _label("", 13, Color("ffd18a"))
 	_stage_summary.visible = false
 	_stage_card.add_child(_stage_summary)
 	_palette_hint = _label("견본을 고르고 도면에 배치하세요.", 13, MUTED)
@@ -542,7 +542,7 @@ func _build_ui() -> void:
 	guide_pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	guide_pill.add_theme_stylebox_override("panel", Art.gold_panel(8))
 	_guide_bar.add_child(guide_pill)
-	_guide_label = _label("", 14, Color("5c3706"))
+	_guide_label = _label("", 14, Color("ffd18a"))
 	_guide_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	guide_pill.add_child(_guide_label)
 	_guide_place = _button("안내대로 놓기", _place_guide_step, true)
@@ -699,7 +699,7 @@ func _build_ui() -> void:
 	_budget.show_percentage = false
 	_budget.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var budget_background: StyleBoxTexture = Art.card_panel(0, Color("d4e2dc"))
-	var budget_fill: StyleBoxTexture = Art.panel(true, 0)
+	var budget_fill: StyleBoxTexture = StarfrontArt.gauge(7)
 	_budget.add_theme_stylebox_override("background", budget_background)
 	_budget.add_theme_stylebox_override("fill", budget_fill)
 	cost_card.add_child(_budget)
@@ -1033,7 +1033,7 @@ func _refresh() -> void:
 	for index: int in range(_phase_labels.size()):
 		var is_current: bool = index == phase_index
 		var is_done: bool = index < phase_index
-		_phase_labels[index].add_theme_color_override("font_color", Color("5c3706") if is_current else (GOOD if is_done else MUTED))
+		_phase_labels[index].add_theme_color_override("font_color", Color("ffd18a") if is_current else (GOOD if is_done else MUTED))
 		if index < _phase_pills.size():
 			if is_current:
 				_phase_pills[index].add_theme_stylebox_override("panel", Art.gold_panel(5))
@@ -1304,7 +1304,7 @@ func _build_onscreen_client_board() -> void:
 	var heading: Label = _label("3×3 집짓기 의뢰인 선택 (9단계)", 19, BLUE)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(heading)
-	_client_board_asset_label = _label("", 15, Color("613b08"))
+	_client_board_asset_label = _label("", 15, Color("ffd18a"))
 	top_row.add_child(_client_board_asset_label)
 	var my_house_btn: Button = _button("나만의 집 짓기", _enter_my_house_mode, true)
 	my_house_btn.name = "BoardMyHouseButton"
@@ -1353,7 +1353,7 @@ func _populate_client_grid(grid: GridContainer, include_direct_title_buttons: bo
 		meta.add_theme_constant_override("separation", 2)
 		top.add_child(meta)
 		meta.add_child(_label("%d단계 · %s" % [stage_num, str(offer.client)], 15, BLUE if unlocked else MUTED))
-		meta.add_child(_label(Catalog.read_won(int(offer.total)), 14, Color("613b08")))
+		meta.add_child(_label(Catalog.read_won(int(offer.total)), 14, Color("ffd18a")))
 		var badge: PanelContainer = PanelContainer.new()
 		badge.add_theme_stylebox_override("panel", Art.pill_style(Color("d6f2e2") if unlocked else Color("fbe4df"), 6, 2))
 		meta.add_child(badge)

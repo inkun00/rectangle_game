@@ -84,9 +84,9 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 
 func _build_ui() -> void:
 	var background: TextureRect = TextureRect.new()
-	background.texture = ConstructionArt.quiet_surface_texture()
+	background.texture = StarfrontArt.scene(6)
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_TILE
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)

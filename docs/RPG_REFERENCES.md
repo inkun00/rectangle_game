@@ -38,3 +38,7 @@ Godot 4를 유지하면 기존 공방의 벡터 사각형, 명령 기반 되돌�
 현재 월드 배경·환경·NPC·몬스터·아이템과 UI 질감은 `assets/generated`의 생성 이미지를 사용한다. 제작 프롬프트와 출처는 [GENERATION.md](../assets/generated/GENERATION.md)에 기록한다. 플레이어의 작품은 공방에서 정한 네 꼭짓점과 색으로 직접 그린다. 위 GitHub 참고 자료의 라이선스는 각 저장소의 범위에 적용되며 이 프로젝트의 모든 신규 코드를 자동으로 그 라이선스로 바꾸지 않는다.
 
 `tests/test_adventure_state.gd`는 XP 경계·다중 레벨업, 체력 제한, 물약 소비, 상점·여관 거래, 무료 구조, 보상 중복 방지, JSON 왕복, 잘못된 저장값의 원자적 거절을 검증한다. 검증 명령은 `powershell -ExecutionPolicy Bypass -File tools/run_tests.ps1`이다. 화면 배치·공격 거리·애니메이션은 별도의 실제 실행 검증 대상이다.
+
+## Starbound 분위기 개편 (2026-11-01)
+
+[공식 Steam 화면](https://store.steampowered.com/app/211820/Starbound/?l=koreana)과 [REA 안내](https://github.com/morluto/rea/blob/main/docs/readme/README_ko.md)를 확인하고 REA의 브라우저 시나리오 관찰을 실행했다. 게임 설치본은 확보하지 못했으므로 바이너리 내부 분석으로 표현하지 않는다. [공개 UI 모드 작성자 문서](https://github.com/Silverfeelin/Starbound-ManipulatedUI)의 설정·콜백 분리도 참고했다. 제3자 코드·원화·음원 재사용은 없다. [설계와 근거](STARFRONT_REDESIGN.md), [Evidence 요약](STARBOUND_REA_EVIDENCE.json), [독자 원화 기록](../assets/generated/starfront-v1/GENERATION.md).

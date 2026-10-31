@@ -451,7 +451,7 @@ func _build_workshop() -> void:
 	_progress_bar.custom_minimum_size.y = 9
 	_progress_bar.show_percentage = false
 	_progress_bar.add_theme_stylebox_override("background", QuadTheme.style(Color("e7eee8"), 5, Color.TRANSPARENT, 0))
-	_progress_bar.add_theme_stylebox_override("fill", QuadTheme.style(QuadTheme.TEAL, 5, Color.TRANSPARENT, 0))
+	_progress_bar.add_theme_stylebox_override("fill", StarfrontArt.gauge(7))
 	preview_card.add_child(_progress_bar)
 	var info_card: VBoxContainer = QuadTheme.card(right, Color("fff6e3"))
 	info_card.add_child(QuadTheme.label("도형 탐구", 16))
@@ -508,9 +508,9 @@ func _build_world_hud() -> void:
 	character_info.add_child(_level_label)
 	_health_label = QuadTheme.label("", 16, Color("f7edd7"))
 	character_info.add_child(_health_label)
-	_health_bar = _rpg_bar(Color("ef8668"), 10)
+	_health_bar = _rpg_bar(Color("ff6b79"), 12)
 	character_info.add_child(_health_bar)
-	_xp_bar = _rpg_bar(Color("f3cd6e"), 6)
+	_xp_bar = _rpg_bar(Color("74dfb0"), 7)
 	character_info.add_child(_xp_bar)
 	_region_panel = PanelContainer.new()
 	_region_panel.add_theme_stylebox_override("panel", GameArt.panel(1, 14))
@@ -559,7 +559,7 @@ func _build_world_hud() -> void:
 		if world != null: world.player.begin_attack(), 14), "공격 Z / F", false)
 	_potion_button = _rpg_button("회복약 Q", _use_potion, 8)
 	_add_hud_action(_potion_button, "회복약 Q", false)
-	_add_hud_action(_rpg_button("가방 I", _show_inventory, 13), "가방 I", true)
+	_add_hud_action(_rpg_button("가방 I", _show_inventory, 11), "가방 I", true)
 	_add_hud_action(_rpg_button("메뉴", _show_game_menu), "메뉴", true)
 	_touch_row = HBoxContainer.new()
 	_touch_row.name = "TouchMovementControls"
@@ -613,8 +613,9 @@ func _layout_hud(area: Vector2) -> void:
 	_quest_panel.position = Vector2(gutter if _compact_hud else area.x - 340.0 - gutter, 240.0 if narrow else (144.0 if _compact_hud else gutter))
 	_quest_panel.size = Vector2(minf(470.0, area.x - gutter * 2.0) if _compact_hud else 340.0, 0)
 	var bottom_height: float = 120.0 if narrow else 104.0
-	_hud_bottom.position = Vector2(gutter, area.y - bottom_height - gutter)
-	_hud_bottom.size = Vector2(area.x - gutter * 2.0, bottom_height)
+	var hotbar_width: float = minf(1000.0, area.x - gutter * 2.0)
+	_hud_bottom.position = Vector2((area.x - hotbar_width) * 0.5, area.y - bottom_height - gutter)
+	_hud_bottom.size = Vector2(hotbar_width, bottom_height)
 	for button: Button in _hud_buttons:
 		var show_button: bool = not _compact_hud or bool(button.get_meta("compact", false))
 		button.visible = show_button
@@ -639,16 +640,16 @@ func _rpg_bar(tint: Color, height: float) -> ProgressBar:
 	bar.custom_minimum_size = Vector2(250, height)
 	bar.show_percentage = false
 	var back: StyleBoxTexture = GameArt.panel(1, 0)
-	var fill: StyleBoxTexture = GameArt.panel(3, 0)
-	fill.texture = GameArt.panel_texture(0)
-	fill.modulate_color = tint
+	var fill: StyleBoxTexture = StarfrontArt.panel(6 if tint.r > tint.g else 7, 0)
+	fill.texture = StarfrontArt.interior(6 if tint.r > tint.g else 7)
+	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]: fill.set_texture_margin(edge, 0.0)
 	bar.add_theme_stylebox_override("background", back)
 	bar.add_theme_stylebox_override("fill", fill)
 	return bar
 
 func _rpg_button(text: String, callback: Callable, item_index: int = -1) -> Button:
 	var button: Button = QuadTheme.button(text, callback)
-	ButtonArt.apply(button, true, 18)
+	ButtonArt.apply(button, false, 18)
 	button.focus_mode = Control.FOCUS_NONE
 	if item_index >= 0:
 		button.icon = GameArt.item(item_index)
@@ -695,7 +696,7 @@ func _choose_color(color: Color) -> void:
 	for i: int in range(_swatches.size()):
 		var c: Color = QuadTheme.COLORS[i]
 		_swatches[i].text = "●" if c.is_equal_approx(color) else ""
-		var ink: Color = QuadTheme.INK if c.get_luminance() > 0.55 else Color.WHITE
+		var ink: Color = Color("213b42") if c.get_luminance() > 0.55 else Color.WHITE
 		for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
 			_swatches[i].add_theme_color_override(state, ink)
 
@@ -888,16 +889,27 @@ func _show_inventory() -> void:
 	if use_button.disabled:
 		medicine.add_child(QuadTheme.paragraph("체력이 가득해요. 다쳤을 때 사용해요." if adventure.hp >= adventure.max_hp else "회복약이 없어요. 초록 마을 잡화점에서 살 수 있어요.", 17))
 	body.add_child(QuadTheme.label("퀘스트 물품", 22))
+	var slots: GridContainer = GridContainer.new()
+	slots.columns = 2 if _ui_size().x < 850.0 else 3
+	slots.add_theme_constant_override("h_separation", 10)
+	slots.add_theme_constant_override("v_separation", 10)
+	body.add_child(slots)
 	var found: bool = false
 	for quest: Dictionary in QuestCatalog.all_quests():
 		var target: String = String(quest["target"])
 		var count: int = int(journal.inventory.get(target, 0))
 		if count <= 0: continue
 		found = true
-		var row: HBoxContainer = HBoxContainer.new()
-		row.add_child(GameArt.view(GameArt.quest_item(quest), Vector2(48, 48)))
-		row.add_child(QuadTheme.paragraph("%s  × %d\n%s" % [str(quest["item_name"]), count, "주민에게 전달할 준비가 됐어요" if journal.can_turn_in(str(quest["id"])) else "부탁을 받기 전에 주운 물건도 사용할 수 있어요"], 17, QuadTheme.INK))
-		body.add_child(row)
+		var slot: PanelContainer = PanelContainer.new()
+		slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slot.add_theme_stylebox_override("panel", StarfrontArt.panel(4, 12))
+		slots.add_child(slot)
+		var content: VBoxContainer = VBoxContainer.new()
+		content.add_theme_constant_override("separation", 6)
+		slot.add_child(content)
+		content.add_child(GameArt.view(GameArt.quest_item(quest), Vector2(52, 52)))
+		content.add_child(QuadTheme.paragraph("%s × %d" % [str(quest["item_name"]), count], 17, QuadTheme.INK))
+		content.add_child(QuadTheme.paragraph("전달 준비 완료" if journal.can_turn_in(str(quest["id"])) else "모은 물건", 15, QuadTheme.TEAL))
 	if not found:
 		body.add_child(QuadTheme.paragraph("아직 모은 물건이 없어요. 빛나는 물건 옆에서 G를 누르거나 가까이 다가가 주워요. 부탁을 받기 전에도 모을 수 있어요.", 17))
 	body.add_child(QuadTheme.button("부탁 수첩에서 필요한 물건 보기", _show_journal, true))

@@ -9,4 +9,5 @@ func _initialize() -> void:
 			push_error("Could not export generated loading button: " + filename)
 			quit(1)
 			return
+	StarfrontArt.scene(8).get_image().save_png("res://build/web/frontier-loading.png")
 	quit()

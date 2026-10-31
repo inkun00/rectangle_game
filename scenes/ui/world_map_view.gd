@@ -6,6 +6,7 @@ var player_x: float = 0.0
 var target_x: float = -1.0
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	custom_minimum_size = Vector2(500, 308)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
@@ -16,7 +17,9 @@ func _draw() -> void:
 		var start: float = 0.0 if row == 0 else 5200.0
 		var finish: float = 5200.0 if row == 0 else QuadrilateralWorld.WORLD_WIDTH
 		var x_scale: float = width / (finish - start)
-		draw_texture_rect(GameArt.sheet("world_backdrop" if row == 0 else "expansion_backdrop"), Rect2(0, top, size.x, 146), false, Color(1, 1, 1, 0.85))
+		for biome: int in range(3):
+			var biome_rect: Rect2 = Rect2(float(biome) * size.x / 3.0, top, size.x / 3.0, 146.0)
+			draw_texture_rect(StarfrontArt.scene(row * 3 + biome), biome_rect, false, Color(0.65, 0.72, 0.82))
 		draw_texture_rect(GameArt.cell("environment_atlas", 9, 4, 3), Rect2(22, top + 82, width, 10), false)
 		for p: Dictionary in points:
 			var px: float = Vector2(p["position"]).x
@@ -37,5 +40,5 @@ func _draw() -> void:
 
 func _draw_marker(x: float, y: float, text: String, icon: int) -> void:
 	draw_texture_rect(GameArt.item(icon), Rect2(x - 12, y - 12, 24, 24), false)
-	draw_string_outline(QuadTheme.FONT, Vector2(x - 12, y - 18), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, QuadTheme.INK)
+	draw_string_outline(QuadTheme.FONT, Vector2(x - 12, y - 18), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, StarfrontArt.DARK)
 	draw_string(QuadTheme.FONT, Vector2(x - 12, y - 18), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("fff0cb"))

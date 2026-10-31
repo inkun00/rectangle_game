@@ -1,11 +1,11 @@
 class_name QuadTheme
 extends RefCounted
 
-const INK: Color = Color("213b42")
-const MUTED: Color = Color("3d5053")
-const PAPER: Color = Color("f8faf6")
-const TEAL: Color = Color("0c5548")
-const BORDER: Color = Color("dce6df")
+const INK: Color = Color("edf5fc")
+const MUTED: Color = Color("bacbd9")
+const PAPER: Color = Color("182432")
+const TEAL: Color = Color("77e2dc")
+const BORDER: Color = Color("3c5268")
 static var FONT: FontFile = _make_ui_font()
 const COLORS: Array[Color] = [Color("29a995"), Color("ff966d"), Color("f1c75b"), Color("617dc7"), Color("9d7ace"), Color("e47796"), Color("354d60"), Color("f6ead1")]
 const BUTTON_FONT_SIZE: int = 18
@@ -19,9 +19,7 @@ static func _make_ui_font() -> FontFile:
 	return result
 
 static func style(color: Color, _radius: int = 0, _border: Color = Color.TRANSPARENT, padding: int = 16) -> StyleBoxTexture:
-	if color.get_luminance() < 0.35:
-		return GameArt.panel(1, padding)
-	return ConstructionArt.card_panel(padding, color)
+	return StarfrontArt.panel(0 if color.get_luminance() < 0.35 else 5, padding)
 
 static func label(text: String, font_size: int = 16, color: Color = INK) -> Label:
 	var l: Label = Label.new()
@@ -52,7 +50,7 @@ static func button(text: String, callback: Callable, primary: bool = false) -> B
 	b.add_theme_color_override("font_hover_color", Color.WHITE if primary else INK)
 	b.add_theme_color_override("font_pressed_color", Color.WHITE)
 	b.add_theme_color_override("font_focus_color", Color.WHITE if primary else INK)
-	b.add_theme_color_override("font_disabled_color", Color("536360"))
+	b.add_theme_color_override("font_disabled_color", Color("8da1b4"))
 	ButtonArt.apply(b, primary, BUTTON_FONT_SIZE)
 	if callback.is_valid(): b.pressed.connect(callback)
 	return b

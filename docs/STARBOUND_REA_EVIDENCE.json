@@ -1,0 +1,32 @@
+{
+  "evidence_id": "ev_5abd13df0f553478a18324e85a63c678aef4b8ce5429001f29bf0f9c10838ddf",
+  "source_url": "https://store.steampowered.com/app/211820/Starbound/?l=koreana",
+  "scope": "Steam storefront only; no installed Starbound binary or game runtime analyzed.",
+  "completeness": {"status":"incomplete","equality_eligible":false,"missing_sections":["events"],"truncated_sections":[]},
+  "duration_ms": 9397,
+  "provider": {
+    "id": "rea-playwright-browser-scenario",
+    "name": "REA Playwright browser scenario capture provider",
+    "version": "1"
+  },
+  "operation": "capture_browser_scenario",
+  "confidence": "observed",
+  "authority": "controlled-replay",
+  "limitations": [
+    "Artifact identity is unavailable for this observation.",
+    "Event sequence records provider receipt order; simultaneous browser causality is not inferred.",
+    "Network content is retained only when selected; Playwright response-body bytes are API results and are not guaranteed to match wire bytes.",
+    "Request bytes are limited to what Playwright exposes; not_exposed does not establish body absence or multipart file coverage.",
+    "Network content reads settle within 5 seconds each and the observer does not request bodies from unfinished responses.",
+    "Playwright scenario events do not expose request initiator stacks; receipt order does not prove causality.",
+    "Storage values are hashed only after declared-secret redaction.",
+    "Some network requests had not completed when capture ended; later activity is unknown.",
+    "Browser host platform and architecture were not observed."
+  ],
+  "environment": {
+    "id": "Chromium@156.0.8078.76",
+    "platform": "unknown",
+    "architecture": "unknown",
+    "isolation": "process"
+  }
+}

@@ -272,7 +272,7 @@ func _draw_annotations() -> void:
 	var text_size: int = 13
 	var message_width: float = _font.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
 	draw_style_box(_bubble_style(), Rect2(Vector2(maxf(14.0, (size.x - message_width) * 0.5 - 16.0), size.y - 51.0), Vector2(minf(message_width + 32.0, size.x - 28.0), 34.0)))
-	draw_string(_font, Vector2(maxf(22.0, (size.x - message_width) * 0.5), size.y - 28), message, HORIZONTAL_ALIGNMENT_LEFT, size.x - 40, text_size, Color("536d73"))
+	draw_string(_font, Vector2(maxf(22.0, (size.x - message_width) * 0.5), size.y - 28), message, HORIZONTAL_ALIGNMENT_LEFT, size.x - 40, text_size, StarfrontArt.INK)
 
 func _screen_polygon(vertices: PackedVector2Array, position: Vector2) -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
@@ -298,5 +298,5 @@ static func _default_dimensions(kind: String) -> Vector2:
 
 static func _bubble_style() -> StyleBoxTexture:
 	var style: StyleBoxTexture = GameArt.panel(0, 0)
-	style.modulate_color.a = 0.8
+	style.modulate_color.a = 1.0
 	return style

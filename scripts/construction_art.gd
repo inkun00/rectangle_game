@@ -8,15 +8,15 @@ const GAME_ROOT: String = "res://assets/generated/construction-game/"
 const GAME_FILES: Dictionary = {"construction-cover.png": "worksite.png", "client-portraits.png": "client-portraits.png", "construction-materials.png": "material-base.png", "construction-materials-expanded.png": "material-expanded.png", "ui-icons.png": "tool-icons.png"}
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
-const INK: Color = Color("1b2d30")
-const MUTED: Color = Color("485c5f")
-const PAPER: Color = Color("f6f4ec")
-const BOARD: Color = Color("cbd9d3")
-const ACCENT: Color = Color("1f5d52")
-const COPPER: Color = Color("c98732")
-const GOLD: Color = Color("e09b35")
-const SLATE_DARK: Color = Color("1d3438")
-const LINE: Color = Color("b2c6be")
+const INK: Color = Color("edf5fc")
+const MUTED: Color = Color("bacbd9")
+const PAPER: Color = Color("182432")
+const BOARD: Color = Color("111c29")
+const ACCENT: Color = Color("77e2dc")
+const COPPER: Color = Color("edb75f")
+const GOLD: Color = Color("ffd18a")
+const SLATE_DARK: Color = Color("101a27")
+const LINE: Color = Color("42586d")
 const QUIET_PAPER_PATH: String = "res://assets/generated/focused-ui/paper-v1.png"
 const TOOL_CELLS: Dictionary = {"select": 0, "undo": 1, "redo": 2, "delete": 3, "rotate": 4, "zoom": 5, "fit": 6, "inspect": 7, "receipt": 8, "home": 9, "save": 10, "help": 11, "duplicate": 12, "draw": 13, "adventure": 14, "book": 15}
 const EXPANDED_MATERIAL_CELLS: Dictionary = {"stone": 0, "concrete": 1, "plaster": 2, "green_brick": 3, "frosted_glass": 4, "amber_glass": 5, "teal_glass": 6, "grille": 7, "zinc_roof": 8, "clay_roof": 9, "slate_roof": 10, "metal_roof": 11, "cedar": 12, "louver": 13, "mosaic": 14, "copper": 15}
@@ -24,6 +24,14 @@ static var _textures: Dictionary = {}
 static var _regions: Dictionary = {}
 
 static func generated_texture(filename: String) -> Texture2D:
+	match filename:
+		"client-portraits.png": return StarfrontArt.sheet("crew")
+		"construction-materials.png", "construction-materials-expanded.png": return StarfrontArt.sheet("materials")
+		"ui-icons.png": return StarfrontArt.sheet("tools")
+		"ui-surfaces.png": return StarfrontArt.sheet("skin")
+		"drawing-cover.png": return StarfrontArt.scene(6)
+		"construction-cover.png": return StarfrontArt.scene(7)
+		"app-icon.png": return StarfrontArt.cell("items", 23, 4, 6, true)
 	if _textures.has(filename): return _textures[filename] as Texture2D
 	var path: String = GENERATED_ROOT + filename
 	if GAME_FILES.has(filename) and ResourceLoader.exists(GAME_ROOT + str(GAME_FILES[filename])):
@@ -34,6 +42,11 @@ static func generated_texture(filename: String) -> Texture2D:
 	return result
 
 static func _atlas(filename: String, cell: int, columns: int, rows: int) -> Texture2D:
+	match filename:
+		"construction-materials.png": return StarfrontArt.cell("brick", 0, 1, 1) if cell == 0 else StarfrontArt.cell("materials", cell, 4, 6)
+		"construction-materials-expanded.png": return StarfrontArt.cell("materials", cell + 8, 4, 6)
+		"client-portraits.png": return StarfrontArt.cell("crew", cell, 4, 4, true)
+		"ui-icons.png": return StarfrontArt.cell("tools", cell, 4, 4, true)
 	var key: String = "%s:%d:%d:%d" % [filename, cell, columns, rows]
 	if _regions.has(key): return _regions[key] as Texture2D
 	var sheet: Texture2D = generated_texture(filename)
@@ -61,37 +74,27 @@ static func game_texture(filename: String) -> Texture2D:
 	return result
 
 static func surface_texture(_primary: bool = false, _button: bool = false) -> Texture2D:
-	var key: String = "quiet-paper-v1"
-	if _textures.has(key): return _textures[key] as Texture2D
-	# Keep the individual ImageGen source at native resolution. Painted UI frames
-	# are never resized into a full-screen background or sliced across atlas cells.
-	var result: Texture2D = load(QUIET_PAPER_PATH) as Texture2D
-	_textures[key] = result
-	return result
+	return StarfrontArt.interior(0)
 
-static func _paper_style(tint: Color, padding: int) -> StyleBoxTexture:
-	var result: StyleBoxTexture = StyleBoxTexture.new()
-	result.texture = quiet_surface_texture()
-	result.modulate_color = tint
-	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 2.0)
-		result.set_content_margin(edge, float(padding))
-	return result
+static func _paper_style(_tint: Color, padding: int) -> StyleBoxTexture:
+	return StarfrontArt.panel(5, padding)
 
 static func panel(primary: bool = false, padding: int = 14) -> StyleBoxTexture:
-	return _paper_style(Color("d9eee4") if primary else Color("fafcf8"), padding)
+	return StarfrontArt.panel(3 if primary else 0, padding)
 
 static func dark_panel(padding: int = 12) -> StyleBoxTexture:
-	return GameArt.panel(1, padding)
+	return StarfrontArt.panel(4, padding)
 
 static func gold_panel(padding: int = 10) -> StyleBoxTexture:
-	return _paper_style(Color("f5edcf"), padding)
+	return StarfrontArt.panel(2, padding)
 
-static func card_panel(padding: int = 10, tint: Color = Color("eef4f1")) -> StyleBoxTexture:
-	return _paper_style(tint, padding)
+static func card_panel(padding: int = 10, _tint: Color = Color("eef4f1")) -> StyleBoxTexture:
+	return StarfrontArt.panel(5, padding)
 
-static func pill_style(tint: Color = Color("e3ede8"), padding_h: int = 8, padding_v: int = 4) -> StyleBoxTexture:
-	var result: StyleBoxTexture = _paper_style(tint, 4)
+static func pill_style(_tint: Color = Color("e3ede8"), padding_h: int = 8, padding_v: int = 4) -> StyleBoxTexture:
+	var result: StyleBoxTexture = StarfrontArt.panel(4, 4)
+	result.texture = StarfrontArt.interior(4)
+	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]: result.set_texture_margin(edge, 0.0)
 	result.content_margin_left = float(maxi(padding_h, 7))
 	result.content_margin_right = float(maxi(padding_h, 7))
 	result.content_margin_top = float(maxi(padding_v, 4))
@@ -237,7 +240,7 @@ static func shape_icon(kind: String) -> Texture2D:
 					var b: Vector2 = poly[(i + 1) % poly.size()]
 					var seg: Vector2 = Geometry2D.get_closest_point_to_segment(pt, a, b)
 					min_d = minf(min_d, pt.distance_to(seg))
-				img.set_pixel(px, py, Color("1b2d30") if min_d < 1.35 else fill_col)
+				img.set_pixel(px, py, Color("edf5fc") if min_d < 1.35 else fill_col)
 	var tex: ImageTexture = ImageTexture.create_from_image(img)
 	_textures[key] = tex
 	return tex
@@ -271,7 +274,7 @@ class MaterialSample extends Control:
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		resized.connect(queue_redraw)
 
 	func _draw() -> void:
@@ -344,11 +347,11 @@ class ClientPortrait extends Control:
 			queue_redraw()
 
 	func _ready() -> void:
-		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		resized.connect(queue_redraw)
 
 	func _draw() -> void:
-		var bg_tint: Color = Color("d8efe4") if mood == "happy" else (Color("f5e5cc") if mood == "sad" else Color("e0ece8"))
+		var bg_tint: Color = Color("173845") if mood == "happy" else (Color("423024") if mood == "sad" else Color("1c2b38"))
 		var border_tint: Color = Color("1f6f4e") if mood == "happy" else (Color("c27428") if mood == "sad" else Color("4a6b63"))
 		draw_rect(Rect2(Vector2.ZERO, size), bg_tint)
 		draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color(1.0, 1.0, 1.0, 0.35), false, 1.5)

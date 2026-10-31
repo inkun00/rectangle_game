@@ -66,3 +66,7 @@ The 30 new drawing backgrounds and 10 original geometric masterpiece studies are
 ## 공통 버튼
 
 2026-10-29: 모든 게임 화면과 팝업에 적용하는 버튼·체크 표시 네 원본을 ImageGen으로 제작했습니다. [버튼 원본·적용 범위](buttons-v1/GENERATION.md), [전체 프롬프트](buttons-v1/prompts.json)를 보관합니다. 버튼의 한글과 동작은 UI에서 유지합니다.
+
+## 별빛 개척지 화면 개편
+
+2026-11-01: 홈·작업실·건축·월드의 원화와 공통 금속 UI를 새로 제작했습니다. [프롬프트와 생성 기록](starfront-v1/GENERATION.md), [REA 분석 범위와 화면 설계](../../docs/STARFRONT_REDESIGN.md)를 확인하세요. 기존 학습 그림과 사용자 작품은 보존합니다.

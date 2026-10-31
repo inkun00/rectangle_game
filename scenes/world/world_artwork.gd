@@ -16,21 +16,28 @@ var enemy_sprites: Dictionary = {}
 var story_landmarks: Dictionary = {}
 static var _textures: Dictionary = {}
 static var _atlas_textures: Dictionary = {}
-var _backdrop: Sprite2D
-var _expansion_backdrop: Sprite2D
+var _backdrop_layer: CanvasLayer
+var _backdrop_view: TextureRect
+var _backdrop_region: int = -1
 var _effects: Array[Dictionary] = []
 var _portal_sprites: Array[Sprite2D] = []
 
 
 func configure(npcs: Array[Dictionary], pickups: Array[Dictionary], platforms: Array[Rect2], world_width: float = 11000.0) -> void:
 	name = "GeneratedWorldArtwork"
-	_backdrop = _sprite(_texture("world_backdrop"), Rect2(-700, -250, 6150, 1160), -100, true)
-	_expansion_backdrop = _sprite(_texture("expansion_backdrop"), Rect2(4950, -250, 6650, 1160), -99, true)
-	var transition_shader: Shader = Shader.new()
-	transition_shader.code = "shader_type canvas_item; void fragment() { COLOR = texture(TEXTURE, UV); COLOR.a *= smoothstep(0.0, 0.07, UV.x); }"
-	var transition_material: ShaderMaterial = ShaderMaterial.new()
-	transition_material.shader = transition_shader
-	_expansion_backdrop.material = transition_material
+	_backdrop_layer = CanvasLayer.new()
+	_backdrop_layer.layer = -100
+	add_child(_backdrop_layer)
+	_backdrop_view = TextureRect.new()
+	_backdrop_view.texture = StarfrontArt.scene(0)
+	_backdrop_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_backdrop_view.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_backdrop_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_backdrop_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_backdrop_view.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_backdrop_layer.add_child(_backdrop_view)
+	visibility_changed.connect(func(): _backdrop_layer.visible = is_visible_in_tree())
+	_backdrop_layer.visible = is_visible_in_tree()
 	# Texture props at several depths leave the main walking lane readable.
 	for i: int in range(29):
 		var px: float = float(i) * 187.0 - 50.0
@@ -87,7 +94,7 @@ func configure(npcs: Array[Dictionary], pickups: Array[Dictionary], platforms: A
 		var sprite: Sprite2D = _sprite(atlas(str(item.get("sheet", "items_atlas")), int(item.get("icon", 0))), Rect2(pos - Vector2(30, 30), Vector2(60, 60)), 3)
 		pickup_sprites[str(item["id"])] = sprite
 	# The shopkeeper's stock and inn supply are generated props, too.
-	_sprite(atlas("items_atlas", 13), Rect2(614, 623, 73, 67), 1)
+	_sprite(atlas("items_atlas", 11), Rect2(614, 623, 73, 67), 1)
 	_sprite(atlas("items_atlas", 8), Rect2(184, 612, 38, 62), 1)
 	for px: float in [5900.0, 8150.0, 10000.0]:
 		_sprite(atlas("items_atlas", 8), Rect2(px - 19, 612, 38, 62), 1)
@@ -145,15 +152,24 @@ func _region_tint(x_position: float) -> Color:
 
 func add_enemy(enemy: Dictionary) -> void:
 	var pos: Vector2 = enemy["position"]
-	var sprite: Sprite2D = _sprite(atlas("items_atlas", int(enemy["texture"])), Rect2(pos - Vector2(37, 70), Vector2(74, 70)), 3)
+	var sprite: Sprite2D = _sprite(atlas("items_atlas", 13 if int(enemy["texture"]) == 11 else 12), Rect2(pos - Vector2(37, 70), Vector2(74, 70)), 3)
 	enemy_sprites[str(enemy["id"])] = sprite
 
 
 func update_backdrop(player_x: float, clock: float) -> void:
-	if is_instance_valid(_backdrop):
-		_backdrop.position.x = -700.0 + player_x * 0.018
-	if is_instance_valid(_expansion_backdrop):
-		_expansion_backdrop.position.x = 4950.0 + player_x * 0.018
+	var region: int = 0
+	for boundary: float in [1600.0, 3300.0, 5200.0, 7000.0, 8800.0]:
+		if player_x >= boundary: region += 1
+	if region != _backdrop_region:
+		_backdrop_region = region
+		_backdrop_view.texture = StarfrontArt.scene(region)
+	# The viewport plane preserves biome proportions at every camera position.
+	# A small overscan provides parallax without stretching a scene across 11km.
+	if not is_inside_tree(): return
+	_backdrop_layer.visible = is_visible_in_tree()
+	var viewport_size: Vector2 = get_viewport_rect().size
+	_backdrop_view.position = Vector2(-24.0 - fposmod(player_x * 0.018, 32.0), -16.0)
+	_backdrop_view.size = viewport_size + Vector2(80.0, 40.0)
 	for i: int in range(_portal_sprites.size()):
 		_portal_sprites[i].modulate = Color(1.0, 1.0, 1.0, 0.90 + sin(clock * 1.5 + float(i)) * 0.10)
 
@@ -214,46 +230,9 @@ func advance_effects(delta: float) -> void:
 			_effects.remove_at(i)
 
 
-func atlas(name: String, index: int) -> Texture2D:
-	var key: String = "%s:%d" % [name, index]
-	if _atlas_textures.has(key):
-		return _atlas_textures[key]
-	var texture: Texture2D = _texture(name)
-	if texture == null:
-		return null
-	var layout: Vector2i = ATLAS_LAYOUTS[name]
-	var cell: Vector2i = Vector2i(texture.get_size()) / layout
-	var region: Rect2i = Rect2i(Vector2i(index % layout.x, index / layout.x) * cell, cell)
-	if name == "environment_atlas":
-		# Measured gutters in the final imagegen sheet preserve complete houses,
-		# trees and platforms while keeping adjacent rows out of each sprite.
-		var row: int = floori(float(index) / 4.0)
-		var boundaries: Array[float] = [0.0, 397.0 / 1086.0, 749.0 / 1086.0, 1.0]
-		var top: int = roundi(boundaries[row] * texture.get_height())
-		var bottom: int = roundi(boundaries[row + 1] * texture.get_height())
-		if index >= 8 and index <= 10:
-			# These short bottom-row props begin below the taller portal; exclude
-			# faint tree-base shadows spilling from the preceding row.
-			top = maxi(top, roundi(float(texture.get_height()) * 0.75))
-		region = Rect2i(region.position.x, top, cell.x, bottom - top)
-		if index == 9:
-			# The neighboring ground tile reaches a few pixels into this cell.
-			var gutter: int = roundi(float(cell.x) * 0.07)
-			region.position.x += gutter
-			region.size.x -= gutter
-	var source_image: Image = texture.get_image()
-	if source_image != null:
-		if source_image.is_compressed():
-			source_image.decompress()
-		var used: Rect2i = source_image.get_region(region).get_used_rect()
-		if used.has_area():
-			region = Rect2i(region.position + used.position, used.size)
-	var result: AtlasTexture = AtlasTexture.new()
-	result.atlas = texture
-	result.region = Rect2(region)
-	result.filter_clip = true
-	_atlas_textures[key] = result
-	return result
+func atlas(asset_name: String, index: int) -> Texture2D:
+	var layout: Vector2i = ATLAS_LAYOUTS[asset_name]
+	return GameArt.cell(asset_name, index, layout.x, layout.y)
 
 
 func _ground_surface_texture() -> Texture2D:
@@ -263,7 +242,7 @@ func _ground_surface_texture() -> Texture2D:
 	# Crop decorative grass tips above the solid ledge; the visible walking
 	# surface then aligns with the physical collider at y=690.
 	var region: Rect2 = source.region
-	var tip_height: float = floorf(region.size.y * 0.31)
+	var tip_height: float = floorf(region.size.y * 0.05)
 	region.position.y += tip_height
 	region.size.y -= tip_height
 	var result: AtlasTexture = AtlasTexture.new()
@@ -311,7 +290,7 @@ func _sprite(texture: Texture2D, rect: Rect2, depth: int, stretch: bool = false)
 	sprite.texture = texture
 	sprite.centered = false
 	sprite.z_index = depth
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	var size: Vector2 = rect.size
 	if texture != null:
 		if stretch:

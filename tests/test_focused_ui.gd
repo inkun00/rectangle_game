@@ -6,11 +6,12 @@ const Art = preload("res://scripts/construction_art.gd")
 
 static func run(t: Node) -> void:
 	for texture: Texture2D in [Art.surface_texture(), Art.quiet_surface_texture()]:
-		t.assert_not_null(texture, "Quiet UI has its generated paper source")
+		t.assert_not_null(texture, "Quiet UI retains the generated metal interior")
 		if texture == null: continue
-		t.assert_true(texture.resource_path.ends_with("focused-ui/paper-v1.png"), "Quiet surfaces use the individual generated paper file")
-		t.assert_ge(texture.get_width(), 1024, "UI paper retains native width instead of a tiny runtime thumbnail")
-		t.assert_ge(texture.get_height(), 1024, "UI paper retains native height instead of a tiny runtime thumbnail")
+		t.assert_true(texture is AtlasTexture, "Quiet surfaces crop the generated skin rather than enlarging ornaments")
+		if texture is AtlasTexture:
+			t.assert_true((texture as AtlasTexture).atlas.resource_path.ends_with("starfront-v1/skin.png"), "All quiet chrome shares the new generated palette")
+		t.assert_ge(texture.get_width(), 64, "Metal face has enough source detail")
 	var window: Window = t.get_window()
 	var previous: Dictionary = {
 		"size": window.size, "minimum": window.min_size,

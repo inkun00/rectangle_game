@@ -3,22 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#102a25">
+<meta name="theme-color" content="#111c29">
 <title>사각형 월드</title>
 $GODOT_HEAD_INCLUDE
 <style>
 :root {
-  color-scheme: light;
-  --page-deep: #0a1c19;
-  --paper: #fbfdfc;
-  --ink: #152e2b;
-  --forest: #196b58;
-  --forest-bright: #25967b;
-  --muted: #48665d;
-  --line: #d8e5df;
+  color-scheme: dark;
+  --page-deep: #0b1320;
+  --paper: #182432;
+  --ink: #edf5fc;
+  --forest: #77e2dc;
+  --forest-bright: #8bece2;
+  --muted: #bacbd9;
+  --line: #3c5268;
   --sun: #f2c14e;
   --amber: #e08238;
-  --error: #963c34;
+  --error: #ff9b97;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -43,7 +43,8 @@ html, body {
   display: grid;
   place-items: center;
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  background: radial-gradient(circle at 50% 38%, #14352f 0%, #0c211d 60%, #071714 100%);
+  background: linear-gradient(#0b132070, #0b1320dd), url("frontier-loading.png") center / cover;
+  image-rendering: pixelated;
   z-index: 10;
 }
 #loading::before {
@@ -83,8 +84,8 @@ html, body {
   width: min(92vw, 380px);
   padding: 36px 30px 30px;
   background: var(--paper);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 26px;
+  border: 3px solid #536e86;
+  border-radius: 2px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(20, 60, 50, 0.12);
   text-align: center;
   overflow: hidden;
@@ -96,7 +97,7 @@ html, body {
   left: 0;
   right: 0;
   height: 5px;
-  background: linear-gradient(90deg, var(--forest) 0%, var(--forest-bright) 50%, var(--sun) 100%);
+  background: var(--sun);
 }
 .brand-icon-wrap {
   display: inline-flex;
@@ -104,8 +105,8 @@ html, body {
   justify-content: center;
   width: 72px;
   height: 72px;
-  border-radius: 20px;
-  background: linear-gradient(145deg, #16463c, #247564);
+  border-radius: 2px;
+  background: #132c3c;
   box-shadow: 0 10px 22px rgba(20, 70, 58, 0.28);
   margin-bottom: 16px;
 }
@@ -155,28 +156,28 @@ progress {
   height: 10px;
   overflow: hidden;
   border: 0;
-  border-radius: 999px;
-  background: #e7eeea;
+  border-radius: 1px;
+  background: #0d1620;
 }
 progress::-webkit-progress-bar {
-  background: #e7eeea;
-  border-radius: 999px;
+  background: #0d1620;
+  border-radius: 1px;
 }
 progress::-webkit-progress-value {
-  background: linear-gradient(90deg, #196b58, #2ec49f, #f2c14e);
-  border-radius: 999px;
+  background: linear-gradient(90deg, #77e2dc, #2ec49f, #f2c14e);
+  border-radius: 1px;
   transition: width 0.2s ease;
 }
 progress::-moz-progress-bar {
-  background: linear-gradient(90deg, #196b58, #2ec49f, #f2c14e);
-  border-radius: 999px;
+  background: linear-gradient(90deg, #77e2dc, #2ec49f, #f2c14e);
+  border-radius: 1px;
 }
 #error-box {
   margin-top: 20px;
   padding: 16px;
   border-radius: 14px;
   border-left: 4px solid var(--error);
-  background: #fdf2ef;
+  background: #35222c;
   text-align: left;
 }
 #error-msg {
@@ -192,9 +193,9 @@ button {
   border: 9px solid transparent;
   border-image: url("button-primary.png") 9 fill / 9px / 0 stretch;
   padding: 4px 16px;
-  background: var(--forest);
+  background: #573b24;
   background-clip: padding-box;
-  color: var(--paper);
+  color: var(--ink);
   font: inherit;
   font-size: 16px;
   font-weight: 700;

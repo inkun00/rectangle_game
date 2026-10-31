@@ -1,5 +1,10 @@
 Quadrilateral World artwork was generated for this project with the built-in ImageGen tool.
 The selected PNGs are in assets/generated. Prompts and the atlas layout are recorded in assets/generated/GENERATION.md.
 World scenery, NPCs, collectibles, monsters and UI textures use these generated images.
-No art from MapleStory or the researched RPG repositories is included.
+No art from Starbound, MapleStory or the researched RPG repositories is included.
 Research URLs and per-repository license notes are in docs/RPG_REFERENCES.md.
+
+2026-11-01 space-frontier visual revision: assets/generated/starfront-v1.
+Original ImageGen assets and cell mappings: assets/generated/starfront-v1/GENERATION.md.
+REA scope and public reference analysis: docs/STARFRONT_REDESIGN.md.
+No Starbound game assets, extracted packages, logos, music or code are redistributed.

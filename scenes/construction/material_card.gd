@@ -121,7 +121,7 @@ func _refresh_colors() -> void:
 	if _color_state == color_state: return
 	_color_state = color_state
 	var main_color: Color = Color.WHITE if active else (Art.MUTED if disabled else Art.INK)
-	var price_color: Color = Color("fff6d2") if active else (Art.MUTED if disabled else Color("6e440c"))
+	var price_color: Color = Color("fff6d2") if active else (Art.MUTED if disabled else Art.GOLD)
 	_title.add_theme_color_override("font_color", main_color)
 	_price.add_theme_color_override("font_color", price_color)
 	_family.add_theme_color_override("font_color", Color("fff9e8") if active else Art.ACCENT)

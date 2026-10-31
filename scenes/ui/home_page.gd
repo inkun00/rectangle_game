@@ -20,22 +20,14 @@ var _learning_button: Button
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var background: TextureRect = TextureRect.new()
-	background.name = "QuietPaperBackground"
-	background.texture = Art.quiet_surface_texture()
-	background.modulate = Color("d8e6e0")
+	background.name = "OrbitalObservatoryBackground"
+	background.texture = StarfrontArt.scene(8)
+	background.modulate = Color("8094ac")
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_TILE
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
-	var world_bg: TextureRect = TextureRect.new()
-	world_bg.texture = GameArt.sheet("world_backdrop")
-	world_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	world_bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	world_bg.self_modulate = Color(1.0, 1.0, 1.0, 0.07)
-	world_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	world_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(world_bg)
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.name = "HomeScroll"
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -55,9 +47,9 @@ func _ready() -> void:
 	var introduction: VBoxContainer = VBoxContainer.new()
 	introduction.add_theme_constant_override("separation", 4)
 	hero_panel.add_child(introduction)
-	_heading = _label("사각형으로 무엇을 만들까요?", 30)
+	_heading = _label("별빛 너머, 나만의 사각형 월드", 30)
 	introduction.add_child(_heading)
-	introduction.add_child(_label("그림을 그리고, 집을 짓고, 나의 친구와 모험을 떠나요.", 17, Color("5c3a09")))
+	introduction.add_child(_label("도형을 발견하고, 나만의 세계를 만들어 떠나요.", 17, Art.INK))
 	var learn_row: HBoxContainer = HBoxContainer.new()
 	learn_row.add_theme_constant_override("separation", 16)
 	introduction.add_child(learn_row)
@@ -74,7 +66,7 @@ func _ready() -> void:
 	_column.add_child(_cards)
 	_build_mode("Drawing", "사각형으로 표현해요", "나만의 그림", "다섯 가지 사각형으로 나만의 작품을 만들어 보세요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
 	_build_mode("Construction", "집 짓기 놀이", "뚝딱! 사각형 집 짓기", "의뢰인의 집을 짓고 수익으로 나만의 집도 완성해요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
-	_build_mode("Adventure", "친구와 탐험", "나의 친구와 모험", "사각형 캐릭터를 조립해 여섯 지역으로 모험을 떠나요.", GameArt.sheet("world_backdrop"), "모험 시작하기", func(): adventure_requested.emit())
+	_build_mode("Adventure", "친구와 탐험", "나의 친구와 모험", "사각형 캐릭터를 조립해 여섯 지역을 탐험해요.", GameArt.sheet("world_backdrop"), "모험 시작하기", func(): adventure_requested.emit())
 	var footer: HFlowContainer = HFlowContainer.new()
 	footer.add_theme_constant_override("h_separation", 24)
 	footer.add_theme_constant_override("v_separation", 6)
@@ -123,9 +115,9 @@ func _build_mode(mode: String, badge_text: String, title: String, description: S
 	panel.add_child(content)
 	var badge: PanelContainer = PanelContainer.new()
 	badge.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	badge.add_theme_stylebox_override("panel", Art.gold_panel(4) if mode == "Construction" else Art.pill_style(Color("d8efe6"), 8, 3))
+	badge.add_theme_stylebox_override("panel", Art.pill_style(Color.WHITE, 8, 3))
 	content.add_child(badge)
-	var badge_lbl: Label = _label("★ " + badge_text, 13, Color("663e08") if mode == "Construction" else Art.ACCENT)
+	var badge_lbl: Label = _label("" + badge_text, 13, Art.GOLD if mode == "Construction" else Art.ACCENT)
 	badge_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
 	badge.add_child(badge_lbl)
 	var picture_frame: PanelContainer = PanelContainer.new()
@@ -139,7 +131,7 @@ func _build_mode(mode: String, badge_text: String, title: String, description: S
 	picture.custom_minimum_size = Vector2(0, 120)
 	picture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	picture.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	picture.clip_contents = true
 	picture_frame.add_child(picture)
 	content.add_child(_label(title, 22))

@@ -92,11 +92,11 @@ static func _assert_skin(t: Node, button: BaseButton, context: String) -> void:
 		t.assert_not_null(skin, context + " uses a generated raster skin for " + state)
 		if skin == null or skin.texture == null: continue
 		var source: String = _source(skin.texture)
-		t.assert_true(source.contains("assets/generated/") and source.contains("button"), context + " retains new button-art provenance for " + state)
+		t.assert_true(source.contains("assets/generated/") and source.ends_with("starfront-v1/skin.png"), context + " retains new button-art provenance for " + state)
 	if button is CheckButton:
 		for icon_name: String in ["checked", "unchecked"]:
 			var icon: Texture2D = button.get_theme_icon(icon_name)
-			t.assert_true(_source(icon).contains("assets/generated/") and _source(icon).contains("button"), context + " uses generated toggle artwork for " + icon_name)
+			t.assert_true(_source(icon).contains("assets/generated/") and _source(icon).ends_with("starfront-v1/skin.png"), context + " uses generated toggle artwork for " + icon_name)
 
 static func _source(texture: Texture2D) -> String:
 	if texture is AtlasTexture: return _source((texture as AtlasTexture).atlas)

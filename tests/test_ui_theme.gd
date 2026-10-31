@@ -14,7 +14,7 @@ static func _test_text_contrast(t: Node) -> void:
 	t.assert_eq(world_font.oversampling, 0.0, "World text keeps automatic sampling for zoomed gameplay")
 	var paper: StyleBoxTexture = GameArt.panel(0)
 	for color: Color in [QuadTheme.INK, QuadTheme.MUTED, QuadTheme.TEAL]:
-		t.assert_ge(_minimum_contrast(color, paper), 4.5, "Body and accent text remain readable over generated paper texture")
+		t.assert_ge(_minimum_contrast(color, paper), 4.5, "Body and accent text remain readable over generated metal panel face")
 	var paragraph: Label = QuadTheme.paragraph("도형의 네 변과 네 각을 살펴보아요.")
 	t.assert_ge(paragraph.get_theme_font_size("font_size"), 17, "Default learning paragraphs use readable type")
 	t.assert_eq(paragraph.autowrap_mode, TextServer.AUTOWRAP_WORD_SMART, "Paragraphs reflow instead of clipping instructions")
@@ -35,7 +35,7 @@ static func _test_button_states(t: Node) -> void:
 			t.assert_not_null(style, "Each button state uses the generated texture theme: " + state)
 			if style == null: continue
 			styles[state] = style
-			t.assert_true(_generated_source(style.texture).contains("assets/generated/") and _generated_source(style.texture).contains("button"), "State texture retains its generated button artwork provenance: " + state)
+			t.assert_true(_generated_source(style.texture).contains("assets/generated/") and _generated_source(style.texture).ends_with("starfront-v1/skin.png"), "State texture retains its generated button artwork provenance: " + state)
 		for state: String in ["normal", "hover", "pressed"]:
 			var color_key: String = "font_color" if state == "normal" else "font_%s_color" % state
 			t.assert_ge(_minimum_contrast(button.get_theme_color(color_key), styles[state]), 4.5, "Button text is readable in interactive state: " + state)
@@ -52,7 +52,7 @@ static func _test_button_states(t: Node) -> void:
 		for side: int in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
 			t.assert_ge(focus.get_texture_margin(side), 3.0, "Focus indicator has a clearly visible frame")
 			t.assert_ge(focus.get_expand_margin(side), 3.0, "Focus indicator remains outside the label and artwork")
-		t.assert_ge(_frame_contrast(focus), 3.0, "Focus frame contrasts against surrounding paper")
+		t.assert_ge(_frame_contrast(focus), 3.0, "Focus frame contrasts against surrounding dark panel")
 		button.free()
 
 static func _test_construction_gizmo(t: Node) -> void:
@@ -110,7 +110,7 @@ static func _minimum_contrast(text_color: Color, style: StyleBoxTexture) -> floa
 	var minimum: float = INF
 	# Button text sits on the central face. Its transparent outer corners and
 	# narrow decorative rim are not behind the label and use the surrounding UI.
-	var is_button: bool = _generated_source(style.texture).contains("button")
+	var is_button: bool = _generated_source(style.texture).ends_with("starfront-v1/skin.png")
 	var first: Vector2i = Vector2i(floori(float(image.get_width()) * 0.3), floori(float(image.get_height()) * 0.3)) if is_button else Vector2i.ZERO
 	var last: Vector2i = Vector2i(ceili(float(image.get_width()) * 0.7), ceili(float(image.get_height()) * 0.7)) if is_button else image.get_size()
 	for y: int in range(first.y, last.y, 6):

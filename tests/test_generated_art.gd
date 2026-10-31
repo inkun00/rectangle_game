@@ -12,7 +12,7 @@ static func run(t: Node) -> void:
 		t.assert_not_null(texture, "The shipped generated artwork loads: " + filename)
 		if texture != null:
 			t.assert_true(texture.get_width() > 0 and texture.get_height() > 0, "The generated artwork has usable dimensions: " + filename)
-			t.assert_true(texture.resource_path.begins_with("res://assets/generated/"), "The image comes from a generated source: " + filename)
+			t.assert_true(Art.texture_source(texture).resource_path.begins_with("res://assets/generated/"), "The image comes from a generated source: " + filename)
 	var paper: Texture2D = GameArt.drafting_paper()
 	t.assert_not_null(paper, "Drawing and workshop use the generated quiet paper")
 	if paper != null:
@@ -44,6 +44,7 @@ static func _test_materials(t: Node) -> void:
 		if texture == null: continue
 		var texture_key: String = str(material.get("texture_key", ""))
 		var expected: Texture2D = expanded if Art.EXPANDED_MATERIAL_CELLS.has(texture_key) and int(material.get("brick_count", 0)) == 0 else source
+		if int(material.get("brick_count", 0)) > 0: expected = StarfrontArt.sheet("brick")
 		t.assert_true(Art.texture_source(texture) == expected, "The material uses its generated material sheet: " + id)
 		t.assert_true(_valid_uvs(texture), "Material UVs stay finite and inside their source image: " + id)
 

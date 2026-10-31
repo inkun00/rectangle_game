@@ -4,8 +4,8 @@ extends RefCounted
 ## Shared ImageGen sprites. Runtime work only trims transparent padding, samples
 ## at UI resolution, and nine-slices the narrow edge; labels remain live text.
 const ROOT: String = "res://assets/generated/buttons-v1/"
-const INK: Color = Color("263b3d")
-const MUTED: Color = Color("536360")
+const INK: Color = Color("edf5fc")
+const MUTED: Color = Color("9eb1c1")
 const STATES: Array[String] = ["normal", "hover", "pressed", "hover_pressed", "disabled"]
 static var _textures: Dictionary = {}
 static var _font: FontFile
@@ -40,47 +40,42 @@ static func _sprite(filename: String, dimensions: Vector2i) -> Texture2D:
 	return result
 
 static func texture(primary: bool = false) -> Texture2D:
-	return _sprite("primary.png" if primary else "secondary.png", Vector2i(384, 72))
+	return StarfrontArt.face(2 if primary else 0)
 
 static func indicator(checked: bool) -> Texture2D:
-	return _sprite("check-on.png" if checked else "check-off.png", Vector2i(26, 26))
+	var pixels: Image = StarfrontArt.face(3 if checked else 4).get_image()
+	pixels.resize(26, 26, Image.INTERPOLATE_NEAREST)
+	var result: ImageTexture = ImageTexture.create_from_image(pixels)
+	result.set_meta("generated_source", StarfrontArt.ROOT + "skin.png")
+	return result
 
 static func style(primary: bool = false, state: String = "normal", padding: int = 12) -> StyleBoxTexture:
 	var selected: bool = state in ["pressed", "hover_pressed"]
-	var result: StyleBoxTexture = StyleBoxTexture.new()
-	var primary_face: bool = (primary or selected) and state != "disabled"
-	var face: AtlasTexture = AtlasTexture.new()
-	face.atlas = texture(primary_face)
-	face.region = Rect2(10, 10, 364, 52)
-	face.filter_clip = true
-	face.set_meta("generated_source", ROOT + ("primary.png" if primary_face else "secondary.png"))
-	result.texture = face
-	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 2.0)
-		result.set_content_margin(edge, 10.0 if edge in [SIDE_TOP, SIDE_BOTTOM] else float(maxi(padding, 14)))
-	if state == "hover": result.modulate_color = Color(1.08, 1.08, 1.04) if primary else Color(0.96, 1.0, 0.96)
-	elif selected: result.modulate_color = Color(0.84, 0.90, 0.87)
-	elif state == "disabled": result.modulate_color = Color(0.86, 0.89, 0.87)
+	var index: int = 3 if selected else (2 if primary else 0)
+	if state == "hover": index = 2 if primary else 1
+	if state == "disabled": index = 5
+	var result: StyleBoxTexture = StarfrontArt.panel(index, padding)
+	if state == "hover" and primary: result.modulate_color = Color(1.10, 1.10, 1.06)
+	result.content_margin_top = 10.0
+	result.content_margin_bottom = 10.0
+	result.content_margin_left = float(maxi(padding, 14))
+	result.content_margin_right = float(maxi(padding, 14))
 	return result
 
 static func focus_style() -> StyleBoxTexture:
-	var result: StyleBoxTexture = StyleBoxTexture.new()
-	var face: AtlasTexture = AtlasTexture.new()
-	face.atlas = texture(true)
-	face.region = Rect2(96, 24, 32, 24)
-	face.filter_clip = true
-	result.texture = face
+	var result: StyleBoxTexture = StarfrontArt.panel(3, 0)
 	result.draw_center = false
-	result.modulate_color = Color(0.35, 0.45, 0.40)
 	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 3.0)
 		result.set_expand_margin(edge, 3.0)
 	return result
 
 static func swatch(color: Color, state: String = "normal") -> StyleBoxTexture:
 	var result: StyleBoxTexture = StyleBoxTexture.new()
-	result.texture = _sprite("check-off.png", Vector2i(48, 48))
-	result.modulate_color = color.lightened(0.12) if state == "hover" else color
+	result.texture = StarfrontArt.interior(5)
+	var pixel: Image = result.texture.get_image()
+	var neutral: Color = pixel.get_pixel(floori(float(pixel.get_width()) / 2.0), floori(float(pixel.get_height()) / 2.0))
+	result.modulate_color = Color(1.0 / maxf(neutral.r, 0.01), 1.0 / maxf(neutral.g, 0.01), 1.0 / maxf(neutral.b, 0.01))
+	result.modulate_color *= color.lightened(0.12) if state == "hover" else color
 	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
 		result.set_texture_margin(edge, 5.0)
 		result.set_content_margin(edge, 0.0)

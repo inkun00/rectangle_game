@@ -142,7 +142,7 @@ func _drag_to(point: Vector2) -> void:
 		set_value(fposmod(rad_to_deg(local.angle()), 180.0))
 
 func _draw() -> void:
-	draw_style_box(Art.card_panel(0, Color("f7faf5")), Rect2(Vector2.ZERO, size))
+	draw_texture_rect(GameArt.drafting_paper(), Rect2(Vector2.ZERO, size), false)
 	var zoom: float = _model_scale()
 	draw_set_transform(size * 0.5 - Vector2(300, 150) * zoom, 0.0, Vector2.ONE * zoom)
 	if is_line_activity(): _draw_lines()
@@ -155,15 +155,15 @@ func _draw() -> void:
 		var examples: Array[PackedVector2Array] = Catalog.figures(lesson_id)
 		for index: int in range(4):
 			var card: Rect2 = _card(index)
-			draw_style_box(Art.card_panel(0, Color("d9eee4") if selected_choices.has(index) else Color("f9fbf7")), card)
-			draw_rect(card, QuadTheme.TEAL if selected_choices.has(index) else Color("bdcec5"), false, 2.0 if selected_choices.has(index) else 1.0)
+			draw_rect(card, Color("d9eee4") if selected_choices.has(index) else Color("f9fbf7"))
+			draw_rect(card, Color("0c6658") if selected_choices.has(index) else Color("bdcec5"), false, 2.0 if selected_choices.has(index) else 1.0)
 			_draw_quad(examples[index], card.get_center() - Vector2(0, 8), 0.63, measured and focus_index == index, diagram_rotation)
 			_text(card.position + Vector2(12, 24), LETTERS[index] + (" · 선택" if selected_choices.has(index) else ""), 18)
-			if has_focus() and focus_index == index: draw_rect(card.grow(-4), QuadTheme.TEAL, false, 2)
+			if has_focus() and focus_index == index: draw_rect(card.grow(-4), Color("0c6658"), false, 2)
 	draw_set_transform(Vector2.ZERO)
-	if has_focus(): draw_rect(Rect2(Vector2.ONE, size - Vector2.ONE * 2), QuadTheme.TEAL, false, 2)
+	if has_focus(): draw_rect(Rect2(Vector2.ONE, size - Vector2.ONE * 2), Color("0c6658"), false, 2)
 
-func _text(at: Vector2, text: String, font_size: int = 18, ink: Color = QuadTheme.INK) -> void:
+func _text(at: Vector2, text: String, font_size: int = 18, ink: Color = Color("213b42")) -> void:
 	var readable_size: int = ceili(float(font_size) / _model_scale()) if question_mode else font_size
 	draw_string(QuadTheme.FONT, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, readable_size, ink)
 
@@ -173,7 +173,7 @@ func _draw_quad(vertices: PackedVector2Array, center: Vector2, zoom: float, deta
 	draw_colored_polygon(points, Color("c7ded4"))
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(points[0])
-	draw_polyline(outline, QuadTheme.TEAL, 2.5, true)
+	draw_polyline(outline, Color("0c6658"), 2.5, true)
 	if not details: return
 	var angles: PackedFloat32Array = Math.angles(vertices)
 	var labels: Array[String] = ["ㄱ", "ㄴ", "ㄷ", "ㄹ"]
@@ -185,7 +185,7 @@ func _draw_quad(vertices: PackedVector2Array, center: Vector2, zoom: float, deta
 		var b: Vector2 = (previous - first).normalized()
 		_text(first + (first - center).normalized() * 13 + Vector2(-5, 5), labels[index], 16)
 		if absf(angles[index] - 90.0) < 0.1:
-			draw_polyline(PackedVector2Array([first + a * 10, first + (a + b) * 10, first + b * 10]), QuadTheme.TEAL, 1.8, true)
+			draw_polyline(PackedVector2Array([first + a * 10, first + (a + b) * 10, first + b * 10]), Color("0c6658"), 1.8, true)
 		elif question_mode and lesson_id == "parallelogram" and measured:
 			_text(first + (a + b).normalized() * 28 + Vector2(-12, 5), Math.measurement_label(angles[index]) + "°", 17)
 		var opposite: Vector2 = points[(index + 3) % 4] - points[(index + 2) % 4]
@@ -212,9 +212,9 @@ func _straight_line(a: Vector2, b: Vector2, color: Color) -> void:
 func _draw_lines() -> void:
 	var handle: Vector2
 	if lesson_id == "perpendicular":
-		_straight_line(Vector2(70, 150), Vector2(530, 150), QuadTheme.INK)
+		_straight_line(Vector2(70, 150), Vector2(530, 150), Color("213b42"))
 		var direction: Vector2 = Vector2.from_angle(deg_to_rad(value)) * 115
-		_straight_line(Vector2(300, 150) - direction, Vector2(300, 150) + direction, QuadTheme.TEAL)
+		_straight_line(Vector2(300, 150) - direction, Vector2(300, 150) + direction, Color("0c6658"))
 		handle = Vector2(300, 150) + direction
 		if measured:
 			_text(Vector2(325, 138), Math.measurement_label(value) + "°", 20)
@@ -222,19 +222,19 @@ func _draw_lines() -> void:
 				_line(Vector2(316, 150), Vector2(316, 166), Color("b46b27"), 2)
 				_line(Vector2(316, 166), Vector2(300, 166), Color("b46b27"), 2)
 	elif lesson_id == "parallel":
-		_straight_line(Vector2(55, 95), Vector2(510, 95), QuadTheme.INK)
+		_straight_line(Vector2(55, 95), Vector2(510, 95), Color("213b42"))
 		var direction: Vector2 = Vector2.from_angle(deg_to_rad(value)) * 90
-		_straight_line(Vector2(320, 180) - direction, Vector2(320, 180) + direction, QuadTheme.TEAL)
+		_straight_line(Vector2(320, 180) - direction, Vector2(320, 180) + direction, Color("0c6658"))
 		handle = Vector2(320, 180) + direction
 		if measured:
 			_line(Vector2(300, 55), Vector2(300, 245), Color("b46b27"), 2)
 			_text(Vector2(310, 87), "90°", 18)
 			_text(Vector2(310, 170), Math.measurement_label(absf(90.0 - value)) + "°", 18)
 	else:
-		_straight_line(Vector2(65, 110), Vector2(535, 110), QuadTheme.INK)
-		_straight_line(Vector2(100, 190), Vector2(565, 190), QuadTheme.INK)
+		_straight_line(Vector2(65, 110), Vector2(535, 110), Color("213b42"))
+		_straight_line(Vector2(100, 190), Vector2(565, 190), Color("213b42"))
 		_line(Vector2(180, 110), Vector2(180, 190), Color("b46b27"), 2)
-		_line(Vector2(300, 110), Vector2(300 + value, 190), QuadTheme.TEAL, 4)
+		_line(Vector2(300, 110), Vector2(300 + value, 190), Color("0c6658"), 4)
 		handle = Vector2(300 + value, 190)
 		if measured:
 			_text(Vector2(112, 157), "4칸", 20)
