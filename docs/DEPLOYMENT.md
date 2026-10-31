@@ -2,6 +2,8 @@
 
 GitHub 저장소는 `inkun00/rectangle_game`, Vercel 프로젝트는 `inkeuns-projects-872d3d68/rectangle-game`입니다. 기존 `triangle-art` 프로젝트와 별도로 배포합니다. 2026-11-01 배포부터 현재 연결된 계정의 전용 프로젝트를 사용합니다.
 
+운영 주소: **https://rectangle-game-snowy.vercel.app/**. 로그인 없이 접속할 수 있는 운영 도메인입니다. 프로젝트·팀 이름이 붙은 미리보기 주소는 Vercel 인증을 요구할 수 있으므로 이 운영 주소를 공유합니다.
+
 ## 새 버전 올리기
 
 프로젝트 폴더에서 테스트를 통과시킨 뒤 웹 파일을 다시 만듭니다.
