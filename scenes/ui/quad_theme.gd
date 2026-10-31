@@ -18,14 +18,10 @@ static func _make_ui_font() -> FontFile:
 	result.oversampling = 1.0
 	return result
 
-static func style(color: Color, _radius: int = 0, border: Color = Color.TRANSPARENT, padding: int = 16) -> StyleBoxTexture:
-	var index: int = 1 if color.get_luminance() < 0.35 else (3 if border.is_equal_approx(TEAL) else 0)
-	var s: StyleBoxTexture = GameArt.panel(index, padding)
-	s.modulate_color.a = color.a
-	if padding == 0:
-		s.texture = GameArt.panel_texture(0)
-		s.modulate_color = color
-	return s
+static func style(color: Color, _radius: int = 0, _border: Color = Color.TRANSPARENT, padding: int = 16) -> StyleBoxTexture:
+	if color.get_luminance() < 0.35:
+		return GameArt.panel(1, padding)
+	return ConstructionArt.card_panel(padding, color)
 
 static func label(text: String, font_size: int = 16, color: Color = INK) -> Label:
 	var l: Label = Label.new()

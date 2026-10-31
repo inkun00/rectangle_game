@@ -128,7 +128,16 @@ static func _test_gallery_workflow(t: Node) -> void:
 		masterpiece_button.pressed.emit()
 	t.assert_eq(studio.document.masterpiece_id, str(masterpiece.id), "Masterpiece gallery stores the selected study")
 	t.assert_eq(studio.document.drawing_mode, "masterpiece", "Selecting a study enters masterpiece fill mode")
-	t.assert_true(studio._masterpiece_tools.visible, "Fill mode exposes outline visibility and opacity controls")
+	t.assert_false(studio._masterpiece_tools.visible, "A short window keeps the drawing surface free of an extra outline-control row")
+	t.assert_true(studio._more_edits.get_popup().get_item_text(10).contains("밑그림") and studio._more_edits.get_popup().get_item_text(11).contains("진하기"), "Compact editing keeps both outline controls in its labeled menu")
+	var guide_visible: bool = studio.canvas.show_masterpiece
+	var opacity: float = studio.canvas.masterpiece_opacity
+	studio._more_edits.get_popup().id_pressed.emit(10)
+	studio._more_edits.get_popup().id_pressed.emit(11)
+	t.assert_eq(studio.canvas.show_masterpiece, not guide_visible, "The compact outline menu changes visibility")
+	t.assert_true(studio.canvas.masterpiece_opacity != opacity, "The compact outline menu changes opacity")
+	t.assert_eq(studio._guide_toggle.button_pressed, studio.canvas.show_masterpiece, "Wide and compact outline visibility controls stay synchronized")
+	t.assert_float_approx(studio._guide_opacity.value, studio.canvas.masterpiece_opacity, 0.001, "Resizing retains the true outline opacity")
 	t.assert_eq(studio.document.ordered_shapes(), artwork, "Entering fill mode preserves the player's four-vertex artwork")
 	studio._choose_mode("free")
 	t.assert_false(studio._masterpiece_tools.visible, "Free drawing hides fill-specific controls")

@@ -1,6 +1,7 @@
 extends Node
 
 const TestGeometry = preload("res://tests/test_quadrilateral_math.gd")
+const TestLearningActivities = preload("res://tests/test_learning.gd")
 const TestDocument = preload("res://tests/test_character_document.gd")
 const TestJournal = preload("res://tests/test_quest_journal.gd")
 const TestWorld = preload("res://tests/test_world_game.gd")
@@ -36,6 +37,8 @@ func _ready() -> void:
 	print("Starting Quadrilateral World Headless Test Suite")
 	print("[Suite] Quadrilateral geometry and classification")
 	TestGeometry.run(self)
+	print("[Suite] Guide-aligned manipulation, explanation, history and touch access")
+	await TestLearningActivities.run(self)
 	print("[Suite] Drawing, templates, constrained gestures and undo")
 	TestDocument.run(self)
 	print("[Suite] Generated artwork sources and atlas references")

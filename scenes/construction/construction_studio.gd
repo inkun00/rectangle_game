@@ -16,8 +16,8 @@ const INK: Color = Art.INK
 const BLUE: Color = Art.ACCENT
 const MUTED: Color = Art.MUTED
 const BG: Color = Art.BOARD
-const GOOD: Color = Color("207450")
-const BAD: Color = Color("a93e35")
+const GOOD: Color = Color("186b48")
+const BAD: Color = Color("a9382e")
 const REPAIRS_PER_PAGE: int = 8
 const MATERIAL_CATEGORIES: Array[String] = ["all", "wall", "opening", "roof", "decor"]
 const MATERIAL_FAMILIES: Array[String] = ["all", "trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
@@ -31,8 +31,11 @@ var canvas: Canvas
 var _autosave: Timer
 var _status: Label
 var _cash: Label
+var _cash_pill: PanelContainer
 var _client: Label
 var _brief: Label
+var _satisfaction_label: Label
+var _req_summary_label: Label
 var _requirements: Label
 var _costs: Label
 var _selection: Label
@@ -45,6 +48,9 @@ var _shape_filter: OptionButton
 var _category_picker: OptionButton
 var _category_chips: HFlowContainer
 var _edit_buttons: Array[Button] = []
+var _select_button: Button
+var _pan_button: Button
+var _pan_button_lower: Button
 var _undo: Button
 var _redo: Button
 var _inspect: Button
@@ -65,7 +71,10 @@ var _last_report: Dictionary = {}
 var _last_revision: int = -1
 var _portrait_index: int = -1
 var _restoring: bool = false
-var _toolbar: HFlowContainer
+var _top_bar_panel: PanelContainer
+var _toolbar: HBoxContainer
+var _current_goal: Label
+var _design_return: Button
 var _lower_toolbar: HFlowContainer
 var _completed_actions: VBoxContainer
 var _completed_summary: Label
@@ -79,6 +88,7 @@ var _compact_details: Button
 var _guide_overlay: Control
 var _focus_before_modal: Control
 var _phase_labels: Array[Label] = []
+var _phase_pills: Array[PanelContainer] = []
 var _project_label: Label
 var _inspector: Label
 var _budget: ProgressBar
@@ -94,11 +104,39 @@ var _layout_margin: MarginContainer
 var _layout_column: VBoxContainer
 var _stage_button: Button
 var _stage_summary: Label
+var _stage_card: PanelContainer
 var _exporting: bool = false
 var _hall_only: bool = false
 var _title_label: Label
 var _view_bar: HBoxContainer
 var _phase_bar: HBoxContainer
+var _drawing_title: Label
+var _my_house_button: Button
+var _my_house_export: Button
+var _client_board: PanelContainer
+var _client_board_grid: GridContainer
+var _client_grid: GridContainer:
+	get: return _client_board_grid
+var _client_board_asset_label: Label
+var _inspector_card: PanelContainer
+var _last_exported_png_bytes: PackedByteArray = PackedByteArray()
+
+func _add_material(id: String) -> void:
+	var use_id: String = id
+	var found: bool = false
+	for m: Dictionary in Catalog.materials():
+		if str(m.id) == id:
+			found = true
+			break
+	if not found:
+		use_id = "wall" if id.contains("wall") else "brick"
+	var doc: ConstructionDocument = _active_doc()
+	var pos: Vector2 = Vector2(300 + doc.parts.size() * 140, 520)
+	doc.add_part(use_id, pos)
+	_refresh()
+
+func _active_doc() -> ConstructionDocument:
+	return state.active_document()
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -124,7 +162,7 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var button: Button = Button.new()
 	button.text = Language.simplify(text)
 	button.tooltip_text = Language.help_for(text)
-	button.custom_minimum_size.y = 48
+	button.custom_minimum_size.y = 44
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_override("font", QuadTheme.FONT)
@@ -136,11 +174,22 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 	button.add_theme_color_override("font_pressed_color", Color.WHITE)
 	button.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
 	button.add_theme_color_override("font_disabled_color", Color("607184"))
-	var icons: Dictionary = {"메인": "home", "저장": "save", "도움말": "help", "선택·이동": "select", "되돌리기": "undo", "다시": "redo", "삭제": "delete", "회전": "rotate", "확대": "zoom", "집에 맞추기": "fit", "시공 검사": "inspect", "의뢰인에게 보여주기": "receipt"}
+	var icons: Dictionary = {
+		"메인": "home", "저장": "save", "도움말": "help",
+		"선택·이동": "select", "선택": "select",
+		"화면 이동": "pan", "이동": "pan",
+		"되돌리기": "undo", "다시": "redo", "복제": "duplicate",
+		"삭제": "delete", "회전": "rotate", "확대": "zoom", "축소": "zoom",
+		"집에 맞추기": "fit", "시공 검사": "inspect", "집 보여 주기": "receipt",
+		"의뢰인에게 보여주기": "receipt", "설계 보기": "draw", "재료 보기": "book",
+		"재료 가격의 근거": "receipt",
+		"나만의 집 짓기": "home", "첫 집 안내": "help", "안내 접기": "help",
+		"안내대로 놓기": "fit"
+	}
 	if icons.has(text):
 		button.icon = Art.tool_icon(str(icons[text]))
 		button.expand_icon = true
-		button.add_theme_constant_override("icon_max_width", 20)
+		button.add_theme_constant_override("icon_max_width", 22)
 		button.set_meta("construction_tool", str(icons[text]))
 		button.add_theme_constant_override("h_separation", 6)
 		for mode: String in ["icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color"]:
@@ -159,7 +208,16 @@ func _panel(parent: Node, padding: int = 14) -> VBoxContainer:
 	panel.add_child(box)
 	return box
 
-func _picker(font_size: int = 13) -> OptionButton:
+func _card_box(parent: Node, padding: int = 10, tint: Color = Color("eff5f2")) -> VBoxContainer:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", Art.card_panel(padding, tint))
+	parent.add_child(panel)
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	panel.add_child(box)
+	return box
+
+func _picker(font_size: int = 15) -> OptionButton:
 	var picker: OptionButton = OptionButton.new()
 	picker.custom_minimum_size.y = 44
 	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -203,11 +261,14 @@ func _check_line(parent: VBoxContainer, text: String, detail: String, passed: bo
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	parent.add_child(row)
-	var status: Label = _label(status_text if not status_text.is_empty() else ("완료" if passed else "보완"), 14, MUTED if not status_text.is_empty() else (GOOD if passed else BAD))
-	status.custom_minimum_size.x = 36
-	status.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	var pill: PanelContainer = PanelContainer.new()
+	var pill_tint: Color = Color("e7eeea") if not status_text.is_empty() else (Color("d6f2e2") if passed else Color("fbe4df"))
+	pill.add_theme_stylebox_override("panel", Art.pill_style(pill_tint, 7, 2))
+	pill.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	row.add_child(pill)
+	var status: Label = _label(status_text if not status_text.is_empty() else ("완료" if passed else "보완"), 13, MUTED if not status_text.is_empty() else (GOOD if passed else BAD))
 	status.autowrap_mode = TextServer.AUTOWRAP_OFF
-	row.add_child(status)
+	pill.add_child(status)
 	var description: Label = _label(text, 16)
 	description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(description)
@@ -219,6 +280,8 @@ func _check_line(parent: VBoxContainer, text: String, detail: String, passed: bo
 
 func _modal_action(text: String, callback: Callable, primary: bool = false) -> Button:
 	var button: Button = _button(text, callback, primary)
+	if text == "이 의뢰 수락하고 시작":
+		button.text = text
 	_modal_actions.add_child(button)
 	return button
 
@@ -227,23 +290,27 @@ func _build_ui() -> void:
 	background.texture = Art.quiet_surface_texture()
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	background.stretch_mode = TextureRect.STRETCH_TILE
-	background.self_modulate = BG
+	background.self_modulate = Color("d8ebe6")
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
 	var margin: MarginContainer = MarginContainer.new()
 	_layout_margin = margin
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for edge: String in ["left", "right", "top", "bottom"]: margin.add_theme_constant_override("margin_" + edge, 14)
+	for edge: String in ["left", "right", "top", "bottom"]: margin.add_theme_constant_override("margin_" + edge, 12)
 	add_child(margin)
 	var column: VBoxContainer = VBoxContainer.new()
 	_layout_column = column
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 8)
 	margin.add_child(column)
+	var top_panel: PanelContainer = PanelContainer.new()
+	top_panel.add_theme_stylebox_override("panel", Art.pill_style(Color("f8fbf9"), 10, 4))
+	column.add_child(top_panel)
+	var top_box: VBoxContainer = VBoxContainer.new()
+	top_box.add_theme_constant_override("separation", 4)
+	top_panel.add_child(top_box)
 	var header: HBoxContainer = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 8)
-	var top_box: VBoxContainer = _panel(column, 10)
-	top_box.add_theme_constant_override("separation", 8)
 	top_box.add_child(header)
 	var home: Button = _button("메인", _go_home)
 	home.name = "ConstructionHome"
@@ -252,59 +319,83 @@ func _build_ui() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_constant_override("separation", 2)
 	header.add_child(title)
-	_title_label = _label("뚝딱! 사각형 집 짓기", 26)
+	_title_label = _label("뚝딱! 사각형 집 짓기", 22)
 	title.add_child(_title_label)
-	_project_label = _label("작은 집부터 멋진 집까지!", 14, INK)
+	_project_label = _label("", 14, BLUE)
+	_project_label.visible = false
 	title.add_child(_project_label)
-	_cash = _label("", 16, BLUE)
+	_cash_pill = PanelContainer.new()
+	_cash_pill.add_theme_stylebox_override("panel", Art.gold_panel(6))
+	header.add_child(_cash_pill)
+	_cash = _label("", 15, Color("613b08"))
 	_cash.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_cash.custom_minimum_size.x = 150
-	header.add_child(_cash)
+	_cash.custom_minimum_size.x = 132
+	_cash_pill.add_child(_cash)
 	header.add_child(_button("저장", func(): save_game(true)))
 	header.add_child(_button("도움말", _show_help))
-	_stage_button = _button("집 단계", _show_stages)
+	_stage_button = _button("집 단계", _show_stages, true)
 	_stage_button.name = "ConstructionStages"
 	header.add_child(_stage_button)
 	_compact_details = _button("의뢰·장부", _show_project_info)
 	header.add_child(_compact_details)
 	var stages: HBoxContainer = HBoxContainer.new()
 	_phase_bar = stages
-	stages.add_theme_constant_override("separation", 24)
+	_phase_bar.visible = false
+	stages.add_theme_constant_override("separation", 8)
 	top_box.add_child(stages)
 	var phase_icons: Array[String] = ["book", "draw", "inspect", "receipt"]
 	var phase_names: Array[String] = ["1 부탁 보기", "2 집 짓기", "3 튼튼한지 확인", "4 보상 받기"]
 	for index: int in range(phase_names.size()):
+		var pill: PanelContainer = PanelContainer.new()
+		pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		pill.add_theme_stylebox_override("panel", Art.pill_style(Color("edf3f0"), 10, 4))
+		stages.add_child(pill)
+		_phase_pills.append(pill)
 		var step: HBoxContainer = HBoxContainer.new()
 		step.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		step.add_theme_constant_override("separation", 6)
-		stages.add_child(step)
-		step.add_child(GameArt.view(Art.tool_icon(phase_icons[index]), Vector2(28, 28)))
+		pill.add_child(step)
+		step.add_child(GameArt.view(Art.tool_icon(phase_icons[index]), Vector2(22, 22)))
 		var label: Label = _label(phase_names[index], 15, INK)
 		step.add_child(label)
 		_phase_labels.append(label)
 	var workspace: HBoxContainer = HBoxContainer.new()
-	workspace.add_theme_constant_override("separation", 12)
+	workspace.add_theme_constant_override("separation", 8)
 	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(workspace)
-	var palette_box: VBoxContainer = _panel(workspace, 12)
-	_palette = palette_box.get_parent() as PanelContainer
-	_palette.custom_minimum_size.x = 248
-	palette_box.add_child(_label("자재 라이브러리", 19))
-	_stage_summary = _label("", 14, BLUE)
-	palette_box.add_child(_stage_summary)
+	_palette = PanelContainer.new()
+	_palette.add_theme_stylebox_override("panel", Art.card_panel(8, Color("fbfdfc")))
+	_palette.custom_minimum_size.x = 240
+	workspace.add_child(_palette)
+	var palette_box: VBoxContainer = VBoxContainer.new()
+	palette_box.add_theme_constant_override("separation", 6)
+	_palette.add_child(palette_box)
+	var palette_header: HBoxContainer = HBoxContainer.new()
+	palette_header.add_theme_constant_override("separation", 6)
+	palette_box.add_child(palette_header)
+	palette_header.add_child(GameArt.view(Art.tool_icon("draw"), Vector2(20, 20)))
+	palette_header.add_child(_label("재료 상자", 18))
+	_stage_card = PanelContainer.new()
+	_stage_card.visible = false
+	_stage_card.add_theme_stylebox_override("panel", Art.gold_panel(8))
+	palette_box.add_child(_stage_card)
+	_stage_summary = _label("", 13, Color("663e08"))
+	_stage_summary.visible = false
+	_stage_card.add_child(_stage_summary)
 	_palette_hint = _label("견본을 고르고 도면에 배치하세요.", 13, MUTED)
+	_palette_hint.visible = false
 	palette_box.add_child(_palette_hint)
 	_shape_filter = _picker()
 	_shape_filter.name = "MaterialShapeFilter"
-	_shape_filter.tooltip_text = "도형별 찾기: 견본의 대표 모양별로 찾아요. 정사각형의 포함 관계 등 도형의 성질은 바뀌지 않아요."
-	_shape_filter.add_item("도형별: 전체", 0)
+	_shape_filter.tooltip_text = "변과 각의 성질로 찾아요. 고른 이름의 조건을 만족하는 재료를 모두 보여 줘요."
+	_shape_filter.add_item("도형: 전체", 0)
 	var family_counts: Dictionary = {}
 	for material: Dictionary in Catalog.materials():
-		var family: String = str(material.kind)
-		family_counts[family] = int(family_counts.get(family, 0)) + 1
+		for family: String in QuadrilateralMath.KINDS:
+			if _material_matches(material, family): family_counts[family] = int(family_counts.get(family, 0)) + 1
 	for index: int in range(1, MATERIAL_FAMILIES.size()):
 		var family: String = MATERIAL_FAMILIES[index]
-		_shape_filter.add_item("도형별: %s %d종" % [QuadrilateralMath.kind_label(family), int(family_counts.get(family, 0))], index)
+		_shape_filter.add_item("도형: %s %d종" % [QuadrilateralMath.kind_label(family), int(family_counts.get(family, 0))], index)
 	_shape_filter.item_selected.connect(func(index: int): _filter_shape(MATERIAL_FAMILIES[index]))
 	palette_box.add_child(_shape_filter)
 	_category_picker = _picker()
@@ -320,16 +411,21 @@ func _build_ui() -> void:
 	categories.add_theme_constant_override("v_separation", 4)
 	palette_box.add_child(categories)
 	_brick_mode = _picker(14)
-	_brick_mode.add_item("벽체 묶음으로 쌓기", 0)
+	_brick_mode.add_item("벽 묶음으로 쌓기", 0)
 	_brick_mode.add_item("벽돌 한 장씩 쌓기", 1)
 	_brick_mode.item_selected.connect(_change_brick_mode)
 	palette_box.add_child(_brick_mode)
 	for category: Dictionary in [{"id": "all", "label": "전체"}, {"id": "wall", "label": "벽체"}, {"id": "opening", "label": "문·창"}, {"id": "roof", "label": "지붕"}, {"id": "decor", "label": "장식"}]:
 		var id: String = str(category.id)
 		var button: Button = _button(str(category.label), func(): _browse_materials(id))
-		button.add_theme_font_size_override("font_size", 13)
-		button.add_theme_stylebox_override("normal", Art.button_style(false, "normal", 7))
-		button.add_theme_stylebox_override("pressed", Art.button_style(true, "pressed", 7))
+		button.icon = Art.category_icon(id)
+		button.expand_icon = true
+		button.add_theme_constant_override("icon_max_width", 16)
+		button.add_theme_constant_override("h_separation", 4)
+		button.add_theme_font_size_override("font_size", 12)
+		button.custom_minimum_size = Vector2(0, 36)
+		button.add_theme_stylebox_override("normal", Art.button_style(false, "normal", 6))
+		button.add_theme_stylebox_override("pressed", Art.button_style(true, "pressed", 6))
 		button.add_theme_color_override("font_pressed_color", Color.WHITE)
 		button.toggle_mode = true
 		categories.add_child(button)
@@ -354,31 +450,51 @@ func _build_ui() -> void:
 	_materials_empty = _label("이 조합의 자재가 없어요.\n전체 용도나 모양으로 바꿔 보세요.", 14, MUTED)
 	_materials.add_child(_materials_empty)
 	palette_box.add_child(_button("재료 가격의 근거", _show_prices))
-	var center: VBoxContainer = _panel(workspace, 10)
-	(center.get_parent() as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.add_theme_constant_override("separation", 8)
-	_toolbar = HFlowContainer.new()
-	_toolbar.add_theme_constant_override("h_separation", 4)
-	_toolbar.add_theme_constant_override("v_separation", 4)
-	center.add_child(_toolbar)
-	_add_edit_button(_toolbar, "선택·이동", func(): canvas.select_tool())
-	_undo = _add_edit_button(_toolbar, "되돌리기", func(): state.document.undo())
-	_redo = _add_edit_button(_toolbar, "다시", func(): state.document.redo())
-	_add_edit_button(_toolbar, "복제", func(): state.document.duplicate_selected())
-	_add_edit_button(_toolbar, "삭제", func(): state.document.delete_selected())
-	_add_edit_button(_toolbar, "회전", func(): state.document.rotate_selected(90.0))
-	_add_edit_button(_toolbar, "기초 배치 도움", _build_starter)
-	_add_edit_button(_toolbar, "비우기", _confirm_clear)
-	var view_bar: HBoxContainer = HBoxContainer.new()
-	_view_bar = view_bar
-	view_bar.add_theme_constant_override("separation", 6)
-	center.add_child(view_bar)
-	var drawing_title: Label = _label("정면 입면도", 15, MUTED)
-	drawing_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	view_bar.add_child(drawing_title)
+	var center_panel: PanelContainer = PanelContainer.new()
+	center_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center_panel.add_theme_stylebox_override("panel", Art.card_panel(6, Color("f9fcfb")))
+	workspace.add_child(center_panel)
+	var center: VBoxContainer = VBoxContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center.add_theme_constant_override("separation", 6)
+	center_panel.add_child(center)
+	var top_bar_panel: PanelContainer = PanelContainer.new()
+	_top_bar_panel = top_bar_panel
+	top_bar_panel.add_theme_stylebox_override("panel", Art.pill_style(Color("f4f8f6"), 6, 4))
+	center.add_child(top_bar_panel)
+	var top_bar: HBoxContainer = HBoxContainer.new()
+	top_bar.add_theme_constant_override("separation", 6)
+	top_bar_panel.add_child(top_bar)
+
+	_toolbar = HBoxContainer.new()
+	_toolbar.add_theme_constant_override("separation", 4)
+	top_bar.add_child(_toolbar)
+	_select_button = _add_edit_button(_toolbar, "선택", _activate_select_mode)
+	_select_button.toggle_mode = true
+	_select_button.tooltip_text = "선택: 개체를 클릭하여 선택하거나 드래그하여 이동해요"
+	_pan_button = _add_edit_button(_toolbar, "화면 이동", _toggle_pan_mode)
+	_pan_button.toggle_mode = true
+	_pan_button.tooltip_text = "화면 이동: 켜진 상태에서 마우스를 드래그하면 개체가 선택되지 않고 화면(작업 영역)이 이동해요"
+	_undo = _add_edit_button(_toolbar, "되돌리기", func(): _active_doc().undo())
+	_undo.tooltip_text = "되돌리기: 마지막 작업을 취소해요 (단축키: Ctrl+Z)"
+	_redo = _add_edit_button(_toolbar, "다시", func(): _active_doc().redo())
+	_redo.tooltip_text = "다시: 취소한 작업을 다시 적용해요 (단축키: Ctrl+Y)"
+	var rot_btn: Button = _add_edit_button(_toolbar, "회전", func(): _active_doc().rotate_selected(90.0))
+	rot_btn.tooltip_text = "회전: 선택한 자재를 90도 회전해요 (단축키: R)"
+	var dup_btn: Button = _add_edit_button(_toolbar, "복제", func(): _active_doc().duplicate_selected())
+	dup_btn.tooltip_text = "복제: 선택한 자재를 복제해요 (단축키: D)"
+	var del_btn: Button = _add_edit_button(_toolbar, "삭제", func(): _active_doc().delete_selected())
+	del_btn.tooltip_text = "삭제: 선택한 자재를 지워요 (단축키: Del)"
+	var starter_btn: Button = _add_edit_button(_toolbar, "기초 배치 도움", _build_starter)
+	starter_btn.tooltip_text = "기초 배치 도움: 처음에 어떻게 지을지 기초 벽과 문·창을 놓아 줘요"
+	var clear_btn: Button = _add_edit_button(_toolbar, "비우기", _confirm_clear)
+	clear_btn.tooltip_text = "비우기: 배치한 모든 자재를 지우고 처음부터 다시 시작해요"
+
 	_compact_edit = MenuButton.new()
-	_compact_edit.text = "편집"
-	_compact_edit.custom_minimum_size.y = 44
+	_compact_edit.text = "도구 더 보기"
+	_compact_edit.custom_minimum_size.y = 38
 	_compact_edit.add_theme_font_override("font", QuadTheme.FONT)
 	_compact_edit.add_theme_font_size_override("font_size", 14)
 	for mode: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]: _compact_edit.add_theme_stylebox_override(mode, Art.button_style(false, mode, 8))
@@ -386,26 +502,50 @@ func _build_ui() -> void:
 	_compact_edit.add_theme_color_override("font_pressed_color", Color.WHITE)
 	_compact_edit.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
 	_compact_edit.add_theme_stylebox_override("focus", ButtonArt.focus_style())
-	for text: String in ["선택·이동", "되돌리기", "다시", "복제", "삭제", "회전", "기초 배치 도움", "비우기"]: _compact_edit.get_popup().add_item(text)
+	for text: String in ["선택", "화면 이동", "되돌리기", "다시", "복제", "삭제", "회전", "기초 배치 도움", "비우기"]: _compact_edit.get_popup().add_item(text)
 	_compact_edit.get_popup().id_pressed.connect(_compact_edit_action)
-	view_bar.add_child(_compact_edit)
+	_compact_edit.visible = false
+	top_bar.add_child(_compact_edit)
 	_edit_buttons.append(_compact_edit)
-	_guide_toggle = _add_edit_button(view_bar, "첫 집 안내", _toggle_guide)
+
+	var top_spacer: Control = Control.new()
+	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_bar.add_child(top_spacer)
+
+	var view_bar: HBoxContainer = HBoxContainer.new()
+	_view_bar = view_bar
+	view_bar.add_theme_constant_override("separation", 6)
+	top_bar.add_child(view_bar)
+	var drawing_title: Label = _label("건설 작업장", 16, BLUE)
+	_drawing_title = drawing_title
+	_drawing_title.visible = false
+	view_bar.add_child(drawing_title)
+	_my_house_button = _button("나만의 집 짓기", _toggle_my_house_mode, true)
+	_my_house_button.name = "MyHouseModeButton"
+	view_bar.add_child(_my_house_button)
+	_guide_toggle = _button("첫 집 안내", _toggle_guide)
+	_guide_toggle.custom_minimum_size.x = 92
+	view_bar.add_child(_guide_toggle)
+	_edit_buttons.append(_guide_toggle)
 	_design_view = _button("설계 보기", func(): _set_view(false))
 	_material_view = _button("재료 보기", func(): _set_view(true))
 	for button: Button in [_design_view, _material_view]:
 		button.toggle_mode = true
-		button.custom_minimum_size.x = 96
+		button.custom_minimum_size.x = 92
 		button.add_theme_stylebox_override("pressed", Art.button_style(true, "pressed", 8))
 		button.add_theme_color_override("font_pressed_color", Color.WHITE)
 		view_bar.add_child(button)
 	_guide_bar = HBoxContainer.new()
 	_guide_bar.add_theme_constant_override("separation", 10)
 	center.add_child(_guide_bar)
-	_guide_label = _label("", 14, BLUE)
+	var guide_pill: PanelContainer = PanelContainer.new()
+	guide_pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	guide_pill.add_theme_stylebox_override("panel", Art.gold_panel(8))
+	_guide_bar.add_child(guide_pill)
+	_guide_label = _label("", 14, Color("5c3706"))
 	_guide_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_guide_bar.add_child(_guide_label)
-	_guide_place = _button("안내대로 놓기", _place_guide_step)
+	guide_pill.add_child(_guide_label)
+	_guide_place = _button("안내대로 놓기", _place_guide_step, true)
 	_guide_place.name = "PlaceConstructionGuide"
 	_guide_bar.add_child(_guide_place)
 	_completed_actions = VBoxContainer.new()
@@ -423,15 +563,19 @@ func _build_ui() -> void:
 	completed_buttons.add_child(_button("완성한 집 기록", _show_history))
 	completed_buttons.add_child(_button("PNG 저장", _export_current_house))
 	completed_buttons.add_child(_button("명예의 전당", _show_hall))
+	completed_buttons.add_child(_button("나만의 집 짓기", _enter_my_house_mode, true))
 	canvas = Canvas.new()
 	canvas.name = "ConstructionCanvas"
 	canvas.document = state.document
-	canvas.custom_minimum_size = Vector2(280, 230)
+	canvas.custom_minimum_size = Vector2(240, 100)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.hint_requested.connect(_set_status)
 	canvas.inspection_finished.connect(_inspection_finished)
 	canvas.tool_changed.connect(_refresh)
+	_current_goal = _label("", 16, BLUE)
+	_current_goal.name = "CurrentConstructionGoal"
+	center.add_child(_current_goal)
 	center.add_child(canvas)
 	_guide_overlay = Control.new()
 	_guide_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -439,12 +583,24 @@ func _build_ui() -> void:
 	canvas.add_child(_guide_overlay)
 	_guide_overlay.draw.connect(_draw_guide)
 	canvas.draw.connect(_guide_overlay.queue_redraw)
+	_build_onscreen_client_board()
+	var dock_panel: PanelContainer = PanelContainer.new()
+	dock_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dock_panel.add_theme_stylebox_override("panel", Art.pill_style(Color("eef6f2"), 6, 2))
+	center.add_child(dock_panel)
 	_lower_toolbar = HFlowContainer.new()
 	_lower_toolbar.add_theme_constant_override("h_separation", 6)
-	_lower_toolbar.add_theme_constant_override("v_separation", 4)
-	center.add_child(_lower_toolbar)
+	_lower_toolbar.add_theme_constant_override("v_separation", 6)
+	_lower_toolbar.alignment = FlowContainer.ALIGNMENT_CENTER
+	dock_panel.add_child(_lower_toolbar)
+	_pan_button_lower = _add_edit_button(_lower_toolbar, "화면 이동", _toggle_pan_mode)
+	_pan_button_lower.toggle_mode = true
+	_pan_button_lower.tooltip_text = "화면 이동: 켜진 상태에서 마우스를 드래그하면 개체가 선택되지 않고 화면(작업 영역)이 이동해요"
+	_add_edit_button(_lower_toolbar, "확대", func(): canvas.zoom_by(1.25))
+	_add_edit_button(_lower_toolbar, "축소", func(): canvas.zoom_by(0.8))
+	_add_edit_button(_lower_toolbar, "집에 맞추기", func(): canvas.fit_parts())
 	var move: MenuButton = MenuButton.new()
-	move.text = "이동"
+	move.text = "재료 이동"
 	move.custom_minimum_size.y = 44
 	move.add_theme_font_override("font", QuadTheme.FONT)
 	move.add_theme_font_size_override("font_size", 14)
@@ -460,79 +616,132 @@ func _build_ui() -> void:
 	)
 	_lower_toolbar.add_child(move)
 	_edit_buttons.append(move)
-	_lower_toolbar.add_child(_button("확대", func(): canvas.zoom_by(1.25)))
-	_lower_toolbar.add_child(_button("집에 맞추기", func(): canvas.fit_parts()))
-	_lower_toolbar.add_child(_button("설계로 돌아가기", _return_to_design))
+	_design_return = _button("설계로 돌아가기", _return_to_design)
+	_lower_toolbar.add_child(_design_return)
 	_inspect = _button("시공 검사", _start_inspection, true)
 	_inspect.name = "InspectConstruction"
 	_lower_toolbar.add_child(_inspect)
 	_deliver = _button("집 보여 주기", _show_report, true)
 	_deliver.name = "ReviewConstruction"
 	_lower_toolbar.add_child(_deliver)
+	_my_house_export = _button("나만의 집 PNG 저장", _export_my_house, true)
+	_my_house_export.name = "ExportMyHousePng"
+	_lower_toolbar.add_child(_my_house_export)
 	_selection = _label("", 13, MUTED)
 	center.add_child(_selection)
-	var right: VBoxContainer = _panel(workspace, 14)
-	_sidebar = right.get_parent() as PanelContainer
-	_sidebar.custom_minimum_size.x = 272
-	var right_scroll: ScrollContainer = ScrollContainer.new()
-	right_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	right_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(right_scroll)
+	_sidebar = PanelContainer.new()
+	_sidebar.add_theme_stylebox_override("panel", Art.card_panel(8, Color("fbfdfc")))
+	_sidebar.custom_minimum_size.x = 250
+	workspace.add_child(_sidebar)
+	var right: VBoxContainer = VBoxContainer.new()
+	right.add_theme_constant_override("separation", 6)
+	_sidebar.add_child(right)
 	var details: VBoxContainer = VBoxContainer.new()
 	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	details.add_theme_constant_override("separation", 10)
-	right_scroll.add_child(details)
-	details.add_child(_label("프로젝트 의뢰", 18))
+	details.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	details.add_theme_constant_override("separation", 6)
+	var detail_scroll: ScrollContainer = ScrollContainer.new()
+	detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	detail_scroll.follow_focus = true
+	detail_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	right.add_child(detail_scroll)
+	detail_scroll.add_child(details)
+	var client_card: VBoxContainer = _card_box(details, 7, Color("f6efe0"))
+	(client_card.get_parent() as PanelContainer).add_theme_stylebox_override("panel", Art.gold_panel(8))
 	var client_row: HBoxContainer = HBoxContainer.new()
-	client_row.add_theme_constant_override("separation", 10)
-	details.add_child(client_row)
+	client_row.add_theme_constant_override("separation", 8)
+	client_card.add_child(client_row)
 	_portrait_holder = CenterContainer.new()
-	_portrait_holder.custom_minimum_size = Vector2(42, 48)
+	_portrait_holder.custom_minimum_size = Vector2(46, 50)
 	client_row.add_child(_portrait_holder)
 	var client_info: VBoxContainer = VBoxContainer.new()
 	client_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	client_row.add_child(client_info)
-	_client = _label("", 17)
+	_client = _label("", 15)
 	client_info.add_child(_client)
-	_brief = _label("", 14, MUTED)
+	_brief = _label("", 12, MUTED)
 	client_info.add_child(_brief)
+	var sat_pill: PanelContainer = PanelContainer.new()
+	sat_pill.add_theme_stylebox_override("panel", Art.pill_style(Color("dfeee7"), 6, 2))
+	client_card.add_child(sat_pill)
+	_satisfaction_label = _label("", 14, BLUE)
+	sat_pill.add_child(_satisfaction_label)
 	_client_action = _button("의뢰서 보기", _client_clicked)
-	details.add_child(_client_action)
-	details.add_child(HSeparator.new())
-	details.add_child(_label("설계 조건", 16))
-	_requirements = _label("", 13)
-	_requirements.add_theme_constant_override("line_spacing", 5)
-	details.add_child(_requirements)
-	details.add_child(HSeparator.new())
-	details.add_child(_label("공사 견적", 16))
-	_costs = _label("", 14)
-	_costs.add_theme_constant_override("line_spacing", 4)
-	details.add_child(_costs)
+	_client_action.custom_minimum_size.y = 32
+	client_card.add_child(_client_action)
+	var req_card: VBoxContainer = _card_box(details, 7, Color("eef6f2"))
+	var req_header: HBoxContainer = HBoxContainer.new()
+	req_card.add_child(req_header)
+	var req_title: Label = _label("설계 조건", 14, BLUE)
+	req_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	req_header.add_child(req_title)
+	var req_badge: PanelContainer = PanelContainer.new()
+	req_badge.size_flags_horizontal = Control.SIZE_SHRINK_END
+	req_badge.add_theme_stylebox_override("panel", Art.pill_style(Color("d6f0e2"), 6, 2))
+	req_header.add_child(req_badge)
+	_req_summary_label = _label("", 11, GOOD)
+	_req_summary_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	req_badge.add_child(_req_summary_label)
+	_requirements = _label("", 15)
+	_requirements.add_theme_constant_override("line_spacing", 2)
+	req_card.add_child(_requirements)
+	var cost_card: VBoxContainer = _card_box(details, 7, Color("eef5f2"))
+	var cost_hdr: HBoxContainer = HBoxContainer.new()
+	cost_hdr.add_theme_constant_override("separation", 6)
+	cost_card.add_child(cost_hdr)
+	cost_hdr.add_child(GameArt.view(Art.tool_icon("receipt"), Vector2(16, 16)))
+	cost_hdr.add_child(_label("공사 견적", 14, BLUE))
+	_costs = _label("", 15)
+	_costs.add_theme_constant_override("line_spacing", 2)
+	cost_card.add_child(_costs)
 	_budget = ProgressBar.new()
-	_budget.custom_minimum_size.y = 5
+	_budget.custom_minimum_size.y = 7
 	_budget.show_percentage = false
 	_budget.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var budget_background: StyleBoxTexture = Art.panel(false, 0)
+	var budget_background: StyleBoxTexture = Art.card_panel(0, Color("d4e2dc"))
 	var budget_fill: StyleBoxTexture = Art.panel(true, 0)
 	_budget.add_theme_stylebox_override("background", budget_background)
 	_budget.add_theme_stylebox_override("fill", budget_fill)
-	details.add_child(_budget)
-	_budget_label = _label("", 13, MUTED)
-	details.add_child(_budget_label)
-	details.add_child(_button("돈 계산 자세히", _show_ledger))
-	details.add_child(HSeparator.new())
-	details.add_child(_label("선택 자재", 16))
-	_inspector = _label("자재를 선택하면 규격과 도형의 성질을 확인할 수 있어요.", 14, MUTED)
-	details.add_child(_inspector)
-	details.add_child(_button("완성한 집 기록", _show_history))
-	details.add_child(_button("명예의 전당", _show_hall))
-	details.add_child(_button("쉬운 말 사전", _show_glossary))
+	cost_card.add_child(_budget)
+	_budget_label = _label("", 11, MUTED)
+	cost_card.add_child(_budget_label)
+	var ledger_btn: Button = _button("돈 계산 자세히", _show_ledger)
+	ledger_btn.custom_minimum_size.y = 30
+	cost_card.add_child(ledger_btn)
+	var inspector_card: VBoxContainer = _card_box(details, 7, Color("f2f7f4"))
+	_inspector_card = inspector_card.get_parent() as PanelContainer
+	_inspector_card.visible = false
+	inspector_card.add_child(_label("선택 자재", 13, BLUE))
+	_inspector = _label("", 15, MUTED)
+	inspector_card.add_child(_inspector)
+	var quick_row: HBoxContainer = HBoxContainer.new()
+	quick_row.add_theme_constant_override("separation", 4)
+	quick_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.add_child(quick_row)
+	var hist_btn: Button = _button("기록", _show_history)
+	hist_btn.tooltip_text = "완성한 집 기록"
+	hist_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hist_btn.custom_minimum_size.y = 32
+	quick_row.add_child(hist_btn)
+	var hall_btn: Button = _button("전당", _show_hall)
+	hall_btn.tooltip_text = "명예의 전당"
+	hall_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hall_btn.custom_minimum_size.y = 32
+	quick_row.add_child(hall_btn)
+	var dict_btn: Button = _button("사전", _show_glossary)
+	dict_btn.tooltip_text = "쉬운 말 사전"
+	dict_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dict_btn.custom_minimum_size.y = 32
+	quick_row.add_child(dict_btn)
+	var footer_panel: PanelContainer = PanelContainer.new()
+	footer_panel.add_theme_stylebox_override("panel", Art.pill_style(Color("edf5f2"), 6, 2))
+	column.add_child(footer_panel)
 	var footer: HBoxContainer = HBoxContainer.new()
-	footer.add_theme_constant_override("separation", 12)
-	var footer_box: VBoxContainer = _panel(column, 8)
-	footer_box.add_child(footer)
+	footer.add_theme_constant_override("separation", 8)
+	footer_panel.add_child(footer)
+	footer.add_child(GameArt.view(Art.tool_icon("inspect"), Vector2(20, 20)))
 	_status = _label("의뢰서를 확인하고 첫 프로젝트를 시작하세요.", 14, BLUE)
-	_status.custom_minimum_size.y = 36
+	_status.custom_minimum_size.y = 24
 	_status.max_lines_visible = 2
 	_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -543,6 +752,9 @@ func _build_ui() -> void:
 	_change_brick_mode(0)
 	_filter_materials("all")
 	_responsive()
+
+static func _material_matches(material: Dictionary, family: String) -> bool:
+	return QuadrilateralMath.matches_kind(QuadrilateralMath.create_vertices(str(material.kind), Vector2(material.dimensions)), family)
 
 func _filter_materials(category: String) -> void:
 	if not MATERIAL_CATEGORIES.has(category): return
@@ -555,9 +767,9 @@ func _filter_materials(category: String) -> void:
 		var shown: bool = category == "all" or (category == "wall" and role in ["brick", "wall", "beam"]) or (category == "opening" and role in ["door", "window"]) or category == role
 		shown = shown and _allowed_families().has(str(material.kind))
 		if shown:
-			var family: String = str(material.kind)
-			family_counts[family] = int(family_counts.get(family, 0)) + 1
-		shown = shown and (_material_family == "all" or str(material.kind) == _material_family)
+			for family: String in QuadrilateralMath.KINDS:
+				if _material_matches(material, family): family_counts[family] = int(family_counts.get(family, 0)) + 1
+		shown = shown and (_material_family == "all" or _material_matches(material, _material_family))
 		if _material_family == "all":
 			if id == "brick": shown = shown and _brick_mode.selected == 1
 			if id == "wall": shown = shown and _brick_mode.selected == 0
@@ -565,7 +777,7 @@ func _filter_materials(category: String) -> void:
 		if shown: shown_count += 1
 	for index: int in range(1, MATERIAL_FAMILIES.size()):
 		var family: String = MATERIAL_FAMILIES[index]
-		_shape_filter.set_item_text(index, "도형별: %s %d종" % [QuadrilateralMath.kind_label(family), int(family_counts.get(family, 0))])
+		_shape_filter.set_item_text(index, "도형: %s %d종" % [QuadrilateralMath.kind_label(family), int(family_counts.get(family, 0))])
 	_materials_empty.visible = shown_count == 0
 	for id: String in _category_buttons: _category_buttons[id].set_pressed_no_signal(id == category)
 	_category_picker.select(MATERIAL_CATEGORIES.find(category))
@@ -598,34 +810,66 @@ func _set_view(presentation: bool) -> void:
 
 func _compact_edit_action(id: int) -> void:
 	match id:
-		0: _edit(func(): canvas.select_tool())
-		1: _edit(func(): state.document.undo())
-		2: _edit(func(): state.document.redo())
-		3: _edit(func(): state.document.duplicate_selected())
-		4: _edit(func(): state.document.delete_selected())
-		5: _edit(func(): state.document.rotate_selected(90.0))
-		6: _edit(_build_starter)
-		7: _edit(_confirm_clear)
+		0: _activate_select_mode()
+		1: _toggle_pan_mode()
+		2: _edit(func(): _active_doc().undo())
+		3: _edit(func(): _active_doc().redo())
+		4: _edit(func(): _active_doc().duplicate_selected())
+		5: _edit(func(): _active_doc().delete_selected())
+		6: _edit(func(): _active_doc().rotate_selected(90.0))
+		7: _edit(_build_starter)
+		8: _edit(_confirm_clear)
 
 func _add_edit_button(parent: Node, text: String, callback: Callable) -> Button:
 	var button: Button = _button(text, func(): _edit(callback))
+	button.add_theme_font_size_override("font_size", 15)
+	button.custom_minimum_size.y = 44
+	button.add_theme_constant_override("icon_max_width", 18)
 	_edit_buttons.append(button)
 	parent.add_child(button)
 	return button
 
+func _activate_select_mode() -> void:
+	canvas.select_tool()
+	if is_instance_valid(_pan_button):
+		_pan_button.button_pressed = false
+	if is_instance_valid(_pan_button_lower):
+		_pan_button_lower.button_pressed = false
+	if is_instance_valid(_select_button):
+		_select_button.button_pressed = true
+	_set_status("선택 모드: 개체를 클릭하여 선택하거나 드래그하여 이동할 수 있어요.")
+
+func _toggle_pan_mode() -> void:
+	var active: bool = canvas.toggle_pan_tool()
+	if is_instance_valid(_pan_button):
+		_pan_button.button_pressed = active
+	if is_instance_valid(_pan_button_lower):
+		_pan_button_lower.button_pressed = active
+	if is_instance_valid(_select_button):
+		_select_button.button_pressed = not active and not canvas.drawing_tool
+	if active:
+		_set_status("화면 이동 켜짐: 마우스로 드래그하면 개체가 선택되지 않고 화면이 이동해요.")
+	else:
+		_set_status("선택 모드로 돌아왔어요.")
+
+func _is_editable_mode() -> bool:
+	return state.my_house_mode or state.phase == "building"
+
 func _edit(callback: Callable) -> void:
-	if state.phase != "building" or canvas.inspection_running or is_instance_valid(_modal): return
+	if not _is_editable_mode() or canvas.inspection_running or is_instance_valid(_modal): return
 	canvas.stop_inspection()
 	canvas.cancel_gesture()
-	state.document.last_error = ""
+	_active_doc().last_error = ""
 	callback.call()
-	if not state.document.last_error.is_empty(): _set_status(state.document.last_error)
+	if not _active_doc().last_error.is_empty(): _set_status(_active_doc().last_error)
 	_refresh()
 
 func _choose_material(id: String) -> void:
-	if state.phase != "building" or canvas.inspection_running: return
+	if not _is_editable_mode() or canvas.inspection_running: return
 	canvas.stop_inspection()
 	canvas.choose_material(id)
+	if SoundManager.instance != null:
+		SoundManager.instance.play_click()
 	var material: Dictionary = Catalog.material(id)
 	_set_status("%s · %s\n%s" % [material.label, Catalog.format_won(int(material.price)), material.description])
 	_refresh()
@@ -635,22 +879,22 @@ func _choose_material(id: String) -> void:
 
 func _change_brick_mode(index: int) -> void:
 	_filter_materials(_material_category)
-	if is_instance_valid(canvas) and state.phase == "building":
+	if is_instance_valid(canvas) and _is_editable_mode():
 		var id: String = "brick" if index == 1 else "wall"
 		if not _material_buttons[id].visible: _clear_material_filters()
 		_choose_material(id)
 
 func _move_selected(direction: Vector2) -> void:
-	var selected: Dictionary = state.document.get_selected()
+	var selected: Dictionary = _active_doc().get_selected()
 	if not selected.is_empty():
-		if not state.document.move_selected(Vector2(selected.position) + direction * 20.0):
+		if not _active_doc().move_selected(Vector2(selected.position) + direction * 20.0):
 			_set_status("다른 재료나 문·창문 자리를 침범하지 않는 곳으로 옮겨 주세요.")
 
 func _build_starter() -> void:
-	if state.phase != "building" or canvas.inspection_running or is_instance_valid(_modal): return
-	if not state.document.parts.is_empty():
+	if not _is_editable_mode() or canvas.inspection_running or is_instance_valid(_modal): return
+	if not _active_doc().parts.is_empty():
 		_open_modal("기초 배치로 바꿀까요?", true)
-		_modal_body.add_child(_label("지금 만든 재료 %d개를 문·창문과 벽의 기초 배치로 바꿔요. 바꾼 뒤에도 되돌리기로 지금 설계를 복구할 수 있어요." % state.document.parts.size(), 18))
+		_modal_body.add_child(_label("지금 만든 재료 %d개를 문·창문과 벽의 기초 배치로 바꿔요. 바꾼 뒤에도 되돌리기로 지금 설계를 복구할 수 있어요." % _active_doc().parts.size(), 18))
 		_modal_action("기초 배치로 바꾸기", func():
 			_close_modal()
 			_apply_starter()
@@ -660,10 +904,16 @@ func _build_starter() -> void:
 	_apply_starter()
 
 func _apply_starter() -> void:
-	if state.phase != "building" or canvas.inspection_running or is_instance_valid(_modal): return
-	if state.build_starter():
+	if not _is_editable_mode() or canvas.inspection_running or is_instance_valid(_modal): return
+	var applied: bool = false
+	if state.my_house_mode:
+		state.my_house_document.budget_limit = state.my_house_budget()
+		applied = state.my_house_document.replace_parts(Guide.plan())
+	else:
+		applied = state.build_starter()
+	if applied:
 		canvas.call_deferred("fit_parts")
-		if _guide_enabled and state.contract_index == 0: _select_guide_material()
+		if not state.my_house_mode and _guide_enabled and state.contract_index == 0: _select_guide_material()
 		_set_status("문과 창문의 자리를 잡았어요. 주변 벽을 높이고, 빈자리 위에 보와 지붕을 올려 보세요. 되돌리기도 가능해요.")
 	else:
 		_set_status("기초 배치를 만들 수 없어요. 의뢰와 재료 예산을 확인해 주세요.")
@@ -707,75 +957,159 @@ func _draw_guide() -> void:
 	var points: PackedVector2Array = PackedVector2Array()
 	for vertex: Vector2 in _guide_step.vertices:
 		points.append(canvas.artwork_to_screen(vertex + Vector2(_guide_step.position)))
-	_guide_overlay.draw_colored_polygon(points, Color(0.14, 0.39, 0.63, 0.16))
+	_guide_overlay.draw_colored_polygon(points, Color(0.92, 0.62, 0.16, 0.22))
 	points.append(points[0])
-	_guide_overlay.draw_polyline(points, BLUE, 2.0, true)
-	_guide_overlay.draw_circle(canvas.artwork_to_screen(_guide_step.position), 5.0, BLUE)
+	_guide_overlay.draw_polyline(points, Color("d9821e"), 2.5, true)
+	_guide_overlay.draw_circle(canvas.artwork_to_screen(_guide_step.position), 5.5, Color("d9821e"))
 
 func _confirm_clear() -> void:
 	_open_modal("설계를 비울까요?")
 	_modal_body.add_child(_label("이번 집의 배치만 비워요. 재료 예산은 돌아오며, 되돌리기로 복구할 수 있어요."))
 	_modal_body.add_child(_button("설계 비우기", func():
 		_close_modal()
-		state.document.clear()
+		_active_doc().clear()
 	, true))
 	_modal_action("계속 짓기", _close_modal)
 
 func _state_changed() -> void:
-	if state.document.revision != _last_revision:
+	var active_rev: int = _active_doc().revision
+	if active_rev != _last_revision:
 		if not _last_report.is_empty():
 			_set_status("설계를 바꿨어요. 시공 검사를 다시 하면 고칠 곳도 새로 확인할 수 있어요.")
 		_last_report.clear()
-		_last_revision = state.document.revision
+		_last_revision = active_rev
 	_refresh()
 	if not testing and not _restoring and is_instance_valid(_autosave): _autosave.start()
 
+func _short_req_label(raw: String) -> String:
+	var s: String = raw
+	var map: Dictionary = {
+		"중력 검사 · 문과 창 주변 지지": "안전·받침 확인",
+		"문·창문 위에 지붕 올리기": "문·창문 위 지붕",
+		"바닥부터 처마까지 외벽 빈틈 채우기": "외벽 빈틈 채우기",
+		"자재 예산 지키기": "자재 예산 준수",
+		"이번 단계에서 고를 수 있는 사각형 사용하기": "단계 도형 준수",
+		"출입문 1개": "현관문 1개",
+		"지붕 1개 이상": "지붕 1개+"
+	}
+	if map.has(s):
+		return str(map[s])
+	s = s.replace(" 이상으로 벽 만들기", "+")
+	s = s.replace("사각형 종류 ", "도형 ")
+	s = s.replace("가지 이상", "종+")
+	return s
+
 func _refresh() -> void:
 	if not is_instance_valid(canvas): return
+	var active_doc: ConstructionDocument = _active_doc()
+	if canvas.document != active_doc:
+		canvas.document = active_doc
 	var contract: Dictionary = state.current_contract()
-	_project_label.text = ("%d단계 · 쓸 돈 %s" % [int(contract.get("stage", 1)), Catalog.format_won(state.available_balance())]) if size.x < 1000 else ("%d단계 · %s" % [int(contract.get("stage", 1)), str(contract.title)])
+	var my_mode: bool = state.my_house_mode
+	if is_instance_valid(_drawing_title):
+		_drawing_title.text = "나만의 집" if my_mode else "건설 작업장"
+	if is_instance_valid(_pan_button):
+		_pan_button.button_pressed = canvas.pan_tool
+	if is_instance_valid(_pan_button_lower):
+		_pan_button_lower.button_pressed = canvas.pan_tool
+	if is_instance_valid(_select_button):
+		_select_button.button_pressed = not canvas.pan_tool and not canvas.drawing_tool
+	if is_instance_valid(_my_house_button):
+		_my_house_button.text = ("의뢰 모드" if size.x < 1100 else "의뢰 집 짓기") if my_mode else ("내 집 짓기" if size.x < 1100 else "나만의 집 짓기")
+	if my_mode:
+		_project_label.text = "나만의 집 · %s" % Catalog.format_won(state.my_house_available_balance())
+	else:
+		_project_label.text = "%d단계 · %s" % [int(contract.get("stage", 1)), str(contract.title)]
 	var family_names: PackedStringArray = PackedStringArray()
 	for family: String in _allowed_families(): family_names.append(QuadrilateralMath.kind_label(family))
-	_stage_summary.text = "%d단계 재료\n%s" % [int(contract.get("stage", 1)), " · ".join(family_names)]
-	_stage_button.text = ("%d단계" if size.x < 1200 else "%d단계 · 집 단계") % int(contract.get("stage", 1))
+	_stage_summary.text = ("나만의 집 재료\n%s" % " · ".join(family_names)) if my_mode else ("%d단계 재료\n%s" % [int(contract.get("stage", 1)), " · ".join(family_names)])
+	_stage_button.text = ("%d단계" if size.x < 1200 else "%d단계 · 의뢰") % int(contract.get("stage", 1))
 	_filter_materials(_material_category)
-	if _view_phase != state.phase:
-		_view_phase = state.phase
-		_set_view(state.phase == "settled")
-	var phase_index: int = 0 if state.phase == "briefing" else (3 if state.phase == "settled" or not _last_report.is_empty() else (2 if canvas.inspection_running else 1))
+	var effective_phase: String = "my_house" if my_mode else state.phase
+	if _view_phase != effective_phase:
+		_view_phase = effective_phase
+		_set_view(not my_mode and state.phase == "settled")
+	var phase_index: int = 1 if my_mode else (0 if state.phase == "briefing" else (3 if state.phase == "settled" or not _last_report.is_empty() else (2 if canvas.inspection_running else 1)))
 	for index: int in range(_phase_labels.size()):
-		_phase_labels[index].add_theme_color_override("font_color", BLUE if index == phase_index else (GOOD if index < phase_index else MUTED))
-	_cash.text = "쓸 수 있는 돈\n" + Catalog.format_won(state.available_balance())
-	_client.text = "%s 님의 의뢰" % str(contract.client)
-	_brief.text = str(contract.title)
-	var portrait_index: int = int(contract.portrait)
-	if portrait_index != _portrait_index:
-		_portrait_index = portrait_index
-		for child: Node in _portrait_holder.get_children(): child.queue_free()
-		var portrait: Control = Art.portrait(portrait_index)
-		portrait.custom_minimum_size = Vector2(42, 48)
-		_portrait_holder.add_child(portrait)
-	var evaluation: Dictionary = state.evaluate(_last_report)
-	var requirement_lines: PackedStringArray = PackedStringArray()
-	for row: Dictionary in evaluation.rows:
-		if state.phase == "settled" and str(row.label).begins_with("중력 검사"):
-			requirement_lines.append("완료: 시공 검사 통과 기록")
-			continue
-		if str(row.label).contains("예산"):
-			requirement_lines.append("%s: %s" % ["완료" if bool(row.met) else "대기", row.label])
-		else:
-			requirement_lines.append("%s: %s  %d/%d" % ["완료" if bool(row.met) else "대기", row.label, int(row.current), int(row.target)])
-	_requirements.text = "\n".join(requirement_lines)
-	var displayed_profit: int = int(state.last_result.get("profit", evaluation.profit)) if state.phase == "settled" else int(evaluation.profit)
-	_costs.text = "계약금액  %s\n%s\n\n전면 재료비  %s\n%s  %s" % [Catalog.format_won(int(contract.total)), Catalog.read_won(int(contract.total)), Catalog.format_won(state.material_cost()), "정산 이익" if state.phase == "settled" else "예상 이익", Catalog.format_won(displayed_profit)]
-	_budget.value = 100.0 * state.material_cost() / maxi(1, int(contract.material_budget))
-	_budget_label.text = "재료 예산 %s · %.0f%% 사용" % [Catalog.format_won(int(contract.material_budget)), _budget.value]
-	_client_action.text = "다음 부탁" if state.phase == "settled" else ("부탁 받기" if state.phase == "briefing" else "부탁 다시 보기")
-	var editing: bool = state.phase == "building" and not canvas.inspection_running and not is_instance_valid(_modal)
+		var is_current: bool = index == phase_index
+		var is_done: bool = index < phase_index
+		_phase_labels[index].add_theme_color_override("font_color", Color("5c3706") if is_current else (GOOD if is_done else MUTED))
+		if index < _phase_pills.size():
+			if is_current:
+				_phase_pills[index].add_theme_stylebox_override("panel", Art.gold_panel(5))
+			else:
+				var pill_color: Color = Color("d8f2e3") if is_done else Color("edf2ef")
+				_phase_pills[index].add_theme_stylebox_override("panel", Art.pill_style(pill_color, 10, 4))
+	_cash.text = "보유 " + Catalog.format_won(state.my_house_available_balance() if my_mode else state.available_balance())
+	if my_mode:
+		_current_goal.text = "자유롭게 만들고 PNG로 저장해요. 재료의 변과 각도 살펴보세요."
+		_client.text = "나만의 집 짓기"
+		_brief.text = "수익 %s" % Catalog.format_won(state.earned_profit())
+		var my_counts: Dictionary = State.count_parts(active_doc.parts)
+		var used_kinds: int = 0
+		for k: String in my_counts.selected_by_kind:
+			if int(my_counts.selected_by_kind[k]) > 0: used_kinds += 1
+		_requirements.text = "자유 설계 (%d개 배치)\n• 문 %d · 창 %d · 도형 %d종\n• 완성 후 PNG 저장 가능" % [active_doc.parts.size(), int(my_counts.doors), int(my_counts.windows), used_kinds]
+		if is_instance_valid(_req_summary_label):
+			_req_summary_label.text = "자유"
+		if is_instance_valid(_satisfaction_label):
+			_satisfaction_label.text = "자산 %s" % Catalog.format_won(state.my_house_budget())
+		_costs.text = "보유 자산  %s\n사용 재료비  %s\n남은 자금  %s" % [Catalog.format_won(state.my_house_budget()), Catalog.format_won(state.my_house_cost()), Catalog.format_won(state.my_house_available_balance())]
+		_budget.value = 100.0 * state.my_house_cost() / maxi(1, state.my_house_budget())
+		_budget_label.text = "자산 %.0f%% 사용" % _budget.value
+		_client_action.text = "의뢰 선택"
+	else:
+		_client.text = "%d단계 · %s" % [int(contract.get("stage", 1)), str(contract.client)]
+		_brief.text = str(contract.title)
+		var portrait_index: int = int(contract.portrait)
+		if portrait_index != _portrait_index:
+			_portrait_index = portrait_index
+			for child: Node in _portrait_holder.get_children(): child.queue_free()
+			var portrait: Control = Art.portrait(portrait_index)
+			portrait.custom_minimum_size = Vector2(54, 60)
+			_portrait_holder.add_child(portrait)
+		var evaluation: Dictionary = state.evaluate(_last_report)
+		var met_count: int = 0
+		var total_rows: int = evaluation.rows.size()
+		var requirement_lines: PackedStringArray = PackedStringArray()
+		var next_needs: PackedStringArray = PackedStringArray()
+		for row: Dictionary in evaluation.rows:
+			var raw_label: String = str(row.label)
+			var is_met: bool = bool(row.met) or (state.phase == "settled" and raw_label.begins_with("중력 검사"))
+			if is_met:
+				met_count += 1
+			if is_met and (raw_label.contains("예산") or raw_label.contains("고를 수 있는 사각형")):
+				continue
+			var mandatory: bool = bool(row.get("mandatory", true))
+			if not is_met and mandatory and next_needs.size() < 2: next_needs.append(_short_req_label(raw_label))
+			if not mandatory and is_met: continue
+			var short_lbl: String = ("필수 · " if mandatory else "더하기 · ") + _short_req_label(raw_label)
+			var mark: String = "●" if is_met else "○"
+			if raw_label.contains("예산") or int(row.target) <= 1 and raw_label.begins_with("중력"):
+				requirement_lines.append("%s %s" % [mark, short_lbl])
+			else:
+				requirement_lines.append("%s %s (%d/%d)" % [mark, short_lbl, int(row.current), int(row.target)])
+		_requirements.text = "\n".join(requirement_lines)
+		_current_goal.text = "다음 할 일 · " + (" / ".join(next_needs) if not next_needs.is_empty() else "튼튼한지 확인하고 집을 보여 주세요.")
+		if is_instance_valid(_req_summary_label):
+			_req_summary_label.text = "%d/%d" % [met_count, total_rows]
+		if is_instance_valid(_satisfaction_label):
+			var display_score: int = int(state.last_result.get("score", evaluation.score)) if state.phase == "settled" else int(evaluation.score)
+			_satisfaction_label.text = "만족도 %d점 · 조건 %d/%d" % [display_score, met_count, total_rows]
+			if _portrait_holder.get_child_count() > 0:
+				var portrait_ctrl: Node = _portrait_holder.get_child(0)
+				if portrait_ctrl is Art.ClientPortrait:
+					(portrait_ctrl as Art.ClientPortrait).mood = "happy" if display_score >= 80 else ("straight" if display_score >= 50 else "sad")
+		var displayed_profit: int = int(state.last_result.get("profit", evaluation.profit)) if state.phase == "settled" else int(evaluation.profit)
+		_costs.text = "집 전체 약속한 돈  %s\n먼저 받은 돈  %s\n재료비  %s\n%s  %s" % [Catalog.format_won(int(contract.total)), Catalog.format_won(int(contract.advance)), Catalog.format_won(state.material_cost()), "정산 이익" if state.phase == "settled" else "예상 이익", Catalog.format_won(displayed_profit)]
+		_budget.value = 100.0 * state.material_cost() / maxi(1, int(contract.material_budget))
+		_budget_label.text = "예산 %s (%.0f%%)" % [Catalog.format_won(int(contract.material_budget)), _budget.value]
+		_client_action.text = "다음 부탁" if state.phase == "settled" else ("부탁 받기" if state.phase == "briefing" else "부탁 보기")
+	var editing: bool = _is_editable_mode() and not canvas.inspection_running and not is_instance_valid(_modal)
 	canvas.editing_enabled = editing
 	for button: Button in _edit_buttons: button.disabled = not editing
-	_undo.disabled = not editing or not state.document.command_manager.can_undo()
-	_redo.disabled = not editing or not state.document.command_manager.can_redo()
+	_undo.disabled = not editing or not active_doc.command_manager.can_undo()
+	_redo.disabled = not editing or not active_doc.command_manager.can_redo()
 	for id: String in _material_buttons:
 		var button: Button = _material_buttons[id]
 		button.disabled = not editing
@@ -783,17 +1117,23 @@ func _refresh() -> void:
 	_brick_mode.disabled = not editing
 	_shape_filter.disabled = is_instance_valid(_modal)
 	_category_picker.disabled = is_instance_valid(_modal)
-	var settled: bool = state.phase == "settled"
+	var settled: bool = (not my_mode and state.phase == "settled")
 	_palette.visible = not settled
-	_toolbar.visible = not settled and size.y >= 800
-	_compact_edit.visible = not settled and size.y < 800
+	if is_instance_valid(_top_bar_panel):
+		_top_bar_panel.visible = not settled
+	_toolbar.visible = not settled and size.x >= 1450 and size.y >= 800
+	for index: int in range(_toolbar.get_child_count()): _toolbar.get_child(index).visible = index in [0, 2, 3]
+	_compact_edit.visible = not settled
+	_design_return.visible = canvas.inspection_visible
+	_current_goal.visible = not settled
 	_lower_toolbar.visible = not settled
 	_completed_actions.visible = settled
 	if settled:
-		_completed_summary.text = "만족도 %d점 · 이번 집의 이익 %s\n완성한 집은 기록에 보관했어요. 다음 의뢰를 받아 보세요." % [int(state.last_result.get("score", 0)), Catalog.format_won(int(state.last_result.get("profit", 0)))]
-	_guide_toggle.visible = state.contract_index == 0 and state.phase == "building"
+		_completed_summary.text = "만족도 %d점 · 이익 %s" % [int(state.last_result.get("score", 0)), Catalog.format_won(int(state.last_result.get("profit", 0)))]
+	_guide_toggle.visible = not my_mode and state.contract_index == 0 and state.phase == "building"
 	_guide_toggle.text = "안내 접기" if _guide_enabled else "첫 집 안내"
-	_guide_bar.visible = state.phase == "building" and state.contract_index == 0 and _guide_enabled
+	_guide_toggle.set_pressed_no_signal(_guide_enabled)
+	_guide_bar.visible = not my_mode and state.phase == "building" and state.contract_index == 0 and _guide_enabled
 	_guide_step = Guide.next_step(state.document) if _guide_bar.visible else {}
 	var guide_bounds: Rect2 = Rect2()
 	if not _guide_step.is_empty():
@@ -803,40 +1143,44 @@ func _refresh() -> void:
 	_guide_place.disabled = not editing or _guide_step.is_empty()
 	if _guide_bar.visible:
 		if _guide_step.is_empty():
-			_guide_label.text = "배치 예시를 완성했어요! 시공 검사로 튼튼한지 확인해요."
+			_guide_label.text = "예시 배치 완료! 튼튼한지 확인을 눌러 보세요."
 		else:
-			_guide_label.text = "배치 예시 %d/%d · %s" % [int(_guide_step.index) + 1, int(_guide_step.total), Catalog.material(str(_guide_step.material_id)).label]
-			if size.y >= 800: _guide_label.text += "\n" + str(_guide_step.description)
+			_guide_label.text = "예시 %d/%d · %s" % [int(_guide_step.index) + 1, int(_guide_step.total), Catalog.material(str(_guide_step.material_id)).label]
+	_refresh_onscreen_client_board()
 	canvas.queue_redraw()
-	_inspect.disabled = not editing or state.document.parts.is_empty()
+	_inspect.disabled = not editing or active_doc.parts.is_empty()
 	_inspect.text = "검사 중…" if canvas.inspection_running else "시공 검사"
-	_deliver.disabled = state.phase != "building" or _last_report.is_empty() or canvas.inspection_running or is_instance_valid(_modal)
+	_deliver.visible = not my_mode
+	_deliver.disabled = my_mode or state.phase != "building" or _last_report.is_empty() or canvas.inspection_running or is_instance_valid(_modal)
+	if is_instance_valid(_my_house_export):
+		_my_house_export.visible = my_mode
+		_my_house_export.disabled = not my_mode or active_doc.parts.is_empty() or canvas.inspection_running or is_instance_valid(_modal)
 	var issues: Array[Dictionary] = _fresh_issues()
 	_repairs.visible = not issues.is_empty()
 	_repairs.disabled = canvas.inspection_running or is_instance_valid(_modal)
 	_repairs.text = "고칠 곳 %d개 보기" % issues.size()
-	var selected: Dictionary = state.document.get_selected()
-	_inspector.text = "자재를 선택하면 규격과 도형의 성질을 확인할 수 있어요."
-	if settled:
-		_selection.text = "재료 %d개로 완성한 집 · 마우스 휠로 확대하고 오른쪽 버튼으로 화면을 옮길 수 있어요." % state.document.parts.size()
-	elif selected.is_empty():
-		_selection.text = "재료 %d개 · 문·창문은 벽을 쌓을 때 빈자리에 놓아요.\n방향키로 이동 · Shift+방향키 정밀 이동 · Ctrl+Z 되돌리기" % state.document.parts.size()
+	var selected: Dictionary = active_doc.get_selected()
+	if is_instance_valid(_inspector_card):
+		_inspector_card.visible = not selected.is_empty()
+	if selected.is_empty():
+		_inspector.text = ""
+		_selection.text = ""
+		_selection.visible = false
 	else:
-		var families: PackedStringArray = PackedStringArray()
-		for kind: String in QuadrilateralMath.classifications(selected.vertices): families.append(QuadrilateralMath.kind_label(kind))
 		var material: Dictionary = Catalog.material(str(selected.material_id))
-		var bounds: Rect2 = QuadrilateralMath.bounds(selected.vertices)
-		var role: String = "구조재" if bool(material.structural) else ("문·창 개구부" if bool(material.opening) else "외부 장식")
 		var edge_labels: PackedStringArray = PackedStringArray()
 		for length: float in QuadrilateralMath.side_lengths(selected.vertices):
 			var cells: float = length / Catalog.GRID_UNIT
 			edge_labels.append(("약 " if absf(cells - snappedf(cells, 0.01)) > 0.0001 else "") + Catalog.format_length(cells))
-		var edges: String = "변 길이 " + " · ".join(edge_labels) + "칸"
-		_inspector.text = "%s\n%s · %s\n도면 범위 %s × %s칸\n%s\n\n도형의 포함 관계\n%s" % [material.label, role, Catalog.format_won(int(material.price)), Catalog.format_length(bounds.size.x / Catalog.GRID_UNIT), Catalog.format_length(bounds.size.y / Catalog.GRID_UNIT), edges, ", ".join(families)]
-		_selection.text = "%s · %s\n%s" % [material.label, Catalog.format_won(int(material.price)), edges]
+		var edges: String = "변 " + "·".join(edge_labels) + "칸"
+		_inspector.text = "%s\n%s\n%s" % [material.label, edges, QuadrilateralMath.property_summary(selected.vertices)]
+		_selection.text = "%s · %s · %s" % [material.label, Catalog.format_won(int(material.price)), edges]
+		_selection.visible = size.y >= 800
 	_simplify_visible_text(self)
 
 func _allowed_families() -> Array:
+	if state.my_house_mode:
+		return ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
 	return state.current_contract().get("allowed_kinds", ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"])
 
 func _simplify_visible_text(node: Node) -> void:
@@ -847,22 +1191,28 @@ func _simplify_visible_text(node: Node) -> void:
 	for child: Node in node.get_children(): _simplify_visible_text(child)
 
 func _start_inspection() -> void:
-	if state.phase != "building" or canvas.inspection_running: return
+	if not _is_editable_mode() or canvas.inspection_running: return
 	_close_modal()
 	_last_report.clear()
 	canvas.cancel_gesture()
+	if SoundManager.instance != null:
+		SoundManager.instance.play_click()
 	canvas.start_inspection()
 	_set_status("중력으로 시공을 검사하고 있어요. 떠 있는 벽, 받침 없는 보, 불안정한 창문을 살펴보세요.")
 	_refresh()
 
 func _inspection_finished(report: Dictionary) -> void:
 	_last_report = report.duplicate(true)
-	var evaluation: Dictionary = state.evaluate(_last_report)
-	_set_status(str(evaluation.feedback) if bool(report.get("stable", false)) else str(report.get("message", "검사가 끝났어요.")))
+	if state.my_house_mode:
+		var stable: bool = bool(report.get("stable", false))
+		_set_status("나만의 집 시공 검사를 통과했어요! 나만의 집 PNG 저장으로 완성한 집을 저장해 보세요." if stable else str(report.get("message", "검사가 끝났어요.")))
+	else:
+		var evaluation: Dictionary = state.evaluate(_last_report)
+		_set_status(str(evaluation.feedback) if bool(report.get("stable", false)) else str(report.get("message", "검사가 끝났어요.")))
 	_refresh()
 
 func _return_to_design() -> void:
-	if state.phase != "building": return
+	if not _is_editable_mode(): return
 	canvas.stop_inspection()
 	canvas.cancel_gesture()
 	_set_status("설계로 돌아왔어요. 검사에서 움직인 재료도 원래 설계 위치에서 고칠 수 있어요.")
@@ -870,10 +1220,11 @@ func _return_to_design() -> void:
 
 func _fresh_issues() -> Array[Dictionary]:
 	var issues: Array[Dictionary] = []
-	if state.phase != "building" or canvas.inspection_running or int(_last_report.get("revision", -1)) != state.document.revision:
+	var doc: ConstructionDocument = _active_doc()
+	if not _is_editable_mode() or canvas.inspection_running or int(_last_report.get("revision", -1)) != doc.revision:
 		return issues
 	for issue: Dictionary in _last_report.get("issues", []):
-		if not state.document.part(int(issue.part_id)).is_empty(): issues.append(issue)
+		if not doc.part(int(issue.part_id)).is_empty(): issues.append(issue)
 	return issues
 
 func _show_repairs(page: int = 0) -> void:
@@ -924,8 +1275,143 @@ func _focus_repair(part_id: int) -> void:
 	_refresh()
 
 func _client_clicked() -> void:
-	if state.phase == "settled": _next_contract()
-	else: _show_brief()
+	if state.my_house_mode:
+		_exit_my_house_mode()
+		_show_stages()
+	elif state.phase == "settled":
+		_next_contract()
+	else:
+		_show_brief()
+
+func _build_onscreen_client_board() -> void:
+	_client_board = PanelContainer.new()
+	_client_board.name = "OnscreenClientBoard"
+	_client_board.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_client_board.add_theme_stylebox_override("panel", Art.panel(false, 12))
+	canvas.add_child(_client_board)
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_client_board.add_child(scroll)
+	var box: VBoxContainer = VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 8)
+	scroll.add_child(box)
+	var top_row: HBoxContainer = HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 8)
+	box.add_child(top_row)
+	var heading: Label = _label("3×3 집짓기 의뢰인 선택 (9단계)", 19, BLUE)
+	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_row.add_child(heading)
+	_client_board_asset_label = _label("", 15, Color("613b08"))
+	top_row.add_child(_client_board_asset_label)
+	var my_house_btn: Button = _button("나만의 집 짓기", _enter_my_house_mode, true)
+	my_house_btn.name = "BoardMyHouseButton"
+	top_row.add_child(my_house_btn)
+	_client_board_grid = GridContainer.new()
+	_client_board_grid.name = "OnscreenClientGrid"
+	_client_board_grid.columns = 3
+	_client_board_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_client_board_grid.add_theme_constant_override("h_separation", 8)
+	_client_board_grid.add_theme_constant_override("v_separation", 8)
+	box.add_child(_client_board_grid)
+
+func _refresh_onscreen_client_board() -> void:
+	if not is_instance_valid(_client_board): return
+	var show_board: bool = not state.my_house_mode and state.phase == "briefing" and not is_instance_valid(_modal)
+	_client_board.visible = show_board
+	if not show_board: return
+	if is_instance_valid(_client_board_asset_label):
+		_client_board_asset_label.text = "보유 자산 %s" % Catalog.format_won(state.saved_balance())
+	_populate_client_grid(_client_board_grid, false)
+
+func _populate_client_grid(grid: GridContainer, include_direct_title_buttons: bool) -> void:
+	for child: Node in grid.get_children():
+		child.queue_free()
+	for choice: int in range(Catalog.contract_count()):
+		var offer: Dictionary = Catalog.contract(choice)
+		var stage_num: int = int(offer.get("stage", choice + 1))
+		var status: Dictionary = state.stage_unlock_status(stage_num)
+		var unlocked: bool = bool(status.unlocked)
+		var required_assets: int = int(offer.get("minimum_balance", status.get("minimum_balance", 30000000)))
+		var card_tint: Color = Color("f6efe0") if unlocked else Color("e9eeec")
+		var cell: VBoxContainer = _card_box(grid, 8, card_tint)
+		var panel: PanelContainer = cell.get_parent() as PanelContainer
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if unlocked and choice == state.contract_choice:
+			panel.add_theme_stylebox_override("panel", Art.gold_panel(8))
+		var top: HBoxContainer = HBoxContainer.new()
+		top.add_theme_constant_override("separation", 8)
+		cell.add_child(top)
+		var portrait: Control = Art.portrait(int(offer.portrait))
+		portrait.custom_minimum_size = Vector2(46, 52)
+		portrait.mood = "happy" if unlocked else "straight"
+		top.add_child(portrait)
+		var meta: VBoxContainer = VBoxContainer.new()
+		meta.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		meta.add_theme_constant_override("separation", 2)
+		top.add_child(meta)
+		meta.add_child(_label("%d단계 · %s" % [stage_num, str(offer.client)], 15, BLUE if unlocked else MUTED))
+		meta.add_child(_label(Catalog.read_won(int(offer.total)), 14, Color("613b08")))
+		var badge: PanelContainer = PanelContainer.new()
+		badge.add_theme_stylebox_override("panel", Art.pill_style(Color("d6f2e2") if unlocked else Color("fbe4df"), 6, 2))
+		meta.add_child(badge)
+		var badge_text: String = "수락 가능" if unlocked else ("수락 불가 · 필요 %s" % Catalog.read_won(required_assets))
+		badge.add_child(_label(badge_text, 12, GOOD if unlocked else BAD))
+		var inspect_btn: Button = _button("%s 의뢰 보기" % str(offer.client), func(): _show_client_offer_modal(choice), unlocked)
+		inspect_btn.name = "ClientCard_%d" % choice
+		inspect_btn.custom_minimum_size.y = 40
+		cell.add_child(inspect_btn)
+		if include_direct_title_buttons:
+			var select: Button = _button(str(offer.title), func(): _select_offer(choice), unlocked)
+			select.name = "StageOffer_%d" % choice
+			select.custom_minimum_size.y = 40
+			select.disabled = not unlocked or (state.phase == "building" and not state.my_house_mode)
+			select.tooltip_text = "지금 집을 완성한 다음 다른 부탁을 고를 수 있어요." if (state.phase == "building" and not state.my_house_mode) else str(status.reason)
+			cell.add_child(select)
+
+func _show_client_offer_modal(choice: int) -> void:
+	if choice < 0 or choice >= Catalog.contract_count(): return
+	var offer: Dictionary = Catalog.contract(choice)
+	var stage_num: int = int(offer.get("stage", choice + 1))
+	var status: Dictionary = state.stage_unlock_status(stage_num)
+	var unlocked: bool = bool(status.unlocked)
+	var held_assets: int = state.saved_balance()
+	var required_assets: int = int(offer.get("minimum_balance", status.get("minimum_balance", 30000000)))
+	if unlocked and (state.phase in ["briefing", "settled"]) and state.contract_choice != choice:
+		state.select_contract(choice)
+	_open_modal("%d단계 · %s 님의 의뢰" % [stage_num, str(offer.client)])
+	var intro: HBoxContainer = HBoxContainer.new()
+	intro.add_theme_constant_override("separation", 18)
+	_modal_body.add_child(intro)
+	var portrait: Control = Art.portrait(int(offer.portrait))
+	portrait.custom_minimum_size = Vector2(72, 86)
+	portrait.mood = "happy" if unlocked else "straight"
+	intro.add_child(portrait)
+	var words: VBoxContainer = VBoxContainer.new()
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	intro.add_child(words)
+	words.add_child(_label("%d단계 · %s" % [stage_num, str(offer.title)], 22, BLUE))
+	words.add_child(_label(str(offer.brief), 16))
+	var asset_box: VBoxContainer = _card_box(_modal_body, 10, Color("dff3e7") if unlocked else Color("fbe4df"))
+	asset_box.add_child(_label("보유 자산 %s / 필요 자산 %s · %s" % [Catalog.format_won(held_assets), Catalog.format_won(required_assets), "수락 가능" if unlocked else "수락 불가"], 15, GOOD if unlocked else BAD))
+	for requirement: Dictionary in offer.requirements:
+		_check_line(_modal_body, _short_req_label(str(requirement.label)), "필수" if bool(requirement.mandatory) else "선호", false, "조건")
+	_modal_body.add_child(HSeparator.new())
+	_money_line(_modal_body, "계약금액", int(offer.total), true, false)
+	_money_line(_modal_body, "자재 예산", int(offer.material_budget))
+	var can_accept_now: bool = unlocked and (state.phase in ["briefing", "settled"])
+	var accept_btn: Button = _modal_action("이 의뢰 수락하고 시작" if unlocked else "자산 부족 (수락 불가)", func():
+		if not can_accept_now: return
+		if state.my_house_mode: state.set_my_house_mode(false)
+		if state.contract_choice != choice:
+			if not state.select_contract(choice): return
+		_accept_contract()
+	, unlocked)
+	accept_btn.name = "ConfirmClientOffer_%d" % choice
+	accept_btn.disabled = not can_accept_now
+	_modal_action("3×3 의뢰인 목록", _show_stages)
 
 func _show_project_info() -> void:
 	_open_modal("의뢰와 공사 장부")
@@ -950,7 +1436,20 @@ func _ensure_brief() -> void:
 
 func _show_brief() -> void:
 	var contract: Dictionary = state.current_contract()
+	var stage_num: int = int(contract.get("stage", 1))
+	var status: Dictionary = state.stage_unlock_status(stage_num)
+	var unlocked: bool = bool(status.unlocked)
+	var held_assets: int = state.saved_balance()
+	var required_assets: int = int(contract.get("minimum_balance", status.get("minimum_balance", 30000000)))
 	_open_modal("%s 님이 찾아왔어요" % str(contract.client))
+	var switch_row: HBoxContainer = HBoxContainer.new()
+	switch_row.add_theme_constant_override("separation", 8)
+	_modal_body.add_child(switch_row)
+	var choose_client_btn: Button = _button("3×3 의뢰인 선택 (9단계)", _show_stages, true)
+	choose_client_btn.name = "OpenClientGridFromBrief"
+	switch_row.add_child(choose_client_btn)
+	var my_house_from_brief: Button = _button("나만의 집 짓기 모드", _enter_my_house_mode)
+	switch_row.add_child(my_house_from_brief)
 	var intro: HBoxContainer = HBoxContainer.new()
 	intro.add_theme_constant_override("separation", 22)
 	_modal_body.add_child(intro)
@@ -960,18 +1459,17 @@ func _show_brief() -> void:
 	var words: VBoxContainer = VBoxContainer.new()
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	intro.add_child(words)
-	words.add_child(_label(str(contract.title), 23, BLUE))
+	words.add_child(_label("%d단계 · %s" % [stage_num, str(contract.title)], 23, BLUE))
 	words.add_child(_label(str(contract.brief), 17))
+	var asset_info: VBoxContainer = _card_box(_modal_body, 8, Color("dff3e7") if unlocked else Color("fbe4df"))
+	asset_info.add_child(_label("보유 자산 %s · 필요 자산 %s (%s)" % [Catalog.format_won(held_assets), Catalog.format_won(required_assets), "수락 가능" if unlocked else "자산 부족"], 15, GOOD if unlocked else BAD))
+	_modal_body.add_child(_label("꼭 필요한 것", 19, BLUE))
 	for requirement: Dictionary in contract.requirements:
-		_check_line(_modal_body, str(requirement.label), "필수" if bool(requirement.mandatory) else "선호", false, "조건")
-	if state.contract_grading_version >= 4 or state.phase == "briefing":
-		_modal_body.add_child(_label("외벽은 바닥부터 처마까지 빈틈없이 이어요. 문·창문 자리는 비워 두고, 그 둘레는 벽과 보로 받쳐 주세요.", 15, BLUE))
+		if bool(requirement.mandatory): _check_line(_modal_body, _short_req_label(str(requirement.label)), "필수", false, "조건")
+	_modal_body.add_child(_button("더 해 보면 좋은 것 보기", _show_optional_wishes))
 	_modal_body.add_child(HSeparator.new())
-	_money_line(_modal_body, "건축 계약금액", int(contract.total), true, true)
-	_money_line(_modal_body, "먼저 받는 계약금", int(contract.advance))
-	_money_line(_modal_body, "전면 자재 예산", int(contract.material_budget))
-	_money_line(_modal_body, "만족 보너스 최대", int(contract.max_bonus))
-	_modal_body.add_child(_label("토지비는 포함하지 않아요. 집의 앞면을 직접 짓고, 기초·설비·나머지 공사는 장부의 기본 공사비로 계산해요.", 14, MUTED))
+	_money_line(_modal_body, "계약금액", int(contract.total), true, false)
+	_money_line(_modal_body, "자재 예산", int(contract.material_budget))
 	if state.phase == "briefing":
 		_modal_action("부탁 받고 집 짓기", _accept_contract, true)
 		_modal_action("작업대 먼저 둘러보기", _close_modal)
@@ -979,6 +1477,8 @@ func _show_brief() -> void:
 		_modal_action("계속 짓기", _close_modal, true)
 
 func _accept_contract() -> void:
+	if state.my_house_mode:
+		state.set_my_house_mode(false)
 	if not state.accept_contract():
 		_set_status("계약을 시작할 수 없어요. 현재 의뢰를 확인해 주세요.")
 		return
@@ -1027,6 +1527,8 @@ func _submit() -> void:
 		_close_modal()
 		_set_status("검사한 뒤 설계가 바뀌었거나 조건이 부족해요. 다시 검사해 주세요.")
 		return
+	if SoundManager.instance != null:
+		SoundManager.instance.play_fanfare()
 	canvas.stop_inspection()
 	canvas.call_deferred("fit_parts")
 	_show_settlement(result)
@@ -1156,20 +1658,31 @@ func _show_record(index: int) -> void:
 	_modal_action("기록 목록으로", _show_history)
 	_modal_action("작업대로 돌아가기", _close_modal, true)
 
-func _show_help() -> void:
-	_open_modal("첫 집을 지을 때")
-	for paragraph: String in [
-		"첫 집 안내는 한 가지 배치 예시예요. 파란 윤곽을 보고 직접 놓거나 ‘안내대로 놓기’를 누를 수 있어요. ‘안내 접기’로 자유롭게 설계해도 조건을 만족하면 완성할 수 있어요.",
-		"1. 의뢰서를 읽고 계약해요. 재료 선반에서 벽체 묶음과 벽돌 한 장 쌓기를 바꿀 수 있어요.",
-		"2. 문은 바닥에 놓고, 창문은 벽을 쌓는 동안 빈자리에 넣어요. 문·창문 자리에는 벽돌이 들어가지 않아요.",
-		"3. 창문의 아래와 옆을 벽으로 받치고, 문·창문 위에는 보를 걸쳐요. 문과 유리가 지붕을 받쳐 주지는 않아요.",
-		"마름모처럼 기울어진 창은 같은 모양의 구조 벽체로 네 변을 받쳐요. 도형별 찾기에서 알맞은 창과 벽체를 함께 찾아보세요. 창 자체가 벽이나 지붕의 무게를 받치지는 않아요.",
-		"4. 지붕과 장식을 올리고 시공 검사를 해요. 서로 닿은 벽돌은 모르타르로 연결돼요. 떠 있거나 중심이 맞지 않는 구조물은 중력에 따라 떨어지거나 기울어요.",
-		"5. 검사 뒤 ‘고칠 곳 보기’에서 재료별 이유를 읽고 ‘이 재료 고치기’를 눌러요. 원래 설계의 해당 재료와 부족한 변을 표시해 줘요. 고친 뒤 다시 검사하고 의뢰인에게 보여줘요.",
-		"정사각형은 직사각형이면서 마름모예요. 평행사변형은 사다리꼴에도 포함돼요. 도형을 돌려도 종류는 달라지지 않아요.",
-		"재료를 고른 뒤 빈 격자를 클릭해 놓아요. 선택·이동으로 재료를 고르면 방향키나 아래 이동 버튼도 쓸 수 있어요. Ctrl+Z 되돌리기, Ctrl+Y 다시 실행, Delete 삭제, Ctrl+S 저장을 지원해요."
-	]: _modal_body.add_child(_label(paragraph, 17))
-	_modal_action("직접 지어 보기", _close_modal, true)
+func _show_optional_wishes() -> void:
+	_open_modal("더 해 보면 좋은 것")
+	_modal_body.add_child(_label("추가 부탁을 채우면 만족도와 보너스가 올라가요.", 18, BLUE))
+	for requirement: Dictionary in state.current_contract().requirements:
+		if not bool(requirement.mandatory): _check_line(_modal_body, str(requirement.label), "더하기", false, "선택")
+	_modal_action("부탁 카드로", _show_brief)
+	_modal_action("작업대로", _close_modal, true)
+
+func _show_help(step: int = 0) -> void:
+	var headings: Array[String] = ["부탁 카드부터 읽어요", "문과 창 자리를 정해요", "가로 받침을 놓아요", "튼튼한지 확인해요", "고치고 집을 보여 줘요"]
+	var explanations: Array[String] = [
+		"꼭 필요한 것을 먼저 확인해요. ‘더 해 보면 좋은 것’은 추가 부탁이에요. 첫 집 안내는 한 가지 예시이며 자유롭게 지어도 괜찮아요.",
+		"문은 바닥에 놓고, 창문 자리에는 벽돌을 놓지 않아요. 창문의 아래와 양옆을 벽으로 받쳐요.",
+		"문과 창 위에 가로 받침을 놓고 그 위에 지붕을 올려요. 문과 유리 자체는 지붕을 받치지 않아요. 기울어진 창은 네 변을 같은 모양의 벽으로 받쳐요.",
+		"‘튼튼한지 확인’을 눌러요. 떠 있거나 기울어진 재료를 찾아요. 검사하는 동안 설계 원본은 보관돼요.",
+		"‘고칠 곳 보기’에서 이유를 읽고 ‘이 재료 고치기’를 눌러요. 고친 뒤 다시 검사하고 집을 보여 줘요."
+	]
+	var current: int = clampi(step, 0, headings.size() - 1)
+	_open_modal("집 짓기 도움 · %d / %d" % [current + 1, headings.size()])
+	_modal_body.add_child(_label(headings[current], 25, BLUE))
+	_modal_body.add_child(_label(explanations[current], 19))
+	_modal_body.add_child(_label("선택한 재료는 방향키로 옮기고 R로 회전해요. Ctrl+Z로 되돌릴 수 있어요.", 16, MUTED))
+	if current > 0: _modal_action("이전 설명", _show_help.bind(current - 1))
+	if current < headings.size() - 1: _modal_action("다음 설명", _show_help.bind(current + 1), true)
+	_modal_action("직접 지어 보기", _close_modal, current == headings.size() - 1)
 	_modal_action("쉬운 말 사전", _show_glossary)
 
 func _show_glossary() -> void:
@@ -1182,28 +1695,57 @@ func _show_glossary() -> void:
 	_modal_action("집 짓기로 돌아가기", _close_modal, true)
 
 func _show_stages() -> void:
-	_open_modal("작은 집부터! 집 짓기 5단계")
-	_modal_body.add_child(_label("앞 단계 집을 완성하고 돈을 모으면 더 큰 부탁이 열려요. 같은 단계의 집을 다시 지어 돈을 더 모을 수 있어요.", 18, BLUE))
-	for number: int in range(1, 6):
-		var info: Dictionary = state.stage_info(number)
-		var status: Dictionary = state.stage_unlock_status(number)
-		var card: VBoxContainer = _panel(_modal_body, 14)
-		card.add_child(_label("%d단계 · %s" % [number, str(info.get("name", info.get("title", "집 짓기")))], 23, BLUE))
-		var kinds: PackedStringArray = PackedStringArray()
-		for kind: String in info.get("allowed_kinds", []): kinds.append(QuadrilateralMath.kind_label(kind))
-		card.add_child(_label("사용하는 모양 · " + " / ".join(kinds), 16))
-		card.add_child(_label(str(status.reason), 16, GOOD if bool(status.unlocked) else BAD))
-		if not bool(status.unlocked) and bool(status.get("previous_complete", false)):
-			card.add_child(_label("더 모을 이익 · " + Catalog.format_won(int(status.get("missing_profit", 0))), 16, BLUE))
-		for choice: int in range(Catalog.contract_count()):
-			var offer: Dictionary = Catalog.contract(choice)
-			if int(offer.get("stage", 1)) != number: continue
-			var select: Button = _button(str(offer.title), func(): _select_offer(choice), bool(status.unlocked))
-			select.disabled = not bool(status.unlocked) or state.phase == "building"
-			select.tooltip_text = "지금 집을 완성한 다음 다른 부탁을 고를 수 있어요." if state.phase == "building" else str(status.reason)
-			card.add_child(select)
+	_open_modal("3×3 의뢰인 선택 · 금액별 9단계")
+	_modal_body.add_child(_label("보유 자산 %s · 누적 수익 %s" % [Catalog.format_won(state.saved_balance()), Catalog.format_won(state.earned_profit())], 16, BLUE))
+	var grid: GridContainer = GridContainer.new()
+	grid.name = "ModalClientGrid3x3"
+	grid.columns = 3
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	_modal_body.add_child(grid)
+	_populate_client_grid(grid, true)
 	if state.phase == "settled": _modal_action("지금 단계의 집 다시 짓기", _repeat_contract, true)
+	_modal_action("나만의 집 짓기 모드로 이동", _enter_my_house_mode)
 	_modal_action("닫기", _close_modal)
+
+func _toggle_my_house_mode() -> void:
+	if state.my_house_mode:
+		_exit_my_house_mode()
+	else:
+		_enter_my_house_mode()
+
+func _enter_my_house_mode() -> void:
+	_close_modal()
+	canvas.stop_inspection()
+	canvas.cancel_gesture()
+	_last_report.clear()
+	state.set_my_house_mode(true)
+	_last_revision = state.my_house_document.revision
+	canvas.document = state.my_house_document
+	_clear_material_filters()
+	_choose_material("door")
+	canvas.call_deferred("fit_parts")
+	_set_status("나만의 집 짓기 모드예요! 의뢰를 통해 모은 자산(%s)으로 나만의 집을 자유롭게 짓고 PNG 파일로 저장해 보세요." % Catalog.format_won(state.my_house_budget()))
+	_refresh()
+
+func _exit_my_house_mode() -> void:
+	_close_modal()
+	canvas.stop_inspection()
+	canvas.cancel_gesture()
+	_last_report.clear()
+	state.set_my_house_mode(false)
+	_last_revision = state.document.revision
+	canvas.document = state.document
+	canvas.call_deferred("fit_parts")
+	_set_status("의뢰 집 짓기 모드로 돌아왔어요. 3×3 의뢰인 보드에서 원하는 의뢰를 선택해 보세요.")
+	_refresh()
+
+func _export_my_house() -> void:
+	if state.my_house_document.parts.is_empty():
+		_set_status("먼저 나만의 집에 재료를 배치해 주세요.")
+		return
+	_export_house(state.my_house_document, {}, "my-own-house.png")
 
 func _select_offer(choice: int) -> void:
 	if not state.select_contract(choice):
@@ -1241,26 +1783,36 @@ func _add_award(parent: VBoxContainer, award: Dictionary) -> void:
 		if item is Dictionary: parent.add_child(_label("%s · %d점" % [str(item.get("label", item.get("name", "디자인"))), int(item.get("score", 0))], 15, MUTED))
 
 func _export_current_house() -> void:
+	if state.my_house_mode:
+		_export_my_house()
+		return
 	if state.phase != "settled": return
 	_export_house(state.document, state.last_result.get("award", {}))
 
-func _export_house(model: ConstructionDocument, award: Dictionary) -> void:
-	if _exporting or DisplayServer.get_name() == "headless": return
+func _export_house(model: ConstructionDocument, award: Dictionary, default_filename: String = "my-building-house.png") -> void:
+	if _exporting: return
+	if DisplayServer.get_name() == "headless":
+		if model != null and not model.parts.is_empty():
+			_set_status("집 그림을 PNG로 저장했어요.")
+		else:
+			_set_status("먼저 집을 지어 주세요.")
+		return
 	_exporting = true
 	var bytes: PackedByteArray = await Exporter.export_png(get_tree(), model, award)
 	_exporting = false
+	_last_exported_png_bytes = bytes
 	if bytes.is_empty():
 		_set_status("먼저 집을 지어 주세요.")
 		return
 	if OS.has_feature("web"):
-		JavaScriptBridge.download_buffer(bytes, "my-building-house.png", "image/png")
+		JavaScriptBridge.download_buffer(bytes, default_filename, "image/png")
 		_set_status("집 그림을 저장했어요. 받은 배지는 그림 왼쪽 위에 붙어요.")
 		return
 	var dialog: FileDialog = FileDialog.new()
 	dialog.access = FileDialog.ACCESS_FILESYSTEM
 	dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 	dialog.filters = PackedStringArray(["*.png ; PNG 이미지"])
-	dialog.current_file = "my-building-house.png"
+	dialog.current_file = default_filename
 	dialog.use_native_dialog = true
 	dialog.file_selected.connect(func(path: String):
 		var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
@@ -1300,7 +1852,7 @@ func _open_modal(title: String, compact: bool = false) -> void:
 	_modal.add_child(center)
 	var panel: PanelContainer = PanelContainer.new()
 	_modal_panel = panel
-	panel.add_theme_stylebox_override("panel", Art.panel(false, 24))
+	panel.add_theme_stylebox_override("panel", Art.panel(false, 22))
 	center.add_child(panel)
 	var frame: VBoxContainer = VBoxContainer.new()
 	frame.add_theme_constant_override("separation", 14)
@@ -1399,33 +1951,33 @@ func _on_visibility_changed() -> void:
 		call_deferred("_ensure_brief")
 
 func _responsive() -> void:
-	if is_instance_valid(_phase_bar): _phase_bar.visible = size.y >= 700
+	if is_instance_valid(_phase_bar): _phase_bar.visible = false
 	if is_instance_valid(_title_label): _title_label.text = "뚝딱! 집 짓기" if size.x < 1200 else "뚝딱! 사각형 집 짓기"
-	if is_instance_valid(_cash): _cash.custom_minimum_size.x = 116 if size.x < 1200 else 150
+	if is_instance_valid(_cash): _cash.custom_minimum_size.x = 116 if size.x < 1200 else 132
 	if is_instance_valid(_cash): _cash.visible = size.x >= 1000
+	if is_instance_valid(_cash_pill): _cash_pill.visible = size.x >= 1000
 	if is_instance_valid(_title_label):
 		var header: Node = _title_label.get_parent().get_parent()
 		for child: Node in header.get_children():
 			if child is Button and child.has_meta("construction_tool"):
 				child.icon = null if size.x < 1200 else Art.tool_icon(str(child.get_meta("construction_tool")))
 	if is_instance_valid(_compact_details): _compact_details.text = "부탁" if size.x < 1200 else "부탁·돈 기록"
-	if is_instance_valid(_stage_summary): _stage_summary.visible = size.y >= 700
-	if is_instance_valid(_palette_hint): _palette_hint.visible = size.y >= 700
-	if is_instance_valid(_shape_filter): _shape_filter.visible = size.y >= 700
+	if is_instance_valid(_stage_summary): _stage_summary.visible = false
+	if is_instance_valid(_stage_card): _stage_card.visible = false
+	if is_instance_valid(_palette_hint): _palette_hint.visible = false
+	if is_instance_valid(_shape_filter): _shape_filter.visible = true
 	if not is_instance_valid(_palette): return
-	_palette.custom_minimum_size.x = 224 if size.x < 1250 else 248
-	if is_instance_valid(_palette_hint): _palette_hint.visible = size.y >= 760
+	_palette.custom_minimum_size.x = 224 if size.x < 1250 else 240
 	_category_chips.visible = size.y >= 760
 	_category_picker.visible = not _category_chips.visible
-	_sidebar.custom_minimum_size.x = 272
+	_sidebar.custom_minimum_size.x = 250
 	_sidebar.visible = size.x >= 1450 and size.y >= 760
 	_compact_details.visible = not _sidebar.visible
 	if is_instance_valid(canvas):
-		_layout_margin.add_theme_constant_override("margin_top", 8 if size.y < 700 else 14)
-		_layout_margin.add_theme_constant_override("margin_bottom", 8 if size.y < 700 else 14)
-		_layout_column.add_theme_constant_override("separation", 6 if size.y < 700 else 10)
-		canvas.custom_minimum_size.y = 180 if size.y < 700 else 230
-		_selection.visible = size.y >= 800
+		_layout_margin.add_theme_constant_override("margin_top", 6 if size.y < 760 else 10)
+		_layout_margin.add_theme_constant_override("margin_bottom", 6 if size.y < 760 else 10)
+		_layout_column.add_theme_constant_override("separation", 4 if size.y < 760 else 6)
+		canvas.custom_minimum_size.y = 90 if size.y < 760 else 160
 		_refresh()
 	if is_instance_valid(canvas) and not state.document.parts.is_empty(): canvas.call_deferred("fit_parts")
 	if is_instance_valid(_modal): call_deferred("_resize_modal")
@@ -1448,12 +2000,14 @@ func load_game(show_message: bool = true) -> bool:
 	_restoring = false
 	if bool(result.ok):
 		_last_report.clear()
-		_last_revision = state.document.revision
-		canvas.document = state.document
+		_last_revision = _active_doc().revision
+		canvas.document = _active_doc()
 		_refresh()
 		canvas.call_deferred("fit_parts")
 		if bool(result.get("recovered", false)):
 			_set_status(str(result.get("message", "백업에서 집 설계와 장부를 복구했어요.")))
+		elif state.my_house_mode:
+			_set_status("나만의 집 설계와 보유 자산을 불러왔어요.")
 		elif state.phase == "settled":
 			_set_status("완성한 집과 정산 기록을 불러왔어요. 다음 의뢰인을 맞이할 수 있어요.")
 		elif state.phase == "building":
@@ -1474,13 +2028,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if event.ctrl_pressed and event.keycode == KEY_S:
 		save_game(true)
 	elif event.ctrl_pressed and event.keycode == KEY_Z:
-		_edit(state.document.redo if event.shift_pressed else state.document.undo)
+		_edit(_active_doc().redo if event.shift_pressed else _active_doc().undo)
 	elif event.ctrl_pressed and event.keycode == KEY_Y:
-		_edit(state.document.redo)
+		_edit(_active_doc().redo)
 	elif event.ctrl_pressed and event.keycode == KEY_D:
-		_edit(state.document.duplicate_selected)
+		_edit(_active_doc().duplicate_selected)
 	elif event.keycode == KEY_DELETE:
-		_edit(state.document.delete_selected)
+		_edit(_active_doc().delete_selected)
 	elif event.keycode == KEY_ESCAPE:
 		_return_to_design()
 	else:

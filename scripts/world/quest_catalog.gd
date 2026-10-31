@@ -2,11 +2,11 @@ class_name QuestCatalog
 extends RefCounted
 
 ## Original adventures based on the supplied Grade 4-2 quadrilateral curriculum.
-## Shape classes are inclusive: a square is also a rectangle, rhombus,
-## parallelogram, and trapezoid. Questions intentionally use those definitions.
+## Geometric classifications stay inclusive; pupil questions use observable
+## sides and angles, not memorised inclusion chains. See PRD curriculum mapping.
 
 static func all_quests() -> Array[Dictionary]:
-	return [
+	var quests: Array[Dictionary] = [
 		{
 			"id": "rhombus_chocolates", "npc_id": "baker", "npc_name": "초코 제빵사",
 			"item_name": "마름모 초콜릿", "item_icon": 0, "item_sheet": "items_atlas", "npc_icon": 0, "npc_sheet": "npc_atlas",
@@ -16,7 +16,7 @@ static func all_quests() -> Array[Dictionary]:
 			"question": "마름모 초콜릿은 어떤 성질로 골랐나요?",
 			"options": ["네 각이 반드시 직각이에요", "네 변의 길이가 모두 같아요", "평행한 변이 없어요"],
 			"answer": 1,
-			"explanation": "마름모는 네 변의 길이가 같아요. 마주 보는 변은 평행하고 마주 보는 각의 크기도 같아요. 네 각이 모두 직각일 필요는 없어요. 마주 보는 꼭짓점을 이은 두 선분은 서로를 똑같이 둘로 나눠요.",
+			"explanation": "마름모는 네 변의 길이가 모두 같은 사각형이에요. 방향이나 뾰족해 보이는 정도보다 네 변의 길이를 확인해요.",
 			"reward": 20
 		},
 		{
@@ -40,7 +40,7 @@ static func all_quests() -> Array[Dictionary]:
 			"question": "이 마을에서 배우는 사다리꼴에 대한 설명은 무엇인가요?",
 			"options": ["평행한 변이 정확히 한 쌍만 있어야 해요", "네 변의 길이가 반드시 같아요", "평행한 변이 있는 사각형이에요"],
 			"answer": 2,
-			"explanation": "사다리꼴은 평행한 변이 있는 사각형이에요. 두 쌍이 평행한 평행사변형도 사다리꼴에 들어가요. 직사각형, 마름모, 정사각형에도 평행한 변이 있어요.",
+			"explanation": "마주 보는 변 중 평행한 변이 있는지 살펴봐요. 평행한 변이 한 쌍이든 두 쌍이든 사다리꼴의 조건에 맞아요.",
 			"reward": 20
 		},
 		{
@@ -64,7 +64,7 @@ static func all_quests() -> Array[Dictionary]:
 			"question": "직사각형 책에 대해 언제나 옳은 설명은 무엇인가요?",
 			"options": ["네 변의 길이가 반드시 같아요", "반드시 옆으로 길쭉해요", "네 각이 모두 90°예요"],
 			"answer": 2,
-			"explanation": "직사각형은 네 각이 모두 직각인 사각형이에요. 마주 보는 변의 길이가 같지만 네 변이 모두 같을 필요는 없어요. 정사각형도 직사각형에 포함돼요.",
+			"explanation": "직사각형은 네 각이 모두 직각인 사각형이에요. 마주 보는 변의 길이가 같아요. 돌려 놓아도 네 직각은 그대로예요.",
 			"reward": 20
 		},
 		{
@@ -97,10 +97,10 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "사각형 가족 축제", "region": "valley", "kind": "collect",
 			"description": "별빛 축제의 정사각형 배지 3개를 찾아 주세요. 그런데 축제를 비추던 항구 등대가 꺼졌다는 소식이 왔어요. 사다리 항구의 선장 바루를 만나면 그 뒤의 이야기를 들을 수 있을 거예요.",
 			"objective": "정사각형 배지 3개 모으기", "target": "square_badge", "target_count": 3,
-			"question": "정사각형 배지가 함께 가질 수 있는 이름을 모두 담은 것은?",
-			"options": ["직사각형만", "마름모와 평행사변형만", "직사각형, 마름모, 평행사변형, 사다리꼴"],
+			"question": "배지가 정사각형인지 확인하려면 무엇을 살펴야 하나요?",
+			"options": ["네 변의 길이만 같으면 돼요", "네 각이 직각이기만 하면 돼요", "네 변의 길이가 같고 네 각이 모두 직각인지 확인해요"],
 			"answer": 2,
-			"explanation": "정사각형은 네 각이 직각이라 직사각형, 네 변이 같아 마름모예요. 두 쌍의 변이 평행해 평행사변형이며 사다리꼴에도 포함돼요. 한 변이 5cm인 배지의 둘레는 5 × 4 = 20cm예요.",
+			"explanation": "정사각형은 네 변의 길이가 같고 네 각이 모두 직각이에요. 변과 각, 두 가지 조건을 함께 확인해요.",
 			"reward": 40
 		},
 		{
@@ -109,10 +109,10 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "등대로 향하는 사다리꼴 돛", "region": "harbor", "kind": "collect",
 			"description": "별빛 축제에 맞춰 켜져야 할 등대가 잠들었어요. 수리 배의 사다리꼴 돛 3개를 모아 주세요. 평행한 변이 있는지 살펴보면 돼요. 항구 사람들의 이야기를 모으면 빛이 끊긴 곳을 찾을 수 있어요.",
 			"objective": "사다리꼴 돛 3개 모으기", "target": "trapezoid_sail", "target_count": 3,
-			"question": "마주 보는 두 쌍의 변이 평행한 돛도 사다리꼴이라고 할 수 있나요?",
-			"options": ["아니요, 평행한 변은 한 쌍만 있어야 해요", "네, 평행한 변이 있는 사각형이기 때문이에요", "아니요, 네 각이 직각이어야 해요"],
+			"question": "그림의 돛에서 평행한 변이 있는지 확인했어요. 사다리꼴을 고른 까닭은?",
+			"options": ["위쪽 변이 짧아 보여서예요", "평행한 변이 있는 사각형이기 때문이에요", "네 각이 모두 직각이어야 해서예요"],
 			"answer": 1,
-			"explanation": "사다리꼴은 평행한 변이 있는 사각형이에요. 두 쌍의 변이 평행해도 이 조건을 만족해요. 그래서 평행사변형도 사다리꼴에 포함돼요.",
+			"explanation": "사다리꼴은 평행한 변이 있는 사각형이에요. 겉모양이나 방향보다 마주 보는 변이 평행한지 확인해요.",
 			"reward": 30
 		},
 		{
@@ -133,10 +133,10 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "설원에 남은 마름모 불빛", "region": "snow", "kind": "collect",
 			"description": "등대로 가던 빛이 거울 설원에서 약해졌어요. 길가의 마름모 등불 3개를 찾아 쉼터로 모아 주세요. 네 변이 같은 등불이 눈 속에서도 길을 알려 줄 거예요.",
 			"objective": "마름모 등불 3개 모으기", "target": "rhombus_lantern", "target_count": 3,
-			"question": "등불 테두리의 네 변은 각각 6cm예요. 테두리를 한 바퀴 두르는 데 필요한 끈은?",
-			"options": ["24cm", "12cm", "18cm"],
+			"question": "등불 테두리의 네 변은 각각 6칸이에요. 한 바퀴 두르는 데 필요한 끈의 길이는?",
+			"options": ["24칸", "12칸", "18칸"],
 			"answer": 0,
-			"explanation": "마름모의 네 변의 길이는 같아요. 테두리 전체 길이는 네 변을 더해 구하므로 6 + 6 + 6 + 6 = 24cm예요. 모양이 기울어져 보여도 네 변을 모두 더해요.",
+			"explanation": "마름모의 네 변의 길이는 같아요. 네 변을 모두 더하면 6 + 6 + 6 + 6 = 24칸이에요.",
 			"reward": 35
 		},
 		{
@@ -145,8 +145,8 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "눈 속의 평행한 썰매길", "region": "snow", "kind": "explore",
 			"description": "거울 조각을 옮길 썰매길이 눈에 덮였어요. 평행한 길을 나타내는 표식 2개를 조사해 주세요. 두 길 사이를 수직으로 재면 어느 곳에서나 같은 폭인지 확인할 수 있어요.",
 			"objective": "평행한 썰매길 표식 2개 조사하기", "target": "parallel_track", "target_count": 2,
-			"question": "두 평행선 사이를 수직으로 재니 3칸, 비스듬히 재니 4칸이에요. 길 사이의 거리는?",
-			"options": ["4칸", "3칸", "7칸"],
+			"question": "두 평행선 사이를 수직으로 재니 4칸, 비스듬히 재니 5칸이에요. 길 사이의 거리는?",
+			"options": ["5칸", "4칸", "9칸"],
 			"answer": 1,
 			"explanation": "평행선 사이의 거리는 두 평행선에 수직인 선분의 길이예요. 비스듬한 선분의 길이를 더하거나 대신 고르지 않아요. 평행선 사이의 거리는 어디에서 수직으로 재도 같아요.",
 			"reward": 35
@@ -157,10 +157,10 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "빛을 잇는 정사각형 거울", "region": "snow", "kind": "collect",
 			"description": "성곽의 별빛을 항구로 보내는 거울 창 3개를 모아 주세요. 정사각형 창은 네 변도 같고 네 각도 직각이에요. 창을 돌려 달아도 이 성질은 바뀌지 않아요. 다음 빛의 시작은 별빛 성곽에 있어요.",
 			"objective": "정사각형 거울 창 3개 모으기", "target": "square_window", "target_count": 3,
-			"question": "정사각형 거울 창을 비스듬히 돌렸어요. 도형의 이름은 어떻게 되나요?",
-			"options": ["마름모라고만 불러야 해요", "직사각형이 될 수 없어요", "여전히 정사각형이고 직사각형과 마름모이기도 해요"],
+			"question": "정사각형 거울 창을 비스듬히 돌렸어요. 무엇이 그대로인가요?",
+			"options": ["네 변의 길이가 서로 달라져요", "네 각이 더 이상 직각이 아니에요", "같은 네 변과 네 직각이 그대로예요"],
 			"answer": 2,
-			"explanation": "회전해도 변의 길이와 각의 크기는 바뀌지 않아요. 정사각형은 네 변이 같아 마름모이며, 네 각이 직각이라 직사각형에도 포함돼요.",
+			"explanation": "돌려 놓아도 변의 길이와 각의 크기는 바뀌지 않아요. 네 변이 같고 네 각이 직각이므로 여전히 정사각형이에요.",
 			"reward": 35
 		},
 		{
@@ -193,13 +193,33 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "다시 빛나는 사각형 월드", "region": "citadel", "kind": "collect",
 			"description": "별빛 장치에 들어갈 정사각형 핵 4개를 찾아 주세요. 같은 네 변과 네 직각을 확인해 주세요. 주민들의 손길이 모이면 성곽의 빛이 설원의 거울을 지나 항구 등대를 비추고, 마을 축제까지 환해질 거예요.",
 			"objective": "정사각형 별빛 핵 4개 모으기", "target": "square_core", "target_count": 4,
-			"question": "정사각형 별빛 핵에 대한 설명으로 옳은 것은?",
-			"options": ["직사각형이면서 마름모이고, 평행사변형과 사다리꼴에도 들어가요", "정사각형이므로 다른 사각형 이름은 가질 수 없어요", "돌리면 네 각의 크기가 바뀌어요"],
+			"question": "별빛 핵이 정사각형인 까닭을 그림의 변과 각으로 설명해 볼까요?",
+			"options": ["네 변의 길이가 같고 네 각이 모두 직각이에요", "위쪽으로 뾰족하게 놓여 있어요", "마주 보는 두 변만 길이가 같아요"],
 			"answer": 0,
-			"explanation": "정사각형은 직사각형의 네 직각과 마름모의 같은 네 변을 모두 가져요. 마주 보는 두 쌍의 변이 평행하므로 평행사변형과 사다리꼴에도 포함돼요. 서로 다른 이름이 한 도형의 여러 성질을 알려 줘요.",
+			"explanation": "네 변의 길이가 같고 네 각이 모두 직각인지 확인해요. 도형을 돌리거나 같은 비율로 크게 해도 이 성질은 유지돼요.",
 			"reward": 50
 		}
 	]
+	for quest: Dictionary in quests:
+		quest["story_description"] = quest.description
+		var sentences: PackedStringArray = str(quest.description).split(". ")
+		quest.description = ". ".join(sentences.slice(0, 2)).trim_suffix(".") + "."
+		quest["topic"] = LearningCatalog.quest_topic(str(quest.id))
+		var lesson: Dictionary = LearningCatalog.lesson(str(quest.topic))
+		var feedback: Array[String] = []
+		for index: int in range(3):
+			feedback.append(str(quest.explanation) if index == int(quest.answer) else str(lesson.hint))
+		var calculation_hints: Dictionary = {
+			"parallelogram_bridge": ["마주 보는 각부터 찾아요. 마주 보는 각은 주어진 65°와 같아요.", "", "이웃한 각까지 같지는 않아요. 이웃한 두 각의 합 180°에서 65°를 빼 보세요."],
+			"citadel_banners": ["70°는 마주 보는 각과 같아요. 이웃한 각은 180°에서 70°를 빼요.", "", "180°는 이웃한 두 각의 합이에요. 그중 주어진 70°를 빼 보세요."],
+			"snow_lanterns": ["", "12칸은 두 변만 더한 길이예요. 마름모의 같은 네 변을 모두 더해요.", "18칸은 세 변만 더한 길이예요. 마지막 한 변 6칸도 더해요."],
+			"citadel_seals": ["180°는 직각 두 개를 더한 값이에요. 네 각을 모두 확인해요.", "270°는 직각 세 개를 더한 값이에요. 네 번째 직각도 더해요.", ""]
+		}
+		if calculation_hints.has(str(quest.id)):
+			for index: int in range(3):
+				if index != int(quest.answer): feedback[index] = str(calculation_hints[str(quest.id)][index])
+		quest["option_feedback"] = feedback
+	return quests
 
 
 static func get_quest(quest_id: String) -> Dictionary:

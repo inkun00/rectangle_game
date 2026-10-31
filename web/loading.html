@@ -3,75 +3,254 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#e9f3ee">
-<title>사각형 월드 · 그림 그리기와 집 짓기, 수학 모험</title>
+<meta name="theme-color" content="#102a25">
+<title>사각형 월드</title>
 $GODOT_HEAD_INCLUDE
 <style>
-:root{color-scheme:light;--page:#e9f3ee;--paper:#fff;--ink:#173b38;--forest:#146b58;--muted:#496c60;--line:#bccfc5;--sun:#f4c965;--error:#963c34}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--page);color:var(--ink);font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif}
-#canvas{width:100%;height:100%;display:block}
+:root {
+  color-scheme: light;
+  --page-deep: #0a1c19;
+  --paper: #fbfdfc;
+  --ink: #152e2b;
+  --forest: #196b58;
+  --forest-bright: #25967b;
+  --muted: #48665d;
+  --line: #d8e5df;
+  --sun: #f2c14e;
+  --amber: #e08238;
+  --error: #963c34;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--page-deep);
+  color: var(--ink);
+  font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+}
+#canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 #canvas:focus-visible{outline:4px solid var(--sun);outline-offset:-6px}
-#loading{position:fixed;inset:0;display:grid;place-items:center;overflow-y:auto;overscroll-behavior:contain;padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));background:var(--page);z-index:10}
-.card{width:min(100%,520px);margin:auto;padding:36px;background:var(--paper);border:1px solid var(--line);border-radius:24px;text-align:left}
-.mark{display:block;width:80px;height:80px;object-fit:contain;margin:0 0 20px}
-h1{margin:0;font-size:clamp(34px,7vw,48px);font-weight:800;line-height:1.2;letter-spacing:-.045em;word-break:keep-all;text-wrap:balance}
-.intro{margin:16px 0 30px;color:var(--muted);font-size:17px;line-height:1.75;word-break:keep-all;overflow-wrap:anywhere}
-.progress-heading{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:14px;font-weight:700}
-#progress-value{font-variant-numeric:tabular-nums}
-progress{display:block;width:100%;height:12px;overflow:hidden;accent-color:var(--forest);border:0;border-radius:3px;background:var(--page)}
-progress::-webkit-progress-bar{background:var(--page)}
-progress::-webkit-progress-value{background:var(--forest)}
-progress::-moz-progress-bar{background:var(--forest)}
-#stage{min-height:3em;margin:12px 0 22px;color:var(--muted);font-size:14px;line-height:1.6;word-break:keep-all}
-.controls{padding-top:22px;border-top:1px solid var(--line)}
-.controls h2{margin:0 0 15px;font-size:16px;font-weight:700}
-.home-note{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.7;word-break:keep-all}
-dl{display:grid;grid-template-columns:1fr 1fr;gap:12px 26px;margin:0;font-size:14px}
-dl div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
-dt{color:var(--muted)}dd{margin:0;font-weight:700;white-space:nowrap}
-kbd{font:inherit;font-size:13px}
-.help{margin:16px 0 0;color:var(--muted);font-size:13px;line-height:1.6;word-break:keep-all}
-#error-box{margin:0 0 24px;padding:18px;border-left:3px solid var(--error);background:#fbf0ec}
-#error-msg{margin:0 0 16px;color:var(--error);font-size:15px;font-weight:700;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere}
-button{min-height:48px;border:9px solid transparent;border-image:url("button-primary.png") 9 fill / 9px / 0 stretch;padding:4px 18px;background:var(--forest);background-clip:padding-box;color:var(--paper);font:inherit;font-size:18px;font-weight:700;cursor:pointer;touch-action:manipulation}
-button:hover{filter:brightness(1.08)}button:active{filter:brightness(.88)}
-button:focus-visible,summary:focus-visible{outline:3px solid var(--ink);outline-offset:4px}
-details{margin-top:16px;color:var(--muted);font-size:13px;line-height:1.6}summary{width:fit-content;min-height:28px;cursor:pointer}summary:hover{color:var(--ink)}
-#error-details{margin:10px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-noscript{display:block;margin-top:20px;color:var(--error);line-height:1.6}
-@media(max-width:420px){.card{padding:28px 22px;border-radius:18px}.intro{font-size:16px}dl{gap:12px 18px}}
-@media(prefers-reduced-motion:reduce){button{transition:none}}
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: radial-gradient(circle at 50% 38%, #14352f 0%, #0c211d 60%, #071714 100%);
+  z-index: 10;
+}
+#loading::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.bg-shapes {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0.14;
+}
+.bg-shape {
+  position: absolute;
+  stroke: rgba(242, 193, 78, 0.45);
+  stroke-width: 2;
+  fill: rgba(37, 150, 123, 0.08);
+  animation: floatShape 16s ease-in-out infinite alternate;
+}
+.bg-shape.s1 { top: 12%; left: 10%; width: 80px; height: 80px; }
+.bg-shape.s2 { top: 15%; right: 12%; width: 110px; height: 75px; animation-duration: 20s; }
+.bg-shape.s3 { bottom: 14%; left: 14%; width: 95px; height: 70px; animation-duration: 18s; }
+.bg-shape.s4 { bottom: 12%; right: 10%; width: 85px; height: 85px; animation-duration: 22s; }
+@keyframes floatShape {
+  0% { transform: translateY(0) rotate(0deg); }
+  100% { transform: translateY(-12px) rotate(4deg); }
+}
+.card {
+  position: relative;
+  width: min(92vw, 380px);
+  padding: 36px 30px 30px;
+  background: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 26px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(20, 60, 50, 0.12);
+  text-align: center;
+  overflow: hidden;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--forest) 0%, var(--forest-bright) 50%, var(--sun) 100%);
+}
+.brand-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #16463c, #247564);
+  box-shadow: 0 10px 22px rgba(20, 70, 58, 0.28);
+  margin-bottom: 16px;
+}
+.brand-icon {
+  display: block;
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+}
+h1 {
+  margin: 0 0 24px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.progress-box {
+  width: 100%;
+}
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+#stage {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#progress-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--forest);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+progress {
+  display: block;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: #e7eeea;
+}
+progress::-webkit-progress-bar {
+  background: #e7eeea;
+  border-radius: 999px;
+}
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #196b58, #2ec49f, #f2c14e);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+progress::-moz-progress-bar {
+  background: linear-gradient(90deg, #196b58, #2ec49f, #f2c14e);
+  border-radius: 999px;
+}
+#error-box {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 14px;
+  border-left: 4px solid var(--error);
+  background: #fdf2ef;
+  text-align: left;
+}
+#error-msg {
+  margin: 0 0 12px;
+  color: var(--error);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+button {
+  min-height: 44px;
+  border: 9px solid transparent;
+  border-image: url("button-primary.png") 9 fill / 9px / 0 stretch;
+  padding: 4px 16px;
+  background: var(--forest);
+  background-clip: padding-box;
+  color: var(--paper);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button:hover { filter: brightness(1.08); }
+button:active { filter: brightness(0.88); }
+button:focus-visible, summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
+details { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+summary { width: fit-content; min-height: 24px; cursor: pointer; }
+summary:hover { color: var(--ink); }
+#error-details { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13px; line-height: 1.5; }
+@media (prefers-reduced-motion:reduce) {
+  button, progress::-webkit-progress-value, .bg-shape { transition: none; animation: none; }
+}
 </style>
 </head>
 <body>
 <canvas id="canvas" tabindex="-1" aria-label="사각형 월드 게임" aria-describedby="game-controls" aria-busy="true">브라우저에서 캔버스를 지원해야 플레이할 수 있어요.</canvas>
 <p id="game-controls" class="sr-only">메인페이지에서 그림 그리기, 집 짓기, 모험을 골라요. 공방에서 사각형으로 친구를 완성하면 모험을 시작할 수 있어요. 모험에서는 방향키 또는 A와 D로 이동하고, Space로 점프해요. G로 물품을 줍고 E로 주민과 대화해요. Z 또는 F로 공격하고 Q로 물약을 사용해요. J는 부탁 목록, M은 지도, Esc는 열린 창을 닫는 키예요.</p>
 <section id="loading" aria-labelledby="loading-title">
+  <div class="bg-shapes" aria-hidden="true">
+    <svg class="bg-shape s1" viewBox="0 0 100 100"><rect x="14" y="14" width="72" height="72" rx="4"/></svg>
+    <svg class="bg-shape s2" viewBox="0 0 140 90"><polygon points="26,14 130,14 114,76 10,76"/></svg>
+    <svg class="bg-shape s3" viewBox="0 0 130 90"><polygon points="28,14 102,14 122,76 8,76"/></svg>
+    <svg class="bg-shape s4" viewBox="0 0 100 100"><polygon points="50,8 92,50 50,92 8,50"/></svg>
+  </div>
   <div class="card">
-    <img class="mark" src="index.icon.png" width="80" height="80" alt="">
+    <div class="brand-icon-wrap">
+      <img class="brand-icon" src="index.icon.png" width="50" height="50" alt="">
+    </div>
     <h1 id="loading-title">사각형 월드</h1>
-    <p class="intro">다섯 가지 사각형으로 그림과 집을 만들고<br>나만의 친구와 마을을 탐험해요.</p>
-    <div class="progress-heading" aria-hidden="true"><span>게임 파일 준비</span><span id="progress-value">0%</span></div>
-    <progress id="progress" max="100" value="0" aria-label="게임 파일 준비 진행률"></progress>
-    <p id="stage" role="status" aria-live="polite" aria-atomic="true">그림 도구와 건축 재료를 준비하고 있어요…</p>
+    <div class="progress-box">
+      <div class="progress-meta">
+        <p id="stage" role="status" aria-live="polite" aria-atomic="true">게임을 준비하고 있어요…</p>
+        <span id="progress-value">0%</span>
+      </div>
+      <progress id="progress" max="100" value="0" aria-label="게임 파일 준비 진행률"></progress>
+    </div>
     <div id="error-box" hidden>
       <p id="error-msg"></p>
       <button id="retry-btn" type="button" aria-describedby="error-msg">다시 불러오기</button>
       <details><summary>자세한 오류 내용</summary><pre id="error-details"></pre></details>
-    </div>
-    <div class="controls">
-      <p class="home-note">메인페이지에서 그림 그리기 · 집 짓기 · 모험을 골라요.</p>
-      <h2>모험에서는 이렇게 움직여요</h2>
-      <dl>
-        <div><dt>이동</dt><dd><kbd>← →</kbd> / <kbd>A D</kbd></dd></div>
-        <div><dt>점프</dt><dd><kbd>Space</kbd></dd></div>
-        <div><dt>물품 줍기</dt><dd><kbd>G</kbd></dd></div>
-        <div><dt>주민과 대화</dt><dd><kbd>E</kbd></dd></div>
-      </dl>
-      <p class="help">물품은 부탁을 받기 전에도 주울 수 있어요.<br>높은 곳의 물품은 점프해서 가까이 가 보세요.</p>
     </div>
     <noscript>플레이하려면 브라우저 설정에서 자바스크립트를 켠 뒤 다시 불러와 주세요.</noscript>
   </div>
@@ -101,7 +280,6 @@ noscript{display:block;margin-top:20px;color:var(--error);line-height:1.6}
     console.error(error);
     progress.hidden = true;
     progressValue.textContent = '준비 중단';
-    // Focused retry describes the failure; avoid a second live announcement.
     stage.setAttribute('aria-live', 'off');
     stage.removeAttribute('role');
     stage.textContent = '준비가 잠시 멈췄어요.';
@@ -126,7 +304,6 @@ noscript{display:block;margin-top:20px;color:var(--error);line-height:1.6}
       progressValue.textContent = percent + '%';
       lastPercent = percent;
     }
-    // Exact progress is visual; assistive technology hears only milestones.
     const milestone = Math.floor(percent / 25) * 25;
     if (milestone <= announcedMilestone) return;
     announcedMilestone = milestone;
@@ -151,7 +328,6 @@ noscript{display:block;margin-top:20px;color:var(--error);line-height:1.6}
       settled = true;
       canvas.setAttribute('aria-busy', 'false');
       canvas.tabIndex = 0;
-      // No exit animation or timeout: only actual engine readiness starts play.
       loading.remove();
       canvas.focus();
     }).catch(error => fail(error, '게임을 준비하다가 멈췄어요. 인터넷 연결을 확인한 뒤 다시 불러와 주세요.'));

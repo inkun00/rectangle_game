@@ -1,6 +1,6 @@
 # 사각형 월드 배포
 
-GitHub 저장소는 `inkun00/rectangle_game`, Vercel 프로젝트는 `inkun05/rectangle-game`입니다. 기존 `triangle-art` 프로젝트와 별도로 배포합니다.
+GitHub 저장소는 `inkun00/rectangle_game`, Vercel 프로젝트는 `inkeuns-projects-872d3d68/rectangle-game`입니다. 기존 `triangle-art` 프로젝트와 별도로 배포합니다. 2026-11-01 배포부터 현재 연결된 계정의 전용 프로젝트를 사용합니다.
 
 ## 새 버전 올리기
 
@@ -24,7 +24,7 @@ npx vercel --prod
 
 ```powershell
 npx vercel login
-npx vercel link --project rectangle-game --scope inkun05
+npx vercel link --project rectangle-game --scope inkeuns-projects-872d3d68
 ```
 
 `.vercel`과 `.env.local`은 로컬 연결·인증 파일이며 커밋하지 않습니다.
@@ -39,7 +39,7 @@ npx vercel link --project rectangle-game --scope inkun05
 
 ## GitHub 자동 배포
 
-현재 Vercel 계정에는 GitHub 로그인 연결이 없어 저장소 자동 연결이 완료되지 않았습니다. GitHub에 올리는 것과 Vercel CLI 배포는 각각 정상적으로 사용할 수 있습니다. 자동 배포를 사용하려면 Vercel 계정 설정에서 GitHub 로그인 연결을 추가한 뒤 다음 명령을 실행합니다.
+현재 프로젝트에는 GitHub 저장소 연결이 완료되어 있습니다. `main`에 새 웹 결과물을 포함해 올리면 자동 배포를 사용할 수 있으며, 위의 CLI 명령으로도 운영 배포를 실행할 수 있습니다. 다른 계정에서 프로젝트를 다시 연결할 때는 GitHub 로그인을 연결한 뒤 다음 명령을 실행합니다.
 
 ```powershell
 npx vercel git connect https://github.com/inkun00/rectangle_game.git

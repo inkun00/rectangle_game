@@ -8,11 +8,13 @@ const Facade = preload("res://scripts/construction/construction_facade.gd")
 const Awards = preload("res://scripts/construction/construction_awards.gd")
 const INITIAL_BALANCE: int = 30000000
 const MAX_CONTRACTS: int = 1000
-const GRADING_VERSION: int = 5
+const GRADING_VERSION: int = 6
 
 signal changed
 
 var document: Document = Document.new()
+var my_house_document: Document = Document.new()
+var my_house_mode: bool = false
 var balance: int = INITIAL_BALANCE
 var contract_index: int = 0
 var contract_choice: int = 0
@@ -25,6 +27,31 @@ var last_error: String = ""
 func _init() -> void:
 	document.editing_enabled = false
 	document.changed.connect(_document_changed)
+	my_house_document.budget_limit = INITIAL_BALANCE
+	my_house_document.editing_enabled = false
+	my_house_document.changed.connect(_document_changed)
+
+func active_document() -> Document:
+	return my_house_document if my_house_mode else document
+
+func saved_balance() -> int:
+	return INITIAL_BALANCE + earned_profit()
+
+func my_house_budget() -> int:
+	return saved_balance()
+
+func my_house_cost() -> int:
+	return my_house_document.material_cost()
+
+func my_house_available_balance() -> int:
+	return maxi(0, my_house_budget() - my_house_cost())
+
+func set_my_house_mode(enabled: bool) -> void:
+	my_house_mode = enabled
+	my_house_document.budget_limit = my_house_budget()
+	my_house_document.editing_enabled = enabled
+	document.editing_enabled = (not enabled and phase == "building")
+	changed.emit()
 
 func _document_changed() -> void:
 	changed.emit()
@@ -71,15 +98,16 @@ static func _unlock_status(number: int, completed: Array[Dictionary]) -> Diction
 	for record: Dictionary in completed:
 		profit += int(record.profit)
 		var record_stage: int = int(record_contract(record).get("stage", _legacy_stage(int(record.index))))
-		if record_stage == number - 1: previous_complete = true
-	var saved_balance: int = INITIAL_BALANCE + profit
+		if record_stage >= number - 1: previous_complete = true
+	var current_assets: int = INITIAL_BALANCE + profit
 	var enough_profit: bool = profit >= int(info.minimum_profit)
-	var enough_balance: bool = saved_balance >= int(info.minimum_balance)
-	var unlocked: bool = previous_complete and enough_profit and enough_balance
-	var reason: String = "이 단계의 의뢰를 받을 수 있어요."
-	if not previous_complete: reason = "%d단계 집을 먼저 완성해 주세요." % (number - 1)
-	elif not enough_profit or not enough_balance: reason = "앞 단계 의뢰를 다시 지어 돈을 모아요. 모은 이익 %s, 남은 돈 %s가 필요해요." % [Catalog.format_won(int(info.minimum_profit)), Catalog.format_won(int(info.minimum_balance))]
-	return {"stage": number, "unlocked": unlocked, "reason": reason, "previous_complete": previous_complete, "earned_profit": profit, "saved_balance": saved_balance, "minimum_profit": int(info.minimum_profit), "minimum_balance": int(info.minimum_balance), "missing_profit": maxi(0, int(info.minimum_profit) - profit), "missing_balance": maxi(0, int(info.minimum_balance) - saved_balance)}
+	var enough_balance: bool = current_assets >= int(info.minimum_balance)
+	var unlocked: bool = enough_balance and enough_profit
+	var reason: String = "수락 가능 · 보유 자산 %s (필요 자산 %s)" % [Catalog.format_won(current_assets), Catalog.format_won(int(info.minimum_balance))]
+	if not unlocked:
+		var missing_bal: int = maxi(0, int(info.minimum_balance) - current_assets)
+		reason = "수락 불가 · 필요 자산 %s (보유 자산 %s · %s 더 필요)" % [Catalog.format_won(int(info.minimum_balance)), Catalog.format_won(current_assets), Catalog.format_won(missing_bal)]
+	return {"stage": number, "unlocked": unlocked, "reason": reason, "previous_complete": previous_complete, "earned_profit": profit, "saved_balance": current_assets, "minimum_profit": int(info.minimum_profit), "minimum_balance": int(info.minimum_balance), "missing_profit": maxi(0, int(info.minimum_profit) - profit), "missing_balance": maxi(0, int(info.minimum_balance) - current_assets)}
 
 func select_contract(choice: int) -> bool:
 	if phase not in ["briefing", "settled"] or choice < 0 or choice >= Catalog.contract_count(): return false
@@ -195,6 +223,7 @@ func settle(inspection: Dictionary) -> Dictionary:
 		record.award = Awards.assess(document.parts, evaluation, offer)
 	balance += final_payment - cost
 	records.append(record)
+	my_house_document.budget_limit = my_house_budget()
 	last_result = record.duplicate(true)
 	phase = "settled"
 	document.editing_enabled = false
@@ -211,7 +240,11 @@ func next_contract() -> bool:
 	return select_contract(next_choice)
 
 func serialize() -> Dictionary:
-	return {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
+	var result: Dictionary = {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
+	if my_house_mode or not my_house_document.parts.is_empty():
+		result["my_house_mode"] = my_house_mode
+		result["my_house_document"] = my_house_document.serialize()
+	return result
 
 func restore(data: Dictionary) -> bool:
 	if not data.has_all(["version", "balance", "contract_index", "phase", "records", "document"]): return false
@@ -242,6 +275,7 @@ func restore(data: Dictionary) -> bool:
 			if not bool(_unlock_status(int(record_contract(raw).stage), checked_records).unlocked): return false
 		checked_records.append(raw.duplicate(true))
 		expected_balance += int(raw.profit)
+	var expected_saved_balance: int = expected_balance
 	if str(data.phase) == "settled":
 		var settled_grading: int = int(checked_records.back().get("grading_version", 1))
 		if data.has("contract_grading_version") and int(checked_grading) != settled_grading: return false
@@ -262,10 +296,22 @@ func restore(data: Dictionary) -> bool:
 	if str(data.phase) == "briefing" and not checked.parts.is_empty(): return false
 	if str(data.phase) == "settled" and data.document.parts != checked_records.back().document.parts:
 		return false
+	var checked_my_house_mode: bool = false
+	if data.has("my_house_mode"):
+		if not data.my_house_mode is bool: return false
+		checked_my_house_mode = bool(data.my_house_mode)
+	var checked_my_house: Document = Document.new()
+	checked_my_house.budget_limit = expected_saved_balance
+	if data.has("my_house_document"):
+		if not data.my_house_document is Dictionary or not checked_my_house.restore(data.my_house_document): return false
 	# No live model is changed until the entire ledger and geometry have passed validation.
 	document.changed.disconnect(_document_changed)
 	document = checked
 	document.changed.connect(_document_changed)
+	my_house_document.changed.disconnect(_document_changed)
+	my_house_document = checked_my_house
+	my_house_document.changed.connect(_document_changed)
+	my_house_mode = checked_my_house_mode
 	balance = expected_balance
 	contract_index = index
 	contract_choice = checked_choice
@@ -273,7 +319,8 @@ func restore(data: Dictionary) -> bool:
 	phase = str(data.phase)
 	records = checked_records
 	last_result = records.back().duplicate(true) if phase == "settled" else {}
-	document.editing_enabled = phase == "building"
+	document.editing_enabled = (not my_house_mode and phase == "building")
+	my_house_document.editing_enabled = my_house_mode
 	changed.emit()
 	return true
 

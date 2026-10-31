@@ -33,6 +33,7 @@ var player: WorldPlayer
 var journal: QuestJournal
 var camera: Camera2D
 var controls_enabled: bool = true
+var peaceful: bool = false
 var npcs: Array[Dictionary] = []
 var collectibles: Array[Dictionary] = []
 var platforms: Array[Rect2] = []
@@ -300,7 +301,7 @@ func _update_enemies(delta: float) -> void:
 		enemy["direction"] = signf(cos(phase))
 		enemy["flash"] = maxf(0.0, float(enemy["flash"]) - delta)
 		var offset: Vector2 = player.position - Vector2(enemy["position"])
-		if absf(offset.x) < 44.0 and absf(offset.y) < 70.0 and player.has_method("take_damage"):
+		if not peaceful and absf(offset.x) < 44.0 and absf(offset.y) < 70.0 and player.has_method("take_damage"):
 			player.call("take_damage", 8, Vector2(enemy["position"]).x)
 
 

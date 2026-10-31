@@ -26,6 +26,10 @@ var _stream_create: AudioStreamWAV = null
 var _stream_delete: AudioStreamWAV = null
 var _stream_click: AudioStreamWAV = null
 var _stream_fanfare: AudioStreamWAV = null
+var _stream_build_thud: AudioStreamWAV = null
+var _stream_wood_hammer: AudioStreamWAV = null
+var _stream_glass_chime: AudioStreamWAV = null
+var _stream_roof_clack: AudioStreamWAV = null
 
 var stream_snap: AudioStreamWAV:
 	get: return _stream_snap
@@ -39,6 +43,14 @@ var stream_click: AudioStreamWAV:
 	get: return _stream_click
 var stream_fanfare: AudioStreamWAV:
 	get: return _stream_fanfare
+var stream_build_thud: AudioStreamWAV:
+	get: return _stream_build_thud
+var stream_wood_hammer: AudioStreamWAV:
+	get: return _stream_wood_hammer
+var stream_glass_chime: AudioStreamWAV:
+	get: return _stream_glass_chime
+var stream_roof_clack: AudioStreamWAV:
+	get: return _stream_roof_clack
 
 func _init() -> void:
 	instance = self
@@ -67,6 +79,10 @@ func _build_all_sounds() -> void:
 	_stream_delete = _build_delete_swoosh_sound()
 	_stream_click = _build_click_sound()
 	_stream_fanfare = _build_fanfare_sound()
+	_stream_build_thud = _build_masonry_thud_sound()
+	_stream_wood_hammer = _build_wood_hammer_sound()
+	_stream_glass_chime = _build_glass_chime_sound()
+	_stream_roof_clack = _build_roof_clack_sound()
 
 func play_snap() -> void:
 	_play_stream(_stream_snap, -2.0)
@@ -85,6 +101,31 @@ func play_click() -> void:
 
 func play_fanfare() -> void:
 	_play_stream(_stream_fanfare, 0.0)
+
+func play_build_thud() -> void:
+	_play_stream(_stream_build_thud, -1.5)
+
+func play_wood_hammer() -> void:
+	_play_stream(_stream_wood_hammer, -2.0)
+
+func play_glass_chime() -> void:
+	_play_stream(_stream_glass_chime, -3.0)
+
+func play_roof_clack() -> void:
+	_play_stream(_stream_roof_clack, -2.0)
+
+func play_for_material_role(role: String) -> void:
+	match role:
+		"window":
+			play_glass_chime()
+		"door", "beam":
+			play_wood_hammer()
+		"roof":
+			play_roof_clack()
+		"decor":
+			play_create()
+		_:
+			play_build_thud()
 
 func _play_stream(stream: AudioStreamWAV, volume_offset_db: float = 0.0) -> void:
 	if not sound_enabled or stream == null or _players.is_empty():
@@ -244,4 +285,80 @@ static func _build_fanfare_sound() -> AudioStreamWAV:
 
 		samples[i] = clampf(sum_wave * 0.65, -1.0, 1.0)
 
+	return _pcm_to_wav(samples, sample_rate)
+
+## Heavy brick/masonry placement thud with mortar crunch
+static func _build_masonry_thud_sound() -> AudioStreamWAV:
+	var sample_rate: int = 44100
+	var duration: float = 0.11
+	var num_samples: int = int(duration * sample_rate)
+	var samples: Array[float] = []
+	samples.resize(num_samples)
+
+	var phase_low: float = 0.0
+	var phase_click: float = 0.0
+	for i in range(num_samples):
+		var progress: float = float(i) / float(num_samples)
+		var freq_low: float = lerpf(185.0, 58.0, sqrt(progress))
+		var freq_click: float = lerpf(920.0, 220.0, progress)
+		phase_low += freq_low * TAU / float(sample_rate)
+		phase_click += freq_click * TAU / float(sample_rate)
+
+		var body: float = sin(phase_low) * exp(-progress * 8.5) * 0.8
+		var knock: float = sin(phase_click) * exp(-progress * 26.0) * 0.35
+		var grit: float = (randf() * 2.0 - 1.0) * exp(-progress * 22.0) * 0.22
+		samples[i] = clampf(body + knock + grit, -1.0, 1.0)
+	return _pcm_to_wav(samples, sample_rate)
+
+## Double-tap wooden mallet / beam & door frame hammer
+static func _build_wood_hammer_sound() -> AudioStreamWAV:
+	var sample_rate: int = 44100
+	var duration: float = 0.16
+	var num_samples: int = int(duration * sample_rate)
+	var samples: Array[float] = []
+	samples.resize(num_samples)
+
+	for i in range(num_samples):
+		var t: float = float(i) / float(sample_rate)
+		var wave: float = 0.0
+		for strike_start: float in [0.0, 0.068]:
+			if t >= strike_start:
+				var age: float = t - strike_start
+				var env: float = exp(-age * 38.0)
+				var pitch: float = 340.0 if strike_start == 0.0 else 430.0
+				wave += (sin(age * pitch * TAU) * 0.65 + sin(age * pitch * 2.4 * TAU) * 0.28) * env
+		samples[i] = clampf(wave * 0.85, -1.0, 1.0)
+	return _pcm_to_wav(samples, sample_rate)
+
+## Crisp glass window fit chime
+static func _build_glass_chime_sound() -> AudioStreamWAV:
+	var sample_rate: int = 44100
+	var duration: float = 0.18
+	var num_samples: int = int(duration * sample_rate)
+	var samples: Array[float] = []
+	samples.resize(num_samples)
+
+	for i in range(num_samples):
+		var t: float = float(i) / float(sample_rate)
+		var env: float = exp(-t * 18.0)
+		var wave: float = sin(t * 1318.5 * TAU) * 0.55 + sin(t * 1975.5 * TAU) * 0.30 + sin(t * 2637.0 * TAU) * 0.15
+		samples[i] = clampf(wave * env * 0.75, -1.0, 1.0)
+	return _pcm_to_wav(samples, sample_rate)
+
+## Terracotta / slate roof tile clack
+static func _build_roof_clack_sound() -> AudioStreamWAV:
+	var sample_rate: int = 44100
+	var duration: float = 0.12
+	var num_samples: int = int(duration * sample_rate)
+	var samples: Array[float] = []
+	samples.resize(num_samples)
+
+	var phase: float = 0.0
+	for i in range(num_samples):
+		var progress: float = float(i) / float(num_samples)
+		var freq: float = lerpf(640.0, 210.0, progress)
+		phase += freq * TAU / float(sample_rate)
+		var env: float = exp(-progress * 11.5)
+		var ceramic: float = sin(phase) * 0.65 + sin(phase * 2.7) * 0.25
+		samples[i] = clampf(ceramic * env * 0.85, -1.0, 1.0)
 	return _pcm_to_wav(samples, sample_rate)

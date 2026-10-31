@@ -5,7 +5,15 @@ extends RefCounted
 const PRICE_DATE: String = "2026-10-27"
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const GRID_UNIT: float = 20.0
-const MATERIAL_IDS: Array[String] = ["brick", "wall", "wall_square", "wall_square_large", "wall_parallelogram", "wall_rhombus", "wall_rhombus_small", "door", "door_short", "window", "window_small", "window_tall", "window_wide", "window_square_large", "window_rhombus", "window_rhombus_small", "lintel", "lintel_long", "beam_trapezoid", "beam_parallelogram", "roof", "roof_medium", "roof_wide", "roof_flat", "roof_flat_wide", "roof_square", "roof_trapezoid_small", "roof_trapezoid_metal", "roof_parallelogram", "roof_parallelogram_long", "panel", "panel_long", "panel_parallelogram_small", "panel_parallelogram_metal", "panel_trapezoid", "panel_trapezoid_wide", "tile_square", "vent_square", "ornament", "ornament_large", "tile_rhombus", "panel_rhombus_copper"]
+const MATERIAL_IDS: Array[String] = [
+	"brick", "wall", "wall_square", "wall_parallelogram", "wall_rhombus",
+	"door", "window", "window_rhombus", "beam_trapezoid", "beam_parallelogram", "lintel",
+	"roof", "roof_parallelogram", "roof_flat_wide", "roof_square",
+	"panel_trapezoid", "panel", "ornament", "tile_square",
+	"wall_square_large", "wall_rhombus_small", "door_short", "window_small", "window_tall", "window_wide", "window_square_large", "window_rhombus_small",
+	"lintel_long", "roof_medium", "roof_wide", "roof_flat", "roof_trapezoid_small", "roof_trapezoid_metal", "roof_parallelogram_long",
+	"panel_long", "panel_parallelogram_small", "panel_parallelogram_metal", "panel_trapezoid_wide", "vent_square", "ornament_large", "tile_rhombus", "panel_rhombus_copper"
+]
 ## Representative catalog families are balanced; mathematical classification
 ## remains inclusive and is always derived through QuadrilateralMath.
 const BALANCED_SPECS: Dictionary = {
@@ -34,7 +42,7 @@ const BALANCED_SPECS: Dictionary = {
 	"tile_rhombus": {"base": "ornament", "label": "마름모 모자이크 외장 타일", "short": "마름모 타일", "kind": "rhombus", "size": Vector2(60, 80), "role": "decor", "structural": false, "texture": "mosaic", "description": "네 변이 같은 외장 타일이에요. 폭과 높이가 변의 길이와 다르다는 것을 살펴봐요."},
 	"panel_rhombus_copper": {"base": "ornament", "label": "마름모 구리 외장판", "short": "구리 마름모판", "kind": "rhombus", "size": Vector2(80, 120), "role": "decor", "structural": false, "texture": "copper", "description": "큰 마름모 금속 외장판이에요. 구조 블록과 달리 벽에 붙이는 장식이에요."}
 }
-const SHORT_LABELS: Dictionary = {"brick": "벽돌 한 장", "wall": "벽돌 9장 묶음", "wall_square": "정사각 벽체", "door": "현관문", "door_short": "낮은 현관문", "window": "정사각 창", "window_small": "작은 정사각 창", "window_tall": "세로 창", "window_wide": "연결창", "lintel": "받침보", "lintel_long": "긴 받침보", "roof": "지붕", "roof_medium": "중간 지붕", "roof_wide": "넓은 지붕", "panel": "외장 패널", "panel_long": "긴 외장 패널", "ornament": "마름모 장식", "ornament_large": "큰 마름모 장식"}
+const SHORT_LABELS: Dictionary = {"brick": "벽돌 한 장", "wall": "벽돌 9장 묶음", "wall_square": "정사각 벽체", "door": "현관문", "door_short": "낮은 현관문", "window": "정사각 창", "window_small": "작은 정사각 창", "window_tall": "세로 창", "window_wide": "연결창", "lintel": "받침보", "lintel_long": "긴 받침보", "roof": "사다리꼴 지붕", "roof_medium": "중간 사다리지붕", "roof_wide": "넓은 사다리지붕", "panel": "평행사변형 판", "panel_long": "긴 평행사변형 판", "ornament": "마름모 장식", "ornament_large": "큰 마름모 장식"}
 const HOUSE_SOURCE: String = "https://lg.co.kr/media/release/30286"
 const SMALL_HOUSE_SOURCE: String = "https://lg.co.kr/media/release/29442"
 const BRICK_SOURCE: String = "https://changjobrick.cafe24.com/product/m2/22/50"
@@ -216,64 +224,91 @@ static func _item(id: String, label: String, description: String, role: String, 
 
 static func stages() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	var labels: Array[String] = ["첫 네모 집", "넓어지는 지붕", "기울어진 무늬", "다섯 도형 설계", "우리 마을 건축가"]
-	var balances: Array[int] = [0, 36000000, 50000000, 75000000, 105000000]
-	var profits: Array[int] = [0, 6000000, 20000000, 45000000, 75000000]
-	var kinds: Array[String] = ["square", "rectangle"]
-	for index: int in range(5):
-		if index == 1: kinds.append("trapezoid")
-		if index == 2: kinds.append("parallelogram")
-		if index == 3: kinds.append("rhombus")
-		result.append({"stage": index + 1, "title": labels[index], "minimum_balance": balances[index], "minimum_profit": profits[index], "previous_stage": index, "allowed_kinds": kinds.duplicate(), "minimum_families": mini(index + 2, 5)})
+	var labels: Array[String] = [
+		"첫 네모 집",
+		"넓어지는 지붕",
+		"기울어진 무늬",
+		"다섯 도형 설계",
+		"우리 마을 건축가",
+		"별빛 이층 도서관",
+		"시계탑 하우스",
+		"황금빛 미술관",
+		"그랜드 사각형 저택"
+	]
+	var balances: Array[int] = [30000000, 33000000, 38000000, 45000000, 54000000, 65000000, 78000000, 93000000, 110000000]
+	var profits: Array[int] = [0, 3000000, 8000000, 15000000, 24000000, 35000000, 48000000, 63000000, 80000000]
+	var kinds: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
+	for index: int in range(9):
+		result.append({
+			"stage": index + 1,
+			"name": labels[index],
+			"title": labels[index],
+			"minimum_balance": balances[index],
+			"minimum_profit": profits[index],
+			"previous_stage": index,
+			"allowed_kinds": kinds.duplicate(),
+			"minimum_families": mini(index + 2, 5)
+		})
 	return result
 
 static func stage(number: int) -> Dictionary:
-	return stages()[number - 1] if number >= 1 and number <= 5 else {}
+	return stages()[number - 1] if number >= 1 and number <= 9 else {}
 
 static func contract_count() -> int:
-	return 10
+	return 9
 
-static func contract(index: int, grading_version: int = 5) -> Dictionary:
+static func contract(index: int, grading_version: int = 6) -> Dictionary:
 	if grading_version < 5:
 		return _legacy_contract(index, grading_version)
 	var sequence: int = maxi(index, 0)
 	var choice: int = sequence % contract_count()
-	var stage_number: int = choice / 2 + 1
+	var stage_number: int = choice + 1
 	var info: Dictionary = stage(stage_number)
-	var titles: Array[String] = ["네모난 첫 집", "햇살 드는 작은 집", "처마가 넓은 집", "포근한 쉼터", "바람을 닮은 집", "기울어진 무늬의 집", "정원이 보이는 집", "다섯 도형의 집", "가족이 모이는 집", "우리 마을 전시집"]
-	var clients: Array[String] = ["지우", "민서", "도윤", "하린", "수아", "준서", "유나", "시우", "예린", "도하"]
-	var windows: int = 1 if stage_number == 1 else (3 if stage_number == 5 else 2)
-	var totals: Array[int] = [100000000, 130000000, 170000000, 200000000, 240000000]
-	var base_costs: Array[int] = [95500000, 122000000, 159000000, 185000000, 222000000]
-	var advances: Array[int] = [40000000, 50000000, 65000000, 80000000, 95000000]
-	var budgets: Array[int] = [2000000, 3000000, 4000000, 5000000, 6000000]
-	var bonuses: Array[int] = [500000, 800000, 1000000, 1500000, 2000000]
+	var titles: Array[String] = [
+		"네모난 첫 집",
+		"처마가 넓은 집",
+		"바람을 닮은 집",
+		"다섯 도형의 집",
+		"우리 마을 전시집",
+		"별빛 작은 도서관",
+		"정오의 시계탑 집",
+		"황금빛 사각형 화랑",
+		"사각형 월드 큰 저택"
+	]
+	var clients: Array[String] = ["지우", "민서", "도윤", "하린", "수아", "준서", "유나", "시우", "예린"]
+	var windows: int = 1 if stage_number == 1 else (3 if stage_number >= 5 else 2)
+	var totals: Array[int] = [100000000, 120000000, 140000000, 160000000, 180000000, 200000000, 220000000, 240000000, 260000000]
+	var base_costs: Array[int] = [95500000, 113500000, 131500000, 149500000, 167500000, 185500000, 203500000, 221500000, 239500000]
+	var advances: Array[int] = [40000000, 45000000, 52000000, 60000000, 68000000, 75000000, 82000000, 90000000, 98000000]
+	var budgets: Array[int] = [2000000, 2500000, 3000000, 3500000, 4000000, 4500000, 5000000, 5500000, 6000000]
+	var bonuses: Array[int] = [500000, 700000, 900000, 1100000, 1300000, 1500000, 1700000, 1900000, 2200000]
 	var needs: Array[Dictionary] = [
 		_need("현관문 1개", "role", "door", 1, true),
 		_need("창문 %d개" % windows, "role", "window", windows, true),
-		_need("벽돌 %d장 이상으로 벽 만들기" % (36 if stage_number == 5 else 18), "brick_count", "", 36 if stage_number == 5 else 18, true),
+		_need("벽돌 %d장 이상으로 벽 만들기" % (36 if stage_number >= 5 else 18), "brick_count", "", 36 if stage_number >= 5 else 18, true),
 		_need("지붕 1개 이상", "role", "roof", 1, true),
-		_need("고른 사각형 %d종류 사용하기" % int(info.minimum_families), "family_variety", "", int(info.minimum_families), true)
+		_need(("서로 다른 모양의 재료 %d종 사용하기" if grading_version >= 6 else "고른 사각형 %d종류 사용하기") % int(info.minimum_families), "family_variety", "", int(info.minimum_families), true)
 	]
 	var roof_kinds: Array[String] = []
 	roof_kinds.assign(info.allowed_kinds)
-	var roof_preference: String = "rectangle" if choice % 2 == 0 else "square"
-	if stage_number == 2: roof_preference = "trapezoid" if choice % 2 == 0 else "rectangle"
-	if stage_number == 3: roof_preference = "parallelogram" if choice % 2 == 0 else "rectangle"
-	if stage_number >= 4: roof_preference = "rectangle" if choice % 2 == 0 else "trapezoid"
+	var roof_preference: String = "rectangle" if choice % 2 == 0 else "trapezoid"
+	if stage_number == 1: roof_preference = "rectangle"
+	elif stage_number == 2: roof_preference = "trapezoid"
+	elif stage_number == 3: roof_preference = "parallelogram"
+	elif stage_number == 6: roof_preference = "square"
 	# A genuine rectangle preference is checked by the selected family. The
 	# broader trapezoid classification elsewhere remains mathematically inclusive.
-	needs.append(_need("%s 지붕으로 꾸미기" % Math.kind_name(roof_preference), "selected_roof_kind", roof_preference, 1, false))
+	needs.append(_need("%s 지붕으로 꾸미기" % Math.kind_name(roof_preference), "roof_kind" if grading_version >= 6 else "selected_roof_kind", roof_preference, 1, false))
 	needs.append(_need("정사각형 창문 1개", "window_kind", "square", 1, false))
 	needs.append(_length_need("한 변이 4칸인 정사각형 창문 1개", "window", "square", 4.0, 4.0))
 	if stage_number >= 3:
-		needs.append(_need("평행사변형 꾸밈판 1개", "selected_decor_kind", "parallelogram", 1, false))
+		needs.append(_need("평행사변형 꾸밈판 1개", "decor_kind" if grading_version >= 6 else "selected_decor_kind", "parallelogram", 1, false))
 	if stage_number >= 4:
-		needs.append(_need("마름모 꾸밈판 1개", "selected_decor_kind", "rhombus", 1, false))
-	var brief: String = "문 %d개와 창문 %d개가 있는 안전한 집을 부탁해요. 이번에는 %d종류의 사각형을 골라 써 주세요." % [1, windows, int(info.minimum_families)]
+		needs.append(_need("마름모 꾸밈판 1개", "decor_kind" if grading_version >= 6 else "selected_decor_kind", "rhombus", 1, false))
+	var brief: String = "문 %d개와 창문 %d개가 있는 안전한 집을 부탁해요. 이번에는 %d종류 이상의 사각형을 골라 써 주세요." % [1, windows, int(info.minimum_families)]
 	brief += " 지붕은 평평하게 만들어도 좋아요. %s 지붕이면 더 기쁠 거예요." % Math.kind_name(roof_preference)
-	if stage_number == 1: brief = "정사각형과 직사각형으로 작은 집을 부탁해요. 평평한 지붕과 문 하나, 창문 하나를 만들어 주세요."
-	return {"id": "commission_%d" % sequence, "index": sequence, "choice": choice, "stage": stage_number, "title": titles[choice], "client": clients[choice], "portrait": choice % 6, "brief": brief, "total": totals[stage_number - 1], "advance": advances[stage_number - 1], "base_cost": base_costs[stage_number - 1], "material_budget": budgets[stage_number - 1], "max_bonus": bonuses[stage_number - 1], "requirements": needs, "allowed_kinds": info.allowed_kinds.duplicate(), "roof_allowed_kinds": roof_kinds, "preferred_roof_kind": roof_preference, "source_url": SMALL_HOUSE_SOURCE if stage_number == 1 else HOUSE_SOURCE, "source_note": "공개 주택 가격을 참고한 단계별 게임 계약이에요. 땅값은 제외해요. 단계별 금액과 작업비는 학습을 위한 가상 예산이며 실제 견적이 아니에요."}
+	if stage_number == 1: brief = "정사각형·직사각형·사다리꼴·평행사변형·마름모 재료를 모두 자유롭게 쓸 수 있어요! 문 하나와 창문 하나가 있는 멋진 첫 집을 만들어 주세요."
+	return {"id": "commission_%d" % sequence, "index": sequence, "choice": choice, "stage": stage_number, "title": titles[choice], "client": clients[choice], "portrait": choice, "minimum_balance": int(info.minimum_balance), "minimum_profit": int(info.minimum_profit), "brief": brief, "total": totals[stage_number - 1], "advance": advances[stage_number - 1], "base_cost": base_costs[stage_number - 1], "material_budget": budgets[stage_number - 1], "max_bonus": bonuses[stage_number - 1], "requirements": needs, "allowed_kinds": info.allowed_kinds.duplicate(), "roof_allowed_kinds": roof_kinds, "preferred_roof_kind": roof_preference, "source_url": SMALL_HOUSE_SOURCE if stage_number == 1 else HOUSE_SOURCE, "source_note": "공개 주택 가격을 참고한 단계별 게임 계약이에요. 땅값은 제외해요. 단계별 금액과 작업비는 학습을 위한 가상 예산이며 실제 견적이 아니에요."}
 
 static func _legacy_contract(index: int, grading_version: int = 4) -> Dictionary:
 	var sequence: int = maxi(index, 0)

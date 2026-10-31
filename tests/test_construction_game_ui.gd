@@ -18,13 +18,24 @@ static func _test_first_stage_and_help(t: Node) -> void:
 	studio.testing = true
 	t.add_child(studio)
 	await _frames(t, 3)
+	t.assert_true(studio.canvas.use_2d_background, "Construction mode uses a 2D front-elevation backdrop matching the 2D house")
+	t.assert_not_null(studio._client_grid, "On-screen client board exposes the 3x3 client grid")
+	if studio._client_grid != null:
+		t.assert_eq(studio._client_grid.columns, 3, "Client board arranges clients in a 3x3 grid")
+		t.assert_eq(studio._client_grid.get_child_count(), 9, "Client board renders all 9 stage clients")
+	studio._show_client_offer_modal(0)
+	t.assert_true(studio._modal.visible, "Clicking a client opens the commission detail and acceptance confirmation modal")
+	t.assert_true(_text(studio._modal).contains("보유 자산"), "Client detail modal displays the player's held assets and acceptability")
+	t.assert_not_null(_button(studio._modal, "이 의뢰 수락하고 시작"), "Affordable client modal offers an explicit acceptance confirmation button")
+	studio._show_client_offer_modal(8)
+	t.assert_true(_text(studio._modal).contains("수락 불가"), "Higher-stage client modal clearly indicates insufficient assets")
 	studio._show_stages()
 	for choice: int in range(Catalog.contract_count()):
 		var offer: Dictionary = Catalog.contract(choice)
 		var button: Button = _button(studio._modal, Language.simplify(str(offer.title)))
-		t.assert_not_null(button, "All ten client offers are reachable from the stage chooser")
+		t.assert_not_null(button, "All nine client offers are reachable from the 3x3 stage chooser")
 		if button != null:
-			t.assert_eq(button.disabled, int(offer.stage) > 1, "A new company can select only first-stage clients")
+			t.assert_eq(button.disabled, int(offer.stage) > 1, "A new company can select only first-stage clients based on initial assets")
 	var before: Dictionary = studio.state.serialize()
 	var locked: Button = _button(studio._modal, Language.simplify(str(Catalog.contract(8).title)))
 	if locked != null: locked.pressed.emit()
@@ -32,18 +43,54 @@ static func _test_first_stage_and_help(t: Node) -> void:
 	studio._close_modal()
 	studio._accept_contract()
 	t.assert_eq(studio.state.phase, "building", "Accepting the visible first-stage offer opens building")
-	t.assert_eq(studio._allowed_families(), ["square", "rectangle"], "The first stage teaches only square and rectangle materials")
+	t.assert_eq(studio._allowed_families(), ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"], "The first stage allows all five quadrilateral families")
 	var visible: int = 0
 	for id: String in studio._material_buttons:
 		if not studio._material_buttons[id].visible: continue
 		visible += 1
-		t.assert_true(str(Catalog.material(id).kind) in ["square", "rectangle"], "The live first-stage material shelf hides later shape families")
+		t.assert_true(str(Catalog.material(id).kind) in ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"], "The live first-stage material shelf exposes all five shape families")
 	t.assert_gt(visible, 0, "The simple first-stage shelf still contains usable materials")
 	t.assert_true(studio._material_buttons.roof_flat_wide.visible, "The first stage visibly offers a real flat rectangular roof")
+	var pan_btn: Button = _button(studio, "화면 이동")
+	t.assert_not_null(pan_btn, "Studio toolbar exposes a dedicated screen pan button")
+	if pan_btn != null:
+		pan_btn.pressed.emit()
+		t.assert_true(studio.canvas.pan_tool, "Clicking the screen pan button enables pan mode")
+		t.assert_true(studio._status.text.contains("화면 이동"), "Pan mode activation is reported in the status feedback")
+	studio.canvas.pan_by(Vector2(50, -30))
+	t.assert_eq(studio.canvas.pan, Vector2(50, -30), "Pan_by moves the screen viewport")
+	# In pan mode: clicking on objects does NOT select them, dragging pans the screen
+	var click_press: InputEventMouseButton = InputEventMouseButton.new()
+	click_press.button_index = MOUSE_BUTTON_LEFT
+	click_press.pressed = true
+	click_press.position = studio.canvas.artwork_to_screen(Vector2(500, 500))
+	studio.canvas._gui_input(click_press)
+	t.assert_eq(studio.canvas.document.selected_id, -1, "In pan mode, left clicking does not select parts")
+	var before_drag_pan: Vector2 = studio.canvas.pan
+	var drag_motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	drag_motion.relative = Vector2(40, -30)
+	studio.canvas._gui_input(drag_motion)
+	t.assert_eq(studio.canvas.pan, before_drag_pan + Vector2(40, -30), "In pan mode, dragging mouse pans screen view")
+	var click_release: InputEventMouseButton = InputEventMouseButton.new()
+	click_release.button_index = MOUSE_BUTTON_LEFT
+	click_release.pressed = false
+	studio.canvas._gui_input(click_release)
+	t.assert_false(studio.canvas._panning, "Releasing mouse button ends screen pan drag")
+	studio.canvas.select_tool()
+	t.assert_false(studio.canvas.pan_tool, "Selecting select tool resets pan mode")
+	if pan_btn != null:
+		t.assert_false(pan_btn.button_pressed, "Pan button resets pressed state when returning to select tool")
 	studio._show_help()
 	var help: String = _text(studio._modal_body)
-	t.assert_true(help.contains("가로 받침"), "Actual help replaces technical beam terminology with a child-friendly explanation")
 	t.assert_true(help.contains("부탁 카드"), "Actual help describes a commission as a readable request card")
+	var next: Button = _button(studio._modal, "다음 설명")
+	t.assert_not_null(next, "Short help steps expose a next action")
+	if next != null: next.pressed.emit()
+	next = _button(studio._modal, "다음 설명")
+	if next != null: next.pressed.emit()
+	t.assert_true(_text(studio._modal_body).contains("가로 받침"), "The third help step explains structural support using child-friendly terminology")
+	t.assert_true(studio._costs.text.contains("집 전체 약속한 돈  100,000,000원"), "The full contract amount is explicitly labeled")
+	t.assert_true(studio._costs.text.contains("먼저 받은 돈  40,000,000원"), "The displayed advance equals the actual forty-million-won payment")
 	studio._show_glossary()
 	var glossary: String = _text(studio._modal_body)
 	for term: String in ["가로 받침", "누르는 무게", "먼저 받는 돈", "평행", "보상 받기"]:
@@ -105,6 +152,22 @@ static func _test_completed_house_gallery(t: Node) -> void:
 	t.assert_true(_text(studio._modal).contains(str(Catalog.contract(0).client)), "The repeated saved house retains its original client")
 	t.assert_not_null(_button(studio._modal, "집 PNG 저장"), "A lower-stage repeated house exports without an unearned badge")
 	t.assert_eq(int(company.records[repeat_index].award.tier), 0, "Returning to stage one never invents a hall badge")
+	studio._close_modal()
+	studio._enter_my_house_mode()
+	t.assert_true(company.my_house_mode, "Entering My Own House mode switches the studio to personal building")
+	t.assert_eq(company.my_house_budget(), company.saved_balance(), "My Own House mode is funded by the player's earned commission assets")
+	studio._add_material("foundation")
+	studio._add_material("wall_panel")
+	t.assert_gt(company.my_house_cost(), 0, "Placing materials in My Own House mode uses the earned asset budget")
+	t.assert_eq(company.my_house_available_balance(), company.my_house_budget() - company.my_house_cost(), "Available personal budget deducts placed My Own House parts")
+	t.assert_true(studio._my_house_export.visible, "My Own House mode exposes the PNG save button")
+	studio._export_my_house()
+	t.assert_false(studio._exporting, "Exporting My Own House to PNG completes safely in headless mode")
+	t.assert_true(studio.save_game(false), "My Own House design saves alongside commission progress")
+	t.assert_true(studio.load_game(false), "My Own House design restores cleanly from save")
+	t.assert_eq(studio.state.my_house_document.parts.size(), 2, "Restored My Own House preserves placed personal building parts")
+	studio._exit_my_house_mode()
+	t.assert_false(studio.state.my_house_mode, "Exiting My Own House mode returns to client commission mode")
 	studio.free()
 	await t.get_tree().process_frame
 	for suffix: String in ["", ".tmp", ".bak"]:
@@ -112,15 +175,15 @@ static func _test_completed_house_gallery(t: Node) -> void:
 
 static func _earned_company(t: Node) -> State:
 	var company: State = State.new()
-	for stage: int in range(1, 6):
+	for stage: int in range(1, 10):
 		var attempts: int = 0
 		while not bool(company.stage_unlock_status(stage).unlocked) and attempts < 20:
 			t.assert_true(company.repeat_contract(), "Lower-stage paid work can fund the next legitimate UI fixture stage")
 			_finish_offer(t, company)
 			attempts += 1
 		t.assert_true(company.stage_unlock_status(stage).unlocked, "Each UI fixture stage is earned through real paid ledger entries")
-		t.assert_true(company.select_contract((stage - 1) * 2), "The UI fixture chooses an actually unlocked offer")
-		if stage < 5:
+		t.assert_true(company.select_contract(stage - 1), "The UI fixture chooses an actually unlocked offer")
+		if stage < 9:
 			_finish_offer(t, company)
 		else:
 			t.assert_true(company.accept_contract(), "The highest UI fixture offer is accepted under normal rules")

@@ -3,6 +3,7 @@ extends RefCounted
 
 const Player = preload("res://scenes/world/world_player.gd")
 const Templates = preload("res://scripts/core/character_templates.gd")
+const Math = preload("res://scripts/core/quadrilateral_math.gd")
 
 static func run(t: Node) -> void:
 	_test_side_profiles(t)
@@ -28,6 +29,7 @@ static func _test_side_profiles(t: Node) -> void:
 				var source: Dictionary = _source(template, str(part.slot_id))
 				t.assert_eq(part.color, source.color, "Side projection keeps the player's chosen part color")
 				t.assert_eq(part.kind, source.kind, "Side projection keeps the authored shape identity")
+		_check_rendered_geometry(t, player)
 		t.assert_eq(eye_count, 1, "Exactly one eye is visible in the side profile")
 		if str(template.id) != "beetle":
 			var far: Dictionary = _find(parts, "leg_left")
@@ -49,14 +51,29 @@ static func _test_side_profiles(t: Node) -> void:
 		player.velocity.y = -100.0
 		t.assert_eq(player.pose_name(), "jump", "Airborne motion selects jump pose")
 		var jumped: Array[Dictionary] = player.get_render_parts()
+		_check_rendered_geometry(t, player)
 		t.assert_true(jumped != reverse, "Jump visibly bends articulated limbs")
 		player.velocity = Vector2.ZERO
 		player._walk_amount = 1.0
 		player._phase = 0.75
 		t.assert_eq(player.pose_name(), "walk", "Walking selects gait pose")
 		t.assert_true(player.get_render_parts() != reverse, "Walk cycles alter limb positions")
+		_check_rendered_geometry(t, player)
+		player.begin_attack()
+		_check_rendered_geometry(t, player)
+		player.invulnerability = 0.7
+		_check_rendered_geometry(t, player)
 		t.assert_eq(player.character, original, "Facing, jumping and walking never mutate workshop artwork")
 		player.free()
+
+static func _check_rendered_geometry(t: Node, player: WorldPlayer) -> void:
+	for part: Dictionary in player.get_render_parts():
+		if bool(part.feature): continue
+		var vertices: PackedVector2Array = part.vertices
+		t.assert_true(Math.matches_kind(vertices, str(part.kind)), "Actual rendered vertices retain the authored family in every pose and facing: " + str(part.slot_id))
+		var angle_sum: float = 0.0
+		for angle: float in Math.angles(vertices): angle_sum += angle
+		t.assert_float_approx(angle_sum, 360.0, 0.02, "The rendered part remains convex and nondegenerate")
 
 static func _test_damage_and_attacks(t: Node) -> void:
 	var player: WorldPlayer = Player.new()

@@ -35,7 +35,7 @@ static func plan() -> Array[Dictionary]:
 ## opening, so learning a new family never requires a sloping roof solution.
 static func example_for_contract(offer: Dictionary) -> Array[Dictionary]:
 	var stage: int = int(offer.get("stage", 1))
-	var windows: int = 1 if stage == 1 else (3 if stage == 5 else 2)
+	var windows: int = 1 if stage == 1 else (3 if stage >= 5 else 2)
 	var openings: int = windows + 1
 	var width: float = 120.0 * openings + 120.0
 	var left: float = 500.0 - width * 0.5

@@ -48,9 +48,15 @@ static func indicator(checked: bool) -> Texture2D:
 static func style(primary: bool = false, state: String = "normal", padding: int = 12) -> StyleBoxTexture:
 	var selected: bool = state in ["pressed", "hover_pressed"]
 	var result: StyleBoxTexture = StyleBoxTexture.new()
-	result.texture = texture((primary or selected) and state != "disabled")
+	var primary_face: bool = (primary or selected) and state != "disabled"
+	var face: AtlasTexture = AtlasTexture.new()
+	face.atlas = texture(primary_face)
+	face.region = Rect2(10, 10, 364, 52)
+	face.filter_clip = true
+	face.set_meta("generated_source", ROOT + ("primary.png" if primary_face else "secondary.png"))
+	result.texture = face
 	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 9.0)
+		result.set_texture_margin(edge, 2.0)
 		result.set_content_margin(edge, 10.0 if edge in [SIDE_TOP, SIDE_BOTTOM] else float(maxi(padding, 14)))
 	if state == "hover": result.modulate_color = Color(1.08, 1.08, 1.04) if primary else Color(0.96, 1.0, 0.96)
 	elif selected: result.modulate_color = Color(0.84, 0.90, 0.87)

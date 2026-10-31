@@ -14,9 +14,10 @@ static func run(t: Node) -> void:
 			t.assert_true(texture.get_width() > 0 and texture.get_height() > 0, "The generated artwork has usable dimensions: " + filename)
 			t.assert_true(texture.resource_path.begins_with("res://assets/generated/"), "The image comes from a generated source: " + filename)
 	var paper: Texture2D = GameArt.drafting_paper()
-	t.assert_true(_valid_region(paper), "Drawing and workshop paper has a usable generated atlas region")
-	if paper is AtlasTexture:
-		t.assert_true(Art.texture_source(paper) == Art.generated_texture("ui-surfaces.png"), "Drawing and workshop use the current generated paper rather than a missing-image fallback")
+	t.assert_not_null(paper, "Drawing and workshop use the generated quiet paper")
+	if paper != null:
+		t.assert_true(paper.resource_path.ends_with("assets/generated/focused-ui/paper-v1.png"), "Drawing surfaces use the border-free generated paper source")
+		t.assert_ge(paper.get_width(), 1024, "Quiet paper retains enough detail for a full work surface")
 	_test_tools(t)
 	_test_materials(t)
 	_test_portraits(t)

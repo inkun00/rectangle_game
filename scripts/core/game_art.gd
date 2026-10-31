@@ -57,6 +57,36 @@ static func panel(index: int, padding: int = 16) -> StyleBoxTexture:
 	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
 	return style
 
+static func framed_panel(index: int = 0, padding: int = 16, border_px: int = 8, tint: Color = Color.WHITE) -> StyleBoxTexture:
+	var style: StyleBoxTexture = StyleBoxTexture.new()
+	style.texture = framed_texture(index, border_px)
+	style.modulate_color = tint
+	for side: int in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		style.set_texture_margin(side, float(border_px + 1))
+		style.set_content_margin(side, float(padding))
+	style.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	style.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_STRETCH
+	return style
+
+static func framed_texture(index: int, border_px: int = 11) -> Texture2D:
+	var key: String = "panel_framed:%d:%d" % [index, border_px]
+	if _cells.has(key): return _cells[key]
+	var source: AtlasTexture = cell("ui_atlas", index, 2, 2, true)
+	var image: Image = source.atlas.get_image()
+	if image.is_compressed(): image.decompress()
+	var cropped: Image = image.get_region(Rect2i(source.region).grow(-4))
+	# The decorative border + corner ornament is inside the outer 84px of the cropped cell.
+	# Scaling by border_px / 84.0 maps the entire frame into [0 .. border_px] so the
+	# 9-slice center patch is 100% pure flat parchment with zero inner border lines.
+	var scale: float = clampf(float(border_px) / 84.0, 0.04, 1.0)
+	var target_w: int = maxi(border_px * 3, roundi(float(cropped.get_width()) * scale))
+	var target_h: int = maxi(border_px * 3, roundi(float(cropped.get_height()) * scale))
+	cropped.resize(target_w, target_h, Image.INTERPOLATE_LANCZOS)
+	var result: ImageTexture = ImageTexture.create_from_image(cropped)
+	result.set_meta("generated_source", source.atlas.resource_path)
+	_cells[key] = result
+	return result
+
 static func panel_texture(index: int) -> AtlasTexture:
 	var key: String = "panel_interior:%d" % index
 	if _cells.has(key): return _cells[key]
@@ -71,11 +101,7 @@ static func panel_texture(index: int) -> AtlasTexture:
 	return result
 
 static func drafting_paper() -> Texture2D:
-	# Both sources are ImageGen originals. The earlier paper remains usable
-	# while a fresh checkout imports the revision atlas for the first time.
-	if ResourceLoader.exists("res://assets/generated/revision/ui-surfaces.png"):
-		return cell("revision/ui-surfaces", 0, 2, 2, false)
-	return panel_texture(0)
+	return load("res://assets/generated/focused-ui/paper-v1.png") as Texture2D
 
 static func view(texture: Texture2D, dimensions: Vector2 = Vector2(56, 56)) -> TextureRect:
 	var result: TextureRect = TextureRect.new()

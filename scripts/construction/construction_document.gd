@@ -39,7 +39,7 @@ func part(id: int) -> Dictionary:
 func get_selected() -> Dictionary:
 	return part(selected_id)
 
-static func snapped_position(_material_id: String, point: Vector2, _kind: String = "") -> Vector2:
+static func snapped_position(_material_id: String, point: Vector2, _kind: String = "", _custom_vertices: PackedVector2Array = PackedVector2Array()) -> Vector2:
 	return point.snapped(Vector2(GRID * 0.5, GRID * 0.5))
 
 static func world_vertices(item: Dictionary) -> PackedVector2Array:
@@ -73,7 +73,7 @@ func placement_error(material_id: String, position: Vector2, kind: String = "", 
 func move_selected(position: Vector2) -> bool:
 	var selected: Dictionary = get_selected()
 	if selected.is_empty() or not editing_enabled or not position.is_finite(): return false
-	selected.position = snapped_position(str(selected.material_id), position, str(selected.kind))
+	selected.position = snapped_position(str(selected.material_id), position, str(selected.kind), selected.vertices)
 	last_error = _candidate_error(selected, selected_id)
 	if not last_error.is_empty(): return false
 	return _replace_selected(selected)
@@ -103,7 +103,7 @@ func duplicate_selected() -> int:
 	var offsets: Array[Vector2] = [Vector2(bounds.size.x, 0), Vector2(-bounds.size.x, 0), Vector2(0, -bounds.size.y), Vector2(0, bounds.size.y)]
 	for offset: Vector2 in offsets:
 		var duplicate: Dictionary = selected.duplicate(true)
-		duplicate.position = snapped_position(str(selected.material_id), selected.position + offset)
+		duplicate.position = snapped_position(str(selected.material_id), selected.position + offset, str(selected.kind), selected.vertices)
 		duplicate.id = _next_id
 		if _candidate_error(duplicate, -1).is_empty():
 			var after: Dictionary = _snapshot()

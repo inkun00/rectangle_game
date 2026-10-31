@@ -11,24 +11,27 @@ static func run(t: Node) -> void:
 	_test_stages_and_flat_roofs(t)
 	_test_progression_and_repeats(t)
 	_test_legacy_and_atomic_restore(t)
+	_test_v5_compatibility(t)
 
 static func _test_stages_and_flat_roofs(t: Node) -> void:
-	t.assert_eq(Catalog.stages().size(), 5, "Construction has five explicit difficulty stages")
-	t.assert_eq(Catalog.contract_count(), 10, "Each construction stage has two authored offers")
+	t.assert_eq(Catalog.stages().size(), 9, "Construction has nine explicit difficulty stages ordered by contract amount")
+	t.assert_eq(Catalog.contract_count(), 9, "The 3x3 client board has nine authored offers across nine stages")
 	var previous_budget: int = 0
 	var previous_profit: int = -1
-	for stage_number: int in range(1, 6):
+	var previous_total: int = 0
+	for stage_number: int in range(1, 10):
 		var stage: Dictionary = Catalog.stage(stage_number)
-		t.assert_eq(stage.allowed_kinds.size(), mini(stage_number + 1, 5), "Stages gradually introduce the five selectable families")
-		t.assert_gt(int(stage.minimum_profit), previous_profit, "Later stages require progressively more earned profit")
+		t.assert_eq(stage.allowed_kinds.size(), 5, "All five selectable quadrilateral families are available in every stage")
+		t.assert_gt(int(stage.minimum_profit), previous_profit, "Later stages require progressively more earned assets/profit")
 		previous_profit = int(stage.minimum_profit)
-		for choice: int in range((stage_number - 1) * 2, stage_number * 2):
-			var offer: Dictionary = Catalog.contract(choice)
-			t.assert_eq(int(offer.stage), stage_number, "Every offer belongs to its explicit stage")
-			t.assert_gt(int(offer.total) - int(offer.base_cost) - int(offer.material_budget), 0, "Even full-budget work makes money without any bonus")
-			t.assert_true(offer.roof_allowed_kinds.has("rectangle"), "A flat rectangular main roof remains available throughout progression")
-			t.assert_true(int(offer.advance) + State.INITIAL_BALANCE >= int(offer.material_budget), "Clients fund the material budget before construction")
-		var offer: Dictionary = Catalog.contract((stage_number - 1) * 2)
+		var choice: int = stage_number - 1
+		var offer: Dictionary = Catalog.contract(choice)
+		t.assert_eq(int(offer.stage), stage_number, "Every offer belongs to its explicit stage 1..9")
+		t.assert_gt(int(offer.total), previous_total, "The 9 clients are ordered strictly by increasing contract amount")
+		previous_total = int(offer.total)
+		t.assert_gt(int(offer.total) - int(offer.base_cost) - int(offer.material_budget), 0, "Even full-budget work makes money without any bonus")
+		t.assert_true(offer.roof_allowed_kinds.has("rectangle"), "A flat rectangular main roof remains available throughout progression")
+		t.assert_true(int(offer.advance) + State.INITIAL_BALANCE >= int(offer.material_budget), "Clients fund the material budget before construction")
 		t.assert_gt(int(offer.material_budget), previous_budget, "More difficult stages offer a larger material budget")
 		previous_budget = int(offer.material_budget)
 	for id: String in ["roof_flat", "roof_flat_wide"]:
@@ -57,8 +60,11 @@ static func _test_stages_and_flat_roofs(t: Node) -> void:
 	t.assert_eq(State._requirement_count(flat_roofs, State.count_parts(flat_roofs), selected_trapezoid), 0, "A request to select trapezoid material distinguishes a flat rectangle")
 	t.assert_eq(State._requirement_count(flat_roofs, State.count_parts(flat_roofs), inclusive_trapezoid), 1, "A property-based trapezoid request still includes rectangles")
 	state.document.add_part("ornament", Vector2(240, 480))
-	t.assert_false(state.evaluate(stable_report(state.document)).can_submit, "A later-stage family cannot bypass the first stage's restrictions")
-	t.assert_true(state.settle(stable_report(state.document)).is_empty(), "Unsupported early-stage shapes cannot earn a payment")
+	t.assert_true(state.evaluate(stable_report(state.document)).can_submit, "First-stage houses allow decorating with rhombus and all five quadrilateral families")
+	var bad_report: Dictionary = stable_report(state.document)
+	bad_report["stable"] = false
+	bad_report["unsupported_ids"] = [int(state.document.parts.back().id)]
+	t.assert_true(state.settle(bad_report).is_empty(), "Unsupported shapes cannot earn a payment")
 
 static func _test_progression_and_repeats(t: Node) -> void:
 	var state: State = State.new()
@@ -84,8 +90,8 @@ static func _test_progression_and_repeats(t: Node) -> void:
 		t.assert_eq(restored.balance, state.balance, "Restoring progression preserves the exact legitimately earned balance")
 		t.assert_eq(restored.contract_choice, choice, "Restoring progression preserves a chosen offer independently of the project count")
 		t.assert_eq(restored.records.size(), state.records.size(), "Repeated work remains separate paid projects in the ledger")
-	t.assert_eq(completed_choices.size(), 10, "All ten clients are reachable without inventing money")
-	for stage: int in range(1, 6): t.assert_true(state.stage_unlock_status(stage).unlocked, "Every earned construction stage remains available")
+	t.assert_eq(completed_choices.size(), 9, "All nine clients across stages 1..9 are reachable without inventing money")
+	for stage: int in range(1, 10): t.assert_true(state.stage_unlock_status(stage).unlocked, "Every earned construction stage remains available")
 	var saved_balance: int = state.balance
 	var previous_projects: int = state.records.size()
 	t.assert_true(state.select_contract(0), "An experienced builder can return to an affordable first-stage client")
@@ -142,7 +148,7 @@ static func _test_legacy_and_atomic_restore(t: Node) -> void:
 	t.assert_eq(restored.balance, old.balance, "Earlier v3 income is preserved rather than repriced")
 	t.assert_false(restored.last_result.has("award"), "Migration does not invent an unearned design award")
 	t.assert_true(restored.next_contract(), "A migrated company can accept new stage-based work")
-	t.assert_eq(restored.contract_grading_version, 5, "New work after migration uses current progression rules")
+	t.assert_eq(restored.contract_grading_version, State.GRADING_VERSION, "New work after migration uses current progression rules")
 	var before: String = JSON.stringify(restored.serialize())
 	var invalid: Dictionary = restored.serialize()
 	invalid.contract_choice = 9
@@ -152,6 +158,22 @@ static func _test_legacy_and_atomic_restore(t: Node) -> void:
 	invalid.balance += 100
 	t.assert_false(restored.restore(invalid), "Money must still reconcile exactly to the paid ledger")
 	t.assert_eq(JSON.stringify(restored.serialize()), before, "A rejected account preserves all live state")
+
+static func _test_v5_compatibility(t: Node) -> void:
+	var old: State = State.new()
+	old.accept_contract()
+	old.contract_grading_version = 5
+	old.document.replace_parts(Guide.plan())
+	var restored: State = State.new()
+	t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(old.serialize()))), "An active v5 contract retains its historical grading rules")
+	t.assert_eq(restored.contract_grading_version, 5, "Loading an active v5 site never reprices the commission")
+	var paid: Dictionary = restored.settle(stable_report(restored.document))
+	t.assert_false(paid.is_empty(), "The restored v5 guide remains deliverable")
+	var reopened: State = State.new()
+	t.assert_true(reopened.restore(JSON.parse_string(JSON.stringify(restored.serialize()))), "A paid v5 ledger still validates after property-based grading is introduced")
+	t.assert_eq(reopened.balance, restored.balance, "A historical paid record preserves its money exactly")
+	t.assert_true(reopened.next_contract(), "A v5 company can begin a new commission")
+	t.assert_eq(reopened.contract_grading_version, State.GRADING_VERSION, "New commissions adopt the current property-based requirements")
 
 static func stable_report(document: Document) -> Dictionary:
 	var ids: Array[int] = []

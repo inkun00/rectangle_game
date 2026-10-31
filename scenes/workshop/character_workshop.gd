@@ -248,9 +248,13 @@ func _draw_shape(shape: Dictionary, position: Vector2, _scale: float) -> void:
 	_draw_outline(points, Color(0.13, 0.22, 0.29, 0.28), 1.25, false)
 	if int(shape.id) == document.selected_id:
 		_draw_outline(points, Color("153b50"), 3.0, false)
-		for point: Vector2 in points:
+		for index: int in range(points.size()):
+			var point: Vector2 = points[index]
 			draw_circle(point, 5, Color("fffdf6"))
 			draw_arc(point, 5, 0, TAU, 16, Color("153b50"), 1.5, true)
+			var label_at: Vector2 = point + (point - Math.bounds(points).get_center()).normalized() * 17 + Vector2(-6, 5)
+			draw_string_outline(_font, label_at, ["ㄱ", "ㄴ", "ㄷ", "ㄹ"][index], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color("fffdf6"))
+			draw_string(_font, label_at, ["ㄱ", "ㄴ", "ㄷ", "ㄹ"][index], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("153b50"))
 
 func _draw_annotations() -> void:
 	var status: Dictionary = document.completion()

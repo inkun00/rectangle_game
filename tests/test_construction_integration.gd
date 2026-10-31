@@ -79,9 +79,9 @@ static func _test_material_family_filters(t: Node) -> void:
 	studio._filter_shape("rhombus")
 	for frame: int in range(5): await t.get_tree().process_frame
 	t.assert_eq(material_scroll.scroll_vertical, 0, "Switching a material family starts at its first item instead of showing only the final decorations")
-	t.assert_false(studio._material_buttons.wall_rhombus.visible, "The first stage cannot expose a later-stage structural rhombus")
-	t.assert_true(studio._materials_empty.visible, "Choosing a locked family explains why no materials are available")
-	var allowed_families: Array[String] = ["square", "rectangle"]
+	t.assert_true(studio._material_buttons.wall_rhombus.visible, "The first stage exposes structural rhombus materials")
+	t.assert_false(studio._materials_empty.visible, "Choosing rhombus shows available rhombus materials")
+	var allowed_families: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
 	for family: String in Studio.MATERIAL_FAMILIES:
 		if family == "all": continue
 		var index: int = Studio.MATERIAL_FAMILIES.find(family)
@@ -91,13 +91,15 @@ static func _test_material_family_filters(t: Node) -> void:
 		var visible_count: int = 0
 		var wrong_family: bool = false
 		for id: String in Catalog.MATERIAL_IDS:
-			var same_family: bool = str(Catalog.material(id).kind) == family and allowed_families.has(family)
+			var material: Dictionary = Catalog.material(id)
+			var vertices: PackedVector2Array = QuadrilateralMath.create_vertices(str(material.kind), Vector2(material.dimensions))
+			var same_family: bool = QuadrilateralMath.matches_kind(vertices, family) and allowed_families.has(str(material.kind))
 			if same_family: expected_count += 1
 			if studio._material_buttons[id].visible:
 				visible_count += 1
 				if not same_family: wrong_family = true
 		t.assert_eq(visible_count, expected_count, "The %s catalog filter exposes exactly the materials approved for the current stage" % family)
-		t.assert_false(wrong_family, "The representative %s filter does not substitute inclusive classifications for its catalog family" % family)
+		t.assert_false(wrong_family, "The %s property filter accepts only actual matching geometry" % family)
 		t.assert_true(studio._shape_filter.get_item_text(index).contains("%d종" % expected_count), "The %s picker displays the number of materials it can show" % family)
 		t.assert_false(studio._brick_mode.visible, "A representative shape displays both single and bundled materials without a hidden brick-mode restriction")
 	studio._filter_shape("rectangle")
@@ -110,9 +112,10 @@ static func _test_material_family_filters(t: Node) -> void:
 		if not studio._material_buttons[id].visible: continue
 		opening_count += 1
 		var material: Dictionary = Catalog.material(id)
-		if str(material.kind) != "rectangle" or not str(material.role) in ["door", "window"]: wrong_use = true
+		if not Studio._material_matches(material, "rectangle") or not str(material.role) in ["door", "window"]: wrong_use = true
 	t.assert_gt(opening_count, 0, "The shape and compact use filters can find rectangular doors and windows")
 	t.assert_false(wrong_use, "Shape and use filters are intersected rather than replacing one another")
+	t.assert_true(studio._material_buttons.window.visible, "A square window satisfies the four-right-angle rectangle filter")
 	studio._filter_shape("trapezoid")
 	var empty_count: int = 0
 	for id: String in studio._material_buttons:

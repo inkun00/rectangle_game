@@ -23,6 +23,9 @@ const HIT_IMMUNITY: float = 0.85
 const Templates = preload("res://scripts/core/character_templates.gd")
 
 var controls_enabled: bool = true
+var touch_left: bool = false
+var touch_right: bool = false
+var touch_jump: bool = false
 var character: Dictionary = {}
 var spawn_point: Vector2 = Vector2(280.0, 690.0)
 var facing: float = 1.0
@@ -90,10 +93,26 @@ func set_character(data: Dictionary) -> void:
 func set_controls_enabled(enabled: bool) -> void:
 	controls_enabled = enabled
 	if not enabled:
+		clear_touch_controls()
 		velocity = Vector2.ZERO
 		_jump_buffer_left = 0.0
 		_jump_was_down = true
 		_knockback_left = 0.0
+
+func set_touch_control(action: String, pressed: bool) -> void:
+	if pressed and not controls_enabled: return
+	match action:
+		"left": touch_left = pressed
+		"right": touch_right = pressed
+		"jump": touch_jump = pressed
+
+func clear_touch_controls() -> void:
+	touch_left = false
+	touch_right = false
+	touch_jump = false
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: clear_touch_controls()
 
 func set_world_bounds(width: float, left_margin: float = 36.0, right_margin: float = 36.0) -> void:
 	if not is_finite(width) or not is_finite(left_margin) or not is_finite(right_margin):
@@ -177,8 +196,8 @@ func _physics_process(delta: float) -> void:
 	invulnerability = maxf(invulnerability - delta, 0.0)
 	_attack_pose_left = maxf(_attack_pose_left - delta, 0.0)
 	_knockback_left = maxf(_knockback_left - delta, 0.0)
-	var direction: float = float(Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)) - float(Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
-	var jump_down: bool = Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
+	var direction: float = float(touch_right or Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)) - float(touch_left or Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT))
+	var jump_down: bool = touch_jump or Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
 	if absf(direction) > 0.0 and _knockback_left <= 0.0:
 		facing = direction
 	if Input.is_physical_key_pressed(KEY_Z) or Input.is_physical_key_pressed(KEY_F):
@@ -239,7 +258,9 @@ func _profile(part: Dictionary, slot: String) -> Dictionary:
 	var original: Vector2 = part.get("position", Vector2.ZERO)
 	var group: String = str(part.get("group", "body"))
 	var projected: Vector2 = Vector2((original.x - _art_origin.x) * 0.38, original.y)
-	var squeeze: Vector2 = Vector2(0.75, 1.0)
+	# A side view may rearrange joints, but every individual quadrilateral
+	# remains a similarity transform of the child's original four vertices.
+	var squeeze: Vector2 = Vector2.ONE * 0.75
 	var profile_rotation: float = 0.0
 	var depth: int = 4
 	var reference: Dictionary = _reference_parts.get(slot, {})
@@ -262,16 +283,16 @@ func _profile(part: Dictionary, slot: String) -> Dictionary:
 		depth = 8
 	if group == "body":
 		depth = 3
-		squeeze.x = 0.63
+		squeeze = Vector2.ONE * 0.63
 	if slot == "head":
 		depth = 6
-		squeeze.x = 0.78
+		squeeze = Vector2.ONE * 0.78
 	elif slot.begins_with("tail"):
 		depth = 0
-		squeeze = Vector2(0.85, 1.0)
+		squeeze = Vector2.ONE * 0.85
 	elif slot == "chest" or slot == "belly":
 		depth = 5
-		squeeze = Vector2(0.45, 0.85)
+		squeeze = Vector2.ONE * 0.60
 	elif slot == "eye_right" or slot == "nose":
 		depth = 9
 		squeeze = Vector2.ONE

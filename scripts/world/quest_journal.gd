@@ -61,7 +61,9 @@ func answer_quest(quest_id: String, answer_index: int) -> Dictionary:
 	if answer_index < 0 or answer_index >= options.size():
 		return _result(false, "보기 중 하나를 골라 주세요.")
 	if answer_index != int(quest["answer"]):
-		return _result(false, "다시 생각해 볼까요? " + String(quest["explanation"]))
+		var hints: Array = quest.get("option_feedback", [])
+		var hint: String = str(hints[answer_index]) if hints.size() == options.size() else str(quest.explanation)
+		return _result(false, "다시 살펴볼까요? " + hint)
 	var target: String = String(quest["target"])
 	inventory[target] = int(inventory.get(target, 0)) - int(quest["target_count"])
 	completed[quest_id] = true

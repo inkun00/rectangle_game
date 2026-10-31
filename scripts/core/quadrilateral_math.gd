@@ -12,6 +12,33 @@ static func kind_name(kind: String) -> String:
 static func kind_label(kind: String) -> String:
 	return kind_name(kind)
 
+## Display values never become authoritative measurements. Grid units are
+## virtual lengths, not physical centimetres on an uncalibrated monitor.
+static func measurement_label(value: float, decimals: int = 1) -> String:
+	var places: int = clampi(decimals, 0, 2)
+	var step: float = pow(10.0, -places)
+	var rounded: float = snappedf(value, step)
+	var text: String = (("%.2f" if places == 2 else ("%.1f" if places == 1 else "%.0f")) % rounded)
+	if places > 0:
+		text = text.trim_suffix("0").trim_suffix("0").trim_suffix(".")
+	return ("약 " if absf(value - rounded) > 0.0001 else "") + text
+
+static func property_summary(vertices: PackedVector2Array) -> String:
+	if not is_valid(vertices): return "올바른 사각형을 골라 주세요."
+	var properties: Dictionary = classification(vertices)
+	var lines: PackedStringArray = PackedStringArray()
+	lines.append("평행한 변 %d쌍" % int(properties.parallel_pairs))
+	var lengths: PackedFloat32Array = side_lengths(vertices)
+	var same: bool = true
+	for length: float in lengths:
+		same = same and absf(length - lengths[0]) <= maxf(lengths[0] * TOLERANCE, 0.001)
+	if same: lines.append("네 변의 길이가 같아요")
+	var right_count: int = 0
+	for angle: float in angles_degrees(vertices):
+		if absf(angle - 90.0) <= 0.1: right_count += 1
+	lines.append("직각 %d개" % right_count)
+	return " · ".join(lines)
+
 static func angles(vertices: PackedVector2Array) -> PackedFloat32Array:
 	return angles_degrees(vertices)
 

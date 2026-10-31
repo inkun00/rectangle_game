@@ -48,10 +48,20 @@ var _mode_masterpiece: Button
 var _background_button: Button
 var _masterpiece_button: Button
 var _masterpiece_tools: HBoxContainer
+var _guide_toggle: CheckButton
+var _guide_opacity: HSlider
 var _guide_label: Label
 var _gallery: AcceptDialog
 var _color_dialog: AcceptDialog
 var _swatches: Array[Button] = []
+var _palette_scroll: ScrollContainer
+var _shape_picker: OptionButton
+var _more_edits: MenuButton
+var _drawing_header: HBoxContainer
+var _drawing_title: Label
+var _drawing_tagline: Label
+var _drawing_load: Button
+var _main_colors: Array[Button] = []
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -74,44 +84,48 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 
 func _build_ui() -> void:
 	var background: TextureRect = TextureRect.new()
-	background.texture = GameArt.panel_texture(0)
+	background.texture = ConstructionArt.quiet_surface_texture()
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_TILE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(background)
 	var margin: MarginContainer = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for edge: String in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + edge, 20)
+	for edge: String in ["left", "right", "top", "bottom"]: margin.add_theme_constant_override("margin_" + edge, 12)
 	add_child(margin)
 	var column: VBoxContainer = VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
+	column.add_theme_constant_override("separation", 8)
 	margin.add_child(column)
-	var header: HBoxContainer = HBoxContainer.new()
-	header.add_theme_constant_override("separation", 12)
-	column.add_child(header)
+	_drawing_header = HBoxContainer.new()
+	_drawing_header.add_theme_constant_override("separation", 10)
+	column.add_child(_drawing_header)
 	var home: Button = _button("← 메인", _go_home)
 	home.name = "HomeButton"
-	header.add_child(home)
+	_drawing_header.add_child(home)
 	var title: VBoxContainer = VBoxContainer.new()
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title)
-	title.add_child(QuadTheme.label("사각형 그림 그리기", 26))
-	title.add_child(QuadTheme.label("다섯 가지 도형으로 만드는 나만의 그림", 13, QuadTheme.MUTED))
-	header.add_child(_button("불러오기", func(): load_drawing(true)))
-	header.add_child(_button("저장", func(): save_drawing(true)))
-	header.add_child(_button("PNG 저장", _export_png, true))
+	_drawing_header.add_child(title)
+	_drawing_title = QuadTheme.label("사각형 그림 그리기", 25)
+	title.add_child(_drawing_title)
+	_drawing_tagline = QuadTheme.label("변과 각을 살피며 나만의 작품을 만들어요", 15, QuadTheme.MUTED)
+	title.add_child(_drawing_tagline)
+	_drawing_load = _button("불러오기", func(): load_drawing(true))
+	_drawing_header.add_child(_drawing_load)
+	_drawing_header.add_child(_button("저장", func(): save_drawing(true)))
+	_drawing_header.add_child(_button("PNG 저장", _export_png, true))
 	var workspace: HBoxContainer = HBoxContainer.new()
 	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	workspace.add_theme_constant_override("separation", 16)
+	workspace.add_theme_constant_override("separation", 12)
 	column.add_child(workspace)
-	var left_scroll: ScrollContainer = ScrollContainer.new()
-	left_scroll.custom_minimum_size.x = 224
-	left_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	workspace.add_child(left_scroll)
-	var palette: VBoxContainer = QuadTheme.card(left_scroll, Color.WHITE, 14)
+	_palette_scroll = ScrollContainer.new()
+	_palette_scroll.custom_minimum_size.x = 220
+	_palette_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_palette_scroll.follow_focus = true
+	workspace.add_child(_palette_scroll)
+	var palette: VBoxContainer = QuadTheme.card(_palette_scroll, Color.WHITE, 12)
 	palette.get_parent().size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	palette.add_child(QuadTheme.label("1. 도형 고르기", 18))
+	palette.add_child(QuadTheme.label("도형 고르기", 19))
 	for kind: String in SHAPE_ORDER:
 		var button: Button = _button(QuadrilateralMath.kind_name(kind), func(): canvas.select_kind(kind))
 		button.name = "Shape_" + kind
@@ -120,30 +134,29 @@ func _build_ui() -> void:
 		button.toggle_mode = true
 		palette.add_child(button)
 		_shape_buttons[kind] = button
-	_shape_hint = QuadTheme.paragraph("", 14, QuadTheme.INK)
+	_shape_hint = QuadTheme.paragraph("", 16, QuadTheme.INK)
 	palette.add_child(_shape_hint)
-	palette.add_child(HSeparator.new())
-	palette.add_child(QuadTheme.label("2. 종이에 그리기", 18))
-	palette.add_child(QuadTheme.paragraph("종이에서 드래그해 그려요.\n몸통: 옮기기\n변·꼭지점: 비율대로 확대·축소\n위쪽 원형 손잡이: 회전", 14, QuadTheme.INK))
 	palette.add_child(_button("가운데에 도형 추가", func(): canvas.add_at_center()))
-	palette.add_child(QuadTheme.paragraph("도형을 겹치면 집, 꽃, 자동차도 만들 수 있어요!", 13))
-	palette.add_child(HSeparator.new())
-	palette.add_child(QuadTheme.label("3. 배경과 밑그림", 18))
-	_background_button = _button("배경 30종 고르기", func(): _open_gallery(false))
-	_background_button.name = "BackgroundGalleryButton"
-	palette.add_child(_background_button)
-	_masterpiece_button = _button("명화 밑그림 10종", func(): _open_gallery(true))
+	palette.add_child(QuadTheme.paragraph("종이에서 드래그해 그려요. 선택한 도형의 변·꼭짓점으로 크기를, 원형 손잡이로 방향을 바꿔요.", 15, QuadTheme.INK))
+	_masterpiece_button = _button("명화 밑그림 고르기", func(): _open_gallery(true))
 	_masterpiece_button.name = "MasterpieceGalleryButton"
 	palette.add_child(_masterpiece_button)
-	_guide_label = QuadTheme.paragraph("배경을 고르고 나만의 장면을 꾸며요.", 13, QuadTheme.INK)
+	_guide_label = QuadTheme.paragraph("", 15, QuadTheme.INK)
 	palette.add_child(_guide_label)
 	var center: VBoxContainer = VBoxContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.add_theme_constant_override("separation", 10)
+	center.add_theme_constant_override("separation", 8)
 	workspace.add_child(center)
-	var modes: HBoxContainer = HBoxContainer.new()
-	modes.add_theme_constant_override("separation", 8)
+	var modes: HFlowContainer = HFlowContainer.new()
+	modes.add_theme_constant_override("h_separation", 8)
+	modes.add_theme_constant_override("v_separation", 6)
 	center.add_child(modes)
+	_shape_picker = OptionButton.new()
+	Buttons.apply(_shape_picker)
+	_shape_picker.custom_minimum_size = Vector2(170, 44)
+	for kind: String in SHAPE_ORDER: _shape_picker.add_item(QuadrilateralMath.kind_name(kind))
+	_shape_picker.item_selected.connect(func(index: int): canvas.select_kind(SHAPE_ORDER[index]))
+	modes.add_child(_shape_picker)
 	_mode_free = _button("자유 그림", func(): _choose_mode("free"))
 	_mode_free.name = "FreeDrawingMode"
 	_mode_free.toggle_mode = true
@@ -152,12 +165,11 @@ func _build_ui() -> void:
 	_mode_masterpiece.name = "MasterpieceMode"
 	_mode_masterpiece.toggle_mode = true
 	modes.add_child(_mode_masterpiece)
-	var mode_help: Label = QuadTheme.paragraph("나만의 사각형으로 그리고, 겹치고, 채워요.", 14, QuadTheme.INK)
-	mode_help.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	modes.add_child(mode_help)
-	var toolbar: HFlowContainer = HFlowContainer.new()
-	toolbar.add_theme_constant_override("h_separation", 6)
-	toolbar.add_theme_constant_override("v_separation", 6)
+	_background_button = _button("배경 고르기", func(): _open_gallery(false))
+	_background_button.name = "BackgroundGalleryButton"
+	modes.add_child(_background_button)
+	var toolbar: HBoxContainer = HBoxContainer.new()
+	toolbar.add_theme_constant_override("separation", 8)
 	center.add_child(toolbar)
 	_select_button = _button("선택·이동", func(): canvas.select_tool())
 	_select_button.toggle_mode = true
@@ -166,31 +178,32 @@ func _build_ui() -> void:
 	_redo = _button("다시", _redo_edit)
 	toolbar.add_child(_undo)
 	toolbar.add_child(_redo)
-	_add_edit_button(toolbar, "복제", document.duplicate_selected)
-	_add_edit_button(toolbar, "삭제", document.delete_selected)
-	_add_edit_button(toolbar, "왼쪽 15°", func(): document.rotate_selected(-15))
-	_add_edit_button(toolbar, "오른쪽 15°", func(): document.rotate_selected(15))
-	_add_edit_button(toolbar, "축소", func(): document.scale_selected(0.9))
-	_add_edit_button(toolbar, "확대", func(): document.scale_selected(1.1))
-	_add_edit_button(toolbar, "뒤로", func(): document.shift_selected_layer(-1))
-	_add_edit_button(toolbar, "앞으로", func(): document.shift_selected_layer(1))
-	toolbar.add_child(_button("모두 지우기", _clear_drawing))
+	_more_edits = MenuButton.new()
+	_more_edits.text = "편집 더 보기"
+	Buttons.apply(_more_edits)
+	_more_edits.custom_minimum_size.y = 44
+	for caption: String in ["복제", "삭제", "왼쪽 15°", "오른쪽 15°", "축소", "확대", "뒤로", "앞으로", "모두 지우기", "불러오기", "밑그림 표시 전환", "밑그림 진하기 바꾸기"]:
+		_more_edits.get_popup().add_item(caption)
+	_more_edits.get_popup().id_pressed.connect(_more_edit_action)
+	toolbar.add_child(_more_edits)
 	_masterpiece_tools = HBoxContainer.new()
 	_masterpiece_tools.add_theme_constant_override("separation", 8)
 	center.add_child(_masterpiece_tools)
 	var guide_toggle: CheckButton = _check("밑그림 보기", true)
+	_guide_toggle = guide_toggle
 	guide_toggle.toggled.connect(func(enabled: bool):
 		canvas.show_masterpiece = enabled
 		canvas.queue_redraw())
 	_masterpiece_tools.add_child(guide_toggle)
-	_masterpiece_tools.add_child(QuadTheme.label("밑그림 진하기", 13))
+	_masterpiece_tools.add_child(QuadTheme.label("진하기", 15))
 	var opacity: HSlider = HSlider.new()
-	opacity.custom_minimum_size = Vector2(100, 44)
+	_guide_opacity = opacity
+	opacity.custom_minimum_size = Vector2(120, 44)
 	opacity.min_value = 0.15
 	opacity.max_value = 1.0
 	opacity.step = 0.05
 	opacity.value = 0.65
-	opacity.tooltip_text = "밑그림을 연하게 또는 진하게 보여요."
+	opacity.tooltip_text = "밑그림 진하기"
 	opacity.value_changed.connect(func(value: float):
 		canvas.masterpiece_opacity = value
 		canvas.queue_redraw())
@@ -199,46 +212,84 @@ func _build_ui() -> void:
 	canvas = Canvas.new()
 	canvas.name = "DrawingCanvas"
 	canvas.document = document
-	canvas.custom_minimum_size = Vector2(240, 200)
+	canvas.custom_minimum_size = Vector2(240, 160)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.hint_requested.connect(_set_status)
 	canvas.tool_changed.connect(_refresh)
 	center.add_child(canvas)
 	var colors: HFlowContainer = HFlowContainer.new()
-	colors.add_theme_constant_override("h_separation", 8)
+	colors.add_theme_constant_override("h_separation", 6)
 	colors.add_theme_constant_override("v_separation", 6)
 	center.add_child(colors)
-	var color_label: Label = QuadTheme.label("색 고르기", 15)
-	color_label.custom_minimum_size.y = 44
-	colors.add_child(color_label)
-	for index: int in [0, 2, 3, 6, 7, 9, 10, 12, 14, 48, 55]:
-		colors.add_child(_make_swatch(PALETTE[index]))
-	colors.add_child(_button("56색 팔레트", _open_colors))
+	for index: int in [0, 2, 6, 9, 48, 55, 3, 12, 14]:
+		var swatch: Button = _make_swatch(PALETTE[index])
+		colors.add_child(swatch)
+		_main_colors.append(swatch)
+	colors.add_child(_button("56색", _open_colors))
 	_color_picker = ColorPickerButton.new()
 	Buttons.apply(_color_picker)
-	_color_picker.custom_minimum_size = Vector2(52, 44)
+	_color_picker.custom_minimum_size = Vector2(48, 44)
 	_color_picker.color = canvas.paint_color
 	_color_picker.edit_alpha = false
 	_color_picker.tooltip_text = "직접 색 고르기"
 	_color_picker.color_changed.connect(_choose_color)
 	colors.add_child(_color_picker)
-	var grid: CheckButton = _check("점 격자", true)
+	var grid: CheckButton = _check("격자", true)
 	grid.toggled.connect(func(enabled: bool):
 		canvas.show_grid = enabled
 		canvas.queue_redraw())
 	colors.add_child(grid)
-	var snap: CheckButton = _check("자석 스냅", true)
+	var snap: CheckButton = _check("자석", true)
 	snap.name = "SnapToggle"
-	snap.tooltip_text = "다른 도형의 꼭지점과 변 가까이에서 딱 붙어요."
+	snap.tooltip_text = "다른 도형의 꼭짓점과 변 가까이에서 딱 붙어요."
 	snap.toggled.connect(func(enabled: bool):
 		canvas.snap_enabled = enabled
 		canvas.queue_redraw())
 	colors.add_child(snap)
-	_selection = QuadTheme.paragraph("", 14, QuadTheme.INK)
+	_selection = QuadTheme.paragraph("", 15, QuadTheme.INK)
 	center.add_child(_selection)
-	_status = QuadTheme.paragraph("도형을 골라 자유롭게 그려 보세요. 그림은 자동으로 저장돼요.", 13, QuadTheme.INK)
+	_status = QuadTheme.paragraph("도형을 골라 종이에 그려요. 자동으로 저장돼요.", 14, QuadTheme.INK)
 	column.add_child(_status)
+	resized.connect(_responsive_drawing)
+	_responsive_drawing()
+
+func _responsive_drawing() -> void:
+	if not is_instance_valid(canvas): return
+	var spacious: bool = size.x >= 1250 and size.y >= 760
+	_palette_scroll.visible = spacious
+	_shape_picker.visible = not spacious
+	_drawing_tagline.visible = size.y >= 760
+	_drawing_load.visible = size.x >= 1000
+	_drawing_title.add_theme_font_size_override("font_size", 22 if size.x < 1000 else 25)
+	for index: int in range(_main_colors.size()): _main_colors[index].visible = index < (9 if spacious else 6)
+	_masterpiece_tools.visible = document.drawing_mode == "masterpiece" and size.y >= 760
+	if _background_button != null: _background_button.text = "배경 고르기"
+
+func _more_edit_action(id: int) -> void:
+	cancel_gesture()
+	if id < 8 and document.get_selected().is_empty():
+		_set_status("먼저 선택·이동으로 도형을 골라 주세요.")
+		return
+	match id:
+		0: document.duplicate_selected()
+		1: document.delete_selected()
+		2: document.rotate_selected(-15.0)
+		3: document.rotate_selected(15.0)
+		4: document.scale_selected(0.9)
+		5: document.scale_selected(1.1)
+		6: document.shift_selected_layer(-1)
+		7: document.shift_selected_layer(1)
+		8: _clear_drawing()
+		9: load_drawing(true)
+		10:
+			canvas.show_masterpiece = not canvas.show_masterpiece
+			_guide_toggle.set_pressed_no_signal(canvas.show_masterpiece)
+			canvas.queue_redraw()
+		11:
+			canvas.masterpiece_opacity = 0.25 if canvas.masterpiece_opacity >= 0.9 else minf(canvas.masterpiece_opacity + 0.2, 1.0)
+			_guide_opacity.set_value_no_signal(canvas.masterpiece_opacity)
+			canvas.queue_redraw()
 
 func _add_edit_button(parent: Node, text: String, callback: Callable) -> void:
 	var button: Button = _button(text, func():
@@ -269,7 +320,7 @@ func _make_swatch(color: Color) -> Button:
 func _refresh_swatches() -> void:
 	for swatch: Button in _swatches:
 		var color: Color = swatch.get_meta("paint_color")
-		swatch.text = "✓" if canvas.paint_color.is_equal_approx(color) else ""
+		swatch.text = "●" if canvas.paint_color.is_equal_approx(color) else ""
 		var ink: Color = Color.WHITE if color.get_luminance() < 0.4 else QuadTheme.INK
 		for state: String in ["font_color", "font_hover_color", "font_pressed_color"]:
 			swatch.add_theme_color_override(state, ink)
@@ -357,7 +408,7 @@ func _open_gallery(masterpieces: bool) -> void:
 		card.add_child(preview)
 		var id: String = str(entry.id)
 		var chosen: bool = document.masterpiece_id == id if masterpieces else document.background_id == id
-		var button: Button = _button(("✓ " if chosen else "") + str(entry.name), func(): _choose_scene(id, masterpieces))
+		var button: Button = _button(("● " if chosen else "") + str(entry.name), func(): _choose_scene(id, masterpieces))
 		button.tooltip_text = "%s · %s\n%s" % [entry.artist, entry.year, entry.description] if masterpieces else str(entry.name)
 		card.add_child(button)
 		if masterpieces:
@@ -403,9 +454,11 @@ func _refresh() -> void:
 	_mode_masterpiece.set_pressed_no_signal(document.drawing_mode == "masterpiece")
 	Buttons.apply(_mode_free, document.drawing_mode == "free")
 	Buttons.apply(_mode_masterpiece, document.drawing_mode == "masterpiece")
-	_masterpiece_tools.visible = document.drawing_mode == "masterpiece"
+	_masterpiece_tools.visible = document.drawing_mode == "masterpiece" and size.y >= 760
 	var backdrop: Dictionary = Catalog.background(document.background_id)
-	_background_button.text = "배경 · " + (str(backdrop.name) if not backdrop.is_empty() else "빈 종이")
+	_background_button.text = "배경 고르기"
+	_background_button.tooltip_text = "현재 배경: " + str(backdrop.get("name", "빈 종이"))
+	_shape_picker.select(SHAPE_ORDER.find(canvas.selected_kind))
 	var masterpiece: Dictionary = Catalog.masterpiece(document.masterpiece_id)
 	_masterpiece_button.text = "명화 10종 고르기"
 	if document.drawing_mode == "masterpiece" and not masterpiece.is_empty():
@@ -418,7 +471,7 @@ func _refresh() -> void:
 	if selected.is_empty():
 		_selection.text += "도형을 고른 뒤 종이에 그리거나, 선택·이동으로 그림을 골라요."
 	else:
-		_selection.text += "%s · 변/꼭지점: 크기 · 원형 손잡이: 회전 · 변 길이: 그림 단위" % QuadrilateralMath.kind_name(str(selected.kind))
+		_selection.text += "%s · 길이 단위: 칸 · 손잡이로 크기·방향 조절" % QuadrilateralMath.kind_name(str(selected.kind))
 
 func _document_changed() -> void:
 	_refresh()

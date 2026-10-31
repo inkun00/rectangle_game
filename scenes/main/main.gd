@@ -3,7 +3,7 @@ extends Node
 
 const SHAPES: Array[String] = ["trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
 const SHAPE_NOTES: Dictionary = {
-	"trapezoid": "평행한 변이 있는 사각형이에요.\n두 쌍이 평행해도 사다리꼴이에요.",
+	"trapezoid": "평행한 변이 있는 사각형이에요.\n마주 보는 변을 확인해요.",
 	"parallelogram": "마주 보는 두 쌍의 변이 평행해요.\n마주 보는 변의 길이와 각이 같아요.",
 	"rhombus": "네 변의 길이가 모두 같아요.\n마주 보는 두 쌍의 변은 평행해요.",
 	"rectangle": "네 각이 모두 직각(90°)이에요.\n마주 보는 변의 길이가 같아요.",
@@ -12,6 +12,8 @@ const SHAPE_NOTES: Dictionary = {
 
 var document: CharacterDocument
 var testing: bool = false
+var learning_progress: LearningProgress = LearningProgress.new()
+var _learning_screen: LearningStudio
 var journal: QuestJournal
 var adventure: AdventureState
 var workshop: CharacterWorkshop
@@ -28,6 +30,9 @@ var _quest_heading: Label
 var _quest_open_button: Button
 var _hud_bottom: PanelContainer
 var _hud_actions: HBoxContainer
+var _touch_row: HBoxContainer
+var _touch_buttons: Dictionary = {}
+var _touch_fingers: Dictionary = {}
 var _hud_controls: Label
 var _hud_buttons: Array[Button] = []
 var _modal_panel: PanelContainer
@@ -87,6 +92,8 @@ var _exporting: bool = false
 var _save_clock: float = 0.0
 
 func _ready() -> void:
+	if not testing and not learning_progress.load_file():
+		learning_progress.touch_controls = DisplayServer.is_touchscreen_available()
 	document = CharacterDocument.new()
 	journal = QuestJournal.new()
 	adventure = AdventureState.new()
@@ -107,6 +114,7 @@ func _ready() -> void:
 	_build_home()
 	_build_drawing()
 	_build_construction()
+	_build_learning()
 	_build_world_hud()
 	_build_toast()
 	_autosave = Timer.new()
@@ -124,6 +132,7 @@ func _ready() -> void:
 	_adventure_changed()
 	_responsive()
 	_show_home()
+	learning_progress.changed.connect(_learning_changed)
 	# Rendering smoke tests use command-line flags, never bypass player-facing validation.
 	if "--quad-preview-world" in OS.get_cmdline_user_args():
 		document.fill_example()
@@ -139,7 +148,33 @@ func _build_home() -> void:
 	_home_screen.adventure_requested.connect(_show_workshop)
 	_home_screen.construction_requested.connect(_show_construction)
 	_home_screen.notebook_requested.connect(_show_notebook)
+	_home_screen.learning_requested.connect(_show_learning)
 	_ui.add_child(_home_screen)
+	_home_screen.set_learning_progress(learning_progress.completed.size())
+
+func _build_learning() -> void:
+	_learning_screen = LearningStudio.new()
+	_learning_screen.progress = learning_progress
+	_learning_screen.home_requested.connect(_show_home)
+	_learning_screen.drawing_requested.connect(_show_drawing)
+	_learning_screen.hide()
+	_ui.add_child(_learning_screen)
+
+func _show_learning(id: String = "") -> void:
+	_leave_activity()
+	_learning_screen.show()
+	_learning_screen.open_lesson(learning_progress.next_lesson() if id.is_empty() else id)
+	_responsive()
+
+func _learning_changed() -> void:
+	_home_screen.set_learning_progress(learning_progress.completed.size())
+	if world != null:
+		world.peaceful = learning_progress.peaceful
+		if not learning_progress.touch_controls: _clear_touch_inputs()
+	if is_instance_valid(_touch_row):
+		_touch_row.visible = learning_progress.touch_controls
+		_layout_hud(_ui_size())
+	if not testing: learning_progress.save_file()
 
 func _build_drawing() -> void:
 	_drawing_screen = DrawingStudio.new()
@@ -157,6 +192,7 @@ func _build_construction() -> void:
 	_ui.add_child(_construction_screen)
 
 func _leave_activity() -> void:
+	_clear_touch_inputs()
 	_close_modal()
 	var save_adventure: bool = _in_world or _workshop_screen.visible
 	if _drawing_screen.visible:
@@ -176,6 +212,7 @@ func _leave_activity() -> void:
 	_drawing_screen.hide()
 	_construction_screen.hide()
 	_workshop_screen.hide()
+	if is_instance_valid(_learning_screen): _learning_screen.hide()
 	_world_hud.hide()
 	if _toast != null: _toast.hide()
 	if save_adventure: _save(false)
@@ -184,6 +221,7 @@ func _show_home() -> void:
 	_leave_activity()
 	_home_screen.show()
 	_responsive()
+	_home_screen.focus_primary()
 
 func _show_drawing() -> void:
 	_leave_activity()
@@ -523,6 +561,26 @@ func _build_world_hud() -> void:
 	_add_hud_action(_potion_button, "회복약 Q", false)
 	_add_hud_action(_rpg_button("가방 I", _show_inventory, 13), "가방 I", true)
 	_add_hud_action(_rpg_button("메뉴", _show_game_menu), "메뉴", true)
+	_touch_row = HBoxContainer.new()
+	_touch_row.name = "TouchMovementControls"
+	_touch_row.add_theme_constant_override("separation", 10)
+	column.add_child(_touch_row)
+	for action: String in ["left", "right", "jump"]:
+		var caption: String = str({"left": "← 왼쪽", "right": "오른쪽 →", "jump": "점프"}[action])
+		var button: Button = _rpg_button(caption, Callable())
+		_touch_buttons[action] = button
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.button_down.connect(func():
+			if world != null: world.player.set_touch_control(action, true))
+		button.button_up.connect(func():
+			if world != null: world.player.set_touch_control(action, false))
+		_touch_row.add_child(button)
+	var touch_attack: Button = _rpg_button("공격", func():
+		if world != null: world.player.begin_attack())
+	touch_attack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_touch_buttons["attack"] = touch_attack
+	_touch_row.add_child(touch_attack)
+	_touch_row.visible = learning_progress.touch_controls
 	_hud_controls = QuadTheme.paragraph("방향키 이동   Space 점프   G 줍기   E 대화   Z / F 공격   Q 회복   Tab 메뉴", 16, Color("e2e9df"))
 	_hud_controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(_hud_controls)
@@ -539,6 +597,7 @@ func _add_hud_action(button: Button, caption: String, keep_compact: bool) -> voi
 func _layout_hud(area: Vector2) -> void:
 	if _identity_panel == null: return
 	_compact_hud = area.x < 1180.0
+	var touch_compact: bool = _compact_hud and learning_progress.touch_controls
 	var narrow: bool = area.x < 640.0
 	var gutter: float = 12.0 if _compact_hud else 20.0
 	var identity_width: float = minf(306.0, area.x - gutter * 2.0)
@@ -550,6 +609,7 @@ func _layout_hud(area: Vector2) -> void:
 	_story_label.visible = not _compact_hud
 	_quest_heading.visible = not _compact_hud
 	_quest_open_button.visible = not _compact_hud
+	_active_quests.visible = not touch_compact
 	_quest_panel.position = Vector2(gutter if _compact_hud else area.x - 340.0 - gutter, 240.0 if narrow else (144.0 if _compact_hud else gutter))
 	_quest_panel.size = Vector2(minf(470.0, area.x - gutter * 2.0) if _compact_hud else 340.0, 0)
 	var bottom_height: float = 120.0 if narrow else 104.0
@@ -563,6 +623,7 @@ func _layout_hud(area: Vector2) -> void:
 		button.text = str(button.get_meta("caption", button.text))
 	if _potion_button != null: _potion_button.text = "회복약 %d  Q" % adventure.potions
 	_hud_controls.text = "방향키 이동 · Space 점프\nZ / F 공격 · Q 회복 · Tab 메뉴" if _compact_hud else "방향키 이동   Space 점프   G 줍기   E 대화   Z / F 공격   Q 회복   Tab 메뉴"
+	_hud_controls.visible = not learning_progress.touch_controls
 	call_deferred("_fit_hud_heights")
 
 func _fit_hud_heights() -> void:
@@ -633,7 +694,7 @@ func _choose_color(color: Color) -> void:
 	document.set_color(color)
 	for i: int in range(_swatches.size()):
 		var c: Color = QuadTheme.COLORS[i]
-		_swatches[i].text = "✓" if c.is_equal_approx(color) else ""
+		_swatches[i].text = "●" if c.is_equal_approx(color) else ""
 		var ink: Color = QuadTheme.INK if c.get_luminance() > 0.55 else Color.WHITE
 		for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
 			_swatches[i].add_theme_color_override(state, ink)
@@ -662,14 +723,11 @@ func _document_changed() -> void:
 	else:
 		var vertices: PackedVector2Array = selected["vertices"]
 		var lengths: PackedFloat32Array = QuadrilateralMath.side_lengths(vertices)
-		var angles: PackedInt32Array = QuadrilateralMath.display_angles(vertices)
 		var length_text: PackedStringArray = PackedStringArray()
 		var angle_text: PackedStringArray = PackedStringArray()
-		for length: float in lengths: length_text.append("%.1f" % (length / 20.0))
-		for angle: float in angles: angle_text.append("%.0f°" % angle)
-		var names: PackedStringArray = PackedStringArray()
-		for kind: String in QuadrilateralMath.classifications(vertices): names.append(QuadrilateralMath.kind_label(kind))
-		_inspector.text = "%s\n\n변의 길이 (칸)\n%s\n\n네 각\n%s\n\n이 도형의 이름\n%s" % [QuadrilateralMath.kind_label(String(selected["kind"])), " · ".join(length_text), " · ".join(angle_text), ", ".join(names)]
+		for length: float in lengths: length_text.append(QuadrilateralMath.measurement_label(length / 20.0))
+		for angle: float in QuadrilateralMath.angles(vertices): angle_text.append(QuadrilateralMath.measurement_label(angle) + "°")
+		_inspector.text = "%s\n\n변 ㄱㄴ · ㄴㄷ · ㄷㄹ · ㄹㄱ (칸)\n%s\n\n각 ㄱ · ㄴ · ㄷ · ㄹ\n%s\n\n%s" % [QuadrilateralMath.kind_label(String(selected["kind"])), " · ".join(length_text), " · ".join(angle_text), QuadrilateralMath.property_summary(vertices)]
 	if not _restoring and _autosave != null: _autosave.start()
 
 func _journal_changed() -> void:
@@ -680,7 +738,7 @@ func _journal_changed() -> void:
 		var id: String = String(quest["id"])
 		var state: String = journal.quest_state(id)
 		if state == "active" or state == "ready":
-			lines.append(("✓ " if state == "ready" else "· ") + journal.progress_text(id))
+			lines.append(("● " if state == "ready" else "· ") + journal.progress_text(id))
 	var shown_count: int = 1 if _compact_hud else 3
 	if lines.size() > shown_count:
 		var remaining: int = lines.size() - shown_count
@@ -912,6 +970,7 @@ func _enter_world() -> void:
 		world.process_mode = Node.PROCESS_MODE_INHERIT
 		world.set_controls_enabled(true)
 	_in_world = true
+	world.peaceful = learning_progress.peaceful
 	_workshop_screen.hide()
 	_world_hud.show()
 	_responsive()
@@ -934,9 +993,10 @@ func _talk_to_npc(npc_id: String) -> void:
 func _show_quest_dialog(quest: Dictionary) -> void:
 	var id: String = String(quest["id"])
 	var body: VBoxContainer = _open_modal(String(quest["npc_name"]) + "의 부탁")
+	body.add_theme_constant_override("separation", 10)
 	var portrait_row: HBoxContainer = HBoxContainer.new()
 	portrait_row.add_theme_constant_override("separation", 20)
-	portrait_row.add_child(GameArt.view(GameArt.quest_npc(quest), Vector2(90, 110)))
+	portrait_row.add_child(GameArt.view(GameArt.quest_npc(quest), Vector2(60, 68)))
 	var identity: VBoxContainer = VBoxContainer.new()
 	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	portrait_row.add_child(identity)
@@ -948,9 +1008,20 @@ func _show_quest_dialog(quest: Dictionary) -> void:
 	if state == "completed":
 		body.add_child(QuadTheme.paragraph(str(quest.get("completion_story", "도와줘서 고마워요! 덕분에 별빛을 향해 한 걸음 더 나아갔어요.")) + "\n\n" + String(quest["explanation"]), 17, QuadTheme.INK))
 	elif state == "ready":
-		body.add_child(QuadTheme.paragraph("모두 찾았군요! 마지막으로 함께 생각해 볼까요?", 16))
+		portrait_row.hide()
 		body.add_child(QuadTheme.paragraph(String(quest["question"]), 20, QuadTheme.INK))
+		var diagram: LearningCanvas = LearningCanvas.new()
+		diagram.configure_question(id)
+		body.add_child(diagram)
+		var measurements: Label = QuadTheme.paragraph("", 16, QuadTheme.INK)
+		measurements.hide()
+		body.add_child(QuadTheme.button("변·각 살펴보기", func():
+			diagram.measure()
+			measurements.show()
+			measurements.text = diagram.measurement_text()))
+		body.add_child(measurements)
 		var feedback: Label = QuadTheme.paragraph("", 16, QuadTheme.TEAL)
+		feedback.hide()
 		var options: Array = quest["options"]
 		for index: int in range(options.size()):
 			var button: Button = QuadTheme.button(String(options[index]), Callable())
@@ -958,6 +1029,7 @@ func _show_quest_dialog(quest: Dictionary) -> void:
 			button.pressed.connect(func():
 				var answer: Dictionary = journal.answer_quest(id, index)
 				feedback.text = String(answer["message"])
+				feedback.show()
 				if bool(answer["correct"]):
 					_sound.play_fanfare()
 					_show_quest_success(quest, answer)
@@ -966,6 +1038,11 @@ func _show_quest_dialog(quest: Dictionary) -> void:
 		body.add_child(feedback)
 	else:
 		body.add_child(QuadTheme.paragraph(String(quest["description"]), 18, QuadTheme.INK))
+		if str(quest.get("story_description", "")) != str(quest.description):
+			body.add_child(QuadTheme.button("이야기 더 읽기", func():
+				var story: VBoxContainer = _open_modal(str(quest.npc_name) + "의 이야기")
+				story.add_child(QuadTheme.paragraph(str(quest.story_description), 19, QuadTheme.INK))
+				story.add_child(QuadTheme.button("부탁으로 돌아가기", _show_quest_dialog.bind(quest), true))))
 		body.add_child(QuadTheme.paragraph("탐험 목표  ·  " + journal.progress_text(id), 16, QuadTheme.TEAL))
 		body.add_child(QuadTheme.label("선물  ·  %d 코인" % int(quest["reward"]), 15))
 		if state == "available":
@@ -994,6 +1071,25 @@ func _show_quest_success(quest: Dictionary, answer: Dictionary) -> void:
 
 func _show_game_menu() -> void:
 	var body: VBoxContainer = _open_modal("모험 메뉴")
+	var peaceful: CheckButton = CheckButton.new()
+	peaceful.text = "편안한 탐험 · 몬스터에 닿아도 다치지 않아요"
+	ButtonArt.apply(peaceful)
+	peaceful.custom_minimum_size.y = 48
+	peaceful.button_pressed = learning_progress.peaceful
+	peaceful.toggled.connect(func(enabled: bool):
+		learning_progress.peaceful = enabled
+		learning_progress.changed.emit())
+	body.add_child(peaceful)
+	var touch: CheckButton = CheckButton.new()
+	touch.text = "화면에 이동·점프 버튼 표시"
+	ButtonArt.apply(touch)
+	touch.custom_minimum_size.y = 48
+	touch.button_pressed = learning_progress.touch_controls
+	touch.toggled.connect(func(enabled: bool):
+		learning_progress.touch_controls = enabled
+		learning_progress.changed.emit())
+	body.add_child(touch)
+	body.add_child(QuadTheme.button("수학 직접 해 보기", _show_learning))
 	body.add_child(QuadTheme.paragraph("방향키 / A·D 이동 · Space 점프\nG 줍기 · E 대화 · Z / F 공격 · Q 회복약\nTab으로 버튼 이동 · Enter 선택 · Esc 닫기", 18, QuadTheme.INK))
 	body.add_child(QuadTheme.button("부탁 수첩  J", _show_journal, true))
 	body.add_child(QuadTheme.button("여행 지도  M", _show_map))
@@ -1026,7 +1122,7 @@ func _show_journal(filter: String = "active") -> void:
 		var group: String = "active" if state == "ready" else state
 		counts[group] = int(counts[group]) + 1
 	for key: String in ["active", "available", "completed", "all"]:
-		filters.add_child(QuadTheme.button("%s%s %d" % ["✓ " if key == _journal_filter else "", captions[key], counts[key]], func(): _show_journal(key), key == _journal_filter))
+		filters.add_child(QuadTheme.button("%s%s %d" % ["● " if key == _journal_filter else "", captions[key], counts[key]], func(): _show_journal(key), key == _journal_filter))
 	var shown: int = 0
 	for quest: Dictionary in QuestCatalog.all_quests():
 		var state: String = journal.quest_state(String(quest["id"]))
@@ -1051,22 +1147,14 @@ func _show_journal(filter: String = "active") -> void:
 
 func _show_notebook() -> void:
 	var body: VBoxContainer = _open_modal("사각형 탐험 도감")
-	body.add_child(QuadTheme.paragraph("돌리거나 크기를 바꿔도 도형의 성질은 그대로예요. 생김새와 방향보다 변과 각을 살펴봐요.", 17))
-	for kind: String in SHAPES:
-		var card: VBoxContainer = QuadTheme.card(body, Color("edf5ef"), 14)
-		var row: HBoxContainer = HBoxContainer.new()
-		card.add_child(row)
-		var texture: TextureRect = TextureRect.new()
-		texture.texture = QuadTheme.icon(kind)
-		texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		texture.custom_minimum_size = Vector2(54, 54)
-		row.add_child(texture)
-		row.add_child(QuadTheme.label(QuadrilateralMath.kind_label(kind), 20))
-		card.add_child(QuadTheme.paragraph(String(SHAPE_NOTES[kind]), 16, QuadTheme.INK))
-	body.add_child(QuadTheme.paragraph("사각형 가족\n정사각형은 직사각형이면서 마름모예요. 두 도형 모두 평행사변형이고, 평행사변형은 사다리꼴에도 속해요. 이 도감은 ‘평행한 변이 있는 사각형’을 사다리꼴로 배워요.", 18, QuadTheme.INK))
-	body.add_child(QuadTheme.paragraph("수직과 평행\n두 직선이 만나 직각을 이루면 서로 수직이에요. 아무리 늘여도 만나지 않는 두 직선은 평행해요. 평행선 사이 거리는 수직인 선분으로 재요.", 18, QuadTheme.INK))
-	body.add_child(QuadTheme.paragraph("변·각·둘레\n평행사변형은 마주 보는 각이 같고, 이웃한 두 각의 합이 180°예요. 사각형의 네 각의 합은 360°예요. 둘레는 네 변의 길이를 모두 더한 값이에요.", 18, QuadTheme.INK))
+	body.add_child(QuadTheme.paragraph("색과 방향보다 변과 각을 살펴봐요. 주제를 골라 직접 재고 확인할 수 있어요.", 18))
+	for id: String in LearningCatalog.IDS:
+		var entry: Dictionary = LearningCatalog.lesson(id)
+		var title: String = str(entry.title)
+		var done: String = " · 활동 완료" if learning_progress.completed.has(id) else ""
+		var button: Button = QuadTheme.button(title + done + "\n" + str(entry.goal), func(): _show_learning(id))
+		button.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.add_child(button)
 	body.add_child(QuadTheme.button("닫기", _close_modal))
 
 func _show_map() -> void:
@@ -1095,6 +1183,7 @@ func _show_map() -> void:
 	body.add_child(QuadTheme.button("탐험 계속하기", _close_modal))
 
 func _open_modal(title: String) -> VBoxContainer:
+	_clear_touch_inputs()
 	if not is_instance_valid(_modal_overlay):
 		_modal_focus_before = get_viewport().gui_get_focus_owner()
 	_close_modal(false)
@@ -1264,7 +1353,7 @@ func _export_png() -> void:
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
 	var window: Window = get_window()
-	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or _drawing_screen.visible or _construction_screen.visible)
+	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible))
 	var desired_size: Vector2i = Vector2i(maxi(window.size.x, 800), maxi(window.size.y, 600)) if creation_visible else Vector2i(1600, 900)
 	if window.content_scale_size != desired_size:
 		window.content_scale_size = desired_size
@@ -1284,6 +1373,9 @@ func _responsive() -> void:
 		_toast.offset_right = toast_width * 0.5
 		_toast.offset_top = -214.0 if _compact_hud else -194.0
 		_toast.offset_bottom = -144.0 if _compact_hud else -124.0
+		if learning_progress.touch_controls and _compact_hud:
+			_toast.offset_top = -300.0
+			_toast.offset_bottom = -240.0
 		_toast.add_theme_font_size_override("font_size", 17)
 	_journal_changed()
 	_refresh_world_guidance()
@@ -1292,6 +1384,9 @@ func _ui_size() -> Vector2:
 	return _ui.size if _ui != null and _ui.size.x > 0.0 else get_viewport().get_visible_rect().size
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		_handle_screen_touch(event)
+		return
 	if not event is InputEventKey or not event.pressed or event.echo: return
 	if event.keycode == KEY_ESCAPE and is_instance_valid(_modal_overlay):
 		_close_modal()
@@ -1300,9 +1395,44 @@ func _input(event: InputEvent) -> void:
 		_show_game_menu()
 		get_viewport().set_input_as_handled()
 
+func _handle_screen_touch(event: InputEvent) -> void:
+	var index: int = event.index
+	if event is InputEventScreenTouch and not event.pressed:
+		if not _touch_fingers.has(index): return
+		_touch_fingers.erase(index)
+		_sync_touch_fingers()
+		get_viewport().set_input_as_handled()
+		return
+	if not _in_world or world == null or not learning_progress.touch_controls or is_instance_valid(_modal_overlay): return
+	var action: String = ""
+	for id: String in _touch_buttons:
+		var button: Button = _touch_buttons[id]
+		var local: Vector2 = button.get_global_transform_with_canvas().affine_inverse() * event.position
+		if button.is_visible_in_tree() and Rect2(Vector2.ZERO, button.size).has_point(local):
+			action = id
+			break
+	if action.is_empty() and not _touch_fingers.has(index): return
+	var previous: String = str(_touch_fingers.get(index, ""))
+	_touch_fingers[index] = action
+	_sync_touch_fingers()
+	if action == "attack" and previous != action: world.player.begin_attack()
+	get_viewport().set_input_as_handled()
+
+func _sync_touch_fingers() -> void:
+	if world == null: return
+	for action: String in ["left", "right", "jump"]:
+		world.player.set_touch_control(action, _touch_fingers.values().has(action))
+
+func _clear_touch_inputs() -> void:
+	_touch_fingers.clear()
+	if world != null: world.player.clear_touch_controls()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: _clear_touch_inputs()
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo: return
-	if _drawing_screen.visible or _construction_screen.visible: return
+	if _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible): return
 	if event.keycode == KEY_ESCAPE:
 		_close_modal()
 		get_viewport().set_input_as_handled()

@@ -433,8 +433,8 @@ func _draw() -> void:
 		if document.drawing_mode == "masterpiece" and show_masterpiece and _masterpiece_texture != null:
 			draw_texture_rect(_masterpiece_texture, board, false, Color(1, 1, 1, clampf(masterpiece_opacity, 0.0, 1.0)))
 	if show_grid:
-		for x: int in range(-450, 480, 30):
-			for y: int in range(-270, 300, 30):
+		for x: int in range(-460, 480, 20):
+			for y: int in range(-280, 300, 20):
 				draw_circle(artwork_to_screen(Vector2(x, y)), 0.8, Color("dfe8e3"))
 	if document == null:
 		return
@@ -493,7 +493,7 @@ func _draw_selection(part: Dictionary) -> void:
 		draw_arc(first, 5.0, 0.0, TAU, 20, QuadTheme.INK, 1.5, true)
 		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), Color.WHITE)
 		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), QuadTheme.TEAL, false, 1.5)
-		_draw_length_label(midpoint + normal * 23.0, "%.1f" % lengths[index])
+		_draw_length_label(midpoint + normal * 23.0, QuadrilateralMath.measurement_label(lengths[index] / 20.0) + "칸")
 	draw_circle(handle, 11.0, Color.WHITE)
 	draw_arc(handle, 11.0, 0.0, TAU, 24, QuadTheme.TEAL, 2.0, true)
 	draw_arc(handle, 5.5, -PI * 0.85, PI * 0.65, 18, QuadTheme.TEAL, 1.7, true)
