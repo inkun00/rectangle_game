@@ -323,7 +323,7 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
       fail('지원되지 않는 기능: ' + missing.join(', '), '이 브라우저에서는 게임을 실행할 수 없어요. 브라우저를 업데이트하거나 다른 최신 브라우저에서 열어 주세요.');
       return;
     }
-    const config = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"engine-070842d09381","experimentalVK":false,"fileSizes":{"engine-070842d09381.wasm":39513091,"art-093e5c763c0f.pck":40700388},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"art-093e5c763c0f.pck"};
+    const config = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"engine-070842d09381","experimentalVK":false,"fileSizes":{"engine-070842d09381.wasm":39513091,"art-636fd139e344.pck":40699972},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"art-636fd139e344.pck"};
     const engine = new Engine(config);
     engine.startGame({onProgress:updateProgress}).then(() => {
       if (settled) return;

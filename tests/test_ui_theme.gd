@@ -4,6 +4,7 @@ extends RefCounted
 static func run(t: Node) -> void:
 	_test_text_contrast(t)
 	_test_button_states(t)
+	await _test_construction_gizmo(t)
 	await _test_keyboard_activation(t)
 
 static func _test_text_contrast(t: Node) -> void:
@@ -53,6 +54,28 @@ static func _test_button_states(t: Node) -> void:
 			t.assert_ge(focus.get_expand_margin(side), 3.0, "Focus indicator remains outside the label and artwork")
 		t.assert_ge(_frame_contrast(focus), 3.0, "Focus frame contrasts against surrounding paper")
 		button.free()
+
+static func _test_construction_gizmo(t: Node) -> void:
+	var canvas: ConstructionCanvas = ConstructionCanvas.new()
+	canvas.document = ConstructionDocument.new()
+	canvas.size = Vector2(320, 240)
+	t.add_child(canvas)
+	var part_id: int = canvas.document.add_part("wall", Vector2(500, 300))
+	canvas.document.select(part_id)
+	canvas.select_tool()
+	for frame: int in range(3): await t.get_tree().process_frame
+	canvas._update_gizmo()
+	t.assert_true(canvas._part_gizmo.visible, "Selecting a building part exposes its contextual actions")
+	for button: Button in [canvas._gizmo_rotate, canvas._gizmo_duplicate, canvas._gizmo_delete]:
+		t.assert_ge(button.get_theme_font_size("font_size"), 15, "Contextual action text stays legible: " + button.text)
+		t.assert_ge(button.custom_minimum_size.y, 44.0, "Contextual actions retain a usable touch height")
+		for state: String in ["normal", "hover", "pressed", "hover_pressed"]:
+			var color_key: String = "font_color" if state == "normal" else "font_%s_color" % state
+			var style: StyleBoxTexture = button.get_theme_stylebox(state) as StyleBoxTexture
+			t.assert_ge(_minimum_contrast(button.get_theme_color(color_key), style), 4.5, "Contextual text contrasts with its actual generated background: %s / %s" % [button.text, state])
+	t.assert_true(Rect2(Vector2.ZERO, canvas.size).encloses(canvas._part_gizmo.get_rect()), "Enlarged contextual controls stay inside a narrow canvas")
+	canvas.free()
+	await t.get_tree().process_frame
 
 static func _test_keyboard_activation(t: Node) -> void:
 	var layout: VBoxContainer = VBoxContainer.new()

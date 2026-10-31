@@ -370,6 +370,7 @@ func _setup_gizmo() -> void:
 
 func _create_gizmo_button(text: String, icon_name: String, tooltip: String) -> Button:
 	var btn: Button = Button.new()
+	ButtonArt.apply(btn, false, 15)
 	btn.text = text
 	btn.tooltip_text = tooltip
 	btn.icon = Art.tool_icon(icon_name)
@@ -377,19 +378,9 @@ func _create_gizmo_button(text: String, icon_name: String, tooltip: String) -> B
 	btn.add_theme_constant_override("icon_max_width", 16)
 	btn.add_theme_constant_override("h_separation", 4)
 	btn.add_theme_font_override("font", QuadTheme.FONT)
-	btn.add_theme_font_size_override("font_size", 12)
-	btn.custom_minimum_size = Vector2(0, 30)
+	btn.custom_minimum_size = Vector2(64, 44)
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	for mode: String in ["normal", "hover", "pressed", "disabled"]:
-		var s: StyleBoxTexture = Art.button_style(mode == "pressed", mode, 2)
-		s.content_margin_left = 6.0
-		s.content_margin_right = 6.0
-		s.content_margin_top = 2.0
-		s.content_margin_bottom = 2.0
-		btn.add_theme_stylebox_override(mode, s)
-	for mode: String in ["font_color", "font_hover_color", "font_pressed_color"]:
-		btn.add_theme_color_override(mode, Color.WHITE)
 	return btn
 
 func _update_gizmo() -> void:
