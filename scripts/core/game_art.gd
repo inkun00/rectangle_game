@@ -17,8 +17,8 @@ static func cell(name: String, index: int, columns: int, rows: int, trim: bool =
 		"expansion_npcs": return StarfrontArt.cell("crew", index + 8, 4, 4, trim)
 		"items_atlas": return StarfrontArt.cell("items", index, 4, 6, trim)
 		"expansion_items": return StarfrontArt.cell("items", index + 16, 4, 6, trim)
-		"environment_atlas": return StarfrontArt.cell("props", index, 4, 5, trim)
-		"expansion_environment": return StarfrontArt.cell("props", [12, 18, 13, 14, 19, 15, 16, 17][index], 4, 5, trim)
+		"environment_atlas": return StarfrontArt.prop(index, trim)
+		"expansion_environment": return StarfrontArt.prop([12, 18, 13, 14, 19, 15, 16, 17][index], trim)
 	var key: String = "%s:%d:%s" % [name, index, trim]
 	if _cells.has(key): return _cells[key]
 	var source: Texture2D = sheet(name)

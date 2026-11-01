@@ -26,7 +26,7 @@ static var _regions: Dictionary = {}
 static func generated_texture(filename: String) -> Texture2D:
 	match filename:
 		"client-portraits.png": return StarfrontArt.sheet("crew")
-		"construction-materials.png", "construction-materials-expanded.png": return StarfrontArt.sheet("materials")
+		"construction-materials.png", "construction-materials-expanded.png": return StarfrontArt.hd_sheet("materials/details-a")
 		"ui-icons.png": return StarfrontArt.sheet("tools")
 		"ui-surfaces.png": return StarfrontArt.sheet("skin")
 		"drawing-cover.png": return StarfrontArt.scene(6)
@@ -43,8 +43,8 @@ static func generated_texture(filename: String) -> Texture2D:
 
 static func _atlas(filename: String, cell: int, columns: int, rows: int) -> Texture2D:
 	match filename:
-		"construction-materials.png": return StarfrontArt.cell("brick", 0, 1, 1) if cell == 0 else StarfrontArt.cell("materials", cell, 4, 6)
-		"construction-materials-expanded.png": return StarfrontArt.cell("materials", cell + 8, 4, 6)
+		"construction-materials.png": return StarfrontArt.material(cell)
+		"construction-materials-expanded.png": return StarfrontArt.material(cell + 8)
 		"client-portraits.png": return StarfrontArt.cell("crew", cell, 4, 4, true)
 		"ui-icons.png": return StarfrontArt.cell("tools", cell, 4, 4, true)
 	var key: String = "%s:%d:%d:%d" % [filename, cell, columns, rows]

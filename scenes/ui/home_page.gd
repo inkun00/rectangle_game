@@ -22,6 +22,7 @@ func _ready() -> void:
 	var background: TextureRect = TextureRect.new()
 	background.name = "OrbitalObservatoryBackground"
 	background.texture = StarfrontArt.scene(8)
+	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	background.modulate = Color("8094ac")
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED

@@ -70,3 +70,7 @@ The 30 new drawing backgrounds and 10 original geometric masterpiece studies are
 ## 별빛 개척지 화면 개편
 
 2026-11-01: 홈·작업실·건축·월드의 원화와 공통 금속 UI를 새로 제작했습니다. [프롬프트와 생성 기록](starfront-v1/GENERATION.md), [REA 분석 범위와 화면 설계](../../docs/STARFRONT_REDESIGN.md)를 확인하세요. 기존 학습 그림과 사용자 작품은 보존합니다.
+
+## 큰 화면 해상도 교정
+
+2026-11-01: 작은 아틀라스 셀을 확대하던 배경·환경물·건축 재료를 같은 분위기의 큰 원화로 다시 제작했습니다. [실제 원본 크기와 프롬프트](starfront-hd/GENERATION.md), [전체 이미지 검수](../../docs/IMAGE_RESOLUTION_AUDIT.md)를 확인하세요. 내장 ImageGen으로 22개 파일을 생성했고 기존 원본은 이력으로 보존합니다.

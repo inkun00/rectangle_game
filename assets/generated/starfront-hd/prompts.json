@@ -1,0 +1,211 @@
+{
+  "created": "2026-11-01",
+  "tool": "built-in image_gen.imagegen",
+  "mode": "edit",
+  "assets": {
+    "backgrounds/market.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the warm timber-and-copper frontier settlement under the enormous turquoise moon, pink twilight clouds, distant layered purple mountains, glowing warm windows and bridge. Preserve open sky and distant depth; this is background behind separate playable terrain.",
+      "reference": "scene-0.png",
+      "transparent": false,
+      "generation_file": "exec-fdd108aa-fe0c-4075-8a22-6e7401343ca0.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 0,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/workshop.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the empty central spacecraft workshop, cyan overhead strip lights, copper pipes, dark steel bulkheads, equipment against the sides and clean open central floor. Maintain the broad uncluttered central workspace and symmetric depth, no furniture added in the middle.",
+      "reference": "scene-6.png",
+      "transparent": false,
+      "generation_file": "exec-5f1a0973-ef6f-40ea-b338-be2850cd2245.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 6,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/forest.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the emerald alien forest, square-layered tree canopies framing both edges, small cyan luminous plants, tiered waterfalls and pool, enormous purple planet, pink dusk at the horizon. Preserve luminous vegetation and layered depth.",
+      "reference": "scene-1.png",
+      "transparent": false,
+      "generation_file": "exec-e862447f-44c5-4fe5-a2a1-3a2c3afabbe4.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 1,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/valley.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the golden stone canyon, rectangular ancient portals with rhombus motifs, far thin bridge, yellow foliage and layered blue mountains below a huge pale moon. Preserve the ochre and cool blue contrast. Flat stone uprights, not pointed arches.",
+      "reference": "scene-2.png",
+      "transparent": false,
+      "generation_file": "exec-21c187cb-121f-42d9-8ba2-6872e928e47d.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 2,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/harbor.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the midnight-blue space harbor: large docked gray spacecraft on the left, distant angular blue mountains, warm amber dock lights and their vertical reflections in calm dark water, giant blue planet upper right. Keep the navy darkness, no daylight.",
+      "reference": "scene-3.png",
+      "transparent": false,
+      "generation_file": "exec-a94365e1-2893-4b08-8961-bc055f2d3981.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 3,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/snow.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the snowy ice-steppe panorama: angular white mountain range, square ice terraces, snowy evergreen trees framing both edges, cyan and violet aurora sweeping across the starry sky. Clean pale blue snow and rich purple/cyan sky, no new buildings.",
+      "reference": "scene-4.png",
+      "transparent": false,
+      "generation_file": "exec-e323b7d0-10c7-47e2-8ea5-392dab005740.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 4,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/citadel.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the ancient golden-lit fortress on purple cliffs, enormous amethyst planet at upper right, long stone bridges, square towers, vertical amber lights and violet mist. Do not turn it into a daylight or blue-gray castle. Keep flat tops and quadrilateral tower silhouettes.",
+      "reference": "scene-5.png",
+      "transparent": false,
+      "generation_file": "exec-7451f546-9f80-41b5-a8f8-acf29917cc30.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 5,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/construction.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the empty colony construction platform at dawn, copper gantry cranes only at the far left and right edges, lavender mesas, peach clouds and sun low on the central horizon. Keep the middle floor entirely empty for the user's house and maintain the calm warm dawn light.",
+      "reference": "scene-7.png",
+      "transparent": false,
+      "generation_file": "exec-82be3e5f-c189-4998-8684-26e7c445d468.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 7,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "backgrounds/observatory.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE full-screen game background, not an atlas. The input is the low-resolution edit target. Redraw the same scene as a genuinely detailed large production image, requested native 3840x2160, wide 16:9. Keep its composition, identities of buildings, lighting, perspective and exact navy/teal/copper/amber color relationships. Original space-frontier pixel-art aesthetic, crisp fine square pixel clusters at the new native resolution, rich clean edges and new fine architectural detail. Do not merely enlarge the existing coarse pixels, do not add blur, do not make a collage or a contact sheet. No characters, writing, logos, UI, panels or watermark. Preserve quadrilateral-centered architecture: flat-top trapezoid roofs and rectangular windows. Keep the orbital observatory interior: thick dark navy rectangular window framing a giant luminous blue-green planet, small moons at left, dark metal floor, a little equipment at the sides, warm tiny amber fixtures and cyan indicators. Preserve the enormous central observation window and broad empty middle.",
+      "reference": "scene-8.png",
+      "transparent": false,
+      "generation_file": "exec-9277f310-f03f-4d00-b7df-dd12836efa85.png",
+      "reference_source": "assets/generated/starfront-v1/environment-scenes.png",
+      "reference_cell": {
+        "index": 8,
+        "columns": 3,
+        "rows": 3
+      }
+    },
+    "props/settlement.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: high-resolution transparent sprite atlas for the existing original space-frontier pixel-art game. The input image is a design reference with 20 small sprites. Redraw ONLY the FOUR requested sprites at much greater native detail, arranged in an EXACT TWO-COLUMN TWO-ROW grid of four equal square cells, requested 2048x2048. NOT the original 4x5 grid. Keep the exact identities, front/side views, quadrilateral silhouettes, palette, warm amber windows, navy outlines, copper and teal of those objects. Crisp small pixel clusters and fine architectural details, no enlarged coarse source pixels or blurry painting. Each object centered in its cell with generous transparent gap, full silhouette and base visible; no shadows, text, logos, UI or background. All roofs flat-top trapezoids, all windows rectangular, no triangular pointed roofs or round domes. Transparent background. Original row1: TOP LEFT baker's timber workshop with chimney and amber oven; TOP RIGHT carpenter's red-roof timber shed; BOTTOM LEFT tall warm timber inn with teal door and blue trapezoid roof; BOTTOM RIGHT square observatory/library with brass telescope and flat-top trapezoid roof. Exactly these4.",
+      "reference": "starfront-v1/props.png",
+      "transparent": true,
+      "generation_file": "exec-d5ad3553-2611-4323-b4e6-7308264104fd.png",
+      "reference_source": "assets/generated/starfront-v1/props.png"
+    },
+    "props/vegetation.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: high-resolution transparent sprite atlas for the existing original space-frontier pixel-art game. The input image is a design reference with 20 small sprites. Redraw ONLY the FOUR requested sprites at much greater native detail, arranged in an EXACT TWO-COLUMN TWO-ROW grid of four equal square cells, requested 2048x2048. NOT the original 4x5 grid. Keep the exact identities, front/side views, quadrilateral silhouettes, palette, warm amber windows, navy outlines, copper and teal of those objects. Crisp small pixel clusters and fine architectural details, no enlarged coarse source pixels or blurry painting. Each object centered in its cell with generous transparent gap, full silhouette and base visible; no shadows, text, logos, UI or background. All roofs flat-top trapezoids, all windows rectangular, no triangular pointed roofs or round domes. Transparent background. Original row2: TOP LEFT emerald alien block-canopy tree with tiny cyan lights; TOP RIGHT purple block-canopy tree; BOTTOM LEFT stepped gray stone outcrop with moss; BOTTOM RIGHT wooden right-pointing direction sign on a metal post. Preserve square foliage blocks, broad flat-ended rocks and sign silhouette. Exactly these4.",
+      "reference": "starfront-v1/props.png",
+      "transparent": true,
+      "generation_file": "exec-926d6d93-0190-44bf-abf3-48d6546304ae.png",
+      "reference_source": "assets/generated/starfront-v1/props.png"
+    },
+    "props/terrain.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: high-resolution transparent sprite atlas for the existing original space-frontier pixel-art game. The input image is a design reference with 20 small sprites. Redraw ONLY the FOUR requested sprites at much greater native detail, arranged in an EXACT TWO-COLUMN TWO-ROW grid of four equal square cells, requested 2048x2048. NOT the original 4x5 grid. Keep the exact identities, front/side views, quadrilateral silhouettes, palette, warm amber windows, navy outlines, copper and teal of those objects. Crisp small pixel clusters and fine architectural details, no enlarged coarse source pixels or blurry painting. Each object centered in its cell with generous transparent gap, full silhouette and base visible; no shadows, text, logos, UI or background. All roofs flat-top trapezoids, all windows rectangular, no triangular pointed roofs or round domes. Transparent background. Original row3: TOP LEFT opaque square grass-and-earth tile, thin grass rim and deep rocky brown soil, fills ALL edges of its one entire square cell with no transparent margins; TOP RIGHT horizontal timber-and-steel platform; BOTTOM LEFT low stone bridge; BOTTOM RIGHT tall rectangular cyan travel portal. Every other cell has transparent padding. Exactly these4. The square ground tile must remain confined precisely to its own cell. CRUCIAL keep every object strictly within its own equal square cell, with at least 5% transparent padding at every cell edge except the opaque grass tile. No object may cross the center horizontal or vertical line.",
+      "reference": "starfront-v1/props.png",
+      "transparent": true,
+      "generation_file": "exec-1b94cce6-7a9e-492a-884f-47ed0d7599e0.png",
+      "reference_source": "assets/generated/starfront-v1/props.png"
+    },
+    "props/destinations.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: high-resolution transparent sprite atlas for the existing original space-frontier pixel-art game. The input image is a design reference with 20 small sprites. Redraw ONLY the FOUR requested sprites at much greater native detail, arranged in an EXACT TWO-COLUMN TWO-ROW grid of four equal square cells, requested 2048x2048. NOT the original 4x5 grid. Keep the exact identities, front/side views, quadrilateral silhouettes, palette, warm amber windows, navy outlines, copper and teal of those objects. Crisp small pixel clusters and fine architectural details, no enlarged coarse source pixels or blurry painting. Each object centered in its cell with generous transparent gap, full silhouette and base visible; no shadows, text, logos, UI or background. All roofs flat-top trapezoids, all windows rectangular, no triangular pointed roofs or round domes. Transparent background. Original row4: TOP LEFT harbor cargo warehouse and crane; TOP RIGHT slender amber dock beacon on stone base; BOTTOM LEFT snowy timber cabin with flat-top roof; BOTTOM RIGHT square aurora relay with warm amber upper window and blue metal framework. Exactly these4. CRUCIAL keep every object strictly within its own equal square cell, with at least 5% transparent padding at every cell edge except the opaque grass tile. No object may cross the center horizontal or vertical line.",
+      "reference": "starfront-v1/props.png",
+      "transparent": true,
+      "generation_file": "exec-92afc45e-3aaa-40ce-9ee0-ec1845051fe8.png",
+      "reference_source": "assets/generated/starfront-v1/props.png"
+    },
+    "props/landmarks.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: high-resolution transparent sprite atlas for the existing original space-frontier pixel-art game. The input image is a design reference with 20 small sprites. Redraw ONLY the FOUR requested sprites at much greater native detail, arranged in an EXACT TWO-COLUMN TWO-ROW grid of four equal square cells, requested 2048x2048. NOT the original 4x5 grid. Keep the exact identities, front/side views, quadrilateral silhouettes, palette, warm amber windows, navy outlines, copper and teal of those objects. Crisp small pixel clusters and fine architectural details, no enlarged coarse source pixels or blurry painting. Each object centered in its cell with generous transparent gap, full silhouette and base visible; no shadows, text, logos, UI or background. All roofs flat-top trapezoids, all windows rectangular, no triangular pointed roofs or round domes. Transparent background. Original row5: TOP LEFT gold-lit fortress gate, four square towers with flat tops; TOP RIGHT square cyan energy machine with small square crystals; BOTTOM LEFT compact white-gray and copper cargo lander; BOTTOM RIGHT stepped translucent blue ice outcrop with flat tops. Exactly these4. CRUCIAL keep every object strictly within its own equal square cell, with at least 5% transparent padding at every cell edge except the opaque grass tile. No object may cross the center horizontal or vertical line.",
+      "reference": "starfront-v1/props.png",
+      "transparent": true,
+      "generation_file": "exec-9d8a5281-b87e-42c7-b81d-9797f24b2e5c.png",
+      "reference_source": "assets/generated/starfront-v1/props.png"
+    },
+    "materials/details-a.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: opaque high-resolution game material texture atlas, EXACT TWO columns and THREE rows of SIX equally sized square patches, requested 2048x3072. The input is the old low-resolution 24-patch design reference. Redraw only the six requested patches with much finer native detail, preserve their exact palette/material identity and original space-frontier pixel-art feel. Each patch completely fills its square cell edge to edge, no gutters, no outlines around the atlas, no text, no labels, no perspective. The six patches must be in the precise row order below; no other patches. Crisp fine pixel clusters, no coarse enlarged original pixels, no blur. Row1: pale blue-gray steel wall prefab with subtle rivets; blue four-pane window with dark square mullions. Row2: teal metal door with warm brass handle; warm amber wood decorative trim with shallow rectangular inlays. Row3: warm gold rhombus crystal mosaic; coarse gray stone blocks.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "generation_file": "exec-7a966ac8-b51e-40b7-9982-0a129908523f.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    },
+    "materials/details-b.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: opaque high-resolution game material texture atlas, EXACT TWO columns and THREE rows of SIX equally sized square patches, requested 2048x3072. The input is the old low-resolution 24-patch design reference. Redraw only the six requested patches with much finer native detail, preserve their exact palette/material identity and original space-frontier pixel-art feel. Each patch completely fills its square cell edge to edge, no gutters, no outlines around the atlas, no text, no labels, no perspective. The six patches must be in the precise row order below; no other patches. Crisp fine pixel clusters, no coarse enlarged original pixels, no blur. Row1: light gray concrete with subtle joints; quiet warm off-white plaster. Row2: moss-green rectangular brickwork; pale icy frosted blue glass. Row3: luminous amber glass; luminous turquoise glass.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "generation_file": "exec-a50c1c4a-1fdf-40e7-87ec-ee83cc1b6c13.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    },
+    "materials/details-c.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: opaque high-resolution game material texture atlas, EXACT TWO columns and THREE rows of SIX equally sized square patches, requested 2048x3072. The input is the old low-resolution 24-patch design reference. Redraw only the six requested patches with much finer native detail, preserve their exact palette/material identity and original space-frontier pixel-art feel. Each patch completely fills its square cell edge to edge, no gutters, no outlines around the atlas, no text, no labels, no perspective. The six patches must be in the precise row order below; no other patches. Crisp fine pixel clusters, no coarse enlarged original pixels, no blur. Row1: dark steel ventilation grille; red clay roof tiles. Row2: vertical warm cedar boards; horizontal timber louvers. Row3: teal square ceramic mosaic; warm copper plates with small rivets.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "generation_file": "exec-10477425-0bdb-401d-8e1f-a6e582abdcf4.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    },
+    "materials/roof-blue.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE opaque high-resolution horizontal building-material surface texture for the existing space-frontier pixel-art game. Input image is the old24-patch texture design reference. Redraw ONLY the requested material as a SINGLE wide full-frame texture at requested3072x1024, aspect ratio3:1, edge-to-edge. Fine native pixel clusters, same material and palette, no blur, no enlargement of coarse old source pixels. This texture covers long quadrilateral building parts, so include many fine detailed units distributed evenly across the full width. No collage, no other materials, no text, no icons, no visible UI or outer frame. The blue/teal overlapping roof shingles from original row2 column2. Several staggered horizontal courses of dark navy slates, muted teal-blue faces, tiny crisp highlights and subtle seams. Quiet cool blue color, not metal wall panels.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "index": 5,
+      "generation_file": "exec-f2800861-e68b-40d1-af57-07729cfff9fa.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    },
+    "materials/roof-metal.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE opaque high-resolution horizontal building-material surface texture for the existing space-frontier pixel-art game. Input image is the old24-patch texture design reference. Redraw ONLY the requested material as a SINGLE wide full-frame texture at requested3072x1024, aspect ratio3:1, edge-to-edge. Fine native pixel clusters, same material and palette, no blur, no enlargement of coarse old source pixels. This texture covers long quadrilateral building parts, so include many fine detailed units distributed evenly across the full width. No collage, no other materials, no text, no icons, no visible UI or outer frame. The dark gray steel roof plates from original row5 column4. Long vertical steel seams and subtle rectangular rivets, navy/slate gray metal, fine scratches and muted cool edge highlights. Not a window or doorway.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "index": 19,
+      "generation_file": "exec-db3fac76-d611-4572-a18a-3fea7ac05984.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    },
+    "materials/roof-slate.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE opaque high-resolution horizontal building-material surface texture for the existing space-frontier pixel-art game. Input image is the old24-patch texture design reference. Redraw ONLY the requested material as a SINGLE wide full-frame texture at requested3072x1024, aspect ratio3:1, edge-to-edge. Fine native pixel clusters, same material and palette, no blur, no enlargement of coarse old source pixels. This texture covers long quadrilateral building parts, so include many fine detailed units distributed evenly across the full width. No collage, no other materials, no text, no icons, no visible UI or outer frame. The blue-gray overlapping slate roof tiles from original row5 column3. Many staggered horizontal rows of rectangular gray-blue slates, thin dark seams, quiet subtle chip highlights. No warm colors.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "index": 18,
+      "generation_file": "exec-69bfc1a8-20c0-4ca2-a894-2966197f1588.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    },
+    "materials/roof-zinc.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE opaque high-resolution horizontal building-material surface texture for the existing space-frontier pixel-art game. Input image is the old24-patch texture design reference. Redraw ONLY the requested material as a SINGLE wide full-frame texture at requested3072x1024, aspect ratio3:1, edge-to-edge. Fine native pixel clusters, same material and palette, no blur, no enlargement of coarse old source pixels. This texture covers long quadrilateral building parts, so include many fine detailed units distributed evenly across the full width. No collage, no other materials, no text, no icons, no visible UI or outer frame. The light weathered zinc roof from original row5 column1. Many overlapping small rectangular silver-gray zinc shingles, fine fasteners, thin navy seams and slightly brighter quiet steel faces.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "index": 16,
+      "generation_file": "exec-b795a4b4-48b7-490e-b4b5-e727d49332e7.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    },
+    "materials/beam-wood.png": {
+      "prompt": "Use case: precise-object-edit. Asset type: ONE opaque high-resolution horizontal building-material surface texture for the existing space-frontier pixel-art game. Input image is the old24-patch texture design reference. Redraw ONLY the requested material as a SINGLE wide full-frame texture at requested3072x1024, aspect ratio3:1, edge-to-edge. Fine native pixel clusters, same material and palette, no blur, no enlargement of coarse old source pixels. This texture covers long quadrilateral building parts, so include many fine detailed units distributed evenly across the full width. No collage, no other materials, no text, no icons, no visible UI or outer frame. The horizontal dark brown structural timber from original row2 column1. Rich warm woodgrain running continuously LEFT TO RIGHT with small subtle knots, tiny amber streaks and thin darker grain. Exactly ONE continuous timber surface, no separate logs, no metal frames.",
+      "reference": "starfront-v1/materials.png",
+      "transparent": false,
+      "index": 4,
+      "generation_file": "exec-3377aa25-6844-4f08-859d-b6a6e3c80801.png",
+      "reference_source": "assets/generated/starfront-v1/materials.png"
+    }
+  }
+}

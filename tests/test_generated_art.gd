@@ -35,17 +35,17 @@ static func _test_tools(t: Node) -> void:
 	t.assert_true(_disjoint(regions), "Different tool actions do not accidentally reuse or overlap an icon cell")
 
 static func _test_materials(t: Node) -> void:
-	var source: Texture2D = Art.generated_texture("construction-materials.png")
-	var expanded: Texture2D = Art.generated_texture("construction-materials-expanded.png")
 	for material: Dictionary in Catalog.materials():
 		var id: String = str(material.id)
 		var texture: Texture2D = Art.material_icon(id)
 		t.assert_true(_valid_region(texture), "The material can display generated artwork: " + id)
 		if texture == null: continue
-		var texture_key: String = str(material.get("texture_key", ""))
-		var expected: Texture2D = expanded if Art.EXPANDED_MATERIAL_CELLS.has(texture_key) and int(material.get("brick_count", 0)) == 0 else source
-		if int(material.get("brick_count", 0)) > 0: expected = StarfrontArt.sheet("brick")
-		t.assert_true(Art.texture_source(texture) == expected, "The material uses its generated material sheet: " + id)
+		var source: Texture2D = Art.texture_source(texture)
+		var source_path: String = source.resource_path
+		if int(material.get("brick_count", 0)) > 0:
+			t.assert_true(source_path.ends_with("starfront-v1/brick.png"), "Counted modules retain the single-brick source: " + id)
+		else:
+			t.assert_true(source_path.begins_with(StarfrontArt.HD_ROOT + "materials/"), "Building surfaces use regenerated native-detail textures: " + id)
 		t.assert_true(_valid_uvs(texture), "Material UVs stay finite and inside their source image: " + id)
 
 static func _test_portraits(t: Node) -> void:

@@ -288,6 +288,7 @@ func _modal_action(text: String, callback: Callable, primary: bool = false) -> B
 func _build_ui() -> void:
 	var background: TextureRect = TextureRect.new()
 	background.texture = StarfrontArt.scene(7)
+	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.self_modulate = Color("607488")

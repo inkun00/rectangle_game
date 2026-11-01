@@ -85,6 +85,7 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 func _build_ui() -> void:
 	var background: TextureRect = TextureRect.new()
 	background.texture = StarfrontArt.scene(6)
+	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
