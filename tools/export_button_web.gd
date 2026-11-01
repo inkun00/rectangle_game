@@ -9,5 +9,15 @@ func _initialize() -> void:
 			push_error("Could not export generated loading button: " + filename)
 			quit(1)
 			return
-	StarfrontArt.scene(8).get_image().save_png("res://build/web/frontier-loading.png")
+	# Encode the original once; the imported scene texture is already lossy.
+	var loading_image: Image = Image.load_from_file("res://assets/generated/starfront-hd/backgrounds/observatory.png")
+	if loading_image == null or loading_image.is_empty():
+		push_error("Could not load the original loading background")
+		quit(1)
+		return
+	var loading_error: Error = loading_image.save_webp("res://build/web/frontier-loading.webp", true, 0.95)
+	if loading_error != OK:
+		push_error("Could not export the WebP loading background")
+		quit(1)
+		return
 	quit()

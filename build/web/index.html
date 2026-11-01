@@ -45,7 +45,7 @@ html, body {
   display: grid;
   place-items: center;
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  background: linear-gradient(#0b132070, #0b1320dd), url("frontier-loading.png") center / cover;
+  background: linear-gradient(#0b132070, #0b1320dd), url("frontier-loading.webp") center / cover;
   image-rendering: pixelated;
   z-index: 10;
 }
@@ -324,7 +324,7 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
       fail('지원되지 않는 기능: ' + missing.join(', '), '이 브라우저에서는 게임을 실행할 수 없어요. 브라우저를 업데이트하거나 다른 최신 브라우저에서 열어 주세요.');
       return;
     }
-    const config = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"engine-070842d09381","experimentalVK":false,"fileSizes":{"engine-070842d09381.wasm":39513091,"art-d908f4eefda5.pck":51212420},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"art-d908f4eefda5.pck"};
+    const config = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":true,"executable":"engine-070842d09381","experimentalVK":false,"fileSizes":{"engine-070842d09381.wasm":39513091,"art-6334949201d0.pck":27972564},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4,"mainPack":"art-6334949201d0.pck"};
     const engine = new Engine(config);
     engine.startGame({onProgress:updateProgress}).then(() => {
       if (settled) return;

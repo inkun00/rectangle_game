@@ -74,3 +74,7 @@ The 30 new drawing backgrounds and 10 original geometric masterpiece studies are
 ## 큰 화면 해상도 교정
 
 2026-11-01: 작은 아틀라스 셀을 확대하던 배경·환경물·건축 재료를 같은 분위기의 큰 원화로 다시 제작했습니다. [실제 원본 크기와 프롬프트](starfront-hd/GENERATION.md), [전체 이미지 검수](../../docs/IMAGE_RESOLUTION_AUDIT.md)를 확인하세요. 내장 ImageGen으로 22개 파일을 생성했고 기존 원본은 이력으로 보존합니다.
+
+## 배포 이미지 압축
+
+2026-11-01: 원본 PNG·출처 메타데이터·해상도를 보존하고 배포 텍스처의 압축 설정을 최적화했습니다. 불투명 HD 배경·재료 17개는 품질 0.95 WebP, 투명 이미지와 UI는 무손실을 유지합니다. 웹 로딩 배경은 원본에서 WebP로 한 번 인코딩합니다. [설정·측정·검증 기록](../../docs/IMAGE_SIZE_OPTIMIZATION.md).

@@ -218,8 +218,13 @@ def prepare(directory: Path) -> tuple[str, str]:
     for license_path in (ROOT / "licenses").glob("*.txt"):
         shutil.copyfile(license_path, directory / license_path.name)
     html_path.write_text(html, encoding="utf-8")
-    for imported in directory.glob("*.png.import"):
-        imported.unlink()
+    for pattern in ("*.png.import", "*.webp.import"):
+        for imported in directory.glob(pattern):
+            imported.unlink()
+    # Replaced by a same-resolution WebP in export_button_web.gd.
+    old_loading = directory / "frontier-loading.png"
+    if old_loading.is_file() and "frontier-loading.png" not in html:
+        old_loading.unlink()
     splash = directory / "index.png"
     if splash.is_file() and "index.png" not in html and "index.png" not in engine_payloads["index.js"].decode("utf-8"):
         splash.unlink()

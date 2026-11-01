@@ -1,0 +1,95 @@
+{
+  "date": "2026-11-01",
+  "units": "bytes",
+  "game_data_gzip": {
+    "before": 50879056,
+    "after": 27859044,
+    "saved_percent": 45.24457372007845,
+    "filename": "art-6334949201d0.pck.gz"
+  },
+  "loading_background": {
+    "before": 2389103,
+    "after": 551248,
+    "saved_percent": 76.9265703487878,
+    "native_dimensions": [
+      1672,
+      941
+    ]
+  },
+  "windows_pack": {
+    "before": 51212420,
+    "after": 27972564
+  },
+  "textures": {
+    "texture_count": 64,
+    "before_bytes": 49483620,
+    "after_bytes": 26240768,
+    "saved_bytes": 23242852,
+    "saved_percent": 46.97079963026149,
+    "all_dimensions_unchanged": true,
+    "all_sources_unchanged": true,
+    "kept_lossless_count": 17,
+    "all_kept_lossless_rgba_equal": true,
+    "groups": {
+      "kept_lossless": {
+        "count": 17,
+        "before_bytes": 15521544,
+        "after_bytes": 14937502,
+        "saved_bytes": 584042,
+        "saved_percent": 3.76278287778587
+      },
+      "new_hd_lossy": {
+        "count": 17,
+        "before_bytes": 30838694,
+        "after_bytes": 8242470,
+        "saved_bytes": 22596224,
+        "saved_percent": 73.27231172630073
+      },
+      "existing_lossy": {
+        "count": 30,
+        "before_bytes": 3123382,
+        "after_bytes": 3060796,
+        "saved_bytes": 62586,
+        "saved_percent": 2.0037894820422224
+      }
+    },
+    "quality_metrics": [
+      {
+        "source_path": "assets/generated/starfront-hd/backgrounds/market.png",
+        "psnr_db": 34.907092053402906,
+        "ssim_rgb": 0.9547601694280473,
+        "mean_absolute_error": 2.662265023974292,
+        "maximum_absolute_error": 95,
+        "reference": "original source RGB8",
+        "ssim_parameters": "skimage structural_similarity channel_axis=2, data_range=255, gaussian_weights=True, sigma=1.5, use_sample_covariance=False"
+      },
+      {
+        "source_path": "assets/generated/starfront-hd/backgrounds/snow.png",
+        "psnr_db": 38.157105705114695,
+        "ssim_rgb": 0.9645653566261084,
+        "mean_absolute_error": 2.051197273930648,
+        "maximum_absolute_error": 69,
+        "reference": "original source RGB8",
+        "ssim_parameters": "skimage structural_similarity channel_axis=2, data_range=255, gaussian_weights=True, sigma=1.5, use_sample_covariance=False"
+      },
+      {
+        "source_path": "assets/generated/starfront-hd/materials/details-a.png",
+        "psnr_db": 38.680747577829386,
+        "ssim_rgb": 0.9679391473758926,
+        "mean_absolute_error": 1.9234864976671007,
+        "maximum_absolute_error": 77,
+        "reference": "original source RGB8",
+        "ssim_parameters": "skimage structural_similarity channel_axis=2, data_range=255, gaussian_weights=True, sigma=1.5, use_sample_covariance=False"
+      },
+      {
+        "source_path": "assets/generated/starfront-hd/materials/roof-blue.png",
+        "psnr_db": 41.653133806957605,
+        "ssim_rgb": 0.9754038540686555,
+        "mean_absolute_error": 1.4761335463237115,
+        "maximum_absolute_error": 30,
+        "reference": "original source RGB8",
+        "ssim_parameters": "skimage structural_similarity channel_axis=2, data_range=255, gaussian_weights=True, sigma=1.5, use_sample_covariance=False"
+      }
+    ]
+  }
+}
