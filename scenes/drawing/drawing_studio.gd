@@ -26,8 +26,13 @@ const PALETTE: Array[Color] = [
 ]
 
 signal home_requested
+signal tutorial_requested
+signal mode_selected(mode: String)
+signal interaction_context_changed
+signal guide_changed
 
 var testing: bool = false
+var tutorial_blocked: bool = false
 var save_path: String = SAVE_PATH
 var document: Model = Model.new()
 var canvas: Canvas
@@ -113,6 +118,7 @@ func _build_ui() -> void:
 	title.add_child(_drawing_tagline)
 	_drawing_load = _button("불러오기", func(): load_drawing(true))
 	_drawing_header.add_child(_drawing_load)
+	_drawing_header.add_child(_button("튜토리얼", func(): tutorial_requested.emit()))
 	_drawing_header.add_child(_button("저장", func(): save_drawing(true)))
 	_drawing_header.add_child(_button("PNG 저장", _export_png, true))
 	var workspace: HBoxContainer = HBoxContainer.new()
@@ -235,6 +241,7 @@ func _build_ui() -> void:
 	_color_picker.edit_alpha = false
 	_color_picker.tooltip_text = "직접 색 고르기"
 	_color_picker.color_changed.connect(_choose_color)
+	_color_picker.get_popup().visibility_changed.connect(func(): interaction_context_changed.emit())
 	colors.add_child(_color_picker)
 	var grid: CheckButton = _check("격자", true)
 	grid.toggled.connect(func(enabled: bool):
@@ -287,10 +294,12 @@ func _more_edit_action(id: int) -> void:
 			canvas.show_masterpiece = not canvas.show_masterpiece
 			_guide_toggle.set_pressed_no_signal(canvas.show_masterpiece)
 			canvas.queue_redraw()
+			guide_changed.emit()
 		11:
 			canvas.masterpiece_opacity = 0.25 if canvas.masterpiece_opacity >= 0.9 else minf(canvas.masterpiece_opacity + 0.2, 1.0)
 			_guide_opacity.set_value_no_signal(canvas.masterpiece_opacity)
 			canvas.queue_redraw()
+			guide_changed.emit()
 
 func _add_edit_button(parent: Node, text: String, callback: Callable) -> void:
 	var button: Button = _button(text, func():
@@ -336,6 +345,7 @@ func _open_colors() -> void:
 		Buttons.apply(_color_dialog.get_ok_button())
 		_color_dialog.get_ok_button().custom_minimum_size.y = 44
 		add_child(_color_dialog)
+		_color_dialog.visibility_changed.connect(func(): interaction_context_changed.emit())
 		# A scroll viewport keeps wrapped text's initial minimum height from
 		# enlarging the Window before its containers have their first layout.
 		var scroll: ScrollContainer = ScrollContainer.new()
@@ -359,6 +369,7 @@ func _open_colors() -> void:
 
 func _choose_mode(mode: String) -> void:
 	cancel_gesture()
+	mode_selected.emit(mode)
 	if mode == "masterpiece" and document.masterpiece_id.is_empty():
 		_open_gallery(true)
 		return
@@ -379,6 +390,7 @@ func _open_gallery(masterpieces: bool) -> void:
 	Buttons.apply(_gallery.get_ok_button())
 	_gallery.get_ok_button().custom_minimum_size.y = 44
 	add_child(_gallery)
+	_gallery.visibility_changed.connect(func(): interaction_context_changed.emit())
 	# Scroll the entire choice list so both its first wrapped description and
 	# all rows can fit in a short window without pushing its close button offscreen.
 	var scroll: ScrollContainer = ScrollContainer.new()
@@ -605,6 +617,7 @@ func _export_png() -> void:
 		dialog.popup_centered(Vector2i(800, 600))
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if tutorial_blocked: return
 	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo:
 		return
 	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or _color_picker.get_popup().visible:

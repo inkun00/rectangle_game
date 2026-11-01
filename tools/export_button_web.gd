@@ -10,7 +10,9 @@ func _initialize() -> void:
 			quit(1)
 			return
 	# Encode the original once; the imported scene texture is already lossy.
-	var loading_image: Image = Image.load_from_file("res://assets/generated/starfront-hd/backgrounds/observatory.png")
+	# This build-only tool reads the local master, outside the resource importer.
+	var loading_path: String = ProjectSettings.globalize_path("res://assets/generated/starfront-hd/backgrounds/observatory.png")
+	var loading_image: Image = Image.load_from_file(loading_path)
 	if loading_image == null or loading_image.is_empty():
 		push_error("Could not load the original loading background")
 		quit(1)

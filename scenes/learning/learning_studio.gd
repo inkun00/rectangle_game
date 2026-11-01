@@ -7,6 +7,7 @@ const Canvas = preload("res://scenes/learning/learning_canvas.gd")
 const Art = preload("res://scripts/construction_art.gd")
 signal home_requested
 signal drawing_requested
+signal tutorial_requested
 var progress: Progress = Progress.new()
 var canvas: Canvas
 var lesson_id: String = "perpendicular"
@@ -51,6 +52,7 @@ func _ready() -> void:
 	header.add_child(title)
 	_record = QuadTheme.label("", 16, QuadTheme.TEAL)
 	header.add_child(_record)
+	header.add_child(QuadTheme.button("튜토리얼", func(): tutorial_requested.emit()))
 	_picker = OptionButton.new()
 	ButtonArt.apply(_picker)
 	_picker.custom_minimum_size.y = 44

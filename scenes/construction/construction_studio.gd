@@ -23,8 +23,13 @@ const MATERIAL_CATEGORIES: Array[String] = ["all", "wall", "opening", "roof", "d
 const MATERIAL_FAMILIES: Array[String] = ["all", "trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
 
 signal home_requested
+signal tutorial_requested
+signal interaction_context_changed
+signal view_changed
 
 var testing: bool = false
+var tutorial_active: bool = false
+var tutorial_blocked: bool = false
 var save_path: String = SAVE_PATH
 var state: State = State.new()
 var canvas: Canvas
@@ -808,6 +813,7 @@ func _set_view(presentation: bool) -> void:
 	canvas.set_presentation_mode(presentation)
 	_design_view.set_pressed_no_signal(not presentation)
 	_material_view.set_pressed_no_signal(presentation)
+	view_changed.emit()
 
 func _compact_edit_action(id: int) -> void:
 	match id:
@@ -857,6 +863,7 @@ func _is_editable_mode() -> bool:
 	return state.my_house_mode or state.phase == "building"
 
 func _edit(callback: Callable) -> void:
+	if tutorial_blocked: return
 	if not _is_editable_mode() or canvas.inspection_running or is_instance_valid(_modal): return
 	canvas.stop_inspection()
 	canvas.cancel_gesture()
@@ -1106,7 +1113,7 @@ func _refresh() -> void:
 		_budget.value = 100.0 * state.material_cost() / maxi(1, int(contract.material_budget))
 		_budget_label.text = "예산 %s (%.0f%%)" % [Catalog.format_won(int(contract.material_budget)), _budget.value]
 		_client_action.text = "다음 부탁" if state.phase == "settled" else ("부탁 받기" if state.phase == "briefing" else "부탁 보기")
-	var editing: bool = _is_editable_mode() and not canvas.inspection_running and not is_instance_valid(_modal)
+	var editing: bool = _is_editable_mode() and not canvas.inspection_running and not is_instance_valid(_modal) and not tutorial_blocked
 	canvas.editing_enabled = editing
 	for button: Button in _edit_buttons: button.disabled = not editing
 	_undo.disabled = not editing or not active_doc.command_manager.can_undo()
@@ -1433,6 +1440,7 @@ func _show_project_info() -> void:
 	_modal_action("작업대로 돌아가기", _close_modal, true)
 
 func _ensure_brief() -> void:
+	if tutorial_active: return
 	if is_visible_in_tree() and state.phase == "briefing" and not is_instance_valid(_modal): _show_brief()
 
 func _show_brief() -> void:
@@ -1678,6 +1686,9 @@ func _show_help(step: int = 0) -> void:
 	]
 	var current: int = clampi(step, 0, headings.size() - 1)
 	_open_modal("집 짓기 도움 · %d / %d" % [current + 1, headings.size()])
+	_modal_action("대화로 따라 해 보기", func():
+		_close_modal()
+		tutorial_requested.emit(), true)
 	_modal_body.add_child(_label(headings[current], 25, BLUE))
 	_modal_body.add_child(_label(explanations[current], 19))
 	_modal_body.add_child(_label("선택한 재료는 방향키로 옮기고 R로 회전해요. Ctrl+Z로 되돌릴 수 있어요.", 16, MUTED))
@@ -1841,6 +1852,7 @@ func _open_modal(title: String, compact: bool = false) -> void:
 		_set_status("검사를 멈췄어요. 창을 닫은 뒤 시공 검사를 다시 시작할 수 있어요.")
 	canvas.editing_enabled = false
 	_modal = Control.new()
+	interaction_context_changed.emit()
 	_modal.name = "ConstructionDialog"
 	_modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_modal)
@@ -1920,6 +1932,7 @@ func _close_modal(restore_focus: bool = true) -> void:
 	if is_instance_valid(_modal):
 		_modal.queue_free()
 	_modal = null
+	interaction_context_changed.emit()
 	_modal_body = null
 	_modal_actions = null
 	_modal_panel = null
@@ -2020,6 +2033,7 @@ func load_game(show_message: bool = true) -> bool:
 	return bool(result.ok)
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if tutorial_blocked: return
 	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo: return
 	if is_instance_valid(_modal):
 		if event.keycode == KEY_ESCAPE:

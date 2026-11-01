@@ -90,6 +90,7 @@ var _in_world: bool = false
 var _restoring: bool = false
 var _exporting: bool = false
 var _save_clock: float = 0.0
+var _tutorial: TutorialDirector
 
 func _ready() -> void:
 	if not testing and not learning_progress.load_file():
@@ -122,6 +123,9 @@ func _ready() -> void:
 	_autosave.wait_time = 0.7
 	_autosave.timeout.connect(func(): _save(false))
 	add_child(_autosave)
+	_tutorial = TutorialDirector.new()
+	add_child(_tutorial)
+	_tutorial.setup(self)
 	document.changed.connect(_document_changed)
 	journal.changed.connect(_journal_changed)
 	adventure.changed.connect(_adventure_changed)
@@ -149,6 +153,7 @@ func _build_home() -> void:
 	_home_screen.construction_requested.connect(_show_construction)
 	_home_screen.notebook_requested.connect(_show_notebook)
 	_home_screen.learning_requested.connect(_show_learning)
+	_home_screen.tutorials_requested.connect(_show_tutorials)
 	_ui.add_child(_home_screen)
 	_home_screen.set_learning_progress(learning_progress.completed.size())
 
@@ -165,11 +170,12 @@ func _show_learning(id: String = "") -> void:
 	_learning_screen.show()
 	_learning_screen.open_lesson(learning_progress.next_lesson() if id.is_empty() else id)
 	_responsive()
+	_tutorial.visit("learning")
 
 func _learning_changed() -> void:
 	_home_screen.set_learning_progress(learning_progress.completed.size())
 	if world != null:
-		world.peaceful = learning_progress.peaceful
+		world.peaceful = learning_progress.peaceful or (_tutorial.active and _tutorial.mode == "world")
 		if not learning_progress.touch_controls: _clear_touch_inputs()
 	if is_instance_valid(_touch_row):
 		_touch_row.visible = learning_progress.touch_controls
@@ -192,6 +198,7 @@ func _build_construction() -> void:
 	_ui.add_child(_construction_screen)
 
 func _leave_activity() -> void:
+	if _tutorial != null: _tutorial.cancel()
 	_clear_touch_inputs()
 	_close_modal()
 	var save_adventure: bool = _in_world or _workshop_screen.visible
@@ -227,16 +234,19 @@ func _show_drawing() -> void:
 	_leave_activity()
 	_drawing_screen.show()
 	_responsive()
+	_tutorial.visit("masterpiece" if _drawing_screen.document.drawing_mode == "masterpiece" else "drawing")
 
 func _show_construction() -> void:
 	_leave_activity()
 	_construction_screen.show()
 	_responsive()
+	_tutorial.visit("my_house" if _construction_screen.state.my_house_mode else "construction")
 
 func _show_workshop() -> void:
 	_leave_activity()
 	_workshop_screen.show()
 	_responsive()
+	_tutorial.visit("workshop")
 
 func _process(delta: float) -> void:
 	if _in_world:
@@ -283,6 +293,7 @@ func _build_workshop() -> void:
 	_workshop_tagline = QuadTheme.label("나의 그림이 모험이 되는 곳", 15, QuadTheme.MUTED)
 	brand.add_child(_workshop_tagline)
 	header.add_child(QuadTheme.button("메인으로", _show_home))
+	header.add_child(QuadTheme.button("튜토리얼", func(): _replay_tutorial("workshop")))
 	header.add_child(QuadTheme.button("도형 도감", _show_notebook))
 	header.add_child(QuadTheme.button("불러오기", func(): _load(true)))
 	header.add_child(QuadTheme.button("저장", func(): _save(true)))
@@ -871,6 +882,7 @@ func _show_story() -> void:
 	body.add_child(QuadTheme.button("모험 계속하기", _close_modal))
 
 func _show_inventory() -> void:
+	_tutorial.call_deferred("notify", "world_inventory")
 	var body: VBoxContainer = _open_modal("모험가의 가방  ·  LV. %d" % adventure.level)
 	var balance: HBoxContainer = HBoxContainer.new()
 	balance.add_child(GameArt.view(GameArt.item(9)))
@@ -992,6 +1004,7 @@ func _enter_world() -> void:
 	_show_toast("물건 옆에서 G로 줍기! E로 주민과 대화하고, H로 이야기를 확인해요.")
 	_refresh_world_guidance()
 	_save(false)
+	_tutorial.visit("world")
 
 func _return_workshop() -> void:
 	_show_workshop()
@@ -1109,6 +1122,8 @@ func _show_game_menu() -> void:
 	body.add_child(QuadTheme.button("이야기 수첩  H", _show_story))
 	body.add_child(QuadTheme.button("사각형 도감", _show_notebook))
 	body.add_child(QuadTheme.button("조작 방법", _show_controls))
+	body.add_child(QuadTheme.button("튜토리얼 다시 보기", func(): _replay_tutorial("world")))
+	body.add_child(QuadTheme.button("모든 모드 안내", _show_tutorials))
 	body.add_child(QuadTheme.button("캐릭터 공방으로", _return_workshop))
 	body.add_child(QuadTheme.button("모험 계속하기", _close_modal))
 
@@ -1119,7 +1134,42 @@ func _show_controls() -> void:
 	body.add_child(QuadTheme.paragraph("물건은 가까이 닿아도 모을 수 있어요. 부탁을 받기 전에 주워도 괜찮아요. 위쪽 물건은 발판에 올라가 찾아보세요.", 18))
 	body.add_child(QuadTheme.button("모험 계속하기", _close_modal, true))
 
+func _show_tutorials() -> void:
+	_tutorial.cancel()
+	var body: VBoxContainer = _open_modal("함께 해 보는 모드 안내")
+	body.add_child(QuadTheme.paragraph("직각이와 이야기하며 직접 해 봐요. 언제든 건너뛸 수 있고, 지금 만든 작품과 모험은 그대로 이어져요.", 18))
+	for context: String in TutorialCatalog.MODE_IDS:
+		var status: String = str(_tutorial.progress.statuses.get(context, ""))
+		var suffix: String = " · 다시 보기" if not status.is_empty() else " · 처음 해 보기"
+		body.add_child(QuadTheme.button(TutorialCatalog.title(context) + suffix, _replay_tutorial.bind(context)))
+
+func _replay_tutorial(context: String) -> void:
+	_close_modal(false)
+	if context != _tutorial.current_context():
+		match context:
+			"learning": _show_learning()
+			"drawing":
+				if not _drawing_screen.visible: _show_drawing()
+				if _drawing_screen.document.drawing_mode != "free": _drawing_screen._choose_mode("free")
+			"masterpiece":
+				if not _drawing_screen.visible: _show_drawing()
+			"construction":
+				if not _construction_screen.visible: _show_construction()
+				if _construction_screen.state.my_house_mode: _construction_screen._exit_my_house_mode()
+			"my_house":
+				if not _construction_screen.visible: _show_construction()
+				if not _construction_screen.state.my_house_mode: _construction_screen._enter_my_house_mode()
+			"workshop": _show_workshop()
+			"world":
+				if not bool(document.completion().ready):
+					_show_workshop()
+					_tutorial.start("workshop")
+					return
+				_enter_world()
+	_tutorial.start(context)
+
 func _show_journal(filter: String = "active") -> void:
+	_tutorial.call_deferred("notify", "world_journal")
 	_journal_filter = filter if filter in ["active", "available", "completed", "all"] else "active"
 	var body: VBoxContainer = _open_modal("나의 부탁 수첩")
 	body.add_child(QuadTheme.paragraph("물건을 다 모으면 주민에게 돌아가 도형 이야기를 나눠요. ‘이 목표 안내’를 누르면 가는 방향을 알려 줘요.", 17))
@@ -1201,6 +1251,7 @@ func _open_modal(title: String) -> VBoxContainer:
 	_close_modal(false)
 	if world != null and _in_world: world.set_controls_enabled(false)
 	_modal_overlay = Control.new()
+	if _tutorial != null: _tutorial.refresh.call_deferred()
 	_modal_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ui.add_child(_modal_overlay)
 	var dim: ColorRect = ColorRect.new()
@@ -1291,7 +1342,8 @@ func _close_modal(restore_focus: bool = true) -> void:
 		if is_instance_valid(_modal_focus_before) and _modal_focus_before.is_visible_in_tree():
 			_modal_focus_before.grab_focus()
 		_modal_focus_before = null
-	if world != null and _in_world: world.set_controls_enabled(true)
+	if world != null and _in_world: world.set_controls_enabled(_tutorial == null or not _tutorial.blocks_gameplay())
+	if _tutorial != null: _tutorial.refresh.call_deferred()
 
 func _save(notify_user: bool) -> void:
 	if _restoring or testing: return
@@ -1391,11 +1443,13 @@ func _responsive() -> void:
 		_toast.add_theme_font_size_override("font_size", 17)
 	_journal_changed()
 	_refresh_world_guidance()
+	if _tutorial != null: _tutorial.refresh.call_deferred()
 
 func _ui_size() -> Vector2:
 	return _ui.size if _ui != null and _ui.size.x > 0.0 else get_viewport().get_visible_rect().size
 
 func _input(event: InputEvent) -> void:
+	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		_handle_screen_touch(event)
 		return
@@ -1408,6 +1462,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func _handle_screen_touch(event: InputEvent) -> void:
+	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	var index: int = event.index
 	if event is InputEventScreenTouch and not event.pressed:
 		if not _touch_fingers.has(index): return
@@ -1443,6 +1498,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: _clear_touch_inputs()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	if not event is InputEventKey or not event.pressed or event.echo: return
 	if _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible): return
 	if event.keycode == KEY_ESCAPE:
