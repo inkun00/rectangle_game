@@ -30,9 +30,11 @@ func set_template(id: String) -> void:
 	after.selected_id = -1
 	_commit(after)
 
-func fill_slot(slot_id: String, kind: String, color: Color) -> bool:
+func fill_slot(slot_id: String, kind: String, color: Color, trapezoid_variant: String = "symmetric") -> bool:
 	var slot: Dictionary = get_slot(slot_id)
 	if slot.is_empty() or str(slot.kind) != kind or not _valid_color(color):
+		return false
+	if kind == "trapezoid" and not Math.TRAPEZOID_VARIANTS.has(trapezoid_variant):
 		return false
 	var existing: Dictionary = shape_for_slot(slot_id)
 	if not existing.is_empty():
@@ -42,14 +44,14 @@ func fill_slot(slot_id: String, kind: String, color: Color) -> bool:
 	if shapes.size() >= MAX_SHAPES:
 		return false
 	var after: Dictionary = _snapshot()
-	var shape: Dictionary = _shape_from_slot(slot, _next_id, color)
+	var shape: Dictionary = _shape_from_slot(slot, _next_id, color, trapezoid_variant)
 	after.shapes.append(shape)
 	after.selected_id = _next_id
 	after.next_id = _next_id + 1
 	_commit(after)
 	return true
 
-func add_shape(kind: String, position: Vector2, color: Color) -> int:
+func add_shape(kind: String, position: Vector2, color: Color, trapezoid_variant: String = "symmetric") -> int:
 	if not Math.KINDS.has(kind) or not _valid_position(position) or not _valid_color(color) or shapes.size() >= MAX_SHAPES:
 		return -1
 	var dimensions: Vector2 = Vector2(70, 70)
@@ -59,9 +61,12 @@ func add_shape(kind: String, position: Vector2, color: Color) -> int:
 		dimensions = Vector2(92, 58)
 	elif kind == "trapezoid" or kind == "parallelogram":
 		dimensions = Vector2(88, 64)
+	var vertices: PackedVector2Array = Math.create_vertices(kind, dimensions, trapezoid_variant)
+	if not _valid_vertices(vertices, kind):
+		return -1
 	var after: Dictionary = _snapshot()
 	var new_id: int = _next_id
-	after.shapes.append({"id": new_id, "slot_id": "", "kind": kind, "position": position, "vertices": Math.create_vertices(kind, dimensions), "color": color, "group": "body"})
+	after.shapes.append({"id": new_id, "slot_id": "", "kind": kind, "position": position, "vertices": vertices, "color": color, "group": "body"})
 	after.selected_id = new_id
 	after.next_id = new_id + 1
 	_commit(after)
@@ -135,7 +140,7 @@ func attach_selected(slot_id: String) -> bool:
 		return false
 	var after: Dictionary = _snapshot()
 	var index: int = _shape_index(selected_id)
-	after.shapes[index] = _shape_from_slot(slot, selected_id, selected.color)
+	after.shapes[index] = _shape_from_slot(slot, selected_id, selected.color, Math.trapezoid_variant(selected.vertices))
 	_commit(after)
 	return true
 
@@ -312,8 +317,13 @@ func _apply_snapshot(data: Dictionary) -> void:
 	selected_id = int(data.selected_id)
 	_next_id = int(data.next_id)
 
-static func _shape_from_slot(slot: Dictionary, id: int, color: Color) -> Dictionary:
-	return {"id": id, "slot_id": str(slot.id), "kind": str(slot.kind), "position": slot.position, "vertices": slot.vertices.duplicate(), "color": color, "group": str(slot.group)}
+static func _shape_from_slot(slot: Dictionary, id: int, color: Color, trapezoid_variant: String = "symmetric") -> Dictionary:
+	var vertices: PackedVector2Array = slot.vertices.duplicate()
+	if str(slot.kind) == "trapezoid" and trapezoid_variant != "symmetric":
+		var rotation: float = (vertices[1] - vertices[0]).angle()
+		var dimensions: Vector2 = Math.bounds(Math.rotate_vertices(vertices, -rad_to_deg(rotation))).size
+		vertices = Math.rotate_vertices(Math.create_vertices("trapezoid", dimensions, trapezoid_variant), rad_to_deg(rotation))
+	return {"id": id, "slot_id": str(slot.id), "kind": str(slot.kind), "position": slot.position, "vertices": vertices, "color": color, "group": str(slot.group)}
 
 static func _fits_slot(shape: Dictionary, slot: Dictionary) -> bool:
 	var shape_position: Vector2 = shape.position

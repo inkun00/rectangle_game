@@ -48,7 +48,7 @@ static func _test_materials_and_openings(t: Node) -> void:
 	for material: Dictionary in Catalog.materials():
 		t.assert_true(int(material.price) >= 100 and int(material.price) % 100 == 0, "Construction prices are integer hundreds: " + str(material.id))
 		t.assert_false(str(material.source_url).is_empty(), "Construction material has price provenance: " + str(material.id))
-		var vertices: PackedVector2Array = Math.create_vertices(str(material.kind), material.dimensions)
+		var vertices: PackedVector2Array = Catalog.material_vertices(str(material.id))
 		t.assert_true(Math.matches_kind(vertices, str(material.kind)), "Construction material preserves its quadrilateral family")
 		var angle_sum: float = 0.0
 		for angle: float in Math.angles_degrees(vertices): angle_sum += angle
@@ -91,11 +91,11 @@ static func _test_balanced_catalog(t: Node) -> void:
 		seen.append(id)
 		counts[family] = int(counts[family]) + 1
 		roles[family][str(material.role)] = true
-		var vertices: PackedVector2Array = Math.create_vertices(family, material.dimensions)
+		var vertices: PackedVector2Array = Catalog.material_vertices(id)
 		var longest: float = 0.0
 		for length: float in Math.side_lengths(vertices): longest = maxf(longest, length)
 		lengths[family][snappedf(longest, 0.001)] = true
-	t.assert_eq(seen.size(), 42, "Construction offers forty materials plus two genuine flat roof sizes")
+	t.assert_eq(seen.size(), 44, "Construction retains forty-two materials and adds two right-trapezoid roof directions")
 	for family: String in Math.KINDS:
 		t.assert_ge(int(counts[family]), 8, "Every quadrilateral family retains at least eight catalog choices: " + family)
 		t.assert_gt((roles[family] as Dictionary).size(), 2, "Each family has functional uses beyond a single decoration role: " + family)

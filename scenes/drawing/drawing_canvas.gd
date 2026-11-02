@@ -6,12 +6,15 @@ const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 const HANDLE_RADIUS: float = 10.0
 const SNAP_DISTANCE: float = 10.0
 const MIN_SIDE: float = 4.1
+const UNITS_PER_CM: float = 20.0
 
 signal hint_requested(message: String)
 signal tool_changed
+signal context_menu_requested(canvas_position: Vector2)
 
 var document: Model
 var selected_kind: String = "square"
+var selected_trapezoid_variant: String = "symmetric"
 var paint_color: Color = Color("29a995")
 var drawing_tool: bool = true
 var show_grid: bool = true
@@ -80,9 +83,16 @@ func select_tool() -> void:
 	tool_changed.emit()
 	queue_redraw()
 
+func select_trapezoid_variant(variant: String) -> void:
+	if not QuadrilateralMath.TRAPEZOID_VARIANTS.has(variant):
+		return
+	cancel_gesture()
+	selected_trapezoid_variant = variant
+	select_kind("trapezoid")
+
 func add_at_center() -> void:
 	cancel_gesture()
-	var new_id: int = document.add_shape(selected_kind, Vector2.ZERO, paint_color)
+	var new_id: int = document.add_shape(selected_kind, Vector2.ZERO, paint_color, selected_trapezoid_variant)
 	if new_id < 0:
 		hint_requested.emit("도형은 최대 128개까지 그릴 수 있어요.")
 	select_tool()
@@ -121,7 +131,12 @@ func _sync_scene_textures() -> void:
 func _gui_input(event: InputEvent) -> void:
 	if document == null:
 		return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+		if event.pressed:
+			cancel_gesture()
+			context_menu_requested.emit(event.position)
+		accept_event()
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		var point: Vector2 = screen_to_artwork(event.position)
 		if event.pressed:
 			var handle: Dictionary = _selected_handle_at(point)
@@ -200,7 +215,7 @@ func _release(point: Vector2, shift: bool = false, alt: bool = false) -> void:
 		if extent.length() < 8.0:
 			extent = Vector2(100, 80)
 			center = _press_position
-		var new_id: int = document.add_sized_shape(selected_kind, center, extent, paint_color)
+		var new_id: int = document.add_sized_shape(selected_kind, center, extent, paint_color, selected_trapezoid_variant)
 		if new_id < 0:
 			hint_requested.emit("도형은 최대 128개까지 그릴 수 있어요.")
 		select_tool()
@@ -445,7 +460,7 @@ func _draw() -> void:
 		_draw_part(vertices, position, part.color, selected)
 	if _creating:
 		var extent: Vector2 = (_drag_position - _press_position).abs().max(Vector2(12, 12))
-		var vertices: PackedVector2Array = QuadrilateralMath.create_vertices(selected_kind, extent)
+		var vertices: PackedVector2Array = QuadrilateralMath.create_vertices(selected_kind, extent, selected_trapezoid_variant)
 		_draw_part(vertices, (_drag_position + _press_position) * 0.5, Color(paint_color, 0.6), false)
 	var selected: Dictionary = preview_selected()
 	if not selected.is_empty():
@@ -493,7 +508,7 @@ func _draw_selection(part: Dictionary) -> void:
 		draw_arc(first, 5.0, 0.0, TAU, 20, Color("213b42"), 1.5, true)
 		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), Color.WHITE)
 		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), Color("0c6658"), false, 1.5)
-		_draw_length_label(midpoint + normal * 23.0, QuadrilateralMath.measurement_label(lengths[index] / 20.0) + "칸")
+		_draw_length_label(midpoint + normal * 23.0, QuadrilateralMath.measurement_label(lengths[index] / UNITS_PER_CM) + " cm")
 	draw_circle(handle, 11.0, Color.WHITE)
 	draw_arc(handle, 11.0, 0.0, TAU, 24, Color("0c6658"), 2.0, true)
 	draw_arc(handle, 5.5, -PI * 0.85, PI * 0.65, 18, Color("0c6658"), 1.7, true)

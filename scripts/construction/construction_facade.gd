@@ -5,7 +5,8 @@ extends RefCounted
 ## roof. Deliberate door/window apertures occupy their reserved polygons here;
 ## their real frame support is checked separately by ConstructionPhysics.
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
-const GROUND_Y: float = 560.0
+const Document = preload("res://scripts/construction/construction_document.gd")
+const GROUND_Y: float = Document.GROUND_Y
 const TOLERANCE: float = 0.1
 
 static func inspect(parts: Array[Dictionary]) -> Dictionary:
@@ -60,7 +61,7 @@ static func inspect(parts: Array[Dictionary]) -> Dictionary:
 			_add_gap(gaps, issues, Rect2(left, footprint.position.y, right - left, GROUND_Y - footprint.position.y), "separated_facade")
 			continue
 		if not is_finite(roof_top) or roof_top > body_top + TOLERANCE:
-			_add_gap(gaps, issues, Rect2(left, maxf(0.0, body_top - 20.0), right - left, 20.0), "roof_missing")
+			_add_gap(gaps, issues, Rect2(left, maxf(Document.BUILD_AREA.position.y, body_top - 20.0), right - left, 20.0), "roof_missing")
 			continue
 		spans.sort_custom(func(first: Vector2, second: Vector2) -> bool: return first.x < second.x)
 		var reached: float = roof_top

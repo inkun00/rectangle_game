@@ -34,14 +34,14 @@ func set_masterpiece(id: String) -> bool:
 	_commit(after)
 	return true
 
-func add_shape(kind: String, position: Vector2, color: Color) -> int:
-	return add_sized_shape(kind, position, Vector2(100, 80), color)
+func add_shape(kind: String, position: Vector2, color: Color, trapezoid_variant: String = "symmetric") -> int:
+	return add_sized_shape(kind, position, Vector2(100, 80), color, trapezoid_variant)
 
-func add_sized_shape(kind: String, position: Vector2, dimensions: Vector2, color: Color) -> int:
+func add_sized_shape(kind: String, position: Vector2, dimensions: Vector2, color: Color, trapezoid_variant: String = "symmetric") -> int:
 	if not Math.KINDS.has(kind) or not position.is_finite() or not dimensions.is_finite() or not _valid_color(color) or shapes.size() >= MAX_SHAPES:
 		return -1
 	var extent: Vector2 = dimensions.abs().clamp(Vector2(12, 12), ARTBOARD.size)
-	var vertices: PackedVector2Array = Math.create_vertices(kind, extent)
+	var vertices: PackedVector2Array = Math.create_vertices(kind, extent, trapezoid_variant)
 	if not _valid_vertices(vertices, kind):
 		return -1
 	var after: Dictionary = _snapshot()

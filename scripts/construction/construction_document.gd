@@ -4,8 +4,10 @@ extends RefCounted
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const History = preload("res://scripts/core/command_manager.gd")
-const BOARD: Rect2 = Rect2(0, 0, 1000, 600)
+## Expand upward from the existing foundation so earlier houses keep their positions.
+const BOARD: Rect2 = Rect2(0, -560, 2000, 1200)
 const GROUND_Y: float = 560.0
+const BUILD_AREA: Rect2 = Rect2(0, -560, 2000, 1120)
 const GRID: float = 20.0
 const MAX_PARTS: int = 400
 
@@ -79,12 +81,20 @@ func move_selected(position: Vector2) -> bool:
 	return _replace_selected(selected)
 
 func rotate_selected(degrees: float) -> bool:
-	var selected: Dictionary = get_selected()
-	if selected.is_empty() or not editing_enabled or not is_finite(degrees): return false
-	selected.vertices = Math.rotate_vertices(selected.vertices, degrees)
-	last_error = _candidate_error(selected, selected_id)
+	last_error = rotation_error(degrees)
 	if not last_error.is_empty(): return false
+	var selected: Dictionary = get_selected()
+	if absf(wrapf(degrees, -180.0, 180.0)) < 0.001: return true
+	selected.vertices = Math.rotate_vertices(selected.vertices, degrees)
 	return _replace_selected(selected)
+
+## Validate a preview without changing geometry, history, or the current error.
+func rotation_error(degrees: float) -> String:
+	var selected: Dictionary = get_selected()
+	if selected.is_empty() or not editing_enabled: return "회전할 자재를 먼저 골라 주세요."
+	if not is_finite(degrees): return "올바른 회전 각도를 골라 주세요."
+	selected.vertices = Math.rotate_vertices(selected.vertices, degrees)
+	return _candidate_error(selected, selected_id)
 
 func delete_selected() -> void:
 	if not editing_enabled or selected_id < 0: return
@@ -123,10 +133,27 @@ func clear() -> void:
 	_commit(after)
 
 func undo() -> void:
-	if editing_enabled: command_manager.undo()
+	if not editing_enabled or not command_manager.can_undo(): return
+	if not _history_fits_budget(command_manager.undo_stack.back(), true): return
+	last_error = ""
+	command_manager.undo()
 
 func redo() -> void:
-	if editing_enabled: command_manager.redo()
+	if not editing_enabled or not command_manager.can_redo(): return
+	if not _history_fits_budget(command_manager.redo_stack.back(), false): return
+	last_error = ""
+	command_manager.redo()
+
+func _history_fits_budget(raw_command: RefCounted, undoing: bool) -> bool:
+	var command: History.SnapshotCommand = raw_command as History.SnapshotCommand
+	if command == null or command.target.get_ref() != self or command.method != &"_apply": return true
+	var snapshot: Dictionary = command.before if undoing else command.after
+	var historical_parts: Array[Dictionary] = []
+	historical_parts.assign(snapshot.parts)
+	if _cost(historical_parts) <= budget_limit: return true
+	last_error = "현재 자금으로는 이 설계를 되돌리거나 다시 만들 수 없어요. 그림·집 수익을 더 모으면 다시 할 수 있어요."
+	changed.emit()
+	return false
 
 func replace_parts(items: Array[Dictionary]) -> bool:
 	if not editing_enabled: return false
@@ -194,7 +221,7 @@ func _new_part(material_id: String, position: Vector2, kind: String, id: int) ->
 	if material.is_empty(): return {}
 	var family: String = str(material.kind) if kind.is_empty() else kind
 	if not material.kinds.has(family): return {}
-	return {"id": id, "material_id": material_id, "kind": family, "position": snapped_position(material_id, position, family), "vertices": Math.create_vertices(family, material.dimensions)}
+	return {"id": id, "material_id": material_id, "kind": family, "position": snapped_position(material_id, position, family), "vertices": Catalog.material_vertices(material_id, family)}
 
 func _candidate_error(candidate: Dictionary, ignore_id: int) -> String:
 	if not _valid_part(candidate): return "땅 위의 건축 공간 안에 재료를 놓아 주세요."
@@ -255,16 +282,21 @@ static func _valid_part(item: Dictionary) -> bool:
 	if not item.position is Vector2 or not item.position.is_finite() or not item.vertices is PackedVector2Array: return false
 	var vertices: PackedVector2Array = item.vertices
 	if not Math.matches_kind(vertices, str(item.kind)): return false
-	var canonical: PackedVector2Array = Math.create_vertices(str(item.kind), material.dimensions)
+	var canonical: PackedVector2Array = Catalog.material_vertices(str(item.material_id), str(item.kind))
 	var center: Vector2 = Vector2.ZERO
+	var canonical_center: Vector2 = Vector2.ZERO
 	for index: int in range(4):
 		center += vertices[index]
+		canonical_center += canonical[index]
 		# Distances preserve catalog dimensions under rotation; scale edits cannot buy oversized parts cheaply.
 		for other: int in range(index + 1, 4):
 			if absf(vertices[index].distance_to(vertices[other]) - canonical[index].distance_to(canonical[other])) > 0.05: return false
-	if center.length() > 0.05: return false
+	# Bounds-centered asymmetric parts have an offset vertex mean that rotates
+	# with their local polygon. Legacy symmetric parts still require zero mean.
+	var rotation: float = (vertices[1] - vertices[0]).angle() - (canonical[1] - canonical[0]).angle()
+	if center.distance_to(canonical_center.rotated(rotation)) > 0.05: return false
 	var bounds: Rect2 = Math.bounds(world_vertices(item))
-	return Rect2(0, 0, BOARD.size.x, GROUND_Y).grow(0.01).encloses(bounds)
+	return BUILD_AREA.grow(0.01).encloses(bounds)
 
 static func _conflict(first: Dictionary, second: Dictionary) -> bool:
 	var a: Dictionary = Catalog.material(str(first.material_id))

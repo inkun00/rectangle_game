@@ -16,6 +16,7 @@ var document: Document:
 			document.changed.connect(_document_changed)
 		queue_redraw()
 var selected_kind: String = "square"
+var selected_trapezoid_variant: String = "symmetric"
 var paint_color: Color = Color("28aaa0")
 var _hover_slot: String = ""
 var _dragging: bool = false
@@ -40,6 +41,13 @@ func select_kind(kind: String) -> void:
 	if not Math.KINDS.has(kind):
 		return
 	selected_kind = kind
+	queue_redraw()
+
+func select_trapezoid_variant(variant: String) -> void:
+	if not Math.TRAPEZOID_VARIANTS.has(variant):
+		return
+	cancel_gesture()
+	selected_trapezoid_variant = variant
 	queue_redraw()
 
 func cancel_gesture() -> void:
@@ -116,7 +124,7 @@ func _press(point: Vector2) -> void:
 		var existing: Dictionary = document.shape_for_slot(slot_id)
 		if existing.is_empty():
 			var slot: Dictionary = document.get_slot(slot_id)
-			if document.fill_slot(slot_id, selected_kind, paint_color):
+			if document.fill_slot(slot_id, selected_kind, paint_color, selected_trapezoid_variant):
 				hint_requested.emit("%s에 %s을 붙였어요!" % [str(slot.label), Math.kind_name(selected_kind)])
 			else:
 				hint_requested.emit("%s에는 %s이 필요해요. 왼쪽에서 골라 주세요." % [str(slot.label), Math.kind_name(str(slot.kind))])
@@ -153,9 +161,9 @@ func _release(point: Vector2) -> void:
 		_creating = false
 		var target_slot: String = _snap_slot(point, selected_kind)
 		if not target_slot.is_empty():
-			document.fill_slot(target_slot, selected_kind, paint_color)
+			document.fill_slot(target_slot, selected_kind, paint_color, selected_trapezoid_variant)
 		else:
-			document.add_shape(selected_kind, point.snapped(Vector2(2, 2)), paint_color)
+			document.add_shape(selected_kind, point.snapped(Vector2(2, 2)), paint_color, selected_trapezoid_variant)
 			hint_requested.emit("꾸미기 도형을 만들었어요. 끌어 옮기거나 회전해 보세요.")
 	queue_redraw()
 
@@ -216,7 +224,7 @@ func _draw() -> void:
 		if document.shape_for_slot(str(slot.id)).is_empty():
 			_draw_slot(slot, scale)
 	if _creating:
-		var draft: PackedVector2Array = Math.create_vertices(selected_kind, _default_dimensions(selected_kind))
+		var draft: PackedVector2Array = Math.create_vertices(selected_kind, _default_dimensions(selected_kind), selected_trapezoid_variant)
 		var points: PackedVector2Array = _screen_polygon(draft, _drag_position)
 		draw_colored_polygon(points, Color(paint_color, 0.55))
 		_draw_outline(points, Color("159b91"), 2.0, true)

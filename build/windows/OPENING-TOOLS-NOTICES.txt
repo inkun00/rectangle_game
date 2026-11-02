@@ -1,0 +1,33 @@
+Quadrilateral World opening — build-tool provenance
+
+The video artwork, animation, melody and synthesized sound effects were created
+for this project. Existing generated game NPC artwork is reused in two shots.
+The bundled Korean font retains its existing separate license notice.
+
+The build workflow follows the public Awesome Claude motion-graphics skill:
+https://awesomeclaude.ai/claude-motion-graphics-skill.md
+https://awesomeclaude.ai/claude-video-render.mjs
+Author site: https://awesomeclaude.ai/claude-motion-graphics
+The linked repository license is CC0 1.0 Universal:
+https://github.com/webfuse-com/awesome-claude/blob/main/LICENSE
+A copy accompanies the installed project skill in
+.agents/skills/motion-graphics/LICENSE. The final renderer adds its own asset,
+determinism, error, encoder and output handling. The site's MIT footer wording
+differs from the actual linked CC0 license; docs/OPENING_REFERENCES.md records it.
+
+Playwright Core 1.64.1, Microsoft Corporation — Apache License 2.0.
+https://github.com/microsoft/playwright/blob/main/LICENSE
+Used as a local build dependency, not bundled in the game.
+
+FFmpeg 7.1, local imageio-ffmpeg build — see the actual FFmpeg build's license
+and configuration. GPL-enabled encoders are used by the local build tool.
+https://ffmpeg.org/legal.html
+No FFmpeg executable is redistributed with the game or video deliverables.
+
+NumPy, Python, imageio-ffmpeg and Pillow are local build/verification tools;
+their code, executables and external samples are not packaged in the game.
+Their licenses apply to those tools, not as a substitute for licensing all
+original project code, artwork or the resulting media.
+
+Claude Opus 5.5 was researched as a method reference. No Claude model, paid
+video-generation API or third-party music recording was used to make this film.

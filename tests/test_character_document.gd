@@ -86,7 +86,45 @@ static func run(t) -> void:
 		t.assert_true(sample.completion().ready, "Snapping restores readiness")
 	t.assert_eq(document.add_shape("triangle", Vector2.ZERO, Color.WHITE), -1, "Unsupported free shape rejected")
 	t.assert_eq(document.add_shape("square", Vector2(INF, 0), Color.WHITE), -1, "Nonfinite position rejected")
+	_test_right_trapezoid_parts(t)
 	_test_canvas_input(t)
+
+static func _test_right_trapezoid_parts(t: Node) -> void:
+	for template: Dictionary in Templates.all_templates():
+		for variant: String in ["right_left", "right_right"]:
+			var document: Document = Document.new()
+			document.set_template(str(template.id))
+			var target_slot: String = ""
+			for slot: Dictionary in template.parts:
+				if str(slot.kind) == "trapezoid":
+					t.assert_true(document.fill_slot(str(slot.id), "trapezoid", Color.CORAL, variant), "Both right trapezoids can fill matching skeleton slots")
+					target_slot = str(slot.id)
+			document.fill_example()
+			t.assert_true(document.completion().ready, "Right trapezoid parts form a playable character for every template")
+			var shape: Dictionary = document.shape_for_slot(target_slot)
+			t.assert_eq(Math.trapezoid_variant(shape.vertices), variant, "Filling the example preserves already authored right trapezoids")
+			document.select_shape(int(shape.id))
+			document.rotate_selected(37.0)
+			document.scale_selected(1.1)
+			t.assert_true(document.attach_selected(target_slot), "Rotated right trapezoid snaps back to its matching skeleton")
+			t.assert_eq(Math.trapezoid_variant(document.get_selected().vertices), variant, "Snapping preserves the two right angles on the chosen side")
+			t.assert_true(document.completion().ready, "Snapped right trapezoid still completes the character")
+			var snapshot: Dictionary = document.serialize()
+			var restored: Document = Document.new()
+			t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(snapshot))), "Characters with right trapezoids survive the existing v1 save format")
+			t.assert_eq(restored.serialize(), snapshot, "Save round trip preserves ordered vertices, positions and colors")
+			document.undo()
+			t.assert_eq(Math.trapezoid_variant(document.get_selected().vertices), variant, "Undo snapping preserves right trapezoid geometry")
+			document.redo()
+			t.assert_eq(document.serialize(), snapshot, "Redo snapping restores the complete character")
+	var free_document: Document = Document.new()
+	var id: int = free_document.add_shape("trapezoid", Vector2(240, 0), Color.TEAL, "right_right")
+	t.assert_gt(id, 0, "Free workshop decorations support right trapezoids")
+	t.assert_eq(Math.trapezoid_variant(free_document.get_selected().vertices), "right_right", "Free creation uses chosen subtype")
+	var before: Dictionary = free_document.serialize()
+	t.assert_eq(free_document.add_shape("trapezoid", Vector2.ZERO, Color.RED, "invalid"), -1, "Invalid subtype cannot add empty character geometry")
+	t.assert_false(free_document.fill_slot("body", "trapezoid", Color.RED, "invalid"), "Invalid subtype cannot fill a skeleton")
+	t.assert_eq(free_document.serialize(), before, "Rejected subtype leaves artwork and selection intact")
 
 static func _test_canvas_input(t) -> void:
 	var canvas: Workshop = Workshop.new()

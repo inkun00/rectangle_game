@@ -4,6 +4,7 @@ extends RefCounted
 ## Prices are an explicitly dated educational snapshot, not a live quotation.
 const PRICE_DATE: String = "2026-10-27"
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
+const Custom = preload("res://scripts/construction/custom_material_catalog.gd")
 const GRID_UNIT: float = 20.0
 const MATERIAL_IDS: Array[String] = [
 	"brick", "wall", "wall_square", "wall_parallelogram", "wall_rhombus",
@@ -11,7 +12,7 @@ const MATERIAL_IDS: Array[String] = [
 	"roof", "roof_parallelogram", "roof_flat_wide", "roof_square",
 	"panel_trapezoid", "panel", "ornament", "tile_square",
 	"wall_square_large", "wall_rhombus_small", "door_short", "window_small", "window_tall", "window_wide", "window_square_large", "window_rhombus_small",
-	"lintel_long", "roof_medium", "roof_wide", "roof_flat", "roof_trapezoid_small", "roof_trapezoid_metal", "roof_parallelogram_long",
+	"lintel_long", "roof_medium", "roof_wide", "roof_flat", "roof_trapezoid_small", "roof_trapezoid_metal", "roof_trapezoid_right_left", "roof_trapezoid_right_right", "roof_parallelogram_long",
 	"panel_long", "panel_parallelogram_small", "panel_parallelogram_metal", "panel_trapezoid_wide", "vent_square", "ornament_large", "tile_rhombus", "panel_rhombus_copper"
 ]
 ## Representative catalog families are balanced; mathematical classification
@@ -26,6 +27,8 @@ const BALANCED_SPECS: Dictionary = {
 	"vent_square": {"base": "panel", "label": "정사각형 금속 통풍 격자", "short": "통풍 격자", "kind": "square", "size": Vector2(60, 60), "role": "decor", "structural": false, "texture": "grille", "description": "정사각형 모양의 외벽 격자 장식이에요. 창문 수에는 넣지 않고 벽에 붙여요."},
 	"roof_trapezoid_small": {"base": "roof", "label": "작은 사다리꼴 기와 지붕", "short": "작은 사다리지붕", "kind": "trapezoid", "size": Vector2(120, 40), "role": "roof", "structural": true, "texture": "clay_roof", "description": "위아래 변이 평행한 작은 지붕이에요. 좁은 창문 위에도 쓸 수 있어요."},
 	"roof_trapezoid_metal": {"base": "roof", "label": "사다리꼴 징크 지붕", "short": "징크 사다리지붕", "kind": "trapezoid", "size": Vector2(240, 80), "role": "roof", "structural": true, "texture": "zinc_roof", "description": "윗변보다 아랫변이 긴 금속 지붕이에요. 아래에 벽이나 보를 받쳐요."},
+	"roof_trapezoid_right_left": {"base": "roof", "label": "왼쪽 직각 사다리꼴 지붕", "short": "왼쪽 직각 지붕", "kind": "trapezoid", "trapezoid_variant": "right_left", "size": Vector2(200, 60), "role": "roof", "structural": true, "texture": "zinc_roof", "description": "왼쪽 위와 아래의 두 각이 직각인 사다리꼴이에요. 위아래 변이 평행해요."},
+	"roof_trapezoid_right_right": {"base": "roof", "label": "오른쪽 직각 사다리꼴 지붕", "short": "오른쪽 직각 지붕", "kind": "trapezoid", "trapezoid_variant": "right_right", "size": Vector2(200, 60), "role": "roof", "structural": true, "texture": "zinc_roof", "description": "오른쪽 위와 아래의 두 각이 직각인 사다리꼴이에요. 위아래 변이 평행해요."},
 	"beam_trapezoid": {"base": "lintel", "label": "사다리꼴 목재 처마 받침보", "short": "사다리 받침보", "kind": "trapezoid", "size": Vector2(160, 40), "role": "beam", "structural": true, "texture": "cedar", "description": "위아래 변이 평행한 받침보예요. 양쪽 벽에 걸쳐 처마를 받쳐요."},
 	"panel_trapezoid": {"base": "panel", "label": "사다리꼴 미장 외장판", "short": "사다리 외장판", "kind": "trapezoid", "size": Vector2(80, 60), "role": "decor", "structural": false, "texture": "plaster", "description": "평행한 두 변을 찾을 수 있는 외장판이에요. 벽에 붙여 무늬를 만들어요."},
 	"panel_trapezoid_wide": {"base": "panel", "label": "넓은 사다리꼴 구리 외장판", "short": "넓은 사다리판", "kind": "trapezoid", "size": Vector2(120, 40), "role": "decor", "structural": false, "texture": "copper", "description": "낮고 넓은 사다리꼴 금속 장식판이에요. 지붕의 하중은 받치지 않아요."},
@@ -59,6 +62,7 @@ static func materials() -> Array[Dictionary]:
 	return result
 
 static func material(id: String) -> Dictionary:
+	if Custom.is_custom_id(id): return Custom.material(id)
 	var balanced: Dictionary = _balanced_material(id)
 	if not balanced.is_empty(): return balanced
 	var variant: Dictionary = _variant(id)
@@ -118,7 +122,8 @@ static func _balanced_material(id: String) -> Dictionary:
 	var spec: Dictionary = BALANCED_SPECS[id]
 	var result: Dictionary = material(str(spec.base))
 	var original_vertices: PackedVector2Array = Math.create_vertices(str(result.kind), result.dimensions)
-	var vertices: PackedVector2Array = Math.create_vertices(str(spec.kind), spec.size)
+	var trapezoid_variant: String = str(spec.get("trapezoid_variant", "symmetric"))
+	var vertices: PackedVector2Array = Math.create_vertices(str(spec.kind), spec.size, trapezoid_variant)
 	var area_ratio: float = absf(Math.signed_area(vertices) / Math.signed_area(original_vertices))
 	var base_label: String = str(result.label)
 	var base_price: int = int(result.price)
@@ -126,6 +131,7 @@ static func _balanced_material(id: String) -> Dictionary:
 	result.label = str(spec.label)
 	result.description = str(spec.description)
 	result.kind = str(spec.kind)
+	if spec.has("trapezoid_variant"): result.trapezoid_variant = trapezoid_variant
 	var kinds: Array[String] = [str(spec.kind)]
 	result.kinds = kinds
 	result.dimensions = Vector2(spec.size)
@@ -144,6 +150,7 @@ static func _balanced_material(id: String) -> Dictionary:
 	return result
 
 static func short_label(id: String) -> String:
+	if Custom.is_custom_id(id): return Custom.short_label(id)
 	if BALANCED_SPECS.has(id): return str(BALANCED_SPECS[id].short)
 	return str(SHORT_LABELS.get(id, material(id).get("label", id)))
 
@@ -199,16 +206,23 @@ static func _variant(id: String) -> Dictionary:
 	return base
 
 ## These dimensions describe game-grid geometry, never metres or retail sizes.
+static func material_vertices(id: String, kind: String = "") -> PackedVector2Array:
+	var item: Dictionary = material(id)
+	if item.is_empty(): return PackedVector2Array()
+	var family: String = str(item.kind) if kind.is_empty() else kind
+	if not item.kinds.has(family): return PackedVector2Array()
+	return Math.create_vertices(family, Vector2(item.dimensions), str(item.get("trapezoid_variant", "symmetric")))
+
 static func dimensions_label(id: String) -> String:
 	var item: Dictionary = material(id)
 	if item.is_empty(): return ""
-	var bounds: Rect2 = Math.bounds(Math.create_vertices(str(item.kind), item.dimensions))
+	var bounds: Rect2 = Math.bounds(material_vertices(id))
 	return "가로 %s칸 · 세로 %s칸" % [format_length(bounds.size.x / GRID_UNIT), format_length(bounds.size.y / GRID_UNIT)]
 
 static func edge_lengths_label(id: String) -> String:
 	var item: Dictionary = material(id)
 	if item.is_empty(): return ""
-	var lengths: PackedFloat32Array = Math.side_lengths(Math.create_vertices(str(item.kind), item.dimensions))
+	var lengths: PackedFloat32Array = Math.side_lengths(material_vertices(id))
 	var labels: Array[String] = []
 	for length: float in lengths:
 		var cells: float = length / GRID_UNIT

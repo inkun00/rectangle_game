@@ -4,6 +4,7 @@ extends RefCounted
 ## Four local vertices are the only geometric state. All properties are derived.
 const KINDS: Array[String] = ["trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
 const LABELS: Dictionary = {"trapezoid": "사다리꼴", "parallelogram": "평행사변형", "rhombus": "마름모", "rectangle": "직사각형", "square": "정사각형"}
+const TRAPEZOID_VARIANTS: Array[String] = ["symmetric", "right_left", "right_right"]
 const TOLERANCE: float = 0.001
 
 static func kind_name(kind: String) -> String:
@@ -50,12 +51,18 @@ static func classifications(vertices: PackedVector2Array) -> Array[String]:
 			result.append(kind)
 	return result
 
-static func create_vertices(kind: String, dimensions: Vector2 = Vector2(92.0, 68.0)) -> PackedVector2Array:
+static func create_vertices(kind: String, dimensions: Vector2 = Vector2(92.0, 68.0), trapezoid_variant: String = "symmetric") -> PackedVector2Array:
 	var half: Vector2 = dimensions.abs() * 0.5
-	if half.x < 2.0 or half.y < 2.0 or not KINDS.has(kind):
+	if not dimensions.is_finite() or half.x < 2.0 or half.y < 2.0 or not KINDS.has(kind):
 		return PackedVector2Array()
 	match kind:
 		"trapezoid":
+			if not TRAPEZOID_VARIANTS.has(trapezoid_variant):
+				return PackedVector2Array()
+			if trapezoid_variant == "right_left":
+				return PackedVector2Array([Vector2(-half.x, -half.y), Vector2(half.x * 0.24, -half.y), Vector2(half.x, half.y), Vector2(-half.x, half.y)])
+			if trapezoid_variant == "right_right":
+				return PackedVector2Array([Vector2(-half.x * 0.24, -half.y), Vector2(half.x, -half.y), Vector2(half.x, half.y), Vector2(-half.x, half.y)])
 			return PackedVector2Array([Vector2(-half.x * 0.62, -half.y), Vector2(half.x * 0.62, -half.y), Vector2(half.x, half.y), Vector2(-half.x, half.y)])
 		"parallelogram":
 			return PackedVector2Array([Vector2(-half.x * 0.55, -half.y), Vector2(half.x, -half.y), Vector2(half.x * 0.55, half.y), Vector2(-half.x, half.y)])
@@ -66,6 +73,18 @@ static func create_vertices(kind: String, dimensions: Vector2 = Vector2(92.0, 68
 			return PackedVector2Array([Vector2(-side, -side), Vector2(side, -side), Vector2(side, side), Vector2(-side, side)])
 		_:
 			return PackedVector2Array([Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(half.x, half.y), Vector2(-half.x, half.y)])
+
+## Creation choices are derived from ordered vertices, never saved as extra geometry.
+## Vertex indices keep their identity through rotation and uniform scaling.
+static func trapezoid_variant(vertices: PackedVector2Array) -> String:
+	if parallel_pair_count(vertices) != 1:
+		return "symmetric"
+	var interior: PackedFloat32Array = angles_degrees(vertices)
+	if absf(interior[0] - 90.0) <= 0.1 and absf(interior[3] - 90.0) <= 0.1:
+		return "right_left"
+	if absf(interior[1] - 90.0) <= 0.1 and absf(interior[2] - 90.0) <= 0.1:
+		return "right_right"
+	return "symmetric"
 
 static func signed_area(vertices: PackedVector2Array) -> float:
 	if vertices.size() != 4:

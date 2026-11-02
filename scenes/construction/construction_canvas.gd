@@ -6,7 +6,9 @@ const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Language = preload("res://scripts/construction/construction_language.gd")
 const Art = preload("res://scripts/construction_art.gd")
 const Simulation = preload("res://scenes/construction/construction_physics.gd")
-const BOARD: Rect2 = Rect2(0, 0, 1000, 600)
+const BOARD: Rect2 = Model.BOARD
+const MAX_ZOOM: float = 6.0
+const BACKDROP_SIZE: Vector2 = Vector2(1000, 560)
 const INK: Color = Color("1b2d30")
 const PAPER: Color = Color("fbfcfa")
 const GRID_COLOR: Color = Color(0.14, 0.30, 0.28, 0.16)
@@ -84,6 +86,16 @@ var _drag_id: int = -1
 var _drag_origin: Vector2 = Vector2.ZERO
 var _press_position: Vector2 = Vector2.ZERO
 var _drag_position: Vector2 = Vector2.ZERO
+var _rotating: bool = false
+var _rotation_id: int = -1
+var _rotation_revision: int = -1
+var _rotation_start: PackedVector2Array = PackedVector2Array()
+var _rotation_preview: PackedVector2Array = PackedVector2Array()
+var _rotation_last_angle: float = 0.0
+var _rotation_radius: float = 1.0
+var _rotation_total: float = 0.0
+var _rotation_degrees: float = 0.0
+var _rotation_error: String = ""
 var _auto_fit: bool = false
 var _fit_pending: bool = false
 var _known_part_ids: Dictionary = {}
@@ -150,7 +162,7 @@ func _process(delta: float) -> void:
 			pop["age"] = age
 			_popups[index] = pop
 			active = true
-	var target_crane_x: float = clampf(cursor_position.x, 110.0, 900.0)
+	var target_crane_x: float = clampf(cursor_position.x, BOARD.position.x + 110.0, BOARD.end.x - 100.0)
 	if absf(_crane_x - target_crane_x) > 0.5:
 		_crane_x = lerpf(_crane_x, target_crane_x, minf(1.0, delta * 14.0))
 		active = true
@@ -243,10 +255,10 @@ func _hint(message: String) -> void:
 	hint_requested.emit(Language.simplify(message))
 
 func artwork_to_screen(point: Vector2) -> Vector2:
-	return (size - BOARD.size * canvas_scale()) * 0.5 + pan + point * canvas_scale()
+	return size * 0.5 + pan + (point - BOARD.get_center()) * canvas_scale()
 
 func screen_to_artwork(point: Vector2) -> Vector2:
-	return (point - (size - BOARD.size * canvas_scale()) * 0.5 - pan) / canvas_scale()
+	return (point - size * 0.5 - pan) / canvas_scale() + BOARD.get_center()
 
 func set_presentation_mode(value: bool) -> void:
 	presentation_mode = value
@@ -283,6 +295,18 @@ func toggle_pan_tool() -> bool:
 func set_pan_tool(enabled: bool) -> void:
 	pan_tool = enabled
 
+func cancel_selection_for_pan() -> void:
+	cancel_gesture()
+	_auto_fit = false
+	if pan_tool:
+		drawing_tool = false
+		if document != null: document.select(-1)
+		_update_cursor()
+		tool_changed.emit()
+	else:
+		pan_tool = true
+	_hint("선택을 취소했어요. 마우스로 끌어 화면을 이동해요. 재료를 고르면 다시 놓을 수 있어요.")
+
 func pan_by(delta_pan: Vector2) -> void:
 	_auto_fit = false
 	pan += delta_pan
@@ -292,6 +316,9 @@ func pan_by(delta_pan: Vector2) -> void:
 
 func cancel_gesture() -> void:
 	_dragging = false
+	_rotating = false
+	_rotation_preview = PackedVector2Array()
+	_rotation_error = ""
 	_pending_place = false
 	_drag_painted = false
 	_panning = false
@@ -302,7 +329,7 @@ func zoom_by(factor: float, screen_anchor: Vector2 = Vector2(-1, -1)) -> void:
 	_auto_fit = false
 	var anchor: Vector2 = size * 0.5 if screen_anchor.x < 0.0 else screen_anchor
 	var before: Vector2 = screen_to_artwork(anchor)
-	zoom = clampf(zoom * factor, 1.0, 3.0)
+	zoom = clampf(zoom * factor, 1.0, MAX_ZOOM)
 	pan += anchor - artwork_to_screen(before)
 	_limit_pan()
 	_update_gizmo()
@@ -386,7 +413,7 @@ func _create_gizmo_button(text: String, icon_name: String, tooltip: String) -> B
 func _update_gizmo() -> void:
 	if not is_instance_valid(_part_gizmo):
 		return
-	if document == null or document.selected_id < 0 or inspection_running or not editing_enabled or pan_tool:
+	if document == null or document.selected_id < 0 or inspection_visible or not editing_enabled or pan_tool or _rotating:
 		_part_gizmo.visible = false
 		return
 	var selected: Dictionary = document.get_selected()
@@ -407,9 +434,9 @@ func _update_gizmo() -> void:
 		return
 	var gizmo_size: Vector2 = _part_gizmo.get_combined_minimum_size()
 	var gx: float = (min_p.x + max_p.x) * 0.5 - gizmo_size.x * 0.5
-	var gy: float = min_p.y - gizmo_size.y - 8.0
+	var gy: float = min_p.y - gizmo_size.y - 40.0
 	if gy < 8.0:
-		gy = max_p.y + 8.0
+		gy = max_p.y + 40.0
 	_part_gizmo.position = Vector2(
 		clampf(gx, 8.0, maxf(8.0, size.x - gizmo_size.x - 8.0)),
 		clampf(gy, 8.0, maxf(8.0, size.y - gizmo_size.y - 8.0))
@@ -443,7 +470,7 @@ func _apply_fit_parts() -> void:
 	var framed: Rect2 = bounds.grow(24.0)
 	var base_scale: float = maxf(0.01, minf((size.x - 20.0) / BOARD.size.x, (size.y - 20.0) / BOARD.size.y))
 	var desired_scale: float = minf((size.x - 32.0) / maxf(framed.size.x, 1.0), (size.y - 32.0) / maxf(framed.size.y, 1.0))
-	zoom = clampf(desired_scale / base_scale, 1.0, 3.0)
+	zoom = clampf(desired_scale / base_scale, 1.0, MAX_ZOOM)
 	pan = (BOARD.get_center() - framed.get_center()) * canvas_scale()
 	_limit_pan()
 	queue_redraw()
@@ -489,7 +516,7 @@ func focus_repair(issue: Dictionary) -> bool:
 	var bounds: Rect2 = QuadrilateralMath.bounds(document.world_vertices(part)).grow(28.0)
 	var base_scale: float = maxf(0.01, minf((size.x - 20.0) / BOARD.size.x, (size.y - 20.0) / BOARD.size.y))
 	var desired_scale: float = minf(maxf(size.x - 64.0, 1.0) / bounds.size.x, maxf(size.y - 88.0, 1.0) / bounds.size.y)
-	zoom = clampf(desired_scale / base_scale, 1.0, 3.0)
+	zoom = clampf(desired_scale / base_scale, 1.0, MAX_ZOOM)
 	pan = (BOARD.get_center() - bounds.get_center()) * canvas_scale()
 	_limit_pan()
 	cursor_position = Vector2(part.position)
@@ -536,6 +563,8 @@ func _can_edit() -> bool:
 
 func _document_changed() -> void:
 	_sync_known_parts(true)
+	if _rotating and (document.selected_id != _rotation_id or document.revision != _rotation_revision):
+		cancel_gesture()
 	if _dragging and document.selected_id != _drag_id:
 		_dragging = false
 	if inspection_visible and _simulation != null and document.revision != _simulation.revision:
@@ -576,6 +605,7 @@ func _gui_input(event: InputEvent) -> void:
 			return
 		if event.button_index in [MOUSE_BUTTON_MIDDLE, MOUSE_BUTTON_RIGHT]:
 			if event.pressed:
+				if event.button_index == MOUSE_BUTTON_RIGHT: cancel_selection_for_pan()
 				_auto_fit = false
 			_panning = event.pressed
 			_update_cursor()
@@ -594,12 +624,12 @@ func _gui_input(event: InputEvent) -> void:
 			return
 		var point: Vector2 = screen_to_artwork(event.position)
 		if event.pressed:
-			if not BOARD.has_point(point):
+			if not BOARD.has_point(point) and not _rotation_hit(point):
 				return
 			grab_focus()
 			_press(point)
 		else:
-			_release(point)
+			_release(point, event.shift_pressed)
 		accept_event()
 	elif event is InputEventMouseMotion:
 		if _panning:
@@ -612,7 +642,9 @@ func _gui_input(event: InputEvent) -> void:
 		var point: Vector2 = screen_to_artwork(event.position)
 		cursor_position = point
 		set_process(true)
-		if _pending_place and drawing_tool and material_id == "brick" and _can_edit() and BOARD.has_point(point):
+		if _rotating:
+			_update_rotation(point, event.shift_pressed)
+		elif _pending_place and drawing_tool and material_id == "brick" and _can_edit() and BOARD.has_point(point):
 			var snapped: Vector2 = document.snapped_position(material_id, point, selected_kind)
 			if snapped != _last_paint_snapped and point.distance_to(_press_position) >= 18.0:
 				if not _drag_painted:
@@ -632,7 +664,10 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo and not event.ctrl_pressed and not event.meta_pressed:
 		if not _can_edit():
 			return
-		if event.keycode in [KEY_ENTER, KEY_KP_ENTER] and drawing_tool and not pan_tool:
+		if event.keycode == KEY_ESCAPE:
+			cancel_selection_for_pan()
+			accept_event()
+		elif event.keycode in [KEY_ENTER, KEY_KP_ENTER] and drawing_tool and not pan_tool:
 			add_at_cursor()
 			accept_event()
 		elif event.keycode == KEY_R and not document.get_selected().is_empty():
@@ -655,7 +690,7 @@ func _gui_input(event: InputEvent) -> void:
 			if pan_tool:
 				pan_by(direction * (step * 4.0))
 			elif drawing_tool:
-				cursor_position = (cursor_position + direction * step).clamp(BOARD.position, Vector2(1000, 560))
+				cursor_position = (cursor_position + direction * step).clamp(Model.BUILD_AREA.position, Model.BUILD_AREA.end)
 				set_process(true)
 			elif not document.get_selected().is_empty():
 				if not document.move_selected(Vector2(document.get_selected().position) + direction * step):
@@ -669,12 +704,21 @@ func _press(point: Vector2) -> void:
 	cancel_gesture()
 	_press_position = point
 	cursor_position = point
-	if drawing_tool:
+	if not drawing_tool and _rotation_hit(point):
+		_begin_rotation(point)
+		return
+	var id: int = _part_at(point)
+	# A blocked placement on existing material selects it directly. Valid overlay
+	# placement (for example a decorative plate on a wall) remains available.
+	var select_existing: bool = id >= 0 and (not drawing_tool or not document.placement_error(material_id, point, selected_kind).is_empty())
+	if drawing_tool and not select_existing:
 		_pending_place = true
 		_drag_painted = false
 		_last_paint_snapped = document.snapped_position(material_id, point, selected_kind)
 	else:
-		var id: int = _part_at(point)
+		if drawing_tool:
+			drawing_tool = false
+			tool_changed.emit()
 		document.select(id)
 		if id >= 0:
 			_dragging = true
@@ -684,8 +728,18 @@ func _press(point: Vector2) -> void:
 	_update_gizmo()
 	queue_redraw()
 
-func _release(point: Vector2) -> void:
-	if _pending_place:
+func _release(point: Vector2, shift_pressed: bool = false) -> void:
+	if _rotating:
+		_update_rotation(point, shift_pressed)
+		if _rotating:
+			var degrees: float = _rotation_degrees
+			_rotating = false
+			if not document.rotate_selected(degrees):
+				_hint(document.last_error)
+			elif absf(wrapf(degrees, -180.0, 180.0)) >= 0.001:
+				_hint("자재를 %s° 회전했어요. Ctrl+Z로 되돌릴 수 있어요." % _selected_angle_label())
+				if SoundManager.instance != null: SoundManager.instance.play_rotate_tick()
+	elif _pending_place:
 		var was_painted: bool = _drag_painted
 		_pending_place = false
 		_drag_painted = false
@@ -694,12 +748,83 @@ func _release(point: Vector2) -> void:
 			add_at_cursor()
 	elif _dragging:
 		_dragging = false
-		if not document.move_selected(_drag_origin + point - _press_position):
+		if point.distance_to(_press_position) < 0.01:
+			pass
+		elif not document.move_selected(_drag_origin + point - _press_position):
 			_hint(document.last_error)
 		elif SoundManager.instance != null:
 			SoundManager.instance.play_snap()
 	_update_gizmo()
 	cancel_gesture()
+
+func _rotation_hit(point: Vector2) -> bool:
+	if not _can_edit() or pan_tool or drawing_tool: return false
+	var selected: Dictionary = document.get_selected()
+	if selected.is_empty(): return false
+	var screen: Vector2 = artwork_to_screen(point)
+	if screen.distance_to(_rotation_handle_screen(selected)) <= 11.0: return true
+	var points: PackedVector2Array = _screen_points(selected.vertices, Transform2D(0.0, selected.position))
+	# Leave a usable center for moving even when a small brick is zoomed out.
+	var center: Vector2 = artwork_to_screen(selected.position)
+	var inner_radius: float = INF
+	for index: int in range(4):
+		inner_radius = minf(inner_radius, center.distance_to(Geometry2D.get_closest_point_to_segment(center, points[index], points[(index + 1) % 4])))
+	if screen.distance_to(center) < minf(7.0, inner_radius * 0.45): return false
+	for index: int in range(4):
+		var closest: Vector2 = Geometry2D.get_closest_point_to_segment(screen, points[index], points[(index + 1) % 4])
+		if closest.distance_to(screen) <= 7.0: return true
+	return false
+
+func _rotation_handle_screen(part: Dictionary) -> Vector2:
+	var points: PackedVector2Array = _screen_points(part.vertices, Transform2D(0.0, part.position))
+	var middle: Vector2 = (points[0] + points[1]) * 0.5
+	var edge: Vector2 = points[1] - points[0]
+	var outward: Vector2 = Vector2(edge.y, -edge.x).normalized()
+	return middle + outward * 24.0
+
+func _begin_rotation(point: Vector2) -> void:
+	var selected: Dictionary = document.get_selected()
+	if selected.is_empty(): return
+	_auto_fit = false
+	_rotating = true
+	_rotation_id = document.selected_id
+	_rotation_revision = document.revision
+	_rotation_start = selected.vertices.duplicate()
+	_rotation_preview = _rotation_start.duplicate()
+	_rotation_last_angle = (point - Vector2(selected.position)).angle()
+	_rotation_radius = point.distance_to(Vector2(selected.position))
+	_rotation_total = 0.0
+	_rotation_degrees = 0.0
+	_rotation_error = ""
+	_place_anims.erase(_rotation_id)
+	_hint("가장자리를 끌어 회전해요. Shift를 누르면 15°씩 맞춰요. 우클릭·Esc로 취소해요.")
+	_update_cursor()
+	_update_gizmo()
+	queue_redraw()
+
+func _update_rotation(point: Vector2, shift_pressed: bool) -> void:
+	if not _can_edit() or document.selected_id != _rotation_id or document.revision != _rotation_revision:
+		cancel_gesture()
+		return
+	var selected: Dictionary = document.get_selected()
+	var offset: Vector2 = point - Vector2(selected.position)
+	if offset.length() < maxf(0.01, _rotation_radius * 0.1): return
+	var angle: float = offset.angle()
+	_rotation_total += wrapf(angle - _rotation_last_angle, -PI, PI)
+	_rotation_last_angle = angle
+	_rotation_degrees = rad_to_deg(_rotation_total)
+	if shift_pressed:
+		var start_angle: float = rad_to_deg((_rotation_start[1] - _rotation_start[0]).angle())
+		_rotation_degrees = snappedf(start_angle + _rotation_degrees, 15.0) - start_angle
+	_rotation_preview = QuadrilateralMath.rotate_vertices(_rotation_start, _rotation_degrees)
+	_rotation_error = document.rotation_error(_rotation_degrees)
+	queue_redraw()
+
+func _selected_angle_label() -> String:
+	var vertices: PackedVector2Array = _rotation_preview if _rotating else document.get_selected().vertices
+	var degrees: float = fposmod(rad_to_deg((vertices[1] - vertices[0]).angle()), 360.0)
+	if degrees >= 359.95: degrees = 0.0
+	return QuadrilateralMath.measurement_label(degrees)
 
 func _part_at(point: Vector2) -> int:
 	for index: int in range(document.parts.size() - 1, -1, -1):
@@ -709,17 +834,17 @@ func _part_at(point: Vector2) -> int:
 	return -1
 
 func _draw() -> void:
-	var board: Rect2 = Rect2(artwork_to_screen(Vector2.ZERO), BOARD.size * canvas_scale())
+	var board: Rect2 = Rect2(artwork_to_screen(BOARD.position), BOARD.size * canvas_scale())
 	_draw_work_surface(board)
 	if show_grid and not presentation_mode:
-		for x: int in range(0, 1001, 20):
-			var first: Vector2 = artwork_to_screen(Vector2(x, 0))
+		for x: int in range(int(BOARD.position.x), int(BOARD.end.x) + 1, 20):
+			var first: Vector2 = artwork_to_screen(Vector2(x, Model.BUILD_AREA.position.y))
 			var last: Vector2 = artwork_to_screen(Vector2(x, Model.GROUND_Y))
 			var pixel_x: float = floorf(first.x) + 0.5
 			draw_line(Vector2(pixel_x, first.y), Vector2(pixel_x, last.y), MAJOR_GRID_COLOR if x % 100 == 0 else GRID_COLOR, 1.0)
-		for y: int in range(0, 561, 20):
-			var first: Vector2 = artwork_to_screen(Vector2(0, y))
-			var last: Vector2 = artwork_to_screen(Vector2(1000, y))
+		for y: int in range(int(Model.BUILD_AREA.position.y), int(Model.GROUND_Y) + 1, 20):
+			var first: Vector2 = artwork_to_screen(Vector2(BOARD.position.x, y))
+			var last: Vector2 = artwork_to_screen(Vector2(BOARD.end.x, y))
 			var pixel_y: float = floorf(first.y) + 0.5
 			draw_line(Vector2(first.x, pixel_y), Vector2(last.x, pixel_y), MAJOR_GRID_COLOR if y % 100 == 0 else GRID_COLOR, 1.0)
 	var show_preview: bool = document != null and not inspection_visible and drawing_tool and not pan_tool and _can_edit() and (_hovered or has_focus()) and BOARD.has_point(cursor_position)
@@ -727,11 +852,10 @@ func _draw() -> void:
 	var preview_part: Dictionary = {}
 	var preview_invalid: bool = false
 	if show_preview:
-		var material: Dictionary = Catalog.material(material_id)
 		preview_pos = document.snapped_position(material_id, cursor_position, selected_kind)
 		var reason: String = document.placement_error(material_id, preview_pos, selected_kind)
 		preview_invalid = not reason.is_empty()
-		preview_part = {"id": -1, "material_id": material_id, "kind": selected_kind, "position": preview_pos, "vertices": QuadrilateralMath.create_vertices(selected_kind, Vector2(material.dimensions))}
+		preview_part = {"id": -1, "material_id": material_id, "kind": selected_kind, "position": preview_pos, "vertices": Catalog.material_vertices(material_id, selected_kind)}
 	if not presentation_mode and not inspection_visible:
 		_draw_tower_crane(show_preview, preview_part)
 		if document != null and not document.parts.is_empty():
@@ -746,14 +870,20 @@ func _draw() -> void:
 	else:
 		for part: Dictionary in document.parts:
 			var part_id: int = int(part.id)
+			var rendered: Dictionary = part
+			var rotating_part: bool = _rotating and part_id == _rotation_id
+			if rotating_part:
+				rendered = part.duplicate(true)
+				rendered.vertices = _rotation_preview
 			var position: Vector2 = _drag_position if _dragging and part_id == _drag_id else Vector2(part.position)
 			if _place_anims.has(part_id):
 				var progress: float = clampf(float(_place_anims[part_id]) / 0.20, 0.0, 1.0)
 				var bounce: float = (1.0 - progress) * (1.0 - progress) * -14.0 + sin(progress * PI) * 3.0
 				position.y += bounce
-			_draw_part(part, Transform2D(0.0, position), editing_enabled and not presentation_mode and part_id == document.selected_id)
+			_draw_part(rendered, Transform2D(0.0, position), editing_enabled and not presentation_mode and part_id == document.selected_id, Color.WHITE, rotating_part and not _rotation_error.is_empty())
 		if editing_enabled and not presentation_mode:
 			_draw_opening_support_hints()
+			_draw_rotation_controls()
 		if _has_fresh_report():
 			_draw_repair_outlines()
 		if show_preview:
@@ -780,6 +910,31 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2(14, 14), Vector2((size.x - 28) * progress, 9)), Color("f0aa3c"))
 		draw_rect(Rect2(Vector2(14, 14), Vector2(size.x - 28, 9)), Color("fff4d4"), false, 1.0)
 
+func _draw_rotation_controls() -> void:
+	if not _can_edit() or pan_tool or drawing_tool or _dragging: return
+	var selected: Dictionary = document.get_selected()
+	if selected.is_empty(): return
+	if _rotating: selected.vertices = _rotation_preview
+	var points: PackedVector2Array = _screen_points(selected.vertices, Transform2D(0.0, selected.position))
+	var middle: Vector2 = (points[0] + points[1]) * 0.5
+	var handle: Vector2 = _rotation_handle_screen(selected)
+	var color: Color = REPAIR_COLOR if _rotating and not _rotation_error.is_empty() else ACCENT
+	draw_line(middle, handle, color, 2.0, true)
+	draw_circle(handle, 10.0, PAPER)
+	draw_arc(handle, 7.0, -PI * 0.7, PI * 0.8, 24, color, 2.0, true)
+	var tip: Vector2 = handle + Vector2.from_angle(PI * 0.8) * 7.0
+	draw_line(tip, tip + Vector2(0, -5), color, 2.0, true)
+	draw_line(tip, tip + Vector2(5, 0), color, 2.0, true)
+	if _rotating:
+		var center: Vector2 = artwork_to_screen(selected.position)
+		draw_circle(center, 3.0, color)
+		var text: String = "%s° · %s" % [_selected_angle_label(), "겹침·범위 확인" if not _rotation_error.is_empty() else "Shift: 15°"]
+		var label_size: Vector2 = QuadTheme.FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15) + Vector2(16, 12)
+		var label_pos: Vector2 = (handle + Vector2(16, -label_size.y * 0.5)).clamp(Vector2(8, 8), (size - label_size - Vector2(8, 8)).max(Vector2(8, 8)))
+		draw_style_box(Art.pill_style(PAPER, 6, 1), Rect2(label_pos, label_size))
+		draw_rect(Rect2(label_pos, label_size), Color("efa940") if _rotation_error.is_empty() else Color("ff9c85"), false, 1.0)
+		draw_string(QuadTheme.FONT, label_pos + Vector2(8, 21), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color("fff8e6") if _rotation_error.is_empty() else Color("ffb6a1"))
+
 func _draw_work_surface(board: Rect2) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color("cde3df"))
 	var sky_bands: Array[Color] = [
@@ -803,7 +958,11 @@ func _draw_work_surface(board: Rect2) -> void:
 			var by0: float = sky_rect.position.y + sky_rect.size.y * float(band_i) / float(sky_bands.size())
 			var by1: float = sky_rect.position.y + sky_rect.size.y * float(band_i + 1) / float(sky_bands.size())
 			draw_rect(Rect2(Vector2(sky_rect.position.x, by0), Vector2(sky_rect.size.x, by1 - by0 + 1.0)), sky_bands[band_i])
+		var backdrop_scale: Vector2 = Model.BUILD_AREA.size / BACKDROP_SIZE
+		var backdrop_anchor: Vector2 = artwork_to_screen(Vector2(BOARD.position.x, Model.GROUND_Y))
+		draw_set_transform(backdrop_anchor * (Vector2.ONE - backdrop_scale), 0.0, backdrop_scale)
 		_draw_2d_elevation_backdrop(board, ground_screen_y)
+		draw_set_transform(Vector2.ZERO)
 		if not presentation_mode:
 			draw_rect(sky_rect, Color(0.95, 0.98, 0.99, 0.14))
 	draw_rect(board, Color("294e46"), false, 2.0)
@@ -926,40 +1085,40 @@ func _draw_tower_crane(show_hoist: bool, preview_part: Dictionary) -> void:
 	var scale_f: float = canvas_scale()
 	var mast_left: float = artwork_to_screen(Vector2(36, 0)).x
 	var mast_right: float = artwork_to_screen(Vector2(62, 0)).x
-	var jib_top: float = artwork_to_screen(Vector2(0, 22)).y
-	var jib_bottom: float = artwork_to_screen(Vector2(0, 40)).y
+	var jib_top: float = artwork_to_screen(Vector2(0, BOARD.position.y + 22.0)).y
+	var jib_bottom: float = artwork_to_screen(Vector2(0, BOARD.position.y + 40.0)).y
 	var ground_y: float = artwork_to_screen(Vector2(0, Model.GROUND_Y)).y
 	var mast_col: Color = Color(CRANE_STEEL.r, CRANE_STEEL.g, CRANE_STEEL.b, 0.86)
 	var brace_col: Color = Color(CRANE_DARK.r, CRANE_DARK.g, CRANE_DARK.b, 0.72)
 	draw_line(Vector2(mast_left, jib_top), Vector2(mast_left, ground_y), mast_col, maxf(2.4, 3.2 * scale_f))
 	draw_line(Vector2(mast_right, jib_top), Vector2(mast_right, ground_y), mast_col, maxf(2.4, 3.2 * scale_f))
-	for y_art: int in range(40, int(Model.GROUND_Y), 36):
+	for y_art: int in range(int(BOARD.position.y + 40.0), int(Model.GROUND_Y), 36):
 		var y0: float = artwork_to_screen(Vector2(0, y_art)).y
 		var y1: float = artwork_to_screen(Vector2(0, minf(y_art + 36, Model.GROUND_Y))).y
 		draw_line(Vector2(mast_left, y0), Vector2(mast_right, y0), brace_col, 1.6)
 		draw_line(Vector2(mast_left, y0), Vector2(mast_right, y1), brace_col, 1.4)
 	var jib_start_x: float = artwork_to_screen(Vector2(10, 0)).x
-	var jib_end_x: float = artwork_to_screen(Vector2(965, 0)).x
+	var jib_end_x: float = artwork_to_screen(Vector2(BOARD.end.x - 35.0, 0)).x
 	draw_line(Vector2(jib_start_x, jib_top), Vector2(jib_end_x, jib_top), mast_col, maxf(2.4, 3.0 * scale_f))
 	draw_line(Vector2(jib_start_x, jib_bottom), Vector2(jib_end_x, jib_bottom), mast_col, maxf(2.6, 3.4 * scale_f))
-	for x_art: int in range(20, 950, 40):
+	for x_art: int in range(20, int(BOARD.end.x - 50.0), 40):
 		var x0: float = artwork_to_screen(Vector2(x_art, 0)).x
 		var x1: float = artwork_to_screen(Vector2(x_art + 20, 0)).x
 		var x2: float = artwork_to_screen(Vector2(x_art + 40, 0)).x
 		draw_line(Vector2(x0, jib_bottom), Vector2(x1, jib_top), brace_col, 1.4)
 		draw_line(Vector2(x1, jib_top), Vector2(x2, jib_bottom), brace_col, 1.4)
-	var counter_rect: Rect2 = Rect2(artwork_to_screen(Vector2(8, 26)), Vector2(24, 18) * scale_f)
+	var counter_rect: Rect2 = Rect2(artwork_to_screen(Vector2(8, BOARD.position.y + 26.0)), Vector2(24, 18) * scale_f)
 	draw_rect(counter_rect, Color("485c5a"))
 	draw_rect(counter_rect, Color("263634"), false, 1.4)
-	var cab_rect: Rect2 = Rect2(artwork_to_screen(Vector2(54, 42)), Vector2(30, 24) * scale_f)
+	var cab_rect: Rect2 = Rect2(artwork_to_screen(Vector2(54, BOARD.position.y + 42.0)), Vector2(30, 24) * scale_f)
 	draw_rect(cab_rect, Color("f4b644"))
 	draw_rect(cab_rect, CRANE_DARK, false, 1.6)
 	draw_rect(Rect2(cab_rect.position + Vector2(8, 4) * scale_f, Vector2(18, 11) * scale_f), Color("d5f4fc"))
 	var trolley_x: float = _crane_x
 	if show_hoist and not preview_part.is_empty():
 		var preview_bounds: Rect2 = QuadrilateralMath.bounds(document.world_vertices(preview_part))
-		trolley_x = clampf(preview_bounds.get_center().x, 90.0, 930.0)
-	var trolley_screen: Vector2 = artwork_to_screen(Vector2(trolley_x, 40))
+		trolley_x = clampf(preview_bounds.get_center().x, 90.0, BOARD.end.x - 70.0)
+	var trolley_screen: Vector2 = artwork_to_screen(Vector2(trolley_x, BOARD.position.y + 40.0))
 	var trolley_size: Vector2 = Vector2(30, 11) * scale_f
 	var trolley_rect: Rect2 = Rect2(trolley_screen - Vector2(trolley_size.x * 0.5, trolley_size.y * 0.5), trolley_size)
 	draw_rect(trolley_rect, Color("2e4440"))
@@ -978,14 +1137,14 @@ func _draw_scaffolding() -> void:
 	var bounds: Rect2 = _document_bounds()
 	var scale_f: float = canvas_scale()
 	var ground_y: float = Model.GROUND_Y
-	var top_y: float = clampf(bounds.position.y - 20.0, 80.0, ground_y - 60.0)
+	var top_y: float = clampf(bounds.position.y - 20.0, BOARD.position.y + 80.0, ground_y - 60.0)
 	var pipe_col: Color = Color(SCAFFOLD_PIPE.r, SCAFFOLD_PIPE.g, SCAFFOLD_PIPE.b, 0.72)
 	var brace_col: Color = Color(SCAFFOLD_PIPE.r, SCAFFOLD_PIPE.g, SCAFFOLD_PIPE.b, 0.48)
 	var plank_col: Color = Color(SCAFFOLD_PLANK.r, SCAFFOLD_PLANK.g, SCAFFOLD_PLANK.b, 0.85)
 	for side: int in [-1, 1]:
 		var inner_x: float = (bounds.position.x - 14.0) if side < 0 else (bounds.end.x + 14.0)
 		var outer_x: float = inner_x + float(side) * 28.0
-		if minf(inner_x, outer_x) < 68.0 or maxf(inner_x, outer_x) > 975.0:
+		if minf(inner_x, outer_x) < BOARD.position.x + 68.0 or maxf(inner_x, outer_x) > BOARD.end.x - 25.0:
 			continue
 		var s_inner_top: Vector2 = artwork_to_screen(Vector2(inner_x, top_y))
 		var s_inner_bot: Vector2 = artwork_to_screen(Vector2(inner_x, ground_y))
@@ -1014,22 +1173,22 @@ func _draw_scaffolding() -> void:
 		draw_colored_polygon(flag_pts, Color("f07d26"))
 
 func _draw_foundation() -> void:
-	var start: Vector2 = artwork_to_screen(Vector2(0, Model.GROUND_Y))
+	var start: Vector2 = artwork_to_screen(Vector2(BOARD.position.x, Model.GROUND_Y))
 	var width: float = BOARD.size.x * canvas_scale()
-	var depth: float = 40.0 * canvas_scale()
+	var depth: float = (BOARD.end.y - Model.GROUND_Y) * canvas_scale()
 	var scale_f: float = canvas_scale()
 	draw_rect(Rect2(start, Vector2(width, depth)), Color("c5b49e"))
 	var surface: Texture2D = Art.material_icon("wall")
 	if surface != null:
-		for offset: int in range(0, 1000, 80):
+		for offset: int in range(0, int(BOARD.size.x), 80):
 			var tile_start: Vector2 = start + Vector2(float(offset) * scale_f, 0)
-			var tile_width: float = minf(80.0, 1000.0 - float(offset)) * scale_f
+			var tile_width: float = minf(80.0, BOARD.size.x - float(offset)) * scale_f
 			draw_texture_rect(surface, Rect2(tile_start, Vector2(tile_width, depth)), false, Color("d4c7b4"))
 	var curb_height: float = clampf(8.0 * scale_f, 5.0, 11.0)
 	draw_rect(Rect2(start, Vector2(width, curb_height)), Color("5c7368"))
-	for joint_x: int in range(0, 1000, 40):
+	for joint_x: int in range(0, int(BOARD.size.x), 40):
 		var sx: float = start.x + float(joint_x) * scale_f
-		var stripe_w: float = minf(20.0, 1000.0 - float(joint_x)) * scale_f
+		var stripe_w: float = minf(20.0, BOARD.size.x - float(joint_x)) * scale_f
 		if not presentation_mode:
 			draw_rect(Rect2(Vector2(sx, start.y), Vector2(stripe_w, minf(3.0, curb_height * 0.45))), Color(0.92, 0.72, 0.25, 0.55))
 		draw_line(Vector2(sx, start.y), Vector2(sx, start.y + curb_height), Color(0.20, 0.30, 0.26, 0.55), 1.0)
@@ -1097,22 +1256,23 @@ func _document_bounds() -> Rect2:
 func _draw_rulers() -> void:
 	if not show_grid:
 		return
-	var board_top: float = clampf(artwork_to_screen(Vector2.ZERO).y, 4.0, size.y - 36.0)
-	var board_left: float = clampf(artwork_to_screen(Vector2.ZERO).x, 4.0, size.x - 36.0)
-	for x: int in range(100, 1000, 100):
+	var board_top: float = clampf(artwork_to_screen(BOARD.position).y, 4.0, size.y - 36.0)
+	var board_left: float = clampf(artwork_to_screen(BOARD.position).x, 4.0, size.x - 36.0)
+	for x: int in range(int(BOARD.position.x + 100.0), int(BOARD.end.x), 100):
 		var screen_x: float = floorf(artwork_to_screen(Vector2(x, 0)).x) + 0.5
 		if screen_x < 34.0 or screen_x > size.x - 24.0:
 			continue
 		var pill: Rect2 = Rect2(Vector2(screen_x - 13.0, board_top + 4.0), Vector2(26.0, 16.0))
 		draw_rect(pill, Color(0.12, 0.24, 0.25, 0.74))
 		draw_string(QuadTheme.FONT, Vector2(screen_x - 11.0, board_top + 16.0), str(int(float(x) / 20.0)), HORIZONTAL_ALIGNMENT_CENTER, 22.0, 10, Color("f6f1df"))
-	for y: int in range(100, 501, 100):
+	for height: int in range(100, int(Model.BUILD_AREA.size.y) + 1, 100):
+		var y: float = Model.GROUND_Y - float(height)
 		var screen_y: float = floorf(artwork_to_screen(Vector2(0, y)).y) + 0.5
 		if screen_y < 32.0 or screen_y > size.y - 38.0:
 			continue
 		var pill: Rect2 = Rect2(Vector2(board_left + 4.0, screen_y - 8.0), Vector2(24.0, 16.0))
 		draw_rect(pill, Color(0.12, 0.24, 0.25, 0.74))
-		draw_string(QuadTheme.FONT, Vector2(board_left + 5.0, screen_y + 4.0), str(int(float(y) / 20.0)), HORIZONTAL_ALIGNMENT_CENTER, 22.0, 10, Color("f6f1df"))
+		draw_string(QuadTheme.FONT, Vector2(board_left + 5.0, screen_y + 4.0), str(int(float(height) / 20.0)), HORIZONTAL_ALIGNMENT_CENTER, 22.0, 10, Color("f6f1df"))
 
 func _draw_dimensions() -> void:
 	if document.parts.is_empty() or inspection_visible: return
@@ -1196,6 +1356,7 @@ func _draw_part(part: Dictionary, pose: Transform2D, selected: bool, tint: Color
 			_draw_wall_texture(vertices, pose, material_texture, paint)
 		else:
 			draw_polygon(points, PackedColorArray([paint]), Art.texture_uvs(material_texture), Art.texture_source(material_texture))
+		Art.draw_material_pattern(self, material, points, paint)
 	if points.size() == 4 and tint.a > 0.85:
 		draw_line(points[0], points[1], Color(1.0, 1.0, 0.94, 0.42), maxf(1.4, 2.0 * scale_f), true)
 		if role == "roof":
@@ -1243,6 +1404,8 @@ func _draw_outline(points: PackedVector2Array, color: Color, width: float) -> vo
 func _update_cursor() -> void:
 	if _panning or pan_tool:
 		mouse_default_cursor_shape = Control.CURSOR_DRAG
+	elif _rotating or (not drawing_tool and _rotation_hit(cursor_position)):
+		mouse_default_cursor_shape = Control.CURSOR_CROSS
 	elif drawing_tool:
 		mouse_default_cursor_shape = Control.CURSOR_CROSS
 	else:

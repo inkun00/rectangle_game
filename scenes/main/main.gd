@@ -46,6 +46,7 @@ var _workshop_workspace: HBoxContainer
 var _workshop_compact_selectors: HFlowContainer
 var _workshop_template_picker: OptionButton
 var _workshop_shape_picker: OptionButton
+var _workshop_trapezoid_picker: OptionButton
 var _workshop_steps: Label
 var _workshop_tagline: Label
 var _workshop_bottom_note: Label
@@ -91,6 +92,9 @@ var _restoring: bool = false
 var _exporting: bool = false
 var _save_clock: float = 0.0
 var _tutorial: TutorialDirector
+var _opening_screen: OpeningIntro
+var _opening_preferences: OpeningPreferences = OpeningPreferences.new()
+var _space_screen: SpaceHangar
 
 func _ready() -> void:
 	if not testing and not learning_progress.load_file():
@@ -115,6 +119,7 @@ func _ready() -> void:
 	_build_home()
 	_build_drawing()
 	_build_construction()
+	_build_space()
 	_build_learning()
 	_build_world_hud()
 	_build_toast()
@@ -145,6 +150,10 @@ func _ready() -> void:
 		_show_drawing()
 	elif "--quad-preview-construction" in OS.get_cmdline_user_args():
 		_show_construction()
+	else:
+		if not testing: _opening_preferences.load_file()
+		if _opening_preferences.should_offer(testing, OS.get_cmdline_user_args()):
+			_show_opening()
 
 func _build_home() -> void:
 	_home_screen = HomePage.new()
@@ -154,6 +163,8 @@ func _build_home() -> void:
 	_home_screen.notebook_requested.connect(_show_notebook)
 	_home_screen.learning_requested.connect(_show_learning)
 	_home_screen.tutorials_requested.connect(_show_tutorials)
+	_home_screen.opening_requested.connect(_show_opening)
+	_home_screen.space_requested.connect(_show_space)
 	_ui.add_child(_home_screen)
 	_home_screen.set_learning_progress(learning_progress.completed.size())
 
@@ -197,7 +208,55 @@ func _build_construction() -> void:
 	_construction_screen.hide()
 	_ui.add_child(_construction_screen)
 
+func _build_space() -> void:
+	_space_screen = SpaceHangar.new()
+	_space_screen.state = _construction_screen.state
+	_space_screen.home_requested.connect(_show_home)
+	_space_screen.drawing_requested.connect(_show_drawing)
+	_space_screen.construction_requested.connect(_show_construction)
+	_space_screen.purchase_requested.connect(_purchase_ship_part)
+	_space_screen.launch_requested.connect(_launch_ship)
+	_space_screen.hide()
+	_ui.add_child(_space_screen)
+	_drawing_screen.configure_economy(_construction_screen.state)
+	_drawing_screen.art_sale_requested.connect(_sell_art)
+	_construction_screen.state.changed.connect(_economy_changed)
+	_economy_changed()
+
+func _economy_changed() -> void:
+	if is_instance_valid(_home_screen):
+		_home_screen.set_space_progress(_construction_screen.state)
+	if is_instance_valid(_space_screen): _space_screen.refresh()
+
+func _sell_art(data: Dictionary) -> void:
+	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.tutorial_blocked: return
+	# A confirmation captures the current picture. Selection-only changes do not
+	# alter the quote; the model rejects paid pictures independently of Undo.
+	var result: Dictionary = ProgressionTransactions.commit(_construction_screen.state, "sell_art", data, _construction_screen.save_path, not testing)
+	_drawing_screen.show_sale_result(result)
+
+func _purchase_ship_part(id: String) -> void:
+	if not _space_screen.is_visible_in_tree(): return
+	var result: Dictionary = ProgressionTransactions.commit(_construction_screen.state, "purchase_part", id, _construction_screen.save_path, not testing)
+	_space_screen.show_transaction_result(result)
+
+func _launch_ship() -> void:
+	if not _space_screen.is_visible_in_tree(): return
+	var result: Dictionary = ProgressionTransactions.commit(_construction_screen.state, "launch", null, _construction_screen.save_path, not testing)
+	if bool(result.get("ok", false)): _space_screen.play_launch()
+	else: _space_screen.show_transaction_result(result)
+
+func _show_space() -> void:
+	_leave_activity()
+	_space_screen.show()
+	_space_screen.refresh()
+	_responsive()
+
 func _leave_activity() -> void:
+	if is_instance_valid(_opening_screen):
+		_opening_screen.dismiss()
+		_opening_screen.queue_free()
+		_opening_screen = null
 	if _tutorial != null: _tutorial.cancel()
 	_clear_touch_inputs()
 	_close_modal()
@@ -218,6 +277,7 @@ func _leave_activity() -> void:
 	_home_screen.hide()
 	_drawing_screen.hide()
 	_construction_screen.hide()
+	if is_instance_valid(_space_screen): _space_screen.hide()
 	_workshop_screen.hide()
 	if is_instance_valid(_learning_screen): _learning_screen.hide()
 	_world_hud.hide()
@@ -229,6 +289,23 @@ func _show_home() -> void:
 	_home_screen.show()
 	_responsive()
 	_home_screen.focus_primary()
+
+func _show_opening() -> void:
+	_leave_activity()
+	_opening_screen = OpeningIntro.new()
+	_opening_screen.sound_enabled = _sound.sound_enabled
+	_opening_screen.closed.connect(_opening_closed)
+	_opening_screen.sound_changed.connect(func(enabled: bool): _sound.sound_enabled = enabled)
+	_ui.add_child(_opening_screen)
+	_responsive()
+
+func _opening_closed(reason: String) -> void:
+	if reason in ["completed", "skipped"]:
+		_opening_preferences.seen = true
+		if not testing: _opening_preferences.save_file()
+	_show_home()
+	if reason == "unavailable":
+		_show_toast("영상을 재생할 수 없어요. 메인 화면에서 바로 시작해 주세요.")
 
 func _show_drawing() -> void:
 	_leave_activity()
@@ -316,7 +393,10 @@ func _build_workshop() -> void:
 	column.add_child(_workshop_compact_selectors)
 	_workshop_template_picker = OptionButton.new()
 	_workshop_shape_picker = OptionButton.new()
-	for picker: OptionButton in [_workshop_template_picker, _workshop_shape_picker]:
+	_workshop_trapezoid_picker = OptionButton.new()
+	_workshop_trapezoid_picker.name = "WorkshopTrapezoidVariant"
+	_workshop_trapezoid_picker.tooltip_text = "새로 붙일 사다리꼴 모양을 골라요. 한쪽에 직각이 두 개 있어도 사다리꼴이에요."
+	for picker: OptionButton in [_workshop_template_picker, _workshop_shape_picker, _workshop_trapezoid_picker]:
 		var skin: Button = QuadTheme.button("", Callable())
 		picker.custom_minimum_size = Vector2(150, 48)
 		picker.add_theme_font_override("font", QuadTheme.FONT)
@@ -332,7 +412,8 @@ func _build_workshop() -> void:
 		picker.get_popup().add_theme_stylebox_override("panel", GameArt.panel(0, 8))
 		picker.get_popup().add_theme_stylebox_override("hover", skin.get_theme_stylebox("hover"))
 		picker.get_popup().add_theme_constant_override("v_separation", 12)
-		_workshop_compact_selectors.add_child(picker)
+		if picker != _workshop_trapezoid_picker:
+			_workshop_compact_selectors.add_child(picker)
 		skin.free()
 	for info: Dictionary in CharacterTemplates.all_templates():
 		_workshop_template_picker.add_item("친구 · " + str(info["name"]))
@@ -342,6 +423,11 @@ func _build_workshop() -> void:
 		_workshop_shape_picker.set_item_metadata(_workshop_shape_picker.item_count - 1, kind)
 	_workshop_template_picker.item_selected.connect(func(index: int): _choose_template(str(_workshop_template_picker.get_item_metadata(index))))
 	_workshop_shape_picker.item_selected.connect(func(index: int): _select_kind(str(_workshop_shape_picker.get_item_metadata(index))))
+	var trapezoid_labels: Array[String] = ["양옆이 기울어진 모양", "왼쪽 두 각이 직각", "오른쪽 두 각이 직각"]
+	for index: int in range(QuadrilateralMath.TRAPEZOID_VARIANTS.size()):
+		_workshop_trapezoid_picker.add_item(trapezoid_labels[index])
+		_workshop_trapezoid_picker.set_item_metadata(index, QuadrilateralMath.TRAPEZOID_VARIANTS[index])
+	_workshop_trapezoid_picker.item_selected.connect(func(index: int): workshop.select_trapezoid_variant(str(_workshop_trapezoid_picker.get_item_metadata(index))))
 	document.changed.connect(func():
 		for index: int in range(_workshop_template_picker.item_count):
 			if str(_workshop_template_picker.get_item_metadata(index)) == document.template_id:
@@ -389,6 +475,7 @@ func _build_workshop() -> void:
 	toolbar.add_theme_constant_override("h_separation", 8)
 	toolbar.add_theme_constant_override("v_separation", 8)
 	center.add_child(toolbar)
+	toolbar.add_child(_workshop_trapezoid_picker)
 	_undo_button = QuadTheme.button("되돌리기", document.undo)
 	_redo_button = QuadTheme.button("다시", document.redo)
 	toolbar.add_child(_undo_button)
@@ -696,6 +783,10 @@ func _show_toast(message: String) -> void:
 
 func _select_kind(kind: String) -> void:
 	if workshop != null: workshop.select_kind(kind)
+	if _workshop_trapezoid_picker != null:
+		_workshop_trapezoid_picker.visible = kind == "trapezoid"
+		if workshop != null:
+			_workshop_trapezoid_picker.select(QuadrilateralMath.TRAPEZOID_VARIANTS.find(workshop.selected_trapezoid_variant))
 	if _shape_note != null: _shape_note.text = String(SHAPE_NOTES.get(kind, ""))
 	for key: String in _shape_buttons:
 		var b: Button = _shape_buttons[key]
@@ -1417,7 +1508,7 @@ func _export_png() -> void:
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
 	var window: Window = get_window()
-	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible))
+	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen))
 	var desired_size: Vector2i = Vector2i(maxi(window.size.x, 800), maxi(window.size.y, 600)) if creation_visible else Vector2i(1600, 900)
 	if window.content_scale_size != desired_size:
 		window.content_scale_size = desired_size
@@ -1449,6 +1540,9 @@ func _ui_size() -> Vector2:
 	return _ui.size if _ui != null and _ui.size.x > 0.0 else get_viewport().get_visible_rect().size
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(_opening_screen):
+		if _opening_screen.handle_key(event): get_viewport().set_input_as_handled()
+		return
 	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		_handle_screen_touch(event)
@@ -1498,6 +1592,8 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: _clear_touch_inputs()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if is_instance_valid(_opening_screen): return
+	if is_instance_valid(_space_screen) and _space_screen.visible: return
 	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	if not event is InputEventKey or not event.pressed or event.echo: return
 	if _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible): return

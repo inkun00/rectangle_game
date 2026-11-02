@@ -8,6 +8,29 @@ static func run(t: Node) -> void:
 	_test_atomic_transforms(t)
 	_test_scene_history(t)
 	_test_scene_restore(t)
+	_test_right_trapezoid_history(t)
+
+static func _test_right_trapezoid_history(t: Node) -> void:
+	for variant: String in ["right_left", "right_right"]:
+		var document: Model = Model.new()
+		document.add_sized_shape("trapezoid", Vector2(-120, 10), Vector2(150, 90), Color.CORAL, variant)
+		var original: Dictionary = document.get_selected()
+		var transformed: PackedVector2Array = QuadrilateralMath.rotate_vertices(QuadrilateralMath.scale_vertices(original.vertices, 1.4), 37.0)
+		document.transform_selected(transformed, Vector2(180, 80))
+		var selected: Dictionary = document.get_selected()
+		t.assert_eq(QuadrilateralMath.trapezoid_variant(selected.vertices), variant, "Drawing edits keep the chosen right trapezoid subtype")
+		document.undo()
+		t.assert_eq(document.get_selected(), original, "Undo restores right trapezoid geometry and position together")
+		document.redo()
+		t.assert_eq(document.get_selected(), selected, "Redo restores right trapezoid transformation")
+		document.duplicate_selected()
+		t.assert_eq(QuadrilateralMath.trapezoid_variant(document.get_selected().vertices), variant, "Duplication retains both right angles")
+		var snapshot: Dictionary = document.serialize()
+		var restored: Model = Model.new()
+		t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(snapshot))), "Right trapezoid drawings load from v1 JSON")
+		t.assert_eq(restored.serialize(), snapshot, "Drawing save round trip preserves all right trapezoid vertices")
+		t.assert_eq(document.add_sized_shape("trapezoid", Vector2.ZERO, Vector2(150, 90), Color.RED, "invalid"), -1, "Invalid subtype cannot add a drawing")
+		t.assert_eq(document.serialize(), snapshot, "Invalid creation does not alter drawing history state")
 
 static func _test_atomic_transforms(t: Node) -> void:
 	for kind: String in QuadrilateralMath.KINDS:

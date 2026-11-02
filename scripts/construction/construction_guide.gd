@@ -4,7 +4,6 @@ extends RefCounted
 ## Optional first-house example. This does not score, purchase, or alter a design.
 ## The caller decides whether to show the guide for the current commission.
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
-const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const MATCH_TOLERANCE: float = 0.01
 
 static func plan() -> Array[Dictionary]:
@@ -75,7 +74,7 @@ static func next_step(document: ConstructionDocument) -> Dictionary:
 	for index: int in range(steps.size()):
 		var step: Dictionary = steps[index]
 		var material: Dictionary = Catalog.material(str(step.material_id))
-		var vertices: PackedVector2Array = Math.create_vertices(str(material.kind), Vector2(material.dimensions))
+		var vertices: PackedVector2Array = Catalog.material_vertices(str(step.material_id))
 		var found: bool = false
 		for part: Dictionary in document.parts:
 			if str(part.material_id) != str(step.material_id):

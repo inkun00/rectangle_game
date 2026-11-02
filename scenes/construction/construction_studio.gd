@@ -8,6 +8,7 @@ const Saves = preload("res://scripts/construction/construction_save_store.gd")
 const Art = preload("res://scripts/construction_art.gd")
 const Guide = preload("res://scripts/construction/construction_guide.gd")
 const MaterialCard = preload("res://scenes/construction/material_card.gd")
+const CustomForm = preload("res://scenes/construction/custom_material_form.gd")
 const Language = preload("res://scripts/construction/construction_language.gd")
 const Awards = preload("res://scripts/construction/construction_awards.gd")
 const Exporter = preload("res://scripts/export/construction_exporter.gd")
@@ -48,6 +49,11 @@ var _portrait_holder: CenterContainer
 var _materials: VBoxContainer
 var _materials_empty: Label
 var _material_buttons: Dictionary = {}
+var _custom_material_button: Button
+var _custom_material_filter: Button
+var _custom_only: bool = false
+var _library_custom_ids: Array[String] = []
+var _custom_material_form: CustomForm
 var _brick_mode: OptionButton
 var _shape_filter: OptionButton
 var _category_picker: OptionButton
@@ -129,7 +135,7 @@ var _last_exported_png_bytes: PackedByteArray = PackedByteArray()
 func _add_material(id: String) -> void:
 	var use_id: String = id
 	var found: bool = false
-	for m: Dictionary in Catalog.materials():
+	for m: Dictionary in state.available_materials():
 		if str(m.id) == id:
 			found = true
 			break
@@ -381,6 +387,21 @@ func _build_ui() -> void:
 	palette_box.add_child(palette_header)
 	palette_header.add_child(GameArt.view(Art.tool_icon("draw"), Vector2(20, 20)))
 	palette_header.add_child(_label("재료 상자", 18))
+	var custom_actions: HBoxContainer = HBoxContainer.new()
+	custom_actions.add_theme_constant_override("separation", 6)
+	palette_box.add_child(custom_actions)
+	_custom_material_button = _button("주문 제작", _show_custom_material_form, true)
+	_custom_material_button.name = "CustomMaterialMaker"
+	_custom_material_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_custom_material_button.add_theme_font_size_override("font_size", 14)
+	custom_actions.add_child(_custom_material_button)
+	_custom_material_filter = _button("내 자재", Callable())
+	_custom_material_filter.name = "RegisteredMaterialFilter"
+	_custom_material_filter.toggle_mode = true
+	_custom_material_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_custom_material_filter.add_theme_font_size_override("font_size", 14)
+	_custom_material_filter.toggled.connect(_browse_custom_materials)
+	custom_actions.add_child(_custom_material_filter)
 	_stage_card = PanelContainer.new()
 	_stage_card.visible = false
 	_stage_card.add_theme_stylebox_override("panel", Art.gold_panel(8))
@@ -396,7 +417,7 @@ func _build_ui() -> void:
 	_shape_filter.tooltip_text = "변과 각의 성질로 찾아요. 고른 이름의 조건을 만족하는 재료를 모두 보여 줘요."
 	_shape_filter.add_item("도형: 전체", 0)
 	var family_counts: Dictionary = {}
-	for material: Dictionary in Catalog.materials():
+	for material: Dictionary in state.available_materials():
 		for family: String in QuadrilateralMath.KINDS:
 			if _material_matches(material, family): family_counts[family] = int(family_counts.get(family, 0)) + 1
 	for index: int in range(1, MATERIAL_FAMILIES.size()):
@@ -445,14 +466,7 @@ func _build_ui() -> void:
 	_materials.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_materials.add_theme_constant_override("separation", 6)
 	scroll.add_child(_materials)
-	for material: Dictionary in Catalog.materials():
-		var id: String = str(material.id)
-		var button: MaterialCard = MaterialCard.new()
-		button.configure(id)
-		button.name = "Material_" + id
-		button.pressed.connect(func(): _choose_material(id))
-		_materials.add_child(button)
-		_material_buttons[id] = button
+	_sync_material_library()
 	_materials_empty = _label("이 조합의 자재가 없어요.\n전체 용도나 모양으로 바꿔 보세요.", 14, MUTED)
 	_materials.add_child(_materials_empty)
 	palette_box.add_child(_button("재료 가격의 근거", _show_prices))
@@ -760,7 +774,64 @@ func _build_ui() -> void:
 	_responsive()
 
 static func _material_matches(material: Dictionary, family: String) -> bool:
-	return QuadrilateralMath.matches_kind(QuadrilateralMath.create_vertices(str(material.kind), Vector2(material.dimensions)), family)
+	return QuadrilateralMath.matches_kind(Catalog.material_vertices(str(material.id)), family)
+
+func _sync_material_library() -> void:
+	if not is_instance_valid(_materials): return
+	if not _material_buttons.is_empty() and _library_custom_ids == state.custom_material_ids: return
+	var available: Dictionary = {}
+	for material: Dictionary in state.available_materials():
+		var id: String = str(material.id)
+		available[id] = true
+		if _material_buttons.has(id): continue
+		var button: MaterialCard = MaterialCard.new()
+		button.configure(id)
+		button.name = ("CustomMaterial_%d" % _material_buttons.size()) if bool(material.get("custom", false)) else ("Material_" + id)
+		button.pressed.connect(func(): _choose_material(id))
+		_materials.add_child(button)
+		if is_instance_valid(_materials_empty): _materials.move_child(button, _materials_empty.get_index())
+		_material_buttons[id] = button
+	var previous_ids: Array[String] = []
+	previous_ids.assign(_material_buttons.keys())
+	for id: String in previous_ids:
+		if available.has(id): continue
+		var button: Button = _material_buttons[id]
+		_materials.remove_child(button)
+		button.queue_free()
+		_material_buttons.erase(id)
+	_library_custom_ids.assign(state.custom_material_ids)
+	if is_instance_valid(canvas) and not available.has(canvas.material_id):
+		canvas.choose_material("wall")
+
+func _browse_custom_materials(enabled: bool) -> void:
+	_custom_only = enabled
+	_material_family = "all"
+	_shape_filter.select(0)
+	_filter_materials("all")
+	_reset_material_scroll()
+
+func _show_custom_material_form() -> void:
+	if tutorial_blocked or is_instance_valid(_modal): return
+	_open_modal("건축 자재 주문 제작")
+	_custom_material_form = CustomForm.new()
+	_custom_material_form.name = "CustomMaterialForm"
+	_custom_material_form.setup(state.custom_material_ids)
+	_custom_material_form.registration_requested.connect(_register_custom_material)
+	_custom_material_form.choices_changed.connect(func(): call_deferred("_confine_modal_focus", _modal))
+	_modal_body.add_child(_custom_material_form)
+	_modal_action("작업대로 돌아가기", _close_modal)
+	call_deferred("_confine_modal_focus", _modal)
+
+func _register_custom_material(id: String) -> void:
+	if not state.register_custom_material(id):
+		_set_status(state.last_error)
+		return
+	_close_modal()
+	_sync_material_library()
+	_browse_custom_materials(true)
+	if _is_editable_mode(): _choose_material(id)
+	var material: Dictionary = Catalog.material(id)
+	_set_status("%s을 등록했어요. 내 자재에서 계속 고를 수 있어요. 한 개를 놓을 때마다 제작비 %s이 재료비에 들어가요." % [str(material.label), Catalog.format_won(int(material.price))])
 
 func _filter_materials(category: String) -> void:
 	if not MATERIAL_CATEGORIES.has(category): return
@@ -771,6 +842,7 @@ func _filter_materials(category: String) -> void:
 		var material: Dictionary = Catalog.material(id)
 		var role: String = str(material.role)
 		var shown: bool = category == "all" or (category == "wall" and role in ["brick", "wall", "beam"]) or (category == "opening" and role in ["door", "window"]) or category == role
+		shown = shown and (not _custom_only or bool(material.get("custom", false)))
 		shown = shown and _allowed_families().has(str(material.kind))
 		if shown:
 			for family: String in QuadrilateralMath.KINDS:
@@ -785,6 +857,9 @@ func _filter_materials(category: String) -> void:
 		var family: String = MATERIAL_FAMILIES[index]
 		_shape_filter.set_item_text(index, "도형: %s %d종" % [QuadrilateralMath.kind_label(family), int(family_counts.get(family, 0))])
 	_materials_empty.visible = shown_count == 0
+	_materials_empty.text = "등록한 자재가 없어요.\n‘주문 제작’으로 만들어 보세요." if _custom_only and state.custom_material_ids.is_empty() else "이 조합의 자재가 없어요.\n전체 용도나 모양으로 바꿔 보세요."
+	_custom_material_filter.set_pressed_no_signal(_custom_only)
+	_custom_material_filter.tooltip_text = "등록한 주문 자재 %d종을 찾아요." % state.custom_material_ids.size()
 	for id: String in _category_buttons: _category_buttons[id].set_pressed_no_signal(id == category)
 	_category_picker.select(MATERIAL_CATEGORIES.find(category))
 	_brick_mode.visible = _material_family == "all"
@@ -805,6 +880,7 @@ func _reset_material_scroll() -> void:
 	library.set_deferred("scroll_vertical", 0)
 
 func _clear_material_filters() -> void:
+	_custom_only = false
 	_material_family = "all"
 	_shape_filter.select(0)
 	_filter_materials("all")
@@ -874,6 +950,7 @@ func _edit(callback: Callable) -> void:
 
 func _choose_material(id: String) -> void:
 	if not _is_editable_mode() or canvas.inspection_running: return
+	if not _material_buttons.has(id): return
 	canvas.stop_inspection()
 	canvas.choose_material(id)
 	if SoundManager.instance != null:
@@ -1009,6 +1086,7 @@ func _short_req_label(raw: String) -> String:
 
 func _refresh() -> void:
 	if not is_instance_valid(canvas): return
+	_sync_material_library()
 	var active_doc: ConstructionDocument = _active_doc()
 	if canvas.document != active_doc:
 		canvas.document = active_doc
@@ -1050,7 +1128,8 @@ func _refresh() -> void:
 				_phase_pills[index].add_theme_stylebox_override("panel", Art.pill_style(pill_color, 10, 4))
 	_cash.text = "보유 " + Catalog.format_won(state.my_house_available_balance() if my_mode else state.available_balance())
 	if my_mode:
-		_current_goal.text = "자유롭게 만들고 PNG로 저장해요. 재료의 변과 각도 살펴보세요."
+		var build_cells: Vector2 = ConstructionDocument.BUILD_AREA.size / Catalog.GRID_UNIT
+		_current_goal.text = "가로 %d칸 · 높이 %d칸에서 자유롭게 짓고 PNG로 저장해요." % [int(build_cells.x), int(build_cells.y)]
 		_client.text = "나만의 집 짓기"
 		_brief.text = "수익 %s" % Catalog.format_won(state.earned_profit())
 		var my_counts: Dictionary = State.count_parts(active_doc.parts)
@@ -1125,6 +1204,8 @@ func _refresh() -> void:
 	_brick_mode.disabled = not editing
 	_shape_filter.disabled = is_instance_valid(_modal)
 	_category_picker.disabled = is_instance_valid(_modal)
+	_custom_material_button.disabled = is_instance_valid(_modal) or tutorial_blocked
+	_custom_material_filter.disabled = is_instance_valid(_modal)
 	var settled: bool = (not my_mode and state.phase == "settled")
 	_palette.visible = not settled
 	if is_instance_valid(_top_bar_panel):
@@ -1403,14 +1484,14 @@ func _show_client_offer_modal(choice: int) -> void:
 	words.add_child(_label("%d단계 · %s" % [stage_num, str(offer.title)], 22, BLUE))
 	words.add_child(_label(str(offer.brief), 16))
 	var asset_box: VBoxContainer = _card_box(_modal_body, 10, Color("dff3e7") if unlocked else Color("fbe4df"))
-	asset_box.add_child(_label("보유 자산 %s / 필요 자산 %s · %s" % [Catalog.format_won(held_assets), Catalog.format_won(required_assets), "수락 가능" if unlocked else "수락 불가"], 15, GOOD if unlocked else BAD))
+	asset_box.add_child(_label("보유 자산 %s · %s\n건축 실적 기준 %s / 필요 %s" % [Catalog.format_won(held_assets), "수락 가능" if unlocked else "수락 불가", Catalog.format_won(int(status.saved_balance)), Catalog.format_won(required_assets)], 15, GOOD if unlocked else BAD))
 	for requirement: Dictionary in offer.requirements:
 		_check_line(_modal_body, _short_req_label(str(requirement.label)), "필수" if bool(requirement.mandatory) else "선호", false, "조건")
 	_modal_body.add_child(HSeparator.new())
 	_money_line(_modal_body, "계약금액", int(offer.total), true, false)
 	_money_line(_modal_body, "자재 예산", int(offer.material_budget))
 	var can_accept_now: bool = unlocked and (state.phase in ["briefing", "settled"])
-	var accept_btn: Button = _modal_action("이 의뢰 수락하고 시작" if unlocked else "자산 부족 (수락 불가)", func():
+	var accept_btn: Button = _modal_action("이 의뢰 수락하고 시작" if unlocked else "건축 실적 부족 (수락 불가)", func():
 		if not can_accept_now: return
 		if state.my_house_mode: state.set_my_house_mode(false)
 		if state.contract_choice != choice:
@@ -1471,7 +1552,7 @@ func _show_brief() -> void:
 	words.add_child(_label("%d단계 · %s" % [stage_num, str(contract.title)], 23, BLUE))
 	words.add_child(_label(str(contract.brief), 17))
 	var asset_info: VBoxContainer = _card_box(_modal_body, 8, Color("dff3e7") if unlocked else Color("fbe4df"))
-	asset_info.add_child(_label("보유 자산 %s · 필요 자산 %s (%s)" % [Catalog.format_won(held_assets), Catalog.format_won(required_assets), "수락 가능" if unlocked else "자산 부족"], 15, GOOD if unlocked else BAD))
+	asset_info.add_child(_label("보유 자산 %s · %s\n건축 실적 기준 %s / 필요 %s" % [Catalog.format_won(held_assets), "수락 가능" if unlocked else "건축 실적 부족", Catalog.format_won(int(status.saved_balance)), Catalog.format_won(required_assets)], 15, GOOD if unlocked else BAD))
 	_modal_body.add_child(_label("꼭 필요한 것", 19, BLUE))
 	for requirement: Dictionary in contract.requirements:
 		if bool(requirement.mandatory): _check_line(_modal_body, _short_req_label(str(requirement.label)), "필수", false, "조건")
@@ -1598,7 +1679,7 @@ func _show_prices() -> void:
 	_open_modal("재료 가격은 어디서 왔을까요?")
 	_modal_body.add_child(_label("한국 원화 / 토지 제외 / 가격 확인 2026년 10월 27일", 17, BLUE))
 	_modal_body.add_child(_label("특정 판매처의 공개 가격을 참고했어요. 실제 규격·배송·설치 조건에 따라 값은 달라져요. 화면 속 조각 크기는 배치하기 쉽게 단순화했어요.", 16))
-	for material: Dictionary in Catalog.materials():
+	for material: Dictionary in state.available_materials():
 		_modal_body.add_child(HSeparator.new())
 		_modal_body.add_child(_label("%s  %s" % [material.label, Catalog.format_won(int(material.price))], 19, BLUE))
 		_modal_body.add_child(_label("%s\n%s" % [material.unit, material.source_note], 15))
@@ -1691,7 +1772,9 @@ func _show_help(step: int = 0) -> void:
 		tutorial_requested.emit(), true)
 	_modal_body.add_child(_label(headings[current], 25, BLUE))
 	_modal_body.add_child(_label(explanations[current], 19))
-	_modal_body.add_child(_label("선택한 재료는 방향키로 옮기고 R로 회전해요. Ctrl+Z로 되돌릴 수 있어요.", 16, MUTED))
+	_modal_body.add_child(_label("배치한 자재를 클릭해 고른 뒤, 가장자리나 둥근 손잡이를 끌어 원하는 각도로 회전해요. Shift를 누르면 15°씩 맞춰요.", 16, MUTED))
+	_modal_body.add_child(_label("가운데를 끌거나 방향키로 이동해요. R은 90° 회전, Ctrl+Z는 되돌리기예요.", 16, MUTED))
+	_modal_body.add_child(_label("우클릭이나 Esc로 재료 선택을 취소하고, 마우스로 끌어 화면을 이동해요. 재료를 고르면 다시 놓을 수 있어요.", 16, MUTED))
 	if current > 0: _modal_action("이전 설명", _show_help.bind(current - 1))
 	if current < headings.size() - 1: _modal_action("다음 설명", _show_help.bind(current + 1), true)
 	_modal_action("직접 지어 보기", _close_modal, current == headings.size() - 1)
@@ -1708,7 +1791,7 @@ func _show_glossary() -> void:
 
 func _show_stages() -> void:
 	_open_modal("3×3 의뢰인 선택 · 금액별 9단계")
-	_modal_body.add_child(_label("보유 자산 %s · 누적 수익 %s" % [Catalog.format_won(state.saved_balance()), Catalog.format_won(state.earned_profit())], 16, BLUE))
+	_modal_body.add_child(_label("보유 자산 %s · 누적 건축 수익 %s" % [Catalog.format_won(state.saved_balance()), Catalog.format_won(state.earned_profit())], 16, BLUE))
 	var grid: GridContainer = GridContainer.new()
 	grid.name = "ModalClientGrid3x3"
 	grid.columns = 3
@@ -1939,6 +2022,7 @@ func _close_modal(restore_focus: bool = true) -> void:
 	_modal_scroll = null
 	_modal_heading = null
 	_modal_compact = false
+	_custom_material_form = null
 	if is_instance_valid(canvas): _refresh()
 	if restore_focus and is_instance_valid(previous_focus) and previous_focus.is_visible_in_tree() and previous_focus.focus_mode != Control.FOCUS_NONE:
 		if not previous_focus is BaseButton or not previous_focus.disabled: previous_focus.grab_focus()
@@ -2051,7 +2135,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	elif event.keycode == KEY_DELETE:
 		_edit(_active_doc().delete_selected)
 	elif event.keycode == KEY_ESCAPE:
-		_return_to_design()
+		if _is_editable_mode() and not canvas.inspection_visible:
+			canvas.cancel_selection_for_pan()
+		else:
+			_return_to_design()
 	else:
 		return
 	get_viewport().set_input_as_handled()

@@ -8,6 +8,7 @@ const Studio = preload("res://scenes/drawing/drawing_studio.gd")
 static func run(t: Node) -> void:
 	_test_geometry_and_history(t)
 	await _test_canvas(t)
+	await _test_trapezoid_variants(t)
 	await _test_persistence(t)
 
 static func _test_geometry_and_history(t: Node) -> void:
@@ -78,6 +79,7 @@ static func _test_canvas(t: Node) -> void:
 	t.add_child(canvas)
 	await t.get_tree().process_frame
 	canvas.select_kind("trapezoid")
+	canvas.select_trapezoid_variant("right_left")
 	_send_pointer(canvas, Vector2(-180, -110), true)
 	var history_before: int = canvas.document.command_manager.undo_stack.size()
 	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
@@ -87,6 +89,7 @@ static func _test_canvas(t: Node) -> void:
 	_send_pointer(canvas, Vector2(20, 30), false)
 	t.assert_eq(canvas.document.shapes.size(), 1, "Pointer drag creates a free drawing shape")
 	var selected: Dictionary = canvas.document.get_selected()
+	_assert_trapezoid_angles(t, selected.vertices, "right_left")
 	var drawn_size: Vector2 = QuadrilateralMath.bounds(selected.vertices).size
 	t.assert_float_approx(drawn_size.x, 200.0, 0.001, "Drag controls artwork width across canvas scaling")
 	t.assert_float_approx(drawn_size.y, 140.0, 0.001, "Drag controls artwork height across canvas scaling")
@@ -108,6 +111,59 @@ static func _test_canvas(t: Node) -> void:
 	_send_pointer(canvas, Vector2(300, 200), false)
 	t.assert_eq(canvas.document.shapes.size(), 1, "Canceled drawing cannot create a shape on later release")
 	canvas.free()
+
+static func _test_trapezoid_variants(t: Node) -> void:
+	var studio: Studio = Studio.new()
+	studio.testing = true
+	t.add_child(studio)
+	await t.get_tree().process_frame
+	studio.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	studio.canvas.add_at_center()
+	var existing: Array[Dictionary] = studio.document.shapes.duplicate(true)
+	studio.canvas.select_kind("trapezoid")
+	t.assert_eq(studio._shape_picker.item_count, 5, "Trapezoid variants remain within the five shape families")
+	t.assert_eq(studio._trapezoid_variant_picker.item_count, 3, "The drawing picker offers symmetric and both right trapezoids")
+	for dimensions: Vector2 in [Vector2(800, 600), Vector2(1366, 768)]:
+		studio.size = dimensions
+		studio._responsive_drawing()
+		for frame: int in range(4): await t.get_tree().process_frame
+		t.assert_true(studio._trapezoid_variant_picker.is_visible_in_tree(), "Trapezoid variants remain accessible at " + str(dimensions))
+		var bounds: Rect2 = studio._trapezoid_variant_picker.get_global_rect()
+		t.assert_true(studio.get_global_rect().grow(1.0).encloses(bounds), "The variant picker fits inside the drawing screen at " + str(dimensions))
+	for index: int in range(QuadrilateralMath.TRAPEZOID_VARIANTS.size()):
+		var variant: String = QuadrilateralMath.TRAPEZOID_VARIANTS[index]
+		studio._trapezoid_variant_picker.item_selected.emit(index)
+		t.assert_eq(studio.canvas.selected_trapezoid_variant, variant, "The visible picker selects the creation variant " + variant)
+		t.assert_eq(studio.document.shapes, existing, "Choosing a trapezoid variant preserves existing artwork")
+		var history_before: int = studio.document.command_manager.undo_stack.size()
+		studio.canvas.add_at_center()
+		var selected: Dictionary = studio.document.get_selected()
+		t.assert_eq(selected.kind, "trapezoid", "The new variant retains the trapezoid family")
+		_assert_trapezoid_angles(t, selected.vertices, variant)
+		t.assert_eq(studio.document.command_manager.undo_stack.size(), history_before + 1, "Variant creation uses one undo command")
+		studio.document.undo()
+		t.assert_eq(studio.document.shapes, existing, "Undo removes only the new trapezoid variant")
+		studio.document.redo()
+		t.assert_eq(studio.document.get_selected().vertices, selected.vertices, "Redo restores the chosen trapezoid vertices")
+		studio.document.undo()
+	studio.canvas.select_kind("rectangle")
+	t.assert_false(studio._trapezoid_variant_picker.visible, "Other shape families hide the trapezoid variants")
+	studio.canvas.select_kind("trapezoid")
+	t.assert_eq(studio._trapezoid_variant_picker.selected, 2, "Returning to trapezoids remembers the selected creation variant")
+	studio.free()
+
+static func _assert_trapezoid_angles(t: Node, vertices: PackedVector2Array, variant: String) -> void:
+	var angles: PackedFloat32Array = QuadrilateralMath.angles_degrees(vertices)
+	var right_count: int = 0
+	for angle: float in angles:
+		if absf(angle - 90.0) < 0.01: right_count += 1
+	t.assert_eq(right_count, 0 if variant == "symmetric" else 2, "The created trapezoid has the requested right angles: " + variant)
+	if variant == "right_left":
+		t.assert_float_approx(angles[0], 90.0, 0.01, "The upper left angle is right")
+		t.assert_float_approx(angles[3], 90.0, 0.01, "The lower left angle is right")
+	elif variant == "right_right":
+		t.assert_float_approx(angles[1], 90.0, 0.01, "The upper right angle is right")
+		t.assert_float_approx(angles[2], 90.0, 0.01, "The lower right angle is right")
 
 static func _send_pointer(canvas: Canvas, point: Vector2, pressed: bool) -> void:
 	var event: InputEventMouseButton = InputEventMouseButton.new()

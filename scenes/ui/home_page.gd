@@ -7,6 +7,8 @@ signal construction_requested
 signal notebook_requested
 signal learning_requested
 signal tutorials_requested
+signal opening_requested
+signal space_requested
 
 const Art = preload("res://scripts/construction_art.gd")
 
@@ -17,6 +19,8 @@ var _mode_buttons: Array[Button] = []
 var _column: VBoxContainer
 var _learning_record: Label
 var _learning_button: Button
+var _space_status: Label
+var _space_button: Button
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -60,13 +64,24 @@ func _ready() -> void:
 	_learning_record = _label("수직부터 사각형까지 · 한 활동씩 직접 확인해요.", 16, Art.INK)
 	_learning_record.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	learn_row.add_child(_learning_record)
+	var space_row: HFlowContainer = HFlowContainer.new()
+	space_row.add_theme_constant_override("h_separation", 16)
+	space_row.add_theme_constant_override("v_separation", 6)
+	introduction.add_child(space_row)
+	_space_button = _button("우주선 제작 · 0 / 12", func(): space_requested.emit(), true)
+	_space_button.name = "OpenSpaceHangar"
+	space_row.add_child(_space_button)
+	_space_status = _label("그림과 집을 팔아 별빛 고향으로 돌아가요.", 16, Art.INK)
+	_space_status.custom_minimum_size.y = 48
+	_space_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	space_row.add_child(_space_status)
 	_cards = GridContainer.new()
 	_cards.name = "ActivityChoices"
 	_cards.columns = 3
 	_cards.add_theme_constant_override("h_separation", 18)
 	_cards.add_theme_constant_override("v_separation", 18)
 	_column.add_child(_cards)
-	_build_mode("Drawing", "사각형으로 표현해요", "나만의 그림", "다섯 가지 사각형으로 나만의 작품을 만들어 보세요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
+	_build_mode("Drawing", "그림을 팔아 제작비 모으기", "나만의 그림", "사각형으로 작품을 만들고 판매해 우주선 제작비를 모아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
 	_build_mode("Construction", "집 짓기 놀이", "뚝딱! 사각형 집 짓기", "의뢰인의 집을 짓고 수익으로 나만의 집도 완성해요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
 	_build_mode("Adventure", "친구와 탐험", "나의 친구와 모험", "사각형 캐릭터를 조립해 여섯 지역을 탐험해요.", GameArt.sheet("world_backdrop"), "모험 시작하기", func(): adventure_requested.emit())
 	var footer: HFlowContainer = HFlowContainer.new()
@@ -76,6 +91,7 @@ func _ready() -> void:
 	footer.add_child(_label("그림·집·모험은 각각 자동 저장돼요.", 15, Art.INK))
 	footer.add_child(_label("초등 수학 4-2 · 사각형", 15, Art.ACCENT))
 	footer.add_child(_button("모드 안내", func(): tutorials_requested.emit(), false))
+	footer.add_child(_button("오프닝 다시 보기", func(): opening_requested.emit(), false))
 	resized.connect(_responsive)
 	_responsive()
 
@@ -105,6 +121,14 @@ func _build_header(parent: Node) -> void:
 func set_learning_progress(count: int) -> void:
 	if _learning_record != null:
 		_learning_record.text = "수직부터 사각형까지 · 활동 기록 %d / 8" % count
+
+func set_space_progress(economy: ConstructionState) -> void:
+	if not is_instance_valid(_space_button): return
+	_space_button.text = "우주선 제작 · %d / 12" % economy.purchased_ship_parts.size()
+	_space_status.text = "부품 구입 자금 %s · 그림 판매 %d점" % [ConstructionCatalog.format_won(economy.ship_available_funds()), economy.art_sales.size()]
+	if economy.launched:
+		_space_button.text = "우주선 · 귀향 성공!"
+		_space_status.text = "고향으로 돌아왔어요. 창작과 모험은 계속할 수 있어요."
 
 func _build_mode(mode: String, badge_text: String, title: String, description: String, texture: Texture2D, action_text: String, action: Callable) -> void:
 	var panel: PanelContainer = PanelContainer.new()

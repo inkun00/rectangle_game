@@ -6,6 +6,9 @@ const Document = preload("res://scripts/construction/construction_document.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const Facade = preload("res://scripts/construction/construction_facade.gd")
 const Awards = preload("res://scripts/construction/construction_awards.gd")
+const Custom = preload("res://scripts/construction/custom_material_catalog.gd")
+const Market = preload("res://scripts/economy/art_market.gd")
+const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
 const INITIAL_BALANCE: int = 30000000
 const MAX_CONTRACTS: int = 1000
 const GRADING_VERSION: int = 6
@@ -23,6 +26,11 @@ var phase: String = "briefing"
 var records: Array[Dictionary] = []
 var last_result: Dictionary = {}
 var last_error: String = ""
+var custom_material_ids: Array[String] = []
+## Completed income and purchases share one save and one authoritative won balance.
+var art_sales: Array[Dictionary] = []
+var purchased_ship_parts: Array[String] = []
+var launched: bool = false
 
 func _init() -> void:
 	document.editing_enabled = false
@@ -34,8 +42,108 @@ func _init() -> void:
 func active_document() -> Document:
 	return my_house_document if my_house_mode else document
 
+func register_custom_material(id: String) -> bool:
+	if Custom.material(id).is_empty():
+		last_error = "모양·크기·재질·무늬·용도를 다시 확인해 주세요."
+		return false
+	if custom_material_ids.has(id):
+		last_error = ""
+		return true
+	if custom_material_ids.size() >= Custom.MAX_REGISTERED:
+		last_error = "맞춤 재료는 64종까지 등록할 수 있어요."
+		return false
+	custom_material_ids.append(id)
+	last_error = ""
+	changed.emit()
+	return true
+
+func available_materials() -> Array[Dictionary]:
+	var result: Array[Dictionary] = Catalog.materials()
+	for id: String in custom_material_ids:
+		result.append(Custom.material(id))
+	return result
+
+static func _custom_parts_registered(parts: Array[Dictionary], registered: Array[String]) -> bool:
+	for part: Dictionary in parts:
+		var id: String = str(part.material_id)
+		if Custom.is_custom_id(id) and not registered.has(id): return false
+	return true
+
 func saved_balance() -> int:
-	return INITIAL_BALANCE + earned_profit()
+	return INITIAL_BALANCE + earned_profit() + art_income() - ship_spent()
+
+func art_income() -> int:
+	var income: int = 0
+	for receipt: Dictionary in art_sales: income += int(receipt.price)
+	return income
+
+func ship_spent() -> int:
+	var spent: int = 0
+	for id: String in purchased_ship_parts: spent += int(Ship.part(id).get("price", 0))
+	return spent
+
+func ship_available_funds() -> int:
+	# Client advances are not earnings. Keep operating capital and the existing
+	# private house reserved so purchasing a part cannot strand a building job.
+	return maxi(0, saved_balance() - INITIAL_BALANCE - my_house_cost())
+
+func ship_complete() -> bool:
+	for part: Dictionary in Ship.all_parts():
+		if not purchased_ship_parts.has(str(part.id)): return false
+	return true
+
+func sell_art(document_data: Dictionary) -> Dictionary:
+	if art_sales.size() >= Market.MAX_SALES:
+		return _economy_error("그림 판매 장부가 가득 찼어요. 집 짓기로 수익을 더 모을 수 있어요.")
+	var artwork: DrawingDocument = DrawingDocument.new()
+	if not artwork.restore(document_data): return _economy_error("그림을 확인하지 못했어요. 현재 작품을 다시 확인해 주세요.")
+	var quote: Dictionary = Market.quote(artwork, art_sales)
+	if not bool(quote.get("can_sell", false)): return _economy_error(str(quote.get("reason", "판매할 수 없는 작품이에요.")))
+	var receipt: Dictionary = Market.receipt_from_quote(quote, "나의 작품 %d" % (art_sales.size() + 1))
+	if receipt.is_empty() or not Market.validate_receipt(receipt): return _economy_error("판매 가격을 확인하지 못했어요.")
+	art_sales.append(receipt)
+	balance += int(receipt.price)
+	my_house_document.budget_limit = my_house_budget()
+	last_error = ""
+	changed.emit()
+	return {"ok": true, "error": "", "price": int(receipt.price), "receipt": receipt.duplicate(true)}
+
+func purchase_ship_part(id: String) -> Dictionary:
+	var part: Dictionary = Ship.part(id)
+	if part.is_empty(): return _economy_error("찾을 수 없는 우주선 부품이에요.")
+	if purchased_ship_parts.has(id): return _economy_error("이미 구매한 부품이에요. 돈은 다시 내지 않아요.")
+	var price: int = int(part.price)
+	if ship_available_funds() < price:
+		return _economy_error("%s 더 모으면 이 부품을 살 수 있어요." % Catalog.format_won(price - ship_available_funds()))
+	purchased_ship_parts.append(id)
+	balance -= price
+	my_house_document.budget_limit = my_house_budget()
+	last_error = ""
+	changed.emit()
+	return {"ok": true, "error": "", "price": price, "part_id": id}
+
+func launch_ship() -> Dictionary:
+	if not ship_complete(): return _economy_error("사각형 부품 12개를 모두 모으면 출발할 수 있어요.")
+	var replay: bool = launched
+	launched = true
+	last_error = ""
+	if not replay: changed.emit()
+	return {"ok": true, "error": "", "replay": replay}
+
+func _economy_error(message: String) -> Dictionary:
+	last_error = message
+	return {"ok": false, "error": message, "price": 0}
+
+func apply_economy_from(candidate: ConstructionState) -> void:
+	# Called after a validated transaction has been saved. Keep live documents
+	# and their undo stacks intact; only the financial fields are committed.
+	art_sales.assign(candidate.art_sales.duplicate(true))
+	purchased_ship_parts.assign(candidate.purchased_ship_parts)
+	launched = candidate.launched
+	balance = candidate.balance
+	my_house_document.budget_limit = my_house_budget()
+	last_error = ""
+	changed.emit()
 
 func my_house_budget() -> int:
 	return saved_balance()
@@ -103,10 +211,10 @@ static func _unlock_status(number: int, completed: Array[Dictionary]) -> Diction
 	var enough_profit: bool = profit >= int(info.minimum_profit)
 	var enough_balance: bool = current_assets >= int(info.minimum_balance)
 	var unlocked: bool = enough_balance and enough_profit
-	var reason: String = "수락 가능 · 보유 자산 %s (필요 자산 %s)" % [Catalog.format_won(current_assets), Catalog.format_won(int(info.minimum_balance))]
+	var reason: String = "수락 가능 · 건축 실적 기준 %s (필요 %s)" % [Catalog.format_won(current_assets), Catalog.format_won(int(info.minimum_balance))]
 	if not unlocked:
 		var missing_bal: int = maxi(0, int(info.minimum_balance) - current_assets)
-		reason = "수락 불가 · 필요 자산 %s (보유 자산 %s · %s 더 필요)" % [Catalog.format_won(int(info.minimum_balance)), Catalog.format_won(current_assets), Catalog.format_won(missing_bal)]
+		reason = "수락 불가 · 건축 실적 기준 %s 필요 (현재 %s · 건축 수익 %s 더 필요)" % [Catalog.format_won(int(info.minimum_balance)), Catalog.format_won(current_assets), Catalog.format_won(missing_bal)]
 	return {"stage": number, "unlocked": unlocked, "reason": reason, "previous_complete": previous_complete, "earned_profit": profit, "saved_balance": current_assets, "minimum_profit": int(info.minimum_profit), "minimum_balance": int(info.minimum_balance), "missing_profit": maxi(0, int(info.minimum_profit) - profit), "missing_balance": maxi(0, int(info.minimum_balance) - current_assets)}
 
 func select_contract(choice: int) -> bool:
@@ -195,6 +303,9 @@ static func count_parts(parts: Array[Dictionary]) -> Dictionary:
 func evaluate(inspection: Dictionary) -> Dictionary:
 	var offer: Dictionary = current_contract()
 	var result: Dictionary = _evaluate(document, offer, inspection, phase == "building", contract_grading_version)
+	if not _custom_parts_registered(document.parts, custom_material_ids):
+		result.can_submit = false
+		result.feedback = "먼저 맞춤 재료를 등록해 주세요."
 	if contract_grading_version >= 5: result.award = Awards.assess(document.parts, result, offer)
 	return result
 
@@ -241,6 +352,9 @@ func next_contract() -> bool:
 
 func serialize() -> Dictionary:
 	var result: Dictionary = {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
+	if not art_sales.is_empty() or not purchased_ship_parts.is_empty() or launched:
+		result["space_economy"] = {"version": 1, "art_sales": art_sales.duplicate(true), "purchased_parts": purchased_ship_parts.duplicate(), "launched": launched}
+	if not custom_material_ids.is_empty(): result["custom_materials"] = custom_material_ids.duplicate()
 	if my_house_mode or not my_house_document.parts.is_empty():
 		result["my_house_mode"] = my_house_mode
 		result["my_house_document"] = my_house_document.serialize()
@@ -256,6 +370,12 @@ func restore(data: Dictionary) -> bool:
 	if not Document._integer(checked_grading, 1, GRADING_VERSION): return false
 	if str(data.phase) == "briefing": checked_grading = GRADING_VERSION
 	if not data.records is Array or not data.document is Dictionary: return false
+	var checked_custom_ids: Array[String] = []
+	if data.has("custom_materials"):
+		if not data.custom_materials is Array or data.custom_materials.size() > Custom.MAX_REGISTERED: return false
+		for raw_id: Variant in data.custom_materials:
+			if not raw_id is String or checked_custom_ids.has(raw_id) or Custom.material(raw_id).is_empty(): return false
+			checked_custom_ids.append(raw_id)
 	var index: int = int(data.contract_index)
 	var checked_choice: int = 0
 	var has_progression: bool = data.has("progression_version")
@@ -270,11 +390,39 @@ func restore(data: Dictionary) -> bool:
 	var expected_balance: int = INITIAL_BALANCE
 	for number: int in range(data.records.size()):
 		var raw: Variant = data.records[number]
-		if not raw is Dictionary or not _valid_record(raw, number): return false
+		if not raw is Dictionary or not _valid_record(raw, number, checked_custom_ids): return false
 		if int(raw.get("grading_version", 1)) >= 5:
 			if not bool(_unlock_status(int(record_contract(raw).stage), checked_records).unlocked): return false
 		checked_records.append(raw.duplicate(true))
 		expected_balance += int(raw.profit)
+	var checked_sales: Array[Dictionary] = []
+	var checked_parts: Array[String] = []
+	var checked_launched: bool = false
+	if data.has("space_economy"):
+		if not data.space_economy is Dictionary: return false
+		var economy: Dictionary = data.space_economy
+		if not Document._integer(economy.get("version"), 1, 1): return false
+		if not economy.get("art_sales") is Array or economy.art_sales.size() > Market.MAX_SALES: return false
+		if not economy.get("purchased_parts") is Array or economy.purchased_parts.size() > Ship.all_parts().size(): return false
+		if not economy.get("launched") is bool: return false
+		var sold_fingerprints: Dictionary = {}
+		var sold_signatures: Dictionary = {}
+		for raw_sale: Variant in economy.art_sales:
+			if not raw_sale is Dictionary or not Market.validate_receipt(raw_sale): return false
+			var fingerprint: String = str(raw_sale.fingerprint)
+			var signature: String = str(raw_sale.signature)
+			if sold_fingerprints.has(fingerprint) or sold_signatures.has(signature): return false
+			sold_fingerprints[fingerprint] = true
+			sold_signatures[signature] = true
+			checked_sales.append(raw_sale.duplicate(true))
+			expected_balance += int(raw_sale.price)
+		for raw_part: Variant in economy.purchased_parts:
+			if not raw_part is String or checked_parts.has(raw_part) or Ship.part(raw_part).is_empty(): return false
+			checked_parts.append(raw_part)
+			expected_balance -= int(Ship.part(raw_part).price)
+		checked_launched = bool(economy.launched)
+		if checked_launched and checked_parts.size() != Ship.all_parts().size(): return false
+		if expected_balance < INITIAL_BALANCE: return false
 	var expected_saved_balance: int = expected_balance
 	if str(data.phase) == "settled":
 		var settled_grading: int = int(checked_records.back().get("grading_version", 1))
@@ -293,6 +441,7 @@ func restore(data: Dictionary) -> bool:
 	var checked: Document = Document.new()
 	checked.budget_limit = int(checked_offer.material_budget)
 	if not checked.restore(data.document): return false
+	if not _custom_parts_registered(checked.parts, checked_custom_ids): return false
 	if str(data.phase) == "briefing" and not checked.parts.is_empty(): return false
 	if str(data.phase) == "settled" and data.document.parts != checked_records.back().document.parts:
 		return false
@@ -304,6 +453,7 @@ func restore(data: Dictionary) -> bool:
 	checked_my_house.budget_limit = expected_saved_balance
 	if data.has("my_house_document"):
 		if not data.my_house_document is Dictionary or not checked_my_house.restore(data.my_house_document): return false
+	if not _custom_parts_registered(checked_my_house.parts, checked_custom_ids): return false
 	# No live model is changed until the entire ledger and geometry have passed validation.
 	document.changed.disconnect(_document_changed)
 	document = checked
@@ -312,6 +462,10 @@ func restore(data: Dictionary) -> bool:
 	my_house_document = checked_my_house
 	my_house_document.changed.connect(_document_changed)
 	my_house_mode = checked_my_house_mode
+	custom_material_ids = checked_custom_ids
+	art_sales = checked_sales
+	purchased_ship_parts = checked_parts
+	launched = checked_launched
 	balance = expected_balance
 	contract_index = index
 	contract_choice = checked_choice
@@ -468,7 +622,7 @@ static func _part_lengths(item: Dictionary) -> Vector2:
 		longest = maxf(longest, length / Catalog.GRID_UNIT)
 	return Vector2(shortest, longest)
 
-static func _valid_record(raw: Dictionary, index: int) -> bool:
+static func _valid_record(raw: Dictionary, index: int, registered: Array[String] = []) -> bool:
 	if not raw.has_all(["index", "id", "client", "title", "total", "advance", "base_cost", "material_cost", "score", "bonus", "final_payment", "profit", "document"]): return false
 	var grading: Variant = raw.get("grading_version", 1)
 	if not Document._integer(grading, 1, GRADING_VERSION): return false
@@ -483,6 +637,7 @@ static func _valid_record(raw: Dictionary, index: int) -> bool:
 	var model: Document = Document.new()
 	model.budget_limit = int(offer.material_budget)
 	if not model.restore(raw.document): return false
+	if not _custom_parts_registered(model.parts, registered): return false
 	var ids: Array[int] = []
 	for item: Dictionary in model.parts: ids.append(int(item.id))
 	# v1 predates full-width roofs, v2 lengths, and v3 facade enclosure.

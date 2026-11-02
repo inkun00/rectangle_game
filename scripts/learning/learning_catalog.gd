@@ -23,7 +23,7 @@ static func lesson(id: String) -> Dictionary:
 
 static func figures(id: String) -> Array[PackedVector2Array]:
 	var general: PackedVector2Array = PackedVector2Array([Vector2(-70, -48), Vector2(48, -62), Vector2(83, 46), Vector2(-56, 65)])
-	var right_trapezoid: PackedVector2Array = PackedVector2Array([Vector2(-75, -48), Vector2(30, -48), Vector2(75, 48), Vector2(-75, 48)])
+	var right_trapezoid: PackedVector2Array = Math.create_vertices("trapezoid", Vector2(150, 96), "right_left")
 	var rectangle: PackedVector2Array = Math.rotate_vertices(Math.create_vertices("rectangle", Vector2(130, 76)), 26.0)
 	var square: PackedVector2Array = Math.rotate_vertices(Math.create_vertices("square", Vector2(100, 100)), 32.0)
 	var rhombus: PackedVector2Array = Math.rotate_vertices(Math.create_vertices("rhombus", Vector2(145, 85)), -18.0)

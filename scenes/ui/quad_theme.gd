@@ -73,4 +73,4 @@ static func card(parent: Node, color: Color = Color.WHITE, padding: int = 20) ->
 	return v
 
 static func icon(kind: String) -> Texture2D:
-	return GameArt.item(int({"trapezoid": 2, "parallelogram": 3, "rhombus": 0, "rectangle": 4, "square": 7}.get(kind, 7)))
+	return ConstructionArt.shape_icon(kind)

@@ -1,0 +1,329 @@
+class_name TestSpaceEconomy
+extends RefCounted
+
+const State = preload("res://scripts/construction/construction_state.gd")
+const Document = preload("res://scripts/construction/construction_document.gd")
+const Drawing = preload("res://scripts/core/drawing_document.gd")
+const Catalog = preload("res://scripts/construction/construction_catalog.gd")
+const Guide = preload("res://scripts/construction/construction_guide.gd")
+const Market = preload("res://scripts/economy/art_market.gd")
+const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
+const Transactions = preload("res://scripts/economy/progression_transactions.gd")
+const Saves = preload("res://scripts/construction/construction_save_store.gd")
+
+static func run(t: Node) -> void:
+	_test_legacy_migration(t)
+	_test_art_income(t)
+	_test_reserved_funds(t)
+	_test_invalid_restores(t)
+	_test_durable_transactions(t)
+	_test_complete_ship(t)
+
+static func _test_legacy_migration(t: Node) -> void:
+	var original: State = State.new()
+	t.assert_true(_earn_construction(original, 100), "Legacy fixture earns its money by completing a real construction offer")
+	var legacy: Dictionary = _json_copy(original.serialize())
+	t.assert_false(legacy.has("space_economy"), "An untouched existing construction save has no required space-economy fields")
+	var restored: State = State.new()
+	t.assert_true(restored.restore(legacy), "A pre-space construction ledger still restores")
+	t.assert_eq(restored.balance, original.balance, "Migration preserves all previously earned money")
+	t.assert_eq(restored.records, legacy.records, "Migration preserves already-paid construction records")
+	t.assert_eq(restored.saved_balance(), State.INITIAL_BALANCE + restored.earned_profit(), "Missing optional economy fields contribute no invented earnings or expenses")
+	t.assert_eq(restored.art_sales.size(), 0, "Migrated games start with no sold paintings")
+	t.assert_eq(restored.purchased_ship_parts.size(), 0, "Migrated games start with no purchased spaceship parts")
+	t.assert_false(restored.launched, "Migrated games do not start with a completed ending")
+	var earliest: Dictionary = State.new().serialize()
+	earliest.erase("progression_version")
+	earliest.erase("contract_choice")
+	earliest.erase("contract_grading_version")
+	t.assert_true(restored.restore(_json_copy(earliest)), "The original v1 briefing without later progression metadata still migrates")
+	t.assert_eq(restored.balance, State.INITIAL_BALANCE, "Original v1 seed money is preserved exactly")
+
+static func _test_art_income(t: Node) -> void:
+	var state: State = State.new()
+	var drawing: Drawing = _artwork()
+	var quote: Dictionary = Market.quote(drawing)
+	t.assert_true(quote.can_sell, "The sale fixture is a visible original composition accepted by the actual market")
+	var before: Dictionary = drawing.serialize()
+	var history: int = drawing.command_manager.undo_stack.size()
+	var stages: Dictionary = state.stage_unlock_status(2)
+	var sale: Dictionary = state.sell_art(drawing.serialize())
+	t.assert_true(sale.ok, "A valid drawing can be sold through the state API")
+	t.assert_eq(state.balance, State.INITIAL_BALANCE + int(quote.price), "A painting credits exactly its quoted price")
+	t.assert_eq(state.saved_balance(), state.balance, "Painting income is included in persistent savings")
+	t.assert_eq(state.art_income(), int(quote.price), "Painting income reconciles to its sale receipt")
+	t.assert_eq(state.art_sales.size(), 1, "A successful sale appends one receipt")
+	t.assert_true(Market.validate_receipt(state.art_sales[0]), "The state records a valid deterministic market receipt")
+	t.assert_eq(drawing.serialize(), before, "Selling keeps the player's editable artwork intact")
+	t.assert_eq(drawing.command_manager.undo_stack.size(), history, "Selling does not consume drawing Undo history")
+	t.assert_eq(state.stage_unlock_status(2), stages, "Painting income does not rewrite construction-only stage achievements")
+	var paid_balance: int = state.balance
+	t.assert_false(state.sell_art(drawing.serialize()).ok, "Selling the same drawing twice cannot duplicate its payout")
+	drawing.select_shape(int(drawing.shapes.front().id))
+	t.assert_false(state.sell_art(drawing.serialize()).ok, "Selecting another shape does not turn a sold work into a new painting")
+	drawing.move_selected(Vector2(drawing.get_selected().position) + Vector2(1, 0))
+	t.assert_false(state.sell_art(drawing.serialize()).ok, "A one-pixel adjustment cannot farm another sale")
+	drawing.undo()
+	t.assert_false(state.sell_art(drawing.serialize()).ok, "Undo cannot reopen a previously paid artwork")
+	t.assert_eq(state.balance, paid_balance, "All duplicate-sale attempts preserve the balance")
+	t.assert_eq(state.art_sales.size(), 1, "Duplicate attempts never append additional receipts")
+	var second: Drawing = _artwork(true)
+	t.assert_true(state.sell_art(second.serialize()).ok, "A visibly different composition can earn a second payment")
+	t.assert_eq(state.art_sales.size(), 2, "Distinct accepted paintings have distinct receipts")
+	t.assert_eq(state.balance, State.INITIAL_BALANCE + state.art_income(), "Multiple sales still reconcile to exactly-once recorded income")
+	var empty: Drawing = Drawing.new()
+	t.assert_false(state.sell_art(empty.serialize()).ok, "An empty canvas cannot earn money")
+	t.assert_false(state.sell_art({"version": 999}).ok, "Malformed drawing data is rejected before payment")
+	var restored: State = State.new()
+	t.assert_true(restored.restore(_json_copy(state.serialize())), "Painting receipts and money survive a JSON round trip")
+	t.assert_eq(restored.balance, state.balance, "Restored painting income preserves exact integer won")
+	t.assert_false(restored.sell_art(drawing.serialize()).ok, "Reloading does not reset sold-work protection")
+
+static func _test_reserved_funds(t: Node) -> void:
+	var state: State = State.new()
+	var first: Dictionary = Ship.all_parts().front()
+	t.assert_gt(state.balance, int(first.price), "Seed money exceeds the cheapest part but is reserved for operating the business")
+	t.assert_eq(state.ship_available_funds(), 0, "A new game has no earned spaceship funds")
+	t.assert_false(state.purchase_ship_part(str(first.id)).ok, "The minimum thirty-million-won operating reserve cannot buy spaceship parts")
+	t.assert_true(state.accept_contract(), "The reserve fixture accepts a real construction commission")
+	var advance: int = int(state.current_contract().advance)
+	t.assert_eq(state.balance, State.INITIAL_BALANCE + advance, "The building account includes the customer's advance")
+	t.assert_eq(state.ship_available_funds(), 0, "An active customer's advance contributes no spendable spaceship funds")
+	var untouched: Dictionary = state.serialize()
+	t.assert_false(state.purchase_ship_part(str(first.id)).ok, "A large client advance cannot fund a spaceship purchase")
+	t.assert_eq(state.serialize(), untouched, "A denied advance-funded purchase leaves the whole ledger unchanged")
+	t.assert_true(_earn_construction(state, int(first.price)), "Real construction income eventually makes the first part affordable")
+	state.set_my_house_mode(true)
+	for row: int in range(2):
+		for column: int in range(10):
+			t.assert_gt(state.my_house_document.add_part("door", Vector2(100 + column * 180, 500 - row * 200)), 0, "Private-house materials are legally purchased and placed")
+	var house: Dictionary = state.my_house_document.serialize()
+	var house_cost: int = state.my_house_cost()
+	t.assert_gt(house_cost, 0, "The private-house fixture reserves meaningful material costs")
+	t.assert_eq(state.ship_available_funds(), maxi(0, state.saved_balance() - State.INITIAL_BALANCE - house_cost), "Spendable funds subtract both existing private-house materials and the operating reserve")
+	t.assert_true(state.ship_available_funds() < int(first.price), "Private-house reservations make this otherwise affordable part unavailable")
+	t.assert_false(state.purchase_ship_part(str(first.id)).ok, "Buying a part cannot consume money reserved by the existing private house")
+	t.assert_eq(state.my_house_document.serialize(), house, "A rejected purchase preserves every private-house part")
+	state.my_house_document.clear()
+	state.set_my_house_mode(false)
+	t.assert_true(state.select_contract(0) and state.accept_contract(), "A new active job can coexist with spaceship purchases")
+	advance = int(state.current_contract().advance)
+	state.document.add_part("brick", Vector2(500, 550))
+	var construction: Document = state.document
+	var construction_snapshot: Dictionary = construction.serialize()
+	var construction_history: int = construction.command_manager.undo_stack.size()
+	var stages: Dictionary = state.stage_unlock_status(3)
+	var savings_before: int = state.saved_balance()
+	var purchased: Dictionary = state.purchase_ship_part(str(first.id))
+	t.assert_true(purchased.ok, "Earned unrestricted funds can buy a spaceship part during an active commission")
+	t.assert_eq(state.saved_balance(), savings_before - int(first.price), "A purchase deducts exactly the listed price from savings")
+	t.assert_eq(state.balance - state.saved_balance(), advance, "The customer's advance is preserved after a spaceship purchase")
+	t.assert_true(state.saved_balance() >= State.INITIAL_BALANCE, "A successful purchase retains the full operating reserve")
+	t.assert_true(state.document == construction, "Purchasing does not replace the live construction document")
+	t.assert_eq(construction.serialize(), construction_snapshot, "Purchasing leaves the active job's geometry unchanged")
+	t.assert_eq(construction.command_manager.undo_stack.size(), construction_history, "Purchasing leaves construction Undo commands intact")
+	t.assert_eq(state.stage_unlock_status(3), stages, "Buying parts cannot revoke historical construction-stage achievements")
+	untouched = state.serialize()
+	t.assert_false(state.purchase_ship_part(str(first.id)).ok, "An owned spaceship part cannot be charged twice")
+	t.assert_false(state.purchase_ship_part("unknown_part").ok, "An unknown spaceship part is rejected")
+	t.assert_eq(state.serialize(), untouched, "Duplicate and unknown purchases do not alter money or ownership")
+	var restored: State = State.new()
+	t.assert_true(restored.restore(_json_copy(state.serialize())), "Purchases, historical earnings and an active advance reconcile on reload")
+	t.assert_eq(restored.balance, state.balance, "Reloading preserves the exact post-purchase construction balance")
+	t.assert_eq(restored.purchased_ship_parts, state.purchased_ship_parts, "Reloading preserves purchased part ownership")
+
+static func _test_invalid_restores(t: Node) -> void:
+	var state: State = State.new()
+	state.sell_art(_artwork().serialize())
+	state.accept_contract()
+	state.document.add_part("brick", Vector2(500, 550))
+	state.document.move_selected(Vector2(540, 550))
+	state.set_my_house_mode(true)
+	state.my_house_document.add_part("brick", Vector2(400, 550))
+	var valid: Dictionary = _json_copy(state.serialize())
+	var malformed: Array[Dictionary] = []
+	var bad: Dictionary = valid.duplicate(true)
+	bad.space_economy.art_sales[0].price += 100
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.art_sales[0].signature = "invalid"
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.art_sales.append(bad.space_economy.art_sales[0].duplicate(true))
+	bad.balance += int(bad.space_economy.art_sales[0].price)
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.purchased_parts = ["unknown_part"]
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.purchased_parts = ["hull", "hull"]
+	bad.balance -= int(Ship.part("hull").price) * 2
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.launched = true
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.launched = "true"
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.balance += 100
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.purchased_parts = ["hull"]
+	bad.balance -= int(Ship.part("hull").price)
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.version = 999
+	malformed.append(bad)
+	bad = valid.duplicate(true)
+	bad.space_economy.art_sales = "invalid"
+	malformed.append(bad)
+	for index: int in range(malformed.size()):
+		var before: Dictionary = state.serialize()
+		var document: Document = state.document
+		var house: Document = state.my_house_document
+		var undo_count: int = document.command_manager.undo_stack.size()
+		var house_undo: int = house.command_manager.undo_stack.size()
+		t.assert_false(state.restore(malformed[index]), "Malformed space ledger case %d is rejected before applying live fields" % index)
+		t.assert_eq(state.serialize(), before, "Malformed ledger case %d leaves every financial and geometry field unchanged" % index)
+		t.assert_true(state.document == document and state.my_house_document == house, "Rejected restore preserves both live document identities")
+		t.assert_eq(document.command_manager.undo_stack.size(), undo_count, "Rejected restore preserves active construction Undo history")
+		t.assert_eq(house.command_manager.undo_stack.size(), house_undo, "Rejected restore preserves private-house Undo history")
+
+static func _test_durable_transactions(t: Node) -> void:
+	var state: State = State.new()
+	t.assert_true(_earn_construction(state, 25000000), "Transaction fixture earns sufficient funds through real commissions")
+	state.select_contract(0)
+	state.accept_contract()
+	state.document.add_part("brick", Vector2(500, 550))
+	state.document.move_selected(Vector2(540, 550))
+	state.set_my_house_mode(true)
+	state.my_house_document.add_part("brick", Vector2(400, 550))
+	state.my_house_document.move_selected(Vector2(440, 550))
+	state.my_house_document.undo()
+	var drawing: Drawing = _artwork()
+	var drawing_before: Dictionary = drawing.serialize()
+	var drawing_history: int = drawing.command_manager.undo_stack.size()
+	var path: String = "res://.godot/space_economy_%d.json" % Time.get_ticks_usec()
+	var invalid_path: String = "res://.godot/missing_space_economy_%d/ledger.json" % Time.get_ticks_usec()
+	var documents: Array[Document] = [state.document, state.my_house_document]
+	var snapshots: Array[Dictionary] = [documents[0].serialize(), documents[1].serialize()]
+	var undo_sizes: Array[int] = [documents[0].command_manager.undo_stack.size(), documents[1].command_manager.undo_stack.size()]
+	var redo_sizes: Array[int] = [documents[0].command_manager.redo_stack.size(), documents[1].command_manager.redo_stack.size()]
+	var before: Dictionary = state.serialize()
+	var result: Dictionary = Transactions.commit(state, "sell_art", drawing.serialize(), invalid_path)
+	t.assert_false(result.ok, "A painting sale is cancelled when its save cannot be written")
+	t.assert_true(str(result.error).contains("저장"), "A failed durable sale explains the save failure")
+	t.assert_eq(state.serialize(), before, "A failed sale credits no money and records no sold artwork")
+	_assert_live_documents(t, state, documents, snapshots, undo_sizes, redo_sizes)
+	result = Transactions.commit(state, "sell_art", drawing.serialize(), path)
+	t.assert_true(result.ok, "The same painting remains sellable after storage becomes available")
+	t.assert_eq(state.art_sales.size(), 1, "A committed durable sale creates exactly one receipt")
+	_assert_live_documents(t, state, documents, snapshots, undo_sizes, redo_sizes)
+	t.assert_eq(drawing.serialize(), drawing_before, "Durable sales preserve the original artwork")
+	t.assert_eq(drawing.command_manager.undo_stack.size(), drawing_history, "Durable sales preserve drawing Undo history")
+	var loaded: State = State.new()
+	t.assert_true(Saves.load_into(path, loaded).ok, "A committed sale can be read from the published save")
+	t.assert_eq(_json_copy(loaded.serialize()), _json_copy(state.serialize()), "The durable sale and live state have the same exact ledger and documents")
+	before = state.serialize()
+	result = Transactions.commit(state, "purchase_part", "hull", invalid_path)
+	t.assert_false(result.ok, "A part purchase is cancelled when its save fails")
+	t.assert_eq(state.serialize(), before, "A failed purchase neither deducts money nor grants the part")
+	_assert_live_documents(t, state, documents, snapshots, undo_sizes, redo_sizes)
+	t.assert_true(Transactions.commit(state, "purchase_part", "hull", path).ok, "Retrying a failed purchase succeeds once it can be durably saved")
+	t.assert_eq(state.purchased_ship_parts, ["hull"], "Successful purchase records one owned part")
+	t.assert_eq(state.my_house_document.budget_limit, state.saved_balance(), "Successful financial commit updates the private-house budget")
+	_assert_live_documents(t, state, documents, snapshots, undo_sizes, redo_sizes)
+	t.assert_true(Saves.load_into(path, loaded).ok, "A committed purchase can be restored from disk")
+	t.assert_eq(_json_copy(loaded.serialize()), _json_copy(state.serialize()), "Disk and live state agree after buying the part")
+	before = state.serialize()
+	var published: String = FileAccess.get_file_as_string(path)
+	t.assert_false(Transactions.commit(state, "purchase_part", "hull", path).ok, "Durable transaction layer also rejects duplicate purchases")
+	t.assert_false(Transactions.commit(state, "sell_art", drawing.serialize(), path).ok, "Durable transaction layer also rejects a paid artwork")
+	t.assert_false(Transactions.commit(state, "purchase_part", 7, path).ok, "A malformed purchase payload is rejected")
+	t.assert_false(Transactions.commit(state, "sell_art", "wrong", path).ok, "A malformed sale payload is rejected")
+	t.assert_false(Transactions.commit(state, "unknown", null, path).ok, "Unknown transaction actions are rejected")
+	t.assert_eq(state.serialize(), before, "Rejected transactions cannot mutate the live account")
+	t.assert_eq(FileAccess.get_file_as_string(path), published, "Rejected transactions do not replace the previously published save")
+	_cleanup_save(path)
+
+static func _test_complete_ship(t: Node) -> void:
+	var state: State = State.new()
+	t.assert_false(state.launch_ship().ok, "A fresh game cannot launch an unbuilt spaceship")
+	t.assert_false(state.launched, "Premature launch does not set the ending flag")
+	t.assert_true(_earn_construction(state, Ship.total_price()), "Repeated legal construction work can eventually pay for all twelve expensive parts")
+	t.assert_gt(state.records.size(), 12, "Finishing the spaceship requires substantial play rather than one contract per part")
+	var earned: int = state.earned_profit()
+	var stages: Dictionary = state.stage_unlock_status(9)
+	var spent: int = 0
+	for part: Dictionary in Ship.all_parts():
+		t.assert_false(state.launch_ship().ok, "Launch stays locked until the final missing part has been purchased")
+		var before: int = state.balance
+		t.assert_true(state.purchase_ship_part(str(part.id)).ok, "An earned spaceship component can be purchased individually")
+		spent += int(part.price)
+		t.assert_eq(state.balance, before - int(part.price), "Each component deducts its own exact catalog price")
+		t.assert_eq(state.ship_spent(), spent, "Cumulative spending matches the owned components")
+		t.assert_true(state.saved_balance() >= State.INITIAL_BALANCE, "Every step retains the minimum operating reserve")
+	t.assert_eq(state.purchased_ship_parts.size(), 12, "The completed spaceship contains all twelve purchased parts")
+	t.assert_true(state.ship_complete(), "The complete catalog ownership unlocks departure")
+	t.assert_eq(state.saved_balance(), State.INITIAL_BALANCE + earned - Ship.total_price(), "The completed spaceship reconciles to income minus its full twelve-part price")
+	t.assert_eq(state.stage_unlock_status(9), stages, "Even the complete expensive spaceship cannot remove earned construction access")
+	var before_launch: Dictionary = state.serialize()
+	var invalid_path: String = "res://.godot/missing_space_launch_%d/ledger.json" % Time.get_ticks_usec()
+	t.assert_false(Transactions.commit(state, "launch", null, invalid_path).ok, "Departure waits for its completion flag to be durably saved")
+	t.assert_eq(state.serialize(), before_launch, "A failed launch save preserves the complete unlaunched spaceship")
+	var path: String = "res://.godot/space_launch_%d.json" % Time.get_ticks_usec()
+	var launch: Dictionary = Transactions.commit(state, "launch", null, path)
+	t.assert_true(launch.ok and not launch.replay, "The first successful saved launch reports a new departure")
+	t.assert_true(state.launched, "The durable departure sets the ending flag")
+	var restored: State = State.new()
+	t.assert_true(Saves.load_into(path, restored).ok, "A completed spaceship and departure restore from disk")
+	t.assert_true(restored.launched and restored.ship_complete(), "Reloaded completion keeps both all parts and the ending flag")
+	t.assert_eq(restored.balance, state.balance, "Launching and reloading never invent an extra monetary reward")
+	var completed: Dictionary = restored.serialize()
+	var replay: Dictionary = restored.launch_ship()
+	t.assert_true(replay.ok and replay.replay, "A completed player may replay the departure animation")
+	t.assert_eq(restored.serialize(), completed, "Replaying departure does not change money, ownership or completed records")
+	_cleanup_save(path)
+
+static func _assert_live_documents(t: Node, state: State, documents: Array[Document], snapshots: Array[Dictionary], undo_sizes: Array[int], redo_sizes: Array[int]) -> void:
+	t.assert_true(state.document == documents[0] and state.my_house_document == documents[1], "Financial transactions preserve both live document identities")
+	for index: int in range(documents.size()):
+		t.assert_eq(documents[index].serialize(), snapshots[index], "Financial transactions preserve existing geometry and selection")
+		t.assert_eq(documents[index].command_manager.undo_stack.size(), undo_sizes[index], "Financial transactions preserve the complete Undo stack")
+		t.assert_eq(documents[index].command_manager.redo_stack.size(), redo_sizes[index], "Financial transactions preserve the complete Redo stack")
+
+static func _artwork(alternate: bool = false) -> Drawing:
+	var drawing: Drawing = Drawing.new()
+	var colors: Array[Color] = [Color("df704f"), Color("4a9baa"), Color("e0b555"), Color("736bb1"), Color("77ac65")]
+	for index: int in range(5):
+		var color: Color = colors[(index + (2 if alternate else 0)) % colors.size()]
+		var position: Vector2 = Vector2(-320 + index * 160, 90 if index % 2 == 0 else -90)
+		if alternate: position.y *= -1.0
+		drawing.add_sized_shape("rectangle", position, Vector2(140, 120), color)
+	return drawing
+
+static func _earn_construction(state: State, minimum_profit: int) -> bool:
+	# Every won comes from the existing accept/build/evaluate/settle APIs. No
+	# balances, paid records or market receipts are fabricated by this fixture.
+	var iterations: int = 0
+	while state.earned_profit() < minimum_profit and iterations < 100:
+		if state.phase != "building":
+			var choice: int = 0
+			for candidate: int in range(Catalog.contract_count()):
+				if bool(state.stage_unlock_status(candidate + 1).unlocked): choice = candidate
+			if not state.select_contract(choice) or not state.accept_contract(): return false
+		if not state.document.replace_parts(Guide.example_for_contract(state.current_contract())): return false
+		var ids: Array[int] = []
+		for part: Dictionary in state.document.parts: ids.append(int(part.id))
+		var inspection: Dictionary = {"stable": true, "stable_ids": ids, "unsupported_ids": [], "revision": state.document.revision}
+		if state.settle(inspection).is_empty(): return false
+		iterations += 1
+	return state.earned_profit() >= minimum_profit
+
+static func _json_copy(value: Dictionary) -> Dictionary:
+	return JSON.parse_string(JSON.stringify(value))
+
+static func _cleanup_save(path: String) -> void:
+	for suffix: String in ["", ".bak", ".tmp", ".invalid"]:
+		if FileAccess.file_exists(path + suffix): DirAccess.remove_absolute(path + suffix)

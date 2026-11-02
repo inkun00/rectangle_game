@@ -12,8 +12,9 @@ from fontTools.ttLib import TTFont
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "tools/font_sources/korean_font_full.ttf.xz"
 OUTPUT = ROOT / "assets/fonts/korean_font.ttf"
-TEXT_SUFFIXES = {".gd", ".tscn", ".tres", ".html"}
+TEXT_SUFFIXES = {".gd", ".tscn", ".tres", ".html", ".js"}
 TEXT_ROOTS = (ROOT / "scenes", ROOT / "scripts", ROOT / "assets/theme", ROOT / "web")
+EXTRA_TEXT_FILES = (ROOT / "tools/opening/scene.html", ROOT / "tools/opening/motion.js")
 
 
 def required_codepoints() -> set[int]:
@@ -26,6 +27,9 @@ def required_codepoints() -> set[int]:
             if path.is_file() and path.suffix in TEXT_SUFFIXES:
                 codepoints.update(map(ord, path.read_text(encoding="utf-8")))
     codepoints.update(map(ord, (ROOT / "project.godot").read_text(encoding="utf-8")))
+    for path in EXTRA_TEXT_FILES:
+        if path.is_file():
+            codepoints.update(map(ord, path.read_text(encoding="utf-8")))
     return codepoints
 
 

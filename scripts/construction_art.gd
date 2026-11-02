@@ -113,6 +113,7 @@ static func material_icon(material_id: String) -> Texture2D:
 	# Counted masonry always uses one generated brick per repeated tile.
 	if int(material.get("brick_count", 0)) > 0: return _atlas("construction-materials.png", 0, 4, 2)
 	var texture_key: String = str(material.get("texture_key", ""))
+	if texture_key == "brick": return StarfrontArt.material(0)
 	if EXPANDED_MATERIAL_CELLS.has(texture_key):
 		return _atlas("construction-materials-expanded.png", int(EXPANDED_MATERIAL_CELLS[texture_key]), 4, 4)
 	var cell: int = 0
@@ -259,6 +260,46 @@ static func texture_uvs(texture: Texture2D) -> PackedVector2Array:
 static func quad_point(vertices: PackedVector2Array, uv: Vector2) -> Vector2:
 	return vertices[0].lerp(vertices[1], uv.x).lerp(vertices[3].lerp(vertices[2], uv.x), uv.y)
 
+## Masks reveal tinted copies of the generated surface, never replace it with
+## procedural artwork. UV-space quads stay inside every valid convex part.
+static func pattern_uv_polygons(pattern_id: String) -> Array[PackedVector2Array]:
+	var polygons: Array[PackedVector2Array] = []
+	match pattern_id:
+		"bands":
+			for row: int in range(4):
+				var top: float = 0.08 + float(row) * 0.23
+				polygons.append(PackedVector2Array([Vector2(0.0, top), Vector2(1.0, top), Vector2(1.0, top + 0.11), Vector2(0.0, top + 0.11)]))
+		"checks":
+			for row: int in range(4):
+				for column: int in range(4):
+					if (row + column) % 2 != 0: continue
+					var left: float = float(column) * 0.25
+					var top: float = float(row) * 0.25
+					polygons.append(PackedVector2Array([Vector2(left, top), Vector2(left + 0.25, top), Vector2(left + 0.25, top + 0.25), Vector2(left, top + 0.25)]))
+		"diamond":
+			for row: int in range(3):
+				for column: int in range(3):
+					var center: Vector2 = Vector2(0.16 + float(column) * 0.34, 0.16 + float(row) * 0.34)
+					polygons.append(PackedVector2Array([center + Vector2(0.0, -0.13), center + Vector2(0.13, 0.0), center + Vector2(0.0, 0.13), center + Vector2(-0.13, 0.0)]))
+	return polygons
+
+static func draw_material_pattern(canvas: CanvasItem, material: Dictionary, screen_points: PackedVector2Array, tint: Color = Color.WHITE) -> void:
+	if not bool(material.get("custom", false)) or screen_points.size() != 4:
+		return
+	var masks: Array[PackedVector2Array] = pattern_uv_polygons(str(material.get("pattern_id", "plain")))
+	if masks.is_empty(): return
+	var texture: Texture2D = material_icon(str(material.get("id", "")))
+	if texture == null: return
+	var surface_uvs: PackedVector2Array = texture_uvs(texture)
+	var paint: Color = Color(0.36, 0.46, 0.54, 0.62) * tint
+	for mask: PackedVector2Array in masks:
+		var points: PackedVector2Array = PackedVector2Array()
+		var uvs: PackedVector2Array = PackedVector2Array()
+		for uv: Vector2 in mask:
+			points.append(quad_point(screen_points, uv))
+			uvs.append(quad_point(surface_uvs, uv))
+		canvas.draw_polygon(points, PackedColorArray([paint]), uvs, texture_source(texture))
+
 static func portrait(index: int) -> Control:
 	var result: ClientPortrait = ClientPortrait.new()
 	result.client_index = posmod(index, 9)
@@ -267,6 +308,10 @@ static func portrait(index: int) -> Control:
 	return result
 
 class MaterialSample extends Control:
+	var fit_preview: bool = false:
+		set(value):
+			fit_preview = value
+			queue_redraw()
 	var material_id: String = "":
 		set(value):
 			material_id = value
@@ -281,13 +326,14 @@ class MaterialSample extends Control:
 		var material: Dictionary = Catalog.material(material_id)
 		var sample: Texture2D = ConstructionArt.material_icon(material_id)
 		if material.is_empty() or sample == null: return
-		var vertices: PackedVector2Array = Math.create_vertices(str(material.kind), Vector2(material.dimensions))
+		var vertices: PackedVector2Array = Catalog.material_vertices(material_id)
 		var bounds: Rect2 = Math.bounds(vertices)
 		var ground_h: float = minf(8.0, size.y * 0.16)
 		var ground_y: float = size.y - ground_h
 		var cells_w: float = maxf(1.0, bounds.size.x / Catalog.GRID_UNIT)
 		var cells_h: float = maxf(1.0, bounds.size.y / Catalog.GRID_UNIT)
-		var cell_px: float = clampf(minf(maxf(size.x - 14.0, 4.0) / cells_w, maxf(ground_y - 8.0, 4.0) / cells_h), 2.5, 16.0)
+		var cell_px: float = minf(maxf(size.x - 14.0, 4.0) / cells_w, maxf(ground_y - 8.0, 4.0) / cells_h)
+		if not fit_preview: cell_px = clampf(cell_px, 2.5, 16.0)
 		var scale: float = cell_px / Catalog.GRID_UNIT
 		var center_pt: Vector2 = Vector2(roundf(size.x * 0.5), ground_y - (bounds.end.y - bounds.get_center().y) * scale)
 		var left_x: float = center_pt.x + (bounds.position.x - bounds.get_center().x) * scale
@@ -329,6 +375,7 @@ class MaterialSample extends Control:
 		var outline: PackedVector2Array = PackedVector2Array()
 		for vertex: Vector2 in vertices:
 			outline.append((vertex - bounds.get_center()) * scale + center_pt)
+		ConstructionArt.draw_material_pattern(self, material, outline)
 		if outline.size() >= 2:
 			draw_line(outline[0], outline[1], Color(1.0, 1.0, 0.94, 0.45), 1.5, true)
 		outline.append(outline[0])

@@ -206,6 +206,8 @@ func _foreign_modal_open() -> bool:
 		if is_instance_valid(studio._gallery) and studio._gallery.visible: return true
 		if is_instance_valid(studio._color_dialog) and studio._color_dialog.visible: return true
 		if studio._color_picker.get_popup().visible: return true
+		if is_instance_valid(studio._shape_context_menu) and studio._shape_context_menu.visible: return true
+		if is_instance_valid(studio._sale_dialog) and studio._sale_dialog.visible: return true
 	return false
 
 

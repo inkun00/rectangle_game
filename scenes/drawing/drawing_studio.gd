@@ -6,8 +6,12 @@ const Canvas = preload("res://scenes/drawing/drawing_canvas.gd")
 const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 const DrawingExport = preload("res://scripts/export/drawing_exporter.gd")
 const Buttons = preload("res://scripts/ui/button_art.gd")
+const Market = preload("res://scripts/economy/art_market.gd")
+const Money = preload("res://scripts/construction/construction_catalog.gd")
 const SAVE_PATH: String = "user://quadrilateral_drawing_v1.json"
 const SHAPE_ORDER: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
+const TRAPEZOID_VARIANT_LABELS: Array[String] = ["양옆이 기울어진 모양", "왼쪽 두 각이 직각", "오른쪽 두 각이 직각"]
+const SHAPE_ACTION_LABELS: Dictionary = {6: "뒤로 보내기", 7: "앞으로 보내기", 2: "왼쪽 15° 회전", 3: "오른쪽 15° 회전", 4: "축소", 5: "확대", 0: "복제", 1: "삭제"}
 const SHAPE_HELP: Dictionary = {
 	"square": "네 변의 길이가 같고, 네 각이 직각이에요.",
 	"rectangle": "네 각이 모두 직각이에요. 길쭉한 벽이나 창문을 그려 봐요.",
@@ -30,6 +34,7 @@ signal tutorial_requested
 signal mode_selected(mode: String)
 signal interaction_context_changed
 signal guide_changed
+signal art_sale_requested(document_data: Dictionary)
 
 var testing: bool = false
 var tutorial_blocked: bool = false
@@ -61,12 +66,22 @@ var _color_dialog: AcceptDialog
 var _swatches: Array[Button] = []
 var _palette_scroll: ScrollContainer
 var _shape_picker: OptionButton
+var _trapezoid_variant_picker: OptionButton
 var _more_edits: MenuButton
 var _drawing_header: HBoxContainer
 var _drawing_title: Label
 var _drawing_tagline: Label
 var _drawing_load: Button
+var _shape_tools: HFlowContainer
+var _tool_scroll: ScrollContainer
+var _shape_context_menu: PopupMenu
+var _context_shape_id: int = -1
 var _main_colors: Array[Button] = []
+var economy: ConstructionState
+var _sale_button: Button
+var _sale_dialog: ConfirmationDialog
+var _sale_offer: Dictionary = {}
+var _sale_pending: bool = false
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -77,6 +92,10 @@ func _ready() -> void:
 	_autosave.timeout.connect(func(): save_drawing(false))
 	add_child(_autosave)
 	document.changed.connect(_document_changed)
+	visibility_changed.connect(func():
+		if not is_visible_in_tree():
+			cancel_gesture()
+			if is_instance_valid(_sale_dialog): _sale_dialog.hide())
 	if not testing:
 		load_drawing(false)
 	_refresh()
@@ -154,30 +173,46 @@ func _build_ui() -> void:
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.add_theme_constant_override("separation", 8)
 	workspace.add_child(center)
-	var modes: HFlowContainer = HFlowContainer.new()
-	modes.add_theme_constant_override("h_separation", 8)
-	modes.add_theme_constant_override("v_separation", 6)
-	center.add_child(modes)
+	_shape_tools = HFlowContainer.new()
+	_shape_tools.add_theme_constant_override("h_separation", 8)
+	_shape_tools.add_theme_constant_override("v_separation", 6)
+	center.add_child(_shape_tools)
 	_shape_picker = OptionButton.new()
 	Buttons.apply(_shape_picker)
 	_shape_picker.custom_minimum_size = Vector2(170, 44)
-	for kind: String in SHAPE_ORDER: _shape_picker.add_item(QuadrilateralMath.kind_name(kind))
+	for kind: String in SHAPE_ORDER: _shape_picker.add_icon_item(QuadTheme.icon(kind), QuadrilateralMath.kind_name(kind))
 	_shape_picker.item_selected.connect(func(index: int): canvas.select_kind(SHAPE_ORDER[index]))
-	modes.add_child(_shape_picker)
+	_shape_tools.add_child(_shape_picker)
+	_trapezoid_variant_picker = OptionButton.new()
+	_trapezoid_variant_picker.name = "TrapezoidVariantPicker"
+	Buttons.apply(_trapezoid_variant_picker)
+	_trapezoid_variant_picker.custom_minimum_size = Vector2(220, 44)
+	_trapezoid_variant_picker.tooltip_text = "새로 그릴 사다리꼴의 모양을 골라요. 한쪽 변의 두 각이 직각인 모양도 있어요."
+	for label: String in TRAPEZOID_VARIANT_LABELS: _trapezoid_variant_picker.add_item(label)
+	_trapezoid_variant_picker.item_selected.connect(func(index: int): canvas.select_trapezoid_variant(QuadrilateralMath.TRAPEZOID_VARIANTS[index]))
+	_shape_tools.add_child(_trapezoid_variant_picker)
+	_tool_scroll = ScrollContainer.new()
+	_tool_scroll.name = "DrawingToolbarScroll"
+	_tool_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_tool_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_tool_scroll.follow_focus = true
+	center.add_child(_tool_scroll)
+	var toolbar: HBoxContainer = HBoxContainer.new()
+	toolbar.name = "DrawingToolbar"
+	toolbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	toolbar.add_theme_constant_override("separation", 8)
+	_tool_scroll.add_child(toolbar)
 	_mode_free = _button("자유 그림", func(): _choose_mode("free"))
 	_mode_free.name = "FreeDrawingMode"
 	_mode_free.toggle_mode = true
-	modes.add_child(_mode_free)
+	toolbar.add_child(_mode_free)
 	_mode_masterpiece = _button("명화 채우기", func(): _choose_mode("masterpiece"))
 	_mode_masterpiece.name = "MasterpieceMode"
 	_mode_masterpiece.toggle_mode = true
-	modes.add_child(_mode_masterpiece)
+	toolbar.add_child(_mode_masterpiece)
 	_background_button = _button("배경 고르기", func(): _open_gallery(false))
 	_background_button.name = "BackgroundGalleryButton"
-	modes.add_child(_background_button)
-	var toolbar: HBoxContainer = HBoxContainer.new()
-	toolbar.add_theme_constant_override("separation", 8)
-	center.add_child(toolbar)
+	toolbar.add_child(_background_button)
 	_select_button = _button("선택·이동", func(): canvas.select_tool())
 	_select_button.toggle_mode = true
 	toolbar.add_child(_select_button)
@@ -188,8 +223,9 @@ func _build_ui() -> void:
 	_more_edits = MenuButton.new()
 	_more_edits.text = "편집 더 보기"
 	Buttons.apply(_more_edits)
+	_more_edits.focus_mode = Control.FOCUS_ALL
 	_more_edits.custom_minimum_size.y = 44
-	for caption: String in ["복제", "삭제", "왼쪽 15°", "오른쪽 15°", "축소", "확대", "뒤로", "앞으로", "모두 지우기", "불러오기", "밑그림 표시 전환", "밑그림 진하기 바꾸기"]:
+	for caption: String in ["복제", "삭제", "왼쪽 15°", "오른쪽 15°", "축소", "확대", "뒤로 보내기", "앞으로 보내기", "모두 지우기", "불러오기", "밑그림 표시 전환", "밑그림 진하기 바꾸기"]:
 		_more_edits.get_popup().add_item(caption)
 	_more_edits.get_popup().id_pressed.connect(_more_edit_action)
 	toolbar.add_child(_more_edits)
@@ -224,7 +260,23 @@ func _build_ui() -> void:
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.hint_requested.connect(_set_status)
 	canvas.tool_changed.connect(_refresh)
+	canvas.context_menu_requested.connect(_show_shape_context_menu)
 	center.add_child(canvas)
+	_shape_context_menu = PopupMenu.new()
+	_shape_context_menu.name = "ShapeContextMenu"
+	_shape_context_menu.add_theme_font_override("font", QuadTheme.FONT)
+	_shape_context_menu.add_theme_font_size_override("font_size", 18)
+	_shape_context_menu.add_theme_constant_override("v_separation", 10)
+	_shape_context_menu.add_theme_stylebox_override("panel", GameArt.panel(0, 10))
+	_shape_context_menu.add_theme_stylebox_override("hover", Buttons.style(false, "hover", 8))
+	_shape_context_menu.add_theme_color_override("font_color", QuadTheme.INK)
+	_shape_context_menu.add_theme_color_override("font_hover_color", Color.WHITE)
+	_shape_context_menu.add_theme_color_override("font_disabled_color", QuadTheme.MUTED)
+	_shape_context_menu.id_pressed.connect(_shape_context_action)
+	_shape_context_menu.popup_hide.connect(func():
+		interaction_context_changed.emit()
+		_clear_context_target.call_deferred())
+	add_child(_shape_context_menu)
 	var colors: HFlowContainer = HFlowContainer.new()
 	colors.add_theme_constant_override("h_separation", 6)
 	colors.add_theme_constant_override("v_separation", 6)
@@ -257,8 +309,19 @@ func _build_ui() -> void:
 	colors.add_child(snap)
 	_selection = QuadTheme.paragraph("", 15, QuadTheme.INK)
 	center.add_child(_selection)
+	var footer: HBoxContainer = HBoxContainer.new()
+	footer.name = "DrawingSaleFooter"
+	footer.add_theme_constant_override("separation", 14)
+	_sale_button = _button("그림 판매", _open_sale, true)
+	_sale_button.name = "SellDrawingButton"
+	_sale_button.custom_minimum_size = Vector2(130, 48)
+	_sale_button.tooltip_text = "사각형으로 그린 작품을 팔아 우주선 제작비를 모아요."
+	footer.add_child(_sale_button)
 	_status = QuadTheme.paragraph("도형을 골라 종이에 그려요. 자동으로 저장돼요.", 14, QuadTheme.INK)
-	column.add_child(_status)
+	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	footer.add_child(_status)
+	column.add_child(footer)
+	_refresh_sale_button()
 	resized.connect(_responsive_drawing)
 	_responsive_drawing()
 
@@ -267,6 +330,9 @@ func _responsive_drawing() -> void:
 	var spacious: bool = size.x >= 1250 and size.y >= 760
 	_palette_scroll.visible = spacious
 	_shape_picker.visible = not spacious
+	_shape_tools.visible = not spacious or canvas.selected_kind == "trapezoid"
+	for button: Button in [_mode_free, _mode_masterpiece, _background_button, _select_button, _undo, _redo, _more_edits]:
+		button.add_theme_font_size_override("font_size", 16 if size.x < 1000 else 18)
 	_drawing_tagline.visible = size.y >= 760
 	_drawing_load.visible = size.x >= 1000
 	_drawing_title.add_theme_font_size_override("font_size", 22 if size.x < 1000 else 25)
@@ -300,6 +366,54 @@ func _more_edit_action(id: int) -> void:
 			_guide_opacity.set_value_no_signal(canvas.masterpiece_opacity)
 			canvas.queue_redraw()
 			guide_changed.emit()
+
+func _show_shape_context_menu(canvas_position: Vector2) -> void:
+	if tutorial_blocked or not is_visible_in_tree() or _exporting: return
+	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or (_sale_dialog != null and _sale_dialog.visible) or _color_picker.get_popup().visible: return
+	cancel_gesture()
+	var point: Vector2 = canvas.screen_to_artwork(canvas_position)
+	var selected: Dictionary = document.get_selected()
+	# Keep an already selected lower layer as the target even where another
+	# polygon covers it, so repeated layer edits operate on the same shape.
+	if selected.is_empty() or not QuadrilateralMath.contains_point(selected.vertices, point - Vector2(selected.position)):
+		var hit_id: int = canvas._shape_at(point)
+		if hit_id >= 0: document.select_shape(hit_id)
+	selected = document.get_selected()
+	if selected.is_empty(): return
+	canvas.select_tool()
+	canvas.grab_focus()
+	_context_shape_id = document.selected_id
+	var layer: int = document._shape_index(_context_shape_id)
+	_shape_context_menu.clear()
+	_shape_context_menu.add_item("%s · 레이어 %d / %d" % [QuadrilateralMath.kind_name(str(selected.kind)), layer + 1, document.shapes.size()], 100)
+	_shape_context_menu.set_item_disabled(0, true)
+	_shape_context_menu.add_separator("", 100 + _shape_context_menu.item_count)
+	for action: int in SHAPE_ACTION_LABELS:
+		_shape_context_menu.add_item(str(SHAPE_ACTION_LABELS[action]), action)
+		if action in [7, 5]: _shape_context_menu.add_separator("", 100 + _shape_context_menu.item_count)
+	_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(6), layer == 0)
+	_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(7), layer == document.shapes.size() - 1)
+	var popup_position: Vector2 = canvas.get_global_transform_with_canvas() * canvas_position
+	var popup_bounds: Rect2 = get_viewport().get_visible_rect()
+	if not _shape_context_menu.is_embedded():
+		popup_position = canvas.get_screen_transform() * canvas_position
+		popup_bounds = Rect2(Vector2(get_window().position), Vector2(get_window().size))
+	_shape_context_menu.popup(Rect2i(Vector2i(popup_position), Vector2i.ZERO))
+	var maximum: Vector2 = (popup_bounds.end - Vector2(_shape_context_menu.size)).max(popup_bounds.position)
+	_shape_context_menu.position = Vector2i(popup_position.clamp(popup_bounds.position, maximum))
+	interaction_context_changed.emit()
+
+func _shape_context_action(id: int) -> void:
+	if not SHAPE_ACTION_LABELS.has(id) or tutorial_blocked or not is_visible_in_tree(): return
+	if _context_shape_id < 0 or document.selected_id != _context_shape_id or document.get_selected().is_empty(): return
+	var index: int = _shape_context_menu.get_item_index(id)
+	if index < 0 or _shape_context_menu.is_item_disabled(index): return
+	_more_edit_action(id)
+	if id == 6: _set_status("도형을 한 단계 뒤로 보냈어요. Ctrl+Z로 되돌릴 수 있어요.")
+	elif id == 7: _set_status("도형을 한 단계 앞으로 보냈어요. Ctrl+Z로 되돌릴 수 있어요.")
+
+func _clear_context_target() -> void:
+	if not _shape_context_menu.visible: _context_shape_id = -1
 
 func _add_edit_button(parent: Node, text: String, callback: Callable) -> void:
 	var button: Button = _button(text, func():
@@ -472,6 +586,9 @@ func _refresh() -> void:
 	_background_button.text = "배경 고르기"
 	_background_button.tooltip_text = "현재 배경: " + str(backdrop.get("name", "빈 종이"))
 	_shape_picker.select(SHAPE_ORDER.find(canvas.selected_kind))
+	_trapezoid_variant_picker.visible = canvas.selected_kind == "trapezoid"
+	_shape_tools.visible = not _palette_scroll.visible or _trapezoid_variant_picker.visible
+	_trapezoid_variant_picker.select(QuadrilateralMath.TRAPEZOID_VARIANTS.find(canvas.selected_trapezoid_variant))
 	var masterpiece: Dictionary = Catalog.masterpiece(document.masterpiece_id)
 	_masterpiece_button.text = "명화 10종 고르기"
 	if document.drawing_mode == "masterpiece" and not masterpiece.is_empty():
@@ -484,19 +601,100 @@ func _refresh() -> void:
 	if selected.is_empty():
 		_selection.text += "도형을 고른 뒤 종이에 그리거나, 선택·이동으로 그림을 골라요."
 	else:
-		_selection.text += "%s · 길이 단위: 칸 · 손잡이로 크기·방향 조절" % QuadrilateralMath.kind_name(str(selected.kind))
+		_selection.text += "%s · 길이 단위: cm · 손잡이로 크기·방향 조절" % QuadrilateralMath.kind_name(str(selected.kind))
 
 func _document_changed() -> void:
+	_hide_shape_context_menu()
 	_refresh()
+	if is_instance_valid(_sale_dialog) and _sale_dialog.visible: _refresh_sale_dialog()
 	if not testing and not _restoring:
 		_autosave.start()
 
 func _set_status(message: String) -> void:
 	_status.text = message
 
+func configure_economy(value: ConstructionState) -> void:
+	if economy != null and economy.changed.is_connected(_economy_changed):
+		economy.changed.disconnect(_economy_changed)
+	economy = value
+	if economy != null: economy.changed.connect(_economy_changed)
+	_economy_changed()
+
+func _economy_changed() -> void:
+	_refresh_sale_button()
+	if is_instance_valid(_sale_dialog) and _sale_dialog.visible: _refresh_sale_dialog()
+
+func _refresh_sale_button() -> void:
+	if not is_instance_valid(_sale_button): return
+	_sale_button.disabled = economy == null or _sale_pending
+
+func _open_sale() -> void:
+	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
+	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or _color_picker.get_popup().visible: return
+	cancel_gesture()
+	if _sale_dialog == null:
+		_sale_dialog = ConfirmationDialog.new()
+		_sale_dialog.name = "ArtSaleDialog"
+		_sale_dialog.title = "그림 판매 · 마을 화랑"
+		_sale_dialog.dialog_hide_on_ok = false
+		_sale_dialog.exclusive = true
+		_sale_dialog.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
+		_sale_dialog.get_label().add_theme_font_override("font", QuadTheme.FONT)
+		_sale_dialog.get_label().add_theme_font_size_override("font_size", 19)
+		_sale_dialog.get_label().add_theme_color_override("font_color", QuadTheme.INK)
+		_sale_dialog.get_label().autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_sale_dialog.get_label().custom_minimum_size = Vector2(490, 240)
+		_sale_dialog.get_cancel_button().text = "계속 그리기"
+		for button: Button in [_sale_dialog.get_ok_button(), _sale_dialog.get_cancel_button()]:
+			Buttons.apply(button)
+			button.custom_minimum_size.y = 48
+		_sale_dialog.confirmed.connect(_confirm_sale)
+		_sale_dialog.visibility_changed.connect(func(): interaction_context_changed.emit())
+		add_child(_sale_dialog)
+	_refresh_sale_dialog()
+	_sale_dialog.popup_centered_clamped(Vector2i(580, 390), 0.9)
+	interaction_context_changed.emit()
+
+func _refresh_sale_dialog() -> void:
+	if economy == null or not is_instance_valid(_sale_dialog): return
+	_sale_offer = Market.quote(document, economy.art_sales)
+	var details: String = "보이는 도형 %d개 · 종류 %d가지 · 색 %d가지\n종이에 그린 넓이 약 %d%%" % [int(_sale_offer.visible_shapes), int(_sale_offer.families), int(_sale_offer.colors), roundi(float(_sale_offer.coverage) * 100.0)]
+	var offer_text: String = "판매 가격  " + Money.format_won(int(_sale_offer.price)) if bool(_sale_offer.can_sell) else "아직 판매할 수 없어요"
+	_sale_dialog.dialog_text = "%s\n\n%s\n\n%s\n\n판매한 그림도 계속 편집할 수 있어요.\n같거나 아주 비슷한 작품은 한 번만 판매해요." % [offer_text, details, str(_sale_offer.reason)]
+	_sale_dialog.get_ok_button().text = "이 가격에 판매" if bool(_sale_offer.can_sell) else "판매 준비 중"
+	_sale_dialog.get_ok_button().disabled = not bool(_sale_offer.can_sell) or _sale_pending
+
+func _confirm_sale() -> void:
+	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
+	if not is_instance_valid(_sale_dialog) or not _sale_dialog.visible: return
+	# Recheck at confirmation: the displayed offer can never authorize a stale sale.
+	var current: Dictionary = Market.quote(document, economy.art_sales)
+	if not bool(current.can_sell) or current != _sale_offer:
+		_refresh_sale_dialog()
+		return
+	_sale_pending = true
+	_refresh_sale_button()
+	_sale_dialog.get_ok_button().disabled = true
+	_sale_dialog.hide()
+	art_sale_requested.emit(document.serialize())
+
+func show_sale_result(result: Dictionary) -> void:
+	_sale_pending = false
+	_refresh_sale_button()
+	if bool(result.get("ok", false)):
+		_set_status("작품을 %s에 판매했어요! 모은 돈으로 우주선 부품을 살 수 있어요." % Money.format_won(int(result.get("price", 0))))
+	else:
+		_set_status(str(result.get("error", "판매를 마치지 못했어요. 그림을 그대로 두었어요.")))
+
 func cancel_gesture() -> void:
 	if canvas != null:
 		canvas.cancel_gesture()
+	_hide_shape_context_menu()
+	if is_instance_valid(_sale_dialog): _sale_dialog.hide()
+
+func _hide_shape_context_menu() -> void:
+	_context_shape_id = -1
+	if is_instance_valid(_shape_context_menu): _shape_context_menu.hide()
 
 func _undo_edit() -> void:
 	cancel_gesture()
@@ -620,7 +818,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if tutorial_blocked: return
 	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo:
 		return
-	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or _color_picker.get_popup().visible:
+	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or (_sale_dialog != null and _sale_dialog.visible) or _color_picker.get_popup().visible or _shape_context_menu.visible:
 		return
 	var handled: bool = true
 	if event.ctrl_pressed and event.keycode == KEY_S:

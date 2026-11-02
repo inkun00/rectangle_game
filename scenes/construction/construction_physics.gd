@@ -4,7 +4,8 @@ extends Node
 ## Runs a copy of the design in its own physics world. Touching masonry is
 ## mortar-bonded; every constituent polygon remains its original quadrilateral.
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
-const GROUND_Y: float = 560.0
+const Document = preload("res://scripts/construction/construction_document.gd")
+const GROUND_Y: float = Document.GROUND_Y
 const INSPECTION_SECONDS: float = 3.0
 const CONTACT_EPSILON: float = 1.1
 
@@ -35,16 +36,16 @@ func start(parts: Array[Dictionary], design_revision: int) -> void:
 	elapsed = 0.0
 	_viewport = SubViewport.new()
 	_viewport.name = "ConstructionPhysicsWorld"
-	_viewport.size = Vector2i(1000, 600)
+	_viewport.size = Vector2i(Document.BOARD.size)
 	_viewport.world_2d = World2D.new()
 	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	_viewport.transparent_bg = true
 	add_child(_viewport)
 	var floor_body: StaticBody2D = StaticBody2D.new()
-	floor_body.position = Vector2(500, GROUND_Y + 40)
+	floor_body.position = Vector2(Document.BOARD.get_center().x, GROUND_Y + 40.0)
 	var floor_shape: CollisionShape2D = CollisionShape2D.new()
 	var rectangle: RectangleShape2D = RectangleShape2D.new()
-	rectangle.size = Vector2(1600, 80)
+	rectangle.size = Vector2(Document.BOARD.size.x + 600.0, 80.0)
 	floor_shape.shape = rectangle
 	floor_body.add_child(floor_shape)
 	_viewport.add_child(floor_body)

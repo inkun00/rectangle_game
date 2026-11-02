@@ -77,8 +77,13 @@ func _build_content() -> void:
 	_title = _content_label(15)
 	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	details.add_child(_title)
-	var meta_row: HBoxContainer = HBoxContainer.new()
-	meta_row.add_theme_constant_override("separation", 4)
+	var custom: bool = bool(Catalog.material(material_id).get("custom", false))
+	var meta_row: Container = HFlowContainer.new() if custom else HBoxContainer.new()
+	if custom:
+		meta_row.add_theme_constant_override("h_separation", 4)
+		meta_row.add_theme_constant_override("v_separation", 4)
+	else:
+		meta_row.add_theme_constant_override("separation", 4)
 	details.add_child(meta_row)
 	_badge = PanelContainer.new()
 	_badge.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -153,5 +158,10 @@ func _update_material() -> void:
 	_family.text = "%s×%s칸" % [Catalog.format_length(extent.x), Catalog.format_length(extent.y)]
 	_family.custom_minimum_size.x = QuadTheme.FONT.get_string_size(_family.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
 	_dimensions.text = "폭%s·높이%s칸" % [Catalog.format_length(extent.x), Catalog.format_length(extent.y)]
+	if bool(material.get("custom", false)):
+		_dimensions.text = Catalog.Custom.pattern_label(str(material.pattern_id))
+		_dimensions.add_theme_font_size_override("font_size", 14)
+		_dimensions.visible = true
+		custom_minimum_size.y = 120.0
 	_price.text = Catalog.format_won(int(material.price))
 	_price.custom_minimum_size.x = QuadTheme.FONT.get_string_size(_price.text, HORIZONTAL_ALIGNMENT_RIGHT, -1, 14).x

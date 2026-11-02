@@ -57,6 +57,12 @@ Correct this transparent4columns2rows8NPC game atlas while preserving the exact 
 환경 아틀라스는 생성 결과를 검토해 행 경계를 0/397/749/1086으로 지정했습니다. 원본을 다시 그리거나 픽셀을 합성하지 않았습니다. 게임의 바닥과 발판은 해당 그림의 영역과 실제 충돌 위치를 맞췄습니다. 모든 생성 이미지의 사각형 요소를 검토했고, 뾰족한 지붕·둥근 빵·둥근 입은 추가 생성 편집으로 교정했습니다.
 # Drawing studio scenes and masterpiece guides
 
+## 오프닝 영상 원화
+
+2026-11-03: 사각형 외계인의 귀향 이야기를 위한 새 원화 네 장을 내장 ImageGen으로 제작했습니다.
+[원화·실제 크기·정확한 생성 프롬프트](opening-v1/GENERATION.md)와
+[55초 오프닝 제작·재생 안내](../../docs/OPENING_FILM.md)를 보관합니다.
+
 The 30 new drawing backgrounds and 10 original geometric masterpiece studies are documented in [drawing/GENERATION.md](drawing/GENERATION.md), including image prompts and historical metadata sources.
 
 # 메인·집 짓기 화면 정돈

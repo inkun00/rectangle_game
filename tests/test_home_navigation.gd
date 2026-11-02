@@ -103,8 +103,52 @@ static func run(t: Node) -> void:
 	t.assert_true(app.world.camera.enabled, "Returning to gameplay restores the world camera")
 	t.assert_eq(app.world.player.position, paused_position, "Returning to gameplay preserves the player's prior location")
 	t.assert_eq(app._drawing_screen.document.serialize(), drawing_data, "Gameplay reentry still preserves the independent free drawing")
+	await _right_trapezoid_workshop(t, app)
 	app.free()
 	await t.get_tree().process_frame
+
+
+static func _right_trapezoid_workshop(t: Node, app: QuadrilateralApp) -> void:
+	app._show_workshop()
+	app._select_kind("square")
+	t.assert_false(app._workshop_trapezoid_picker.visible, "Workshop subtype picker stays hidden for other shape families")
+	app._select_kind("trapezoid")
+	t.assert_true(app._workshop_trapezoid_picker.visible, "Choosing trapezoid exposes its three construction shapes")
+	t.assert_eq(app._shape_buttons.size(), 5, "Right trapezoids remain within the original five shape families")
+	for index: int in [1, 2]:
+		app.document.clear()
+		app._workshop_trapezoid_picker.select(index)
+		app._workshop_trapezoid_picker.item_selected.emit(index)
+		var variant: String = QuadrilateralMath.TRAPEZOID_VARIANTS[index]
+		t.assert_eq(app.workshop.selected_trapezoid_variant, variant, "Workshop picker changes the next trapezoid's actual creation shape")
+		var decoration_position: Vector2 = Vector2(220, -120)
+		app.workshop._press(decoration_position)
+		app.workshop._release(decoration_position)
+		var decoration: Dictionary = app.document.get_selected()
+		t.assert_false(decoration.is_empty(), "Workshop click creates a right trapezoid decoration")
+		if decoration.is_empty(): continue
+		t.assert_eq(str(decoration.kind), "trapezoid", "Right trapezoid artwork keeps the standard trapezoid kind")
+		_assert_right_corners(t, decoration.vertices, index, "Free decoration")
+		app.document.clear()
+		var body: Dictionary = app.document.get_slot("body")
+		# The smaller rhombus chest sits at the body's center; click its exposed side.
+		app.workshop._press(Vector2(body.position) + Vector2(-30, 0))
+		var filled: Dictionary = app.document.shape_for_slot("body")
+		t.assert_false(filled.is_empty(), "Right trapezoid selection can fill a trapezoid skeleton slot")
+		if not filled.is_empty(): _assert_right_corners(t, filled.vertices, index, "Filled skeleton")
+	for viewport_size: Vector2 in [Vector2(800, 600), Vector2(560, 860)]:
+		app._layout_workshop(viewport_size)
+		await t.get_tree().process_frame
+		t.assert_true(app._workshop_trapezoid_picker.is_visible_in_tree(), "Right trapezoid picker remains available in compact workshop layouts")
+
+
+static func _assert_right_corners(t: Node, vertices: PackedVector2Array, variant_index: int, context: String) -> void:
+	var angles: PackedFloat32Array = QuadrilateralMath.angles_degrees(vertices)
+	t.assert_eq(angles.size(), 4, context + " has four valid measured corners")
+	if angles.size() != 4: return
+	t.assert_float_approx(angles[0 if variant_index == 1 else 1], 90.0, 0.01, context + " upper chosen corner is a right angle")
+	t.assert_float_approx(angles[3 if variant_index == 1 else 2], 90.0, 0.01, context + " lower chosen corner is a right angle")
+	t.assert_eq(QuadrilateralMath.parallel_pair_count(vertices), 1, context + " keeps one pair of parallel sides")
 
 
 static func _button(root: Node, text: String) -> Button:

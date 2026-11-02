@@ -92,7 +92,7 @@ static func _test_material_family_filters(t: Node) -> void:
 		var wrong_family: bool = false
 		for id: String in Catalog.MATERIAL_IDS:
 			var material: Dictionary = Catalog.material(id)
-			var vertices: PackedVector2Array = QuadrilateralMath.create_vertices(str(material.kind), Vector2(material.dimensions))
+			var vertices: PackedVector2Array = Catalog.material_vertices(id)
 			var same_family: bool = QuadrilateralMath.matches_kind(vertices, family) and allowed_families.has(str(material.kind))
 			if same_family: expected_count += 1
 			if studio._material_buttons[id].visible:

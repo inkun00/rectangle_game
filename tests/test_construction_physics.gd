@@ -18,9 +18,38 @@ static func run(t: Node) -> void:
 	await _test_all_contracts(t)
 	await _test_variant_opening_frames(t)
 	await _test_balanced_structural_materials(t)
+	await _test_right_trapezoid_roofs(t)
 	await _test_rhombus_opening_frames(t)
 	await _test_balanced_decorations(t)
 	await _test_unsupported_balanced_structures(t)
+
+static func _test_right_trapezoid_roofs(t: Node) -> void:
+	var simulation: Simulation = Simulation.new()
+	t.add_child(simulation)
+	var ids: Array[String] = ["roof_trapezoid_right_left", "roof_trapezoid_right_right"]
+	for supported: bool in [true, false]:
+		var document: Model = Model.new()
+		var parts: Array[Dictionary] = []
+		for index: int in range(ids.size()):
+			var x: float = 300.0 + float(index) * 400.0
+			if supported: parts.append({"material_id": "wall", "position": Vector2(x, 530)})
+			parts.append({"material_id": ids[index], "position": Vector2(x, 470.0 if supported else 220.0)})
+		t.assert_true(document.replace_parts(parts), "Both right-trapezoid roofs enter the real physics inspection")
+		var original: Dictionary = document.serialize()
+		simulation.start(document.parts, document.revision)
+		await _finish_simulation(t, simulation)
+		for part: Dictionary in document.parts:
+			if str(part.material_id) not in ids: continue
+			var roof_id: int = int(part.id)
+			if supported:
+				t.assert_true(simulation.report.stable_ids.has(roof_id), "A right-trapezoid roof remains stable on its actual supporting wall")
+			else:
+				t.assert_true(simulation.report.unsupported_ids.has(roof_id), "A floating right-trapezoid roof cannot pass inspection")
+				t.assert_gt(simulation.pose(roof_id).origin.y, Vector2(part.position).y + 40.0, "The asymmetric roof falls under real gravity without a support")
+		t.assert_eq(document.serialize(), original, "Physics inspection preserves authoritative asymmetric artwork")
+		simulation.stop()
+	simulation.free()
+	await t.get_tree().process_frame
 
 static func _test_balanced_structural_materials(t: Node) -> void:
 	var material_ids: Array[String] = [
@@ -520,6 +549,8 @@ static func _test_canvas_interaction(t: Node) -> void:
 	canvas.fit_parts()
 	canvas.reset_view()
 	t.assert_false(canvas._auto_fit, "Reset overview disables automatic fitting")
+	t.assert_true(canvas.pan_tool, "Right-click cancellation keeps screen movement active after fitting the view")
+	canvas.choose_material("brick")
 	canvas.cursor_position = Vector2(200, 400)
 	var fine_key: InputEventKey = InputEventKey.new()
 	fine_key.keycode = KEY_DOWN

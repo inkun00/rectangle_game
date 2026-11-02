@@ -1,0 +1,26 @@
+{
+  "generator": "built-in image_gen.imagegen",
+  "date": "2026-11-03",
+  "assets": [
+    {
+      "file": "alien.png",
+      "prompt": "Use case: illustration-story. Asset type: transparent character sprite atlas for a whimsical Korean children's game opening movie, 2 by 2 equal cells, square 1536x1536. Draw FOUR full-body poses of exactly the same lovable little quadrilateral alien: mint turquoise square head with two navy square eyes, small rectangular mouth, short rectangular limbs, cream rectangular space suit, coral scarf composed of flat parallelogram ends, tiny gold square chest badge, square chunky boots. Beautiful tactile painted paper-cut and softly lit miniature diorama illustration, clean recognizable silhouette, gentle textured details, teal/navy/coral/gold aesthetic. Each pose centered in its own cell with 15 percent clear transparent padding; all four equal scale. TOP LEFT: curious explorer neutral standing, empty hands. TOP RIGHT: startled after crash, both hands near cheeks, mildly sooty space suit, funny but unharmed. BOTTOM LEFT: proud artist holding a flat rectangular brush with turquoise bristles in one hand. BOTTOM RIGHT: cheerful builder wearing flat-topped trapezoid gold hard hat and holding a rectangular carpenter hammer, other hand waving. All characters made from rectangles, squares, rhombi or trapezoids, no triangle pieces, no rounded heads, no antennae, no background, no floor, no ground shadow, no text or lettering, no grid borders. Genuine transparent alpha.",
+      "transparent_background": true
+    },
+    {
+      "file": "ship.png",
+      "prompt": "Use case: stylized-concept. Asset type: transparent single spaceship illustration for layered 2D motion graphics. One adorable compact spacecraft constructed entirely from four-sided geometric panels: horizontal ivory rectangular cabin, large teal rectangular cockpit window, copper frame, flat-top trapezoid front nose pointing RIGHT, two dark navy trapezoid fins at back LEFT, rectangular gold engine at far LEFT. Side-profile view with very slight dimensional depth, craft pointing horizontally RIGHT. Charming tactile painted miniature paper-cut game art, clean big silhouette, sophisticated navy teal cream and warm copper details, warm rim light, exquisite illustrated texture matching an optimistic child's space adventure. Whole ship centered, generous 12 percent transparent margin, large 1536x1024 landscape asset. No flames, no smoke, no stars, no ground shadow, no characters, no words, no logo, no watermark. Every component rectangular or trapezoidal, absolutely no triangles or round portholes. Real transparent background.",
+      "transparent_background": true
+    },
+    {
+      "file": "planet.png",
+      "prompt": "Use case: stylized-concept. Asset type: isolated home planet for a game opening. A spectacular small CUBE SHAPED PLANET floating in space, shown in charming three-quarter isometric view: top and two sides form a convincing cube, emerald and mint grassy stepped terraces, tiny rectangular copper and ivory futuristic buildings and flat-top trapezoid roofs, azure waterfalls down its square cliff sides, tiny square trees. A quadrilateral world made from blocklike landforms, intricate yet readable, warm gold town lights, painterly miniature diorama with textured paper-cut surfaces, teal navy copper aesthetic. All silhouettes based on quadrilaterals, NO triangular mountains/roofs. Entire cube planet occupies 75 percent of a square 1536x1536 canvas, evenly centered. Transparent alpha, no outer space backdrop, no orbit ring, no stars, no typography, no characters, no watermark.",
+      "transparent_background": true
+    },
+    {
+      "file": "earth.png",
+      "prompt": "Use case: illustration-story. Asset type: clean cinematic background plate for a 16:9 opening movie. A welcoming EARTH countryside beside a small village, panoramic wide illustration 1920x1080. Lush green foreground meadow with a broad open flat space across the middle/bottom for an animated character, easel and house; small blocky cottages and square-canopy trees clustered at far left and far right, layered teal hills on horizon, soft coral-gold sunrise across blue sky. Composition gives a huge unoccupied central stage, horizon at 58 percent image height. Beautiful tactile painted miniature paper-cut diorama, sophisticated teal mint navy warm copper palette, crisp detailed grass and wood at edges but calm center. All buildings have flat-top trapezoid roofs, rectangular windows; hills use broad flat-topped polygon silhouettes. Ground belongs to Earth: no extra planets, no moons, no spaceships. No people, no animals, no signs, no text, no frames, no watermark. Fully opaque landscape.",
+      "transparent_background": false
+    }
+  ]
+}

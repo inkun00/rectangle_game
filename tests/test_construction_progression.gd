@@ -9,9 +9,43 @@ const Facade = preload("res://scripts/construction/construction_facade.gd")
 
 static func run(t: Node) -> void:
 	_test_stages_and_flat_roofs(t)
+	_test_right_trapezoid_roofs(t)
 	_test_progression_and_repeats(t)
 	_test_legacy_and_atomic_restore(t)
 	_test_v5_compatibility(t)
+
+static func _test_right_trapezoid_roofs(t: Node) -> void:
+	for id: String in ["roof_trapezoid_right_left", "roof_trapezoid_right_right"]:
+		var material: Dictionary = Catalog.material(id)
+		var vertices: PackedVector2Array = Catalog.material_vertices(id)
+		t.assert_eq(material.kind, "trapezoid", "Two right angles remain a trapezoid variant rather than a sixth family")
+		t.assert_true(QuadrilateralMath.is_valid(vertices), "The right-trapezoid material is finite, convex and nondegenerate")
+		t.assert_eq(QuadrilateralMath.parallel_pair_count(vertices), 1, "The new roof has exactly one parallel pair")
+		t.assert_false(QuadrilateralMath.matches_kind(vertices, "rectangle"), "Two right angles alone do not make the roof a rectangle")
+		var right_angles: int = 0
+		for angle: float in QuadrilateralMath.angles_degrees(vertices):
+			if absf(angle - 90.0) < 0.1: right_angles += 1
+		t.assert_eq(right_angles, 2, "The new roof has exactly two right angles")
+		t.assert_eq(Catalog.dimensions_label(id), "가로 10칸 · 세로 3칸", "Bounds retain the declared full material dimensions")
+		t.assert_eq(int(material.price), int(Catalog.material("roof").price), "An equal-area right trapezoid uses the existing roof price")
+		var document: Document = Document.new()
+		t.assert_gt(document.add_part(id, Vector2(500, 280)), 0, "Both right-trapezoid directions can be placed through a command")
+		t.assert_eq(document.get_selected().vertices, vertices, "Placed geometry matches the displayed material sample")
+		var original: PackedVector2Array = document.get_selected().vertices
+		t.assert_true(document.rotate_selected(37.0), "An asymmetric roof rotates around its bounds center")
+		var rotated: PackedVector2Array = document.get_selected().vertices
+		var restored: Document = Document.new()
+		t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(document.serialize()))), "Rotated right-trapezoid geometry survives validated JSON restoration")
+		t.assert_eq(restored.get_selected().vertices, rotated, "Restoring keeps all four rotated vertices")
+		document.undo()
+		t.assert_eq(document.get_selected().vertices, original, "Undo restores the two original right angles")
+		document.redo()
+		t.assert_eq(document.get_selected().vertices, rotated, "Redo restores the complete asymmetric rotation")
+		var before: Dictionary = restored.serialize()
+		var shifted: Dictionary = restored.serialize()
+		for point: Array in shifted.parts[0].vertices: point[0] = float(point[0]) + 2.0
+		t.assert_false(restored.restore(shifted), "Asymmetric geometry cannot hide an extra local translation in saved vertices")
+		t.assert_eq(restored.serialize(), before, "A malformed asymmetric part leaves the current construction unchanged")
 
 static func _test_stages_and_flat_roofs(t: Node) -> void:
 	t.assert_eq(Catalog.stages().size(), 9, "Construction has nine explicit difficulty stages ordered by contract amount")
