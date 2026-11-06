@@ -5,6 +5,7 @@ extends RefCounted
 ## The market rewards composition variety, not a subjective artistic grade.
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const Drawing = preload("res://scripts/core/drawing_document.gd")
+const Composition = preload("res://scripts/economy/art_composition.gd")
 const MAX_SALES: int = 512
 const GRID: Vector2i = Vector2i(48, 30)
 const SAMPLE_COUNT: int = 1440
@@ -12,6 +13,12 @@ const EMPTY: String = "___"
 const MIN_VISIBLE_SAMPLES: int = 3
 const MIN_SHAPES: int = 5
 const MIN_COVERAGE: float = 0.08
+# Historical receipts retain the original five-piece/8% price and validation
+# rules. These stricter requirements apply only when offering a new painting.
+const MIN_SALE_SHAPES: int = 6
+const MIN_SALE_COVERAGE: float = 0.12
+const MIN_COLOR_SHARE: float = 0.03
+const MIN_COLOR_DISTANCE: float = 0.18
 const MAX_PRICE: int = 8000000
 const MAX_TITLE_LENGTH: int = 80
 
@@ -29,7 +36,7 @@ static func valid_title(value: Variant) -> bool:
 
 
 static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Dictionary:
-	var result: Dictionary = {"can_sell": false, "price": 0, "reason": "", "fingerprint": "", "signature": "", "visible_shapes": 0, "families": 0, "colors": 0, "coverage": 0.0}
+	var result: Dictionary = {"can_sell": false, "price": 0, "reason": "", "fingerprint": "", "signature": "", "visible_shapes": 0, "families": 0, "colors": 0, "coverage": 0.0, "subject": "", "checks": []}
 	if document == null:
 		result.reason = "먼저 사각형으로 그림을 그려 주세요."
 		return result
@@ -54,19 +61,31 @@ static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Di
 	# alone must not create another sale. The visible signature catches hidden additions.
 	result.fingerprint = _fingerprint(parts)
 	result.price = _price(int(result.visible_shapes), int(result.families), int(result.colors), float(result.coverage))
-	if visible.size() < MIN_SHAPES:
-		result.reason = "눈에 보이는 사각형을 5개 이상 조합해 주세요. 아주 작거나 완전히 가려진 도형은 세지 않아요."
-	elif int(result.colors) < 2:
-		result.reason = "두 가지 이상의 색으로 작품을 꾸며 주세요."
-	elif float(result.coverage) < MIN_COVERAGE:
-		result.reason = "그림을 조금 더 크게 그려 주세요. 종이의 8% 이상을 사각형으로 채우면 판매할 수 있어요."
+	var palette_ok: bool = _has_meaningful_colors(raster.color_samples, int(raster.covered))
+	var form: Dictionary = Composition.assess(parts, raster.visible)
+	result.subject = str(form.get("subject", ""))
+	var checks: Array[Dictionary] = [
+		{"id": "pieces", "label": "눈에 보이는 도형 6개 이상", "met": visible.size() >= MIN_SALE_SHAPES, "detail": "%d / 6개" % visible.size()},
+		{"id": "palette", "label": "구별되는 색 2가지 이상", "met": palette_ok, "detail": "작은 점을 제외하고 두 색이 각각 3% 이상 보여야 해요."},
+		{"id": "coverage", "label": "종이의 12% 이상 그리기", "met": float(result.coverage) >= MIN_SALE_COVERAGE, "detail": "현재 %.1f%%" % (float(result.coverage) * 100.0)}
+	]
+	for check: Dictionary in form.get("criteria", []): checks.append(check)
+	result.checks = checks
+	if visible.size() < MIN_SALE_SHAPES:
+		result.reason = "눈에 보이는 사각형을 6개 이상 조합해 주세요. 아주 작거나 완전히 가려진 도형은 세지 않아요."
+	elif not palette_ok:
+		result.reason = "잘 구별되는 두 색으로 큰 부분과 세부를 꾸며 주세요. 아주 작은 색 점은 조건에 세지 않아요."
+	elif float(result.coverage) < MIN_SALE_COVERAGE:
+		result.reason = "그림을 조금 더 크게 그려 주세요. 종이의 12% 이상을 직접 그린 사각형으로 채워 주세요."
+	elif not bool(form.get("has_form", false)):
+		result.reason = str(form.get("reason", "사각형을 조합해 사물의 몸체와 세부 또는 정렬된 기하 구성을 만들어 주세요."))
 	elif sold.size() >= MAX_SALES:
 		result.reason = "작품 판매 기록이 가득 찼어요. 집 짓기로 우주선 제작비를 더 모을 수 있어요."
 	elif is_duplicate(result, sold):
 		result.reason = "이미 판매한 작품과 같거나 아주 비슷해요. 새 구도나 도형으로 다른 작품을 만들어 주세요."
 	else:
 		result.can_sell = true
-		result.reason = "마을 화랑에서 이 가격에 작품을 구매해요."
+		result.reason = "%s 구성 기준을 갖췄어요. 마을 화랑에서 이 가격에 작품을 구매해요." % str(result.subject)
 	return result
 
 
@@ -139,6 +158,20 @@ static func _price(shapes: int, families: int, colors: int, coverage: float) -> 
 	return mini(MAX_PRICE, int(float(amount) / 100.0) * 100)
 
 
+static func _has_meaningful_colors(samples: Dictionary, covered: int) -> bool:
+	if covered <= 0: return false
+	var colors: Array[Color] = []
+	var digits: String = "0123456789abcdef"
+	for token: String in samples:
+		if float(samples[token]) / float(covered) < MIN_COLOR_SHARE: continue
+		colors.append(Color(float(digits.find(token[0])) / 15.0, float(digits.find(token[1])) / 15.0, float(digits.find(token[2])) / 15.0))
+	for left: int in range(colors.size()):
+		for right: int in range(left + 1, colors.size()):
+			var difference: Vector3 = Vector3(colors[left].r - colors[right].r, colors[left].g - colors[right].g, colors[left].b - colors[right].b)
+			if difference.length() >= MIN_COLOR_DISTANCE: return true
+	return false
+
+
 static func _rasterize(parts: Array[Dictionary]) -> Dictionary:
 	var tokens: PackedStringArray = PackedStringArray()
 	tokens.resize(SAMPLE_COUNT)
@@ -166,9 +199,9 @@ static func _rasterize(parts: Array[Dictionary]) -> Dictionary:
 				if not Math.contains_point(vertices, point - position): continue
 				tokens[sample] = token
 				visible[index] = int(visible.get(index, 0)) + 1
-				colors[token] = true
+				colors[token] = int(colors.get(token, 0)) + 1
 				covered += 1
-	return {"signature": "".join(tokens), "visible": visible, "covered": covered, "colors": colors.size()}
+	return {"signature": "".join(tokens), "visible": visible, "covered": covered, "colors": colors.size(), "color_samples": colors}
 
 
 static func _fingerprint(parts: Array[Dictionary]) -> String:

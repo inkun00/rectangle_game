@@ -2,6 +2,7 @@ class_name TestSpaceIntegration
 extends RefCounted
 
 const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
+const ArtSamples = preload("res://tests/test_art_composition.gd")
 
 static func run(t: Node) -> void:
 	var app: QuadrilateralApp = AppScene.instantiate()
@@ -24,9 +25,7 @@ static func run(t: Node) -> void:
 	app._drawing_screen.sale_png_renderer = func(_tree: SceneTree, _drawing: DrawingDocument) -> PackedByteArray:
 		return Image.create(960, 600, false, Image.FORMAT_RGBA8).save_png_to_buffer()
 	var art: DrawingDocument = app._drawing_screen.document
-	var colors: Array[Color] = [Color.CORAL, Color.GOLD, Color.SKY_BLUE, Color.LIME_GREEN, Color.PLUM]
-	for index: int in range(5):
-		art.add_sized_shape(QuadrilateralMath.KINDS[index], Vector2(-280 + index * 140, 0), Vector2(130, 180), colors[index])
+	art.restore(ArtSamples.house().serialize())
 	var picture: Dictionary = art.serialize()
 	var quote: Dictionary = ArtMarket.quote(art)
 	t.assert_true(bool(quote.can_sell), "The integration fixture is a real saleable drawing")

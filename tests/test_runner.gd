@@ -47,6 +47,7 @@ const TestConstructionBudgetHistory = preload("res://tests/test_construction_bud
 const TestSpaceEconomy = preload("res://tests/test_space_economy.gd")
 const TestSoldArtStore = preload("res://tests/test_sold_art_store.gd")
 const TestDrawingSaleFlow = preload("res://tests/test_drawing_sale_flow.gd")
+const TestArtComposition = preload("res://tests/test_art_composition.gd")
 var passed_count: int = 0
 var failed_count: int = 0
 var test_failures: Array[String] = []
@@ -72,6 +73,7 @@ func _ready() -> void:
 	await TestHome.run(self)
 	await TestOpeningIntro.run(self)
 	print("[Suite] Artwork sales, quadrilateral spacecraft and homecoming")
+	TestArtComposition.run(self)
 	await TestArtMarket.run(self)
 	TestSpaceshipCatalog.run(self)
 	await TestSpaceHangar.run(self)

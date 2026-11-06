@@ -10,6 +10,7 @@ const Market = preload("res://scripts/economy/art_market.gd")
 const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
 const Transactions = preload("res://scripts/economy/progression_transactions.gd")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
+const ArtSamples = preload("res://tests/test_art_composition.gd")
 
 static func run(t: Node) -> void:
 	_test_legacy_migration(t)
@@ -40,6 +41,16 @@ static func _test_legacy_migration(t: Node) -> void:
 	earliest.erase("contract_grading_version")
 	t.assert_true(restored.restore(_json_copy(earliest)), "The original v1 briefing without later progression metadata still migrates")
 	t.assert_eq(restored.balance, State.INITIAL_BALANCE, "Original v1 seed money is preserved exactly")
+	# This already-paid receipt predates structural composition checks. It has
+	# five visible parts and 10% coverage, with its original two-million price.
+	var historical_receipt: Dictionary = {"version": 1, "title": "이전의 다섯 도형 그림", "fingerprint": "a".repeat(64), "signature": "f00".repeat(72) + "00f".repeat(72) + "___".repeat(1296), "price": 2000000, "visible_shapes": 5, "families": 1, "colors": 2, "coverage": 0.1}
+	t.assert_true(Market.validate_receipt(historical_receipt), "The old five-piece and eight-percent receipt rules still validate already-paid artworks")
+	var previous_economy: Dictionary = State.new().serialize()
+	previous_economy.balance = State.INITIAL_BALANCE + int(historical_receipt.price)
+	previous_economy.space_economy = {"version": 1, "art_sales": [historical_receipt], "purchased_parts": [], "launched": false}
+	t.assert_true(restored.restore(_json_copy(previous_economy)), "Stricter new-sale composition rules do not reject historical nine-field receipts")
+	t.assert_eq(restored.art_sales[0].price, 2000000, "Loading historical artwork does not reprice its already-paid sale")
+	t.assert_eq(restored.saved_balance(), State.INITIAL_BALANCE + 2000000, "Historical painting earnings remain part of the player's savings")
 
 static func _test_art_income(t: Node) -> void:
 	var state: State = State.new()
@@ -390,14 +401,7 @@ static func _assert_live_documents(t: Node, state: State, documents: Array[Docum
 		t.assert_eq(documents[index].command_manager.redo_stack.size(), redo_sizes[index], "Financial transactions preserve the complete Redo stack")
 
 static func _artwork(alternate: bool = false) -> Drawing:
-	var drawing: Drawing = Drawing.new()
-	var colors: Array[Color] = [Color("df704f"), Color("4a9baa"), Color("e0b555"), Color("736bb1"), Color("77ac65")]
-	for index: int in range(5):
-		var color: Color = colors[(index + (2 if alternate else 0)) % colors.size()]
-		var position: Vector2 = Vector2(-320 + index * 160, 90 if index % 2 == 0 else -90)
-		if alternate: position.y *= -1.0
-		drawing.add_sized_shape("rectangle", position, Vector2(140, 120), color)
-	return drawing
+	return ArtSamples.house(alternate)
 
 static func _earn_construction(state: State, minimum_profit: int) -> bool:
 	# Every won comes from the existing accept/build/evaluate/settle APIs. No

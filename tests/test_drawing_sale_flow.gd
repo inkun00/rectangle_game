@@ -8,6 +8,7 @@ const State = preload("res://scripts/construction/construction_state.gd")
 const Market = preload("res://scripts/economy/art_market.gd")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
 const Transactions = preload("res://scripts/economy/progression_transactions.gd")
+const ArtSamples = preload("res://tests/test_art_composition.gd")
 
 class SaleRenderer:
 	extends RefCounted
@@ -44,7 +45,7 @@ static func _test_success_and_undo(t: Node) -> void:
 	studio.canvas.selected_trapezoid_variant = "right_left"
 	var artwork: Dictionary = studio.document.serialize()
 	var quote: Dictionary = Market.quote(studio.document)
-	t.assert_true(quote.can_sell, "The full sale flow uses a real qualifying five-shape painting")
+	t.assert_true(quote.can_sell, "The full sale flow uses a complete six-piece house painting")
 	t.assert_true(studio.save_drawing(false), "The original drawing draft exists before selling")
 	var renderer: SaleRenderer = _renderer()
 	studio.sale_png_renderer = renderer.render
@@ -279,9 +280,7 @@ static func _renderer() -> SaleRenderer:
 	return renderer
 
 static func _fill_art(document: Drawing) -> void:
-	var colors: Array[Color] = [Color.CORAL, Color.GOLD, Color.SKY_BLUE, Color.LIME_GREEN, Color.PLUM]
-	for index: int in range(5):
-		document.add_sized_shape(QuadrilateralMath.KINDS[index], Vector2(-280 + index * 140, 0), Vector2(130, 180), colors[index])
+	document.restore(ArtSamples.house().serialize())
 
 static func _set_title(studio: Studio, title: String) -> void:
 	studio._sale_title.text = title

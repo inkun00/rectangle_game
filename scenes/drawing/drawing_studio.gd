@@ -320,7 +320,7 @@ func _build_ui() -> void:
 	_sale_button = _button("그림 판매", _open_sale, true)
 	_sale_button.name = "SellDrawingButton"
 	_sale_button.custom_minimum_size = Vector2(130, 48)
-	_sale_button.tooltip_text = "사각형으로 그린 작품을 팔아 우주선 제작비를 모아요."
+	_sale_button.tooltip_text = "판매 기준: 도형 6개·구별되는 2색·종이의 12% 이상, 사물의 구조 또는 정렬된 기하 구성"
 	footer.add_child(_sale_button)
 	_status = QuadTheme.paragraph("도형을 골라 종이에 그려요. 자동으로 저장돼요.", 14, QuadTheme.INK)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -662,7 +662,7 @@ func _open_sale() -> void:
 		_sale_title.custom_minimum_size.y = 46
 		_sale_title.add_theme_font_override("font", QuadTheme.FONT)
 		_sale_title.add_theme_font_size_override("font_size", 20)
-		_sale_title.text_changed.connect(func(_text: String): _refresh_sale_dialog())
+		_sale_title.text_changed.connect(func(_text: String): _refresh_sale_dialog(false))
 		_sale_title.text_submitted.connect(func(_text: String): _confirm_sale())
 		column.add_child(_sale_title)
 		_sale_details = QuadTheme.paragraph("", 17, QuadTheme.INK)
@@ -682,14 +682,17 @@ func _open_sale() -> void:
 	_sale_title.select_all()
 	interaction_context_changed.emit()
 
-func _refresh_sale_dialog() -> void:
+func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	if economy == null or not is_instance_valid(_sale_dialog): return
-	_sale_offer = Market.quote(document, economy.art_sales)
-	var details: String = "보이는 도형 %d개 · 종류 %d가지 · 색 %d가지\n종이에 그린 넓이 약 %d%%" % [int(_sale_offer.visible_shapes), int(_sale_offer.families), int(_sale_offer.colors), roundi(float(_sale_offer.coverage) * 100.0)]
+	if refresh_offer or _sale_offer.is_empty(): _sale_offer = Market.quote(document, economy.art_sales)
+	var lines: PackedStringArray = PackedStringArray()
+	for check: Dictionary in _sale_offer.get("checks", []):
+		lines.append("%s %s · %s" % ["✓" if bool(check.met) else "○", str(check.label), str(check.detail)])
+	var details: String = "판매 기준\n" + "\n".join(lines)
 	var offer_text: String = "판매 가격  " + Money.format_won(int(_sale_offer.price)) if bool(_sale_offer.can_sell) else "아직 판매할 수 없어요"
 	var title_valid: bool = Market.valid_title(_sale_title.text)
 	var reason: String = str(_sale_offer.reason) if title_valid else "그림 제목을 1~80자로 입력해 주세요."
-	_sale_details.text = "%s\n%s\n\n%s\n\n제목으로 PNG를 자동 저장하고\n빈 도화지에서 새 그림을 시작해요.\n같거나 아주 비슷한 작품은 한 번만 판매해요." % [offer_text, details, reason]
+	_sale_details.text = "%s\n\n%s\n\n%s\n\n구성 예: 집·나무·로봇·우주선 또는 크기와 구획이 있는 기하 구성\n\n통과하면 제목으로 PNG를 저장하고 새 그림을 시작해요.\n같거나 아주 비슷한 작품은 한 번만 판매해요." % [offer_text, details, reason]
 	_sale_dialog.get_ok_button().text = "PNG 저장하고 판매" if bool(_sale_offer.can_sell) else "판매 준비 중"
 	_sale_dialog.get_ok_button().disabled = not bool(_sale_offer.can_sell) or not title_valid or _sale_pending
 
