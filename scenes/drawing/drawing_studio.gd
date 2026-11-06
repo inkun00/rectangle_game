@@ -687,7 +687,7 @@ func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	if refresh_offer or _sale_offer.is_empty(): _sale_offer = Market.quote(document, economy.art_sales)
 	var lines: PackedStringArray = PackedStringArray()
 	for check: Dictionary in _sale_offer.get("checks", []):
-		lines.append("%s %s · %s" % ["✓" if bool(check.met) else "○", str(check.label), str(check.detail)])
+		lines.append("%s %s · %s" % ["[완료]" if bool(check.met) else "[보완]", str(check.label), str(check.detail)])
 	var details: String = "판매 기준\n" + "\n".join(lines)
 	var offer_text: String = "판매 가격  " + Money.format_won(int(_sale_offer.price)) if bool(_sale_offer.can_sell) else "아직 판매할 수 없어요"
 	var title_valid: bool = Market.valid_title(_sale_title.text)
