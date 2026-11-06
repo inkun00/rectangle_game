@@ -13,6 +13,19 @@ const MIN_VISIBLE_SAMPLES: int = 3
 const MIN_SHAPES: int = 5
 const MIN_COVERAGE: float = 0.08
 const MAX_PRICE: int = 8000000
+const MAX_TITLE_LENGTH: int = 80
+
+
+## New sale input is validated separately from historical receipt loading.
+## This preserves the existing nine-field receipt and earlier saved titles.
+static func valid_title(value: Variant) -> bool:
+	if not value is String: return false
+	var title: String = str(value).strip_edges()
+	if title.is_empty() or title.length() > MAX_TITLE_LENGTH: return false
+	for index: int in range(str(value).length()):
+		var codepoint: int = str(value).unicode_at(index)
+		if codepoint < 32 or (codepoint >= 127 and codepoint <= 159): return false
+	return true
 
 
 static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Dictionary:

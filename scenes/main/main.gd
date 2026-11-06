@@ -12,6 +12,7 @@ const SHAPE_NOTES: Dictionary = {
 
 var document: CharacterDocument
 var testing: bool = false
+var _art_sale_transaction: Callable = ProgressionTransactions.commit
 var learning_progress: LearningProgress = LearningProgress.new()
 var _learning_screen: LearningStudio
 var journal: QuestJournal
@@ -229,10 +230,37 @@ func _economy_changed() -> void:
 	if is_instance_valid(_space_screen): _space_screen.refresh()
 
 func _sell_art(data: Dictionary) -> void:
-	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.tutorial_blocked: return
-	# A confirmation captures the current picture. Selection-only changes do not
-	# alter the quote; the model rejects paid pictures independently of Undo.
-	var result: Dictionary = ProgressionTransactions.commit(_construction_screen.state, "sell_art", data, _construction_screen.save_path, not testing)
+	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.tutorial_blocked:
+		_drawing_screen.show_sale_result({"ok": false, "error": "그림 화면에서 판매해 주세요."})
+		return
+	if not data.get("document") is Dictionary or not ArtMarket.valid_title(data.get("title")):
+		_drawing_screen.show_sale_result({"ok": false, "error": "그림과 제목을 확인해 주세요."})
+		return
+	var artwork: DrawingDocument = DrawingDocument.new()
+	if not artwork.restore(data.document):
+		_drawing_screen.show_sale_result({"ok": false, "error": "판매할 그림을 확인하지 못했어요."})
+		return
+	var offer: Dictionary = ArtMarket.quote(artwork, _construction_screen.state.art_sales)
+	if not bool(offer.can_sell):
+		_drawing_screen.show_sale_result({"ok": false, "error": str(offer.reason)})
+		return
+	var bytes: PackedByteArray = await _drawing_screen.render_sale_png(data.document)
+	if not is_instance_valid(_drawing_screen): return
+	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.document.serialize() != data.document:
+		_drawing_screen.show_sale_result({"ok": false, "error": "그림이 바뀌어 판매를 취소했어요. 지금 그림은 그대로예요."})
+		return
+	var image_saved: Dictionary = SoldArtStore.save_png(bytes, str(data.title), _drawing_screen.sold_art_directory)
+	if not bool(image_saved.ok):
+		_drawing_screen.show_sale_result(image_saved)
+		return
+	# A durable PNG precedes payment and clearing. Failed payment leaves both
+	# the editable drawing and its exported copy available for a safe retry.
+	var result: Dictionary = _art_sale_transaction.call(_construction_screen.state, "sell_art", data, _construction_screen.save_path, not testing)
+	if bool(result.get("ok", false)):
+		result["png_path"] = str(image_saved.path)
+		result["filename"] = str(image_saved.filename)
+		if OS.has_feature("web"):
+			JavaScriptBridge.download_buffer(bytes, str(image_saved.filename), "image/png")
 	_drawing_screen.show_sale_result(result)
 
 func _purchase_ship_part(id: String) -> void:

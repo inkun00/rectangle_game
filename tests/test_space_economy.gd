@@ -14,6 +14,8 @@ const Saves = preload("res://scripts/construction/construction_save_store.gd")
 static func run(t: Node) -> void:
 	_test_legacy_migration(t)
 	_test_art_income(t)
+	_test_art_titles(t)
+	_test_titled_transactions(t)
 	_test_reserved_funds(t)
 	_test_invalid_restores(t)
 	_test_durable_transactions(t)
@@ -78,6 +80,100 @@ static func _test_art_income(t: Node) -> void:
 	t.assert_true(restored.restore(_json_copy(state.serialize())), "Painting receipts and money survive a JSON round trip")
 	t.assert_eq(restored.balance, state.balance, "Restored painting income preserves exact integer won")
 	t.assert_false(restored.sell_art(drawing.serialize()).ok, "Reloading does not reset sold-work protection")
+
+static func _test_art_titles(t: Node) -> void:
+	var state: State = State.new()
+	var drawing: Drawing = _artwork()
+	var quote: Dictionary = Market.quote(drawing)
+	var sale: Dictionary = state.sell_art(drawing.serialize(), "  고향으로 가는 네모 🚀  ")
+	t.assert_true(sale.ok, "A player can name a sold painting with Korean text and emoji")
+	t.assert_eq(sale.receipt.title, "고향으로 가는 네모 🚀", "Sale titles discard surrounding spaces without changing the player's words")
+	t.assert_eq(state.art_sales[0].title, "고향으로 가는 네모 🚀", "The ledger retains the actual player-supplied title")
+	t.assert_eq(int(sale.price), int(quote.price), "Naming a work does not change its composition-based price")
+	t.assert_eq(state.art_sales[0].size(), 9, "Custom titles use the existing receipt field without changing its schema")
+	var before: Dictionary = state.serialize()
+	t.assert_false(state.sell_art(drawing.serialize(), "새 이름으로 다시 팔기").ok, "Renaming the same painting cannot earn another payout")
+	t.assert_eq(state.serialize(), before, "A duplicate painting under a different title changes neither money nor receipts")
+	var second: Drawing = _artwork(true)
+	t.assert_true(state.sell_art(second.serialize(), "고향으로 가는 네모 🚀").ok, "Distinct paintings may share a title because duplicate checks use the artwork itself")
+	var restored: State = State.new()
+	t.assert_true(restored.restore(_json_copy(state.serialize())), "Player-supplied titles survive a ledger JSON round trip")
+	t.assert_eq(restored.art_sales[0].title, "고향으로 가는 네모 🚀", "Reloading preserves the exact Unicode sale title")
+	t.assert_eq(restored.balance, state.balance, "Title persistence preserves exact earned income")
+	t.assert_false(restored.sell_art(drawing.serialize(), "다시 불러온 제목").ok, "Reloading and renaming cannot bypass the sold-artwork record")
+	var boundary: State = State.new()
+	var longest_title: String = "가".repeat(Market.MAX_TITLE_LENGTH)
+	t.assert_true(boundary.sell_art(drawing.serialize(), "  " + longest_title + "  ").ok, "An eighty-character Korean title is accepted after trimming surrounding spaces")
+	t.assert_eq(boundary.art_sales[0].title, longest_title, "An accepted maximum-length title is stored completely rather than silently truncated")
+	var invalid_titles: Array[String] = ["   ", "\t\n", String.chr(1), "제목\n다음 줄", "제목" + String.chr(127), "가".repeat(Market.MAX_TITLE_LENGTH + 1)]
+	for invalid: String in invalid_titles:
+		var unsold: State = State.new()
+		var untouched: Dictionary = unsold.serialize()
+		t.assert_false(unsold.sell_art(drawing.serialize(), invalid).ok, "Blank, control-containing and overlong titles are rejected before selling an original painting")
+		t.assert_eq(unsold.serialize(), untouched, "Invalid title input cannot credit money or mark a painting as sold")
+	var compatible: State = State.new()
+	t.assert_true(compatible.sell_art(drawing.serialize()).ok, "Older direct callers can still omit a sale title")
+	t.assert_eq(compatible.art_sales[0].title, "나의 작품 1", "Omitting a title keeps the original automatically numbered name")
+	t.assert_true(compatible.sell_art(second.serialize(), "").ok, "The optional direct API's empty default remains backward compatible")
+	t.assert_eq(compatible.art_sales[1].title, "나의 작품 2", "Automatic names continue numbering after prior sales")
+	t.assert_true(restored.restore(_json_copy(compatible.serialize())), "Existing automatically titled receipts remain loadable")
+
+static func _test_titled_transactions(t: Node) -> void:
+	var state: State = State.new()
+	state.set_my_house_mode(true)
+	state.my_house_document.add_part("brick", Vector2(400, 550))
+	var house: Document = state.my_house_document
+	var house_history: int = house.command_manager.undo_stack.size()
+	var drawing: Drawing = _artwork()
+	var drawing_before: Dictionary = drawing.serialize()
+	var drawing_history: int = drawing.command_manager.undo_stack.size()
+	var path: String = "res://.godot/titled_art_%d.json" % Time.get_ticks_usec()
+	var invalid_path: String = "res://.godot/missing_titled_art_%d/ledger.json" % Time.get_ticks_usec()
+	var payload: Dictionary = {"document": drawing.serialize(), "title": "  지구에서 찾은 네모별  "}
+	var before: Dictionary = state.serialize()
+	t.assert_false(Transactions.commit(state, "sell_art", payload, invalid_path).ok, "A named painting is not sold when its ledger cannot be saved")
+	t.assert_eq(state.serialize(), before, "A failed named sale preserves the balance and sold-artwork history")
+	t.assert_true(state.my_house_document == house, "A failed named sale preserves the live private-house document")
+	t.assert_eq(house.command_manager.undo_stack.size(), house_history, "A failed named sale preserves existing Undo history")
+	var malformed: Array[Dictionary] = [
+		{"document": drawing.serialize(), "title": ""},
+		{"document": drawing.serialize(), "title": "  "},
+		{"document": drawing.serialize()},
+		{"document": drawing.serialize(), "title": null},
+		{"document": drawing.serialize(), "title": 123},
+		{"document": drawing.serialize(), "title": ["제목"]},
+		{"document": drawing.serialize(), "title": "줄\n바꿈"},
+		{"document": drawing.serialize(), "title": "가".repeat(Market.MAX_TITLE_LENGTH + 1)},
+		{"document": "그림이 아님", "title": "제목"},
+		{"title": "그림이 없는 제목"}
+	]
+	for invalid: Dictionary in malformed:
+		t.assert_false(Transactions.commit(state, "sell_art", invalid, path).ok, "Explicit named-sale payloads require a valid document and nonblank string title")
+		t.assert_eq(state.serialize(), before, "Malformed named-sale payloads cannot change money or reserve the artwork")
+	t.assert_false(Saves.has_save(path), "Invalid title attempts never publish an economy save")
+	var sale: Dictionary = Transactions.commit(state, "sell_art", payload, path)
+	t.assert_true(sale.ok, "The same original painting can be sold after entering a valid title and restoring storage")
+	t.assert_eq(sale.receipt.title, "지구에서 찾은 네모별", "The durable transaction returns the trimmed user title")
+	t.assert_eq(state.art_sales[0].title, "지구에서 찾은 네모별", "Successful commit copies the named receipt into live economic state")
+	t.assert_eq(state.art_sales.size(), 1, "Invalid and failed attempts do not create phantom sold paintings")
+	t.assert_eq(state.balance, State.INITIAL_BALANCE + int(sale.price), "A retried named sale pays once at the accepted price")
+	t.assert_eq(drawing.serialize(), drawing_before, "The financial API keeps original drawing data available to its caller after payment")
+	t.assert_eq(drawing.command_manager.undo_stack.size(), drawing_history, "The financial API preserves drawing history until its caller finishes the sale flow")
+	t.assert_true(state.my_house_document == house, "A named financial commit keeps the live private-house document")
+	t.assert_eq(house.command_manager.undo_stack.size(), house_history, "A successful named sale preserves private-house Undo history")
+	var restored: State = State.new()
+	t.assert_true(Saves.load_into(path, restored).ok, "The published named-sale ledger reloads from disk")
+	t.assert_eq(restored.art_sales[0].title, "지구에서 찾은 네모별", "Disk persistence retains the exact trimmed sale title")
+	t.assert_eq(restored.balance, state.balance, "Named-sale disk persistence retains the exact payout")
+	before = restored.serialize()
+	var published: String = FileAccess.get_file_as_string(path)
+	t.assert_false(Transactions.commit(restored, "sell_art", {"document": drawing.serialize(), "title": "다른 이름"}, path).ok, "A renamed sold painting is rejected by the durable transaction layer after reload")
+	t.assert_eq(restored.serialize(), before, "Renaming a sold painting cannot mutate the restored financial ledger")
+	t.assert_eq(FileAccess.get_file_as_string(path), published, "A renamed duplicate does not replace the valid on-disk ledger")
+	var legacy: State = State.new()
+	t.assert_true(Transactions.commit(legacy, "sell_art", drawing.serialize(), path, false).ok, "The transaction API still accepts the original unwrapped document payload")
+	t.assert_eq(legacy.art_sales[0].title, "나의 작품 1", "Legacy transaction callers retain automatic artwork titles")
+	_cleanup_save(path)
 
 static func _test_reserved_funds(t: Node) -> void:
 	var state: State = State.new()

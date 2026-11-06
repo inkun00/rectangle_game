@@ -152,6 +152,13 @@ static func _test_sale_ui(t: Node) -> void:
 	t.assert_false(studio._sale_button.disabled, "Connected economy enables the art sale button")
 	studio._open_sale()
 	t.assert_true(studio._sale_dialog.visible, "Sale opens a reviewable price confirmation")
+	studio._sale_title.text = "   "
+	studio._sale_title.text_changed.emit(studio._sale_title.text)
+	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "Blank titles cannot authorize a sale")
+	studio._confirm_sale()
+	t.assert_eq(requests.size(), 0, "Blank title confirmation never dispatches a sale")
+	studio._sale_title.text = "색깔 우주선"
+	studio._sale_title.text_changed.emit(studio._sale_title.text)
 	t.assert_false(studio._sale_dialog.get_ok_button().disabled, "A finished composition enables confirmation")
 	var drawing_before: Dictionary = studio.document.serialize()
 	studio._sale_dialog.hide()
@@ -162,6 +169,8 @@ static func _test_sale_ui(t: Node) -> void:
 	studio._confirm_sale()
 	studio._confirm_sale()
 	t.assert_eq(requests.size(), 1, "Repeated confirmations dispatch only one payment request")
+	t.assert_eq(requests[0].title, "색깔 우주선", "Sale intent includes the title chosen in the dialog")
+	t.assert_eq(requests[0].document, drawing_before, "Sale intent captures the exact quoted drawing")
 	t.assert_true(studio._sale_button.disabled, "Sale button is blocked while persistence is pending")
 	studio.show_sale_result({"ok": false, "error": "테스트 저장 실패"})
 	t.assert_false(studio._sale_button.disabled, "Persistence failure returns control to the artist")

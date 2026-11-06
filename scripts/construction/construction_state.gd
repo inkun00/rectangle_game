@@ -92,14 +92,17 @@ func ship_complete() -> bool:
 		if not purchased_ship_parts.has(str(part.id)): return false
 	return true
 
-func sell_art(document_data: Dictionary) -> Dictionary:
+func sell_art(document_data: Dictionary, title: String = "") -> Dictionary:
+	if not title.is_empty() and not Market.valid_title(title):
+		return _economy_error("작품 제목을 줄바꿈 없이 1~%d자로 입력해 주세요." % Market.MAX_TITLE_LENGTH)
 	if art_sales.size() >= Market.MAX_SALES:
 		return _economy_error("그림 판매 장부가 가득 찼어요. 집 짓기로 수익을 더 모을 수 있어요.")
 	var artwork: DrawingDocument = DrawingDocument.new()
 	if not artwork.restore(document_data): return _economy_error("그림을 확인하지 못했어요. 현재 작품을 다시 확인해 주세요.")
 	var quote: Dictionary = Market.quote(artwork, art_sales)
 	if not bool(quote.get("can_sell", false)): return _economy_error(str(quote.get("reason", "판매할 수 없는 작품이에요.")))
-	var receipt: Dictionary = Market.receipt_from_quote(quote, "나의 작품 %d" % (art_sales.size() + 1))
+	var sale_title: String = "나의 작품 %d" % (art_sales.size() + 1) if title.is_empty() else title.strip_edges()
+	var receipt: Dictionary = Market.receipt_from_quote(quote, sale_title)
 	if receipt.is_empty() or not Market.validate_receipt(receipt): return _economy_error("판매 가격을 확인하지 못했어요.")
 	art_sales.append(receipt)
 	balance += int(receipt.price)

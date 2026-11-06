@@ -3,6 +3,7 @@ extends RefCounted
 
 const State = preload("res://scripts/construction/construction_state.gd")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
+const Market = preload("res://scripts/economy/art_market.gd")
 
 ## Prepare and validate a complete ledger, durably publish it, then update the
 ## live economy once. A failed write never consumes a picture or a purchase.
@@ -14,7 +15,15 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 	match action:
 		"sell_art":
 			if not payload is Dictionary: return {"ok": false, "error": "판매할 그림을 확인해 주세요."}
-			result = candidate.sell_art(payload)
+			if payload.has("document") or payload.has("title"):
+				if not payload.get("document") is Dictionary: return {"ok": false, "error": "판매할 그림을 확인해 주세요."}
+				if not Market.valid_title(payload.get("title")):
+					return {"ok": false, "error": "작품 제목을 줄바꿈 없이 1~%d자로 입력해 주세요." % Market.MAX_TITLE_LENGTH}
+				result = candidate.sell_art(payload.document, str(payload.title))
+			else:
+				# Existing callers pass the drawing document directly and keep
+				# their automatically numbered title.
+				result = candidate.sell_art(payload)
 		"purchase_part":
 			if not payload is String: return {"ok": false, "error": "구매할 부품을 선택해 주세요."}
 			result = candidate.purchase_ship_part(payload)

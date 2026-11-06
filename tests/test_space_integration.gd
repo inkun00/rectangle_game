@@ -20,6 +20,9 @@ static func run(t: Node) -> void:
 	t.assert_true(app._drawing_screen.visible, "The hangar offers a route to earn drawing income")
 	t.assert_false(app._space_screen.visible, "Opening drawing hides the hangar")
 	app._tutorial.cancel()
+	app._drawing_screen.sold_art_directory = "user://test_space_integration_sold_art"
+	app._drawing_screen.sale_png_renderer = func(_tree: SceneTree, _drawing: DrawingDocument) -> PackedByteArray:
+		return Image.create(960, 600, false, Image.FORMAT_RGBA8).save_png_to_buffer()
 	var art: DrawingDocument = app._drawing_screen.document
 	var colors: Array[Color] = [Color.CORAL, Color.GOLD, Color.SKY_BLUE, Color.LIME_GREEN, Color.PLUM]
 	for index: int in range(5):
@@ -28,12 +31,17 @@ static func run(t: Node) -> void:
 	var quote: Dictionary = ArtMarket.quote(art)
 	t.assert_true(bool(quote.can_sell), "The integration fixture is a real saleable drawing")
 	app._drawing_screen._sale_button.pressed.emit()
+	app._drawing_screen._sale_title.text = "나의 별빛 그림"
 	t.assert_true(app._drawing_screen._sale_dialog.visible, "The actual sale button shows its quote")
 	t.assert_eq(ledger.balance, ConstructionState.INITIAL_BALANCE, "A quote alone does not pay money")
 	app._drawing_screen._sale_dialog.confirmed.emit()
 	t.assert_eq(ledger.art_sales.size(), 1, "The actual confirmation records one sale")
 	t.assert_eq(ledger.balance, ConstructionState.INITIAL_BALANCE + int(quote.price), "Drawing income reaches the construction ledger")
-	t.assert_eq(art.serialize(), picture, "Selling preserves the editable artwork")
+	t.assert_eq(ledger.art_sales[0].title, "나의 별빛 그림", "Selling records the artist's title")
+	t.assert_true(art.shapes.is_empty(), "A saved sale opens a blank drawing")
+	t.assert_eq(art.background_id, "paper", "A saved sale resets the paper background")
+	art.undo()
+	t.assert_eq(art.serialize(), picture, "Undo can recover sold artwork without undoing its payment")
 	t.assert_false(app._drawing_screen._sale_pending, "The transaction resolves the pending UI state")
 	t.assert_true(app._home_screen._space_status.text.contains("1점"), "The home screen reflects the sale")
 	app._drawing_screen._sale_button.pressed.emit()
@@ -59,4 +67,8 @@ static func run(t: Node) -> void:
 	t.assert_true(app._home_screen.visible, "Hangar home action returns to the main page")
 	t.assert_false(app._space_screen.is_processing(), "Leaving the hangar releases animation processing")
 	app.free()
+	var directory: DirAccess = DirAccess.open("user://test_space_integration_sold_art")
+	if directory != null:
+		for filename: String in directory.get_files(): directory.remove(filename)
+		DirAccess.remove_absolute("user://test_space_integration_sold_art")
 	await t.get_tree().process_frame
