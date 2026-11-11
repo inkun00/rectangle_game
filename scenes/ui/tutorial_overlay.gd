@@ -183,6 +183,9 @@ func is_blocking() -> bool:
 
 func _apply_visibility() -> void:
 	visible = _opened and not _suspended
+	if visible:
+		# Screens added on demand can sit ahead of the guide in GUI hit testing.
+		move_to_front()
 	set_process(visible)
 
 

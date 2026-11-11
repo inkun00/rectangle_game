@@ -35,6 +35,7 @@ static func run(t: Node) -> void:
 	await _test_cancel_and_stale_navigation(t)
 	await _test_world_entry_gate(t)
 	await _test_tutorial_resumes_after_download(t)
+	await _test_drawing_tutorial_pointer_navigation(t)
 
 static func _test_lazy_screens_and_shared_ledger(t: Node) -> void:
 	var gate: PackGate = PackGate.new()
@@ -149,3 +150,49 @@ static func _test_tutorial_resumes_after_download(t: Node) -> void:
 	t.assert_false(is_instance_valid(app._construction_screen), "Failure keeps optional construction controls uncreated")
 	app.free()
 	await t.get_tree().process_frame
+
+
+static func _test_drawing_tutorial_pointer_navigation(t: Node) -> void:
+	var window: Window = t.get_window()
+	var previous_size: Vector2i = window.size
+	window.size = Vector2i(1280, 800)
+	await _settle(t)
+	var app: QuadrilateralApp = _app(t, PackGate.new())
+	await app._show_drawing()
+	var canvas: DrawingCanvas = app._drawing_screen.canvas
+	canvas.select_kind("rectangle")
+	var tutorial: TutorialDirector = app._tutorial
+	tutorial.start("drawing")
+	await _settle(t)
+	_click(canvas)
+	t.assert_eq(canvas.document.shapes.size(), 0, "The visible welcome curtain blocks pointer edits behind it")
+	_click(tutorial.overlay._next_button)
+	await _settle(t)
+	t.assert_eq(tutorial.index, 1, "Clicking Next advances the guide above the lazily added drawing studio")
+	t.assert_false(app._drawing_screen.tutorial_blocked, "Next opens real drawing practice")
+	_click(canvas)
+	await _settle(t)
+	t.assert_eq(canvas.document.shapes.size(), 1, "The practice card lets the pointer reach the drawing canvas")
+	t.assert_eq(tutorial.index, 2, "Placing the rectangle by pointer advances the practice")
+	_click(tutorial.overlay._skip_button)
+	t.assert_false(tutorial.active, "Clicking Skip closes the practice card")
+	t.assert_eq(canvas.document.shapes.size(), 1, "Skipping preserves the drawing")
+	app.free()
+	window.size = previous_size
+	await t.get_tree().process_frame
+
+
+static func _click(control: Control) -> void:
+	var viewport: Viewport = control.get_viewport()
+	var point: Vector2 = control.get_global_transform_with_canvas() * (control.size * 0.5)
+	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	motion.position = point
+	motion.global_position = point
+	viewport.push_input(motion, true)
+	for pressed: bool in [true, false]:
+		var event: InputEventMouseButton = InputEventMouseButton.new()
+		event.button_index = MOUSE_BUTTON_LEFT
+		event.position = point
+		event.global_position = point
+		event.pressed = pressed
+		viewport.push_input(event, true)
