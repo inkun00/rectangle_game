@@ -73,8 +73,8 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "평행한 길의 폭 재기", "region": "valley", "kind": "explore",
 			"description": "사다리 항구로 이어지는 계곡길을 점검하고 있어요. 평행선 표식 2개를 찾아 주세요. 길의 폭은 두 평행선에 수직으로 재야 정확해요. 축제 손님과 등대 수리 물자가 함께 오갈 길이에요.",
 			"objective": "계곡의 평행선 표식 2개 조사하기", "target": "parallel_marker", "target_count": 2,
-			"question": "평행선 사이에 수직으로 잰 길이는 4칸, 비스듬히 잰 길이는 5칸이에요. 평행선 사이의 거리는?",
-			"options": ["4칸", "5칸", "두 길이 모두 맞아요"],
+			"question": "평행선 사이에 수직으로 잰 길이는 4 cm, 비스듬히 잰 길이는 5 cm예요. 평행선 사이의 거리는?",
+			"options": ["4 cm", "5 cm", "두 길이 모두 맞아요"],
 			"answer": 0,
 			"explanation": "평행선 사이의 거리는 두 평행선에 수직인 선분의 길이예요. 비스듬한 선분의 길이를 고르면 안 돼요. 평행한 두 직선을 평행선이라고 불러요.",
 			"reward": 25
@@ -133,10 +133,10 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "설원에 남은 마름모 불빛", "region": "snow", "kind": "collect",
 			"description": "등대로 가던 빛이 거울 설원에서 약해졌어요. 길가의 마름모 등불 3개를 찾아 쉼터로 모아 주세요. 네 변이 같은 등불이 눈 속에서도 길을 알려 줄 거예요.",
 			"objective": "마름모 등불 3개 모으기", "target": "rhombus_lantern", "target_count": 3,
-			"question": "등불 테두리의 네 변은 각각 6칸이에요. 한 바퀴 두르는 데 필요한 끈의 길이는?",
-			"options": ["24칸", "12칸", "18칸"],
+			"question": "등불 테두리의 네 변은 각각 6 cm예요. 한 바퀴 두르는 데 필요한 끈의 길이는?",
+			"options": ["24 cm", "12 cm", "18 cm"],
 			"answer": 0,
-			"explanation": "마름모의 네 변의 길이는 같아요. 네 변을 모두 더하면 6 + 6 + 6 + 6 = 24칸이에요.",
+			"explanation": "마름모의 네 변의 길이는 같아요. 네 변을 모두 더하면 6 + 6 + 6 + 6 = 24 cm예요.",
 			"reward": 35
 		},
 		{
@@ -145,8 +145,8 @@ static func all_quests() -> Array[Dictionary]:
 			"title": "눈 속의 평행한 썰매길", "region": "snow", "kind": "explore",
 			"description": "거울 조각을 옮길 썰매길이 눈에 덮였어요. 평행한 길을 나타내는 표식 2개를 조사해 주세요. 두 길 사이를 수직으로 재면 어느 곳에서나 같은 폭인지 확인할 수 있어요.",
 			"objective": "평행한 썰매길 표식 2개 조사하기", "target": "parallel_track", "target_count": 2,
-			"question": "두 평행선 사이를 수직으로 재니 4칸, 비스듬히 재니 5칸이에요. 길 사이의 거리는?",
-			"options": ["5칸", "4칸", "9칸"],
+			"question": "두 평행선 사이를 수직으로 재니 4 cm, 비스듬히 재니 5 cm예요. 길 사이의 거리는?",
+			"options": ["5 cm", "4 cm", "9 cm"],
 			"answer": 1,
 			"explanation": "평행선 사이의 거리는 두 평행선에 수직인 선분의 길이예요. 비스듬한 선분의 길이를 더하거나 대신 고르지 않아요. 평행선 사이의 거리는 어디에서 수직으로 재도 같아요.",
 			"reward": 35
@@ -212,7 +212,7 @@ static func all_quests() -> Array[Dictionary]:
 		var calculation_hints: Dictionary = {
 			"parallelogram_bridge": ["마주 보는 각부터 찾아요. 마주 보는 각은 주어진 65°와 같아요.", "", "이웃한 각까지 같지는 않아요. 이웃한 두 각의 합 180°에서 65°를 빼 보세요."],
 			"citadel_banners": ["70°는 마주 보는 각과 같아요. 이웃한 각은 180°에서 70°를 빼요.", "", "180°는 이웃한 두 각의 합이에요. 그중 주어진 70°를 빼 보세요."],
-			"snow_lanterns": ["", "12칸은 두 변만 더한 길이예요. 마름모의 같은 네 변을 모두 더해요.", "18칸은 세 변만 더한 길이예요. 마지막 한 변 6칸도 더해요."],
+			"snow_lanterns": ["", "12 cm는 두 변만 더한 길이예요. 마름모의 같은 네 변을 모두 더해요.", "18 cm는 세 변만 더한 길이예요. 마지막 한 변 6 cm도 더해요."],
 			"citadel_seals": ["180°는 직각 두 개를 더한 값이에요. 네 각을 모두 확인해요.", "270°는 직각 세 개를 더한 값이에요. 네 번째 직각도 더해요.", ""]
 		}
 		if calculation_hints.has(str(quest.id)):

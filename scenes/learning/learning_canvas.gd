@@ -80,16 +80,16 @@ func construction_correct() -> bool:
 		_: return selected_choices == Catalog.correct_choices(lesson_id)
 
 func measurement_text() -> String:
-	if not measured: return "‘재어 보기’를 눌러 변과 각을 확인해요. 길이는 그림 속 칸 단위예요."
+	if not measured: return "‘재어 보기’를 눌러 변과 각을 확인해요. 길이는 cm 단위로 표시해요."
 	match lesson_id:
 		"perpendicular": return "만나는 각: %s° · 두 선이 수직이면 한 선은 다른 선에 대한 수선이에요." % Math.measurement_label(value)
 		"parallel": return "공통 수선과 만나는 각: 90° / %s°" % Math.measurement_label(absf(90.0 - value))
-		"distance": return "수직인 선분: 4칸 · 움직인 선분: %s칸" % Math.measurement_label(Vector2(value, 80).length() / 20.0)
+		"distance": return "수직인 선분: 4 cm · 움직인 선분: %s cm" % Math.measurement_label(Vector2(value, 80).length() / 20.0)
 		_:
 			var vertices: PackedVector2Array = question_vertices() if question_mode else Catalog.figures(lesson_id)[focus_index]
 			var sides: PackedStringArray = PackedStringArray()
 			for side: float in Math.side_lengths(vertices): sides.append(Math.measurement_label(side / 20.0))
-			return "%s · 변 ㄱㄴ / ㄴㄷ / ㄷㄹ / ㄹㄱ: %s칸\n%s" % ["관찰 도형" if question_mode else LETTERS[focus_index], " / ".join(sides), Math.property_summary(vertices)]
+			return "%s · 변 ㄱㄴ / ㄴㄷ / ㄷㄹ / ㄹㄱ: %s cm\n%s" % ["관찰 도형" if question_mode else LETTERS[focus_index], " / ".join(sides), Math.property_summary(vertices)]
 
 func question_vertices() -> PackedVector2Array:
 	if lesson_id == "parallelogram":
@@ -237,8 +237,8 @@ func _draw_lines() -> void:
 		_line(Vector2(300, 110), Vector2(300 + value, 190), Color("0c6658"), 4)
 		handle = Vector2(300 + value, 190)
 		if measured:
-			_text(Vector2(112, 157), "4칸", 20)
-			_text(Vector2(320 + value * 0.5, 156), Math.measurement_label(Vector2(value, 80).length() / 20.0) + "칸", 20)
+			_text(Vector2(112, 157), "4 cm", 20)
+			_text(Vector2(320 + value * 0.5, 156), Math.measurement_label(Vector2(value, 80).length() / 20.0) + " cm", 20)
 			_line(Vector2(180, 174), Vector2(196, 174), Color("b46b27"), 2)
 			_line(Vector2(196, 174), Vector2(196, 190), Color("b46b27"), 2)
 	if not question_mode:

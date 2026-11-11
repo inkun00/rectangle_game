@@ -39,7 +39,7 @@ static func _test_examples_and_measurements(t: Node) -> void:
 	t.assert_true(canvas.construction_correct(), "Reversed direction still represents parallel lines")
 	canvas.configure("distance")
 	canvas.measure()
-	t.assert_true(canvas.measurement_text().contains("5칸"), "The original oblique 3-4-5 example has the measured five-unit length")
+	t.assert_true(canvas.measurement_text().contains("5 cm"), "The original oblique 3-4-5 example has the measured five-centimeter length")
 	t.assert_false(canvas.construction_correct(), "An oblique segment does not measure the distance")
 	canvas.set_value(0)
 	t.assert_true(canvas.construction_correct(), "A perpendicular segment measures the four-unit distance")
