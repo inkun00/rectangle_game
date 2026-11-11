@@ -13,6 +13,9 @@ static func run(t: Node) -> void:
 	var previous_bytes: PackedByteArray = previous_art.save_png_to_buffer()
 	var existing: String = directory.path_join("별빛 고향.png")
 	t.assert_eq(DirAccess.make_dir_recursive_absolute(directory), OK, "Create an isolated artwork destination")
+	var destination: DirAccess = DirAccess.open(directory)
+	# Linux treats filenames starting with a period as hidden, including temporary saves.
+	destination.include_hidden = true
 	var original: FileAccess = FileAccess.open(existing, FileAccess.WRITE)
 	original.store_buffer(previous_bytes)
 	original.close()
@@ -38,7 +41,7 @@ static func run(t: Node) -> void:
 		t.assert_eq(FileAccess.get_file_as_bytes(str(result.path)), bytes, "Filename sanitizing never changes picture contents")
 	t.assert_true(Store._safe_stem("NUL.txt").begins_with("그림_"), "Reserved device names with extensions receive a safe prefix")
 	t.assert_true(Store._safe_stem("com1").begins_with("그림_"), "Reserved device names are recognized without case sensitivity")
-	var before: PackedStringArray = DirAccess.get_files_at(directory)
+	var before: PackedStringArray = destination.get_files()
 	t.assert_false(bool(Store.save_png(PackedByteArray(), "빈 파일", directory).ok), "Empty PNG data is rejected")
 	t.assert_false(bool(Store.save_png("broken PNG".to_utf8_buffer(), "깨진 파일", directory).ok), "Invalid PNG data is rejected")
 	var truncated: PackedByteArray = bytes.slice(0, 40)
@@ -47,13 +50,13 @@ static func run(t: Node) -> void:
 	t.assert_eq(Engine.print_error_messages, engine_errors, "Expected invalid input does not change engine error reporting")
 	t.assert_false(bool(Store.save_png(bytes, "  \t\n ", directory).ok), "Blank titles cannot be saved")
 	t.assert_false(bool(Store.save_png(bytes, "가".repeat(81), directory).ok), "Titles over eighty characters are rejected")
-	t.assert_eq(DirAccess.get_files_at(directory), before, "Invalid input creates no partial or extra files")
+	t.assert_eq(destination.get_files(), before, "Invalid input creates no partial or extra files")
 	var failed: Dictionary = Store.save_png(bytes, "저장 실패", existing)
 	t.assert_false(bool(failed.ok), "A file cannot be used as a save directory")
 	t.assert_true(not str(failed.error).is_empty() and str(failed.path).is_empty(), "Failed saves return a useful error and no claimed output")
 	t.assert_eq(FileAccess.get_file_as_bytes(existing), previous_bytes, "Failed saves preserve the existing destination PNG")
-	for filename: String in DirAccess.get_files_at(directory):
+	for filename: String in destination.get_files():
 		t.assert_false(filename.ends_with(".tmp"), "Successful and rejected saves leave no temporary files")
-		DirAccess.remove_absolute(directory.path_join(filename))
+		destination.remove(filename)
 	DirAccess.remove_absolute(directory)
 	t.assert_false(DirAccess.dir_exists_absolute(directory), "The isolated test directory is cleaned up")
