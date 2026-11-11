@@ -12,6 +12,8 @@ const SAVE_PATH: String = "user://quadrilateral_drawing_v1.json"
 const SHAPE_ORDER: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
 const TRAPEZOID_VARIANT_LABELS: Array[String] = ["양옆이 기울어진 모양", "왼쪽 두 각이 직각", "오른쪽 두 각이 직각"]
 const SHAPE_ACTION_LABELS: Dictionary = {6: "뒤로 보내기", 7: "앞으로 보내기", 2: "왼쪽 15° 회전", 3: "오른쪽 15° 회전", 4: "축소", 5: "확대", 0: "복제", 1: "삭제"}
+const GROUP_ACTION: int = 12
+const UNGROUP_ACTION: int = 13
 const SHAPE_HELP: Dictionary = {
 	"square": "네 변의 길이가 같고, 네 각이 직각이에요.",
 	"rectangle": "네 각이 모두 직각이에요. 길쭉한 벽이나 창문을 그려 봐요.",
@@ -48,6 +50,9 @@ var _shape_hint: Label
 var _undo: Button
 var _redo: Button
 var _select_button: Button
+var _multiple_selection_button: Button
+var _group_button: Button
+var _ungroup_button: Button
 var _shape_buttons: Dictionary = {}
 var _selection_buttons: Array[Button] = []
 var _color_picker: ColorPickerButton
@@ -234,6 +239,24 @@ func _build_ui() -> void:
 		_more_edits.get_popup().add_item(caption)
 	_more_edits.get_popup().id_pressed.connect(_more_edit_action)
 	toolbar.add_child(_more_edits)
+	var group_tools: HFlowContainer = HFlowContainer.new()
+	group_tools.name = "DrawingGroupTools"
+	group_tools.add_theme_constant_override("h_separation", 8)
+	group_tools.add_theme_constant_override("v_separation", 6)
+	center.add_child(group_tools)
+	_multiple_selection_button = _button("여러 선택", _toggle_multiple_selection)
+	_multiple_selection_button.name = "MultipleSelectionToggle"
+	_multiple_selection_button.toggle_mode = true
+	_multiple_selection_button.tooltip_text = "도형을 하나씩 누르거나 빈 곳에서 끌어 여러 도형을 골라요. Shift를 누르고 도형을 눌러도 돼요."
+	group_tools.add_child(_multiple_selection_button)
+	_group_button = _button("묶기", _change_shape_group.bind(true))
+	_group_button.name = "GroupSelectedShapes"
+	_group_button.tooltip_text = "선택한 도형을 묶어 함께 움직여요. (Ctrl+G)"
+	group_tools.add_child(_group_button)
+	_ungroup_button = _button("묶음 풀기", _change_shape_group.bind(false))
+	_ungroup_button.name = "UngroupSelectedShapes"
+	_ungroup_button.tooltip_text = "선택한 묶음을 풀어 도형을 따로 움직여요. (Ctrl+Shift+G)"
+	group_tools.add_child(_ungroup_button)
 	_masterpiece_tools = HBoxContainer.new()
 	_masterpiece_tools.add_theme_constant_override("separation", 8)
 	center.add_child(_masterpiece_tools)
@@ -336,7 +359,7 @@ func _responsive_drawing() -> void:
 	_palette_scroll.visible = spacious
 	_shape_picker.visible = not spacious
 	_shape_tools.visible = not spacious or canvas.selected_kind == "trapezoid"
-	for button: Button in [_mode_free, _mode_masterpiece, _background_button, _select_button, _undo, _redo, _more_edits]:
+	for button: Button in [_mode_free, _mode_masterpiece, _background_button, _select_button, _undo, _redo, _more_edits, _multiple_selection_button, _group_button, _ungroup_button]:
 		button.add_theme_font_size_override("font_size", 16 if size.x < 1000 else 18)
 	_drawing_tagline.visible = size.y >= 760
 	_drawing_load.visible = size.x >= 1000
@@ -372,32 +395,65 @@ func _more_edit_action(id: int) -> void:
 			canvas.queue_redraw()
 			guide_changed.emit()
 
+func _toggle_multiple_selection() -> void:
+	if tutorial_blocked or _sale_pending or _exporting:
+		_refresh()
+		return
+	cancel_gesture()
+	canvas.set_multiple_selection(not canvas.multiple_selection)
+	_set_status("도형을 하나씩 누르거나 빈 곳에서 끌어 여러 도형을 골라요." if canvas.multiple_selection else "선택한 도형을 끌어 움직여요.")
+
+func _change_shape_group(make_group: bool) -> void:
+	if tutorial_blocked or _sale_pending or _exporting: return
+	cancel_gesture()
+	var changed: bool = document.group_selected() if make_group else document.ungroup_selected()
+	if not changed:
+		_set_status("묶을 도형을 두 개 이상 골라 주세요." if make_group else "풀고 싶은 묶음을 골라 주세요.")
+		return
+	canvas.set_multiple_selection(false)
+	canvas.grab_focus()
+	_set_status("도형을 묶었어요. 끌어서 함께 움직여 보세요." if make_group else "묶음을 풀었어요. 도형을 하나씩 골라 움직일 수 있어요.")
+
 func _show_shape_context_menu(canvas_position: Vector2) -> void:
 	if tutorial_blocked or not is_visible_in_tree() or _exporting: return
 	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or (_sale_dialog != null and _sale_dialog.visible) or _color_picker.get_popup().visible: return
 	cancel_gesture()
 	var point: Vector2 = canvas.screen_to_artwork(canvas_position)
-	var selected: Dictionary = document.get_selected()
-	# Keep an already selected lower layer as the target even where another
-	# polygon covers it, so repeated layer edits operate on the same shape.
-	if selected.is_empty() or not QuadrilateralMath.contains_point(selected.vertices, point - Vector2(selected.position)):
+	var selected_ids: Array[int] = document.get_selected_ids()
+	# Keep the selection when any of its shapes contains the click. This also
+	# preserves a selected lower layer where another shape covers it.
+	var clicked_selection: bool = false
+	for part: Dictionary in document.shapes:
+		if selected_ids.has(int(part.id)) and QuadrilateralMath.contains_point(part.vertices, point - Vector2(part.position)):
+			clicked_selection = true
+			break
+	if not clicked_selection:
 		var hit_id: int = canvas._shape_at(point)
 		if hit_id >= 0: document.select_shape(hit_id)
-	selected = document.get_selected()
+	var selected: Dictionary = document.get_selected()
 	if selected.is_empty(): return
-	canvas.select_tool()
+	selected_ids = document.get_selected_ids()
+	if canvas.drawing_tool: canvas.select_tool()
 	canvas.grab_focus()
 	_context_shape_id = document.selected_id
 	var layer: int = document._shape_index(_context_shape_id)
 	_shape_context_menu.clear()
-	_shape_context_menu.add_item("%s · 레이어 %d / %d" % [QuadrilateralMath.kind_name(str(selected.kind)), layer + 1, document.shapes.size()], 100)
+	var heading: String = "%s · 레이어 %d / %d" % [QuadrilateralMath.kind_name(str(selected.kind)), layer + 1, document.shapes.size()]
+	if selected_ids.size() > 1: heading = "도형 %d개 선택" % selected_ids.size()
+	_shape_context_menu.add_item(heading, 100)
 	_shape_context_menu.set_item_disabled(0, true)
 	_shape_context_menu.add_separator("", 100 + _shape_context_menu.item_count)
 	for action: int in SHAPE_ACTION_LABELS:
 		_shape_context_menu.add_item(str(SHAPE_ACTION_LABELS[action]), action)
 		if action in [7, 5]: _shape_context_menu.add_separator("", 100 + _shape_context_menu.item_count)
-	_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(6), layer == 0)
-	_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(7), layer == document.shapes.size() - 1)
+	_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(6), not document.can_shift_selection_layer(-1))
+	_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(7), not document.can_shift_selection_layer(1))
+	if selected_ids.size() > 1:
+		_shape_context_menu.add_separator("", 100 + _shape_context_menu.item_count)
+		_shape_context_menu.add_item("묶기", GROUP_ACTION)
+		_shape_context_menu.add_item("묶음 풀기", UNGROUP_ACTION)
+		_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(GROUP_ACTION), not document.can_group_selection())
+		_shape_context_menu.set_item_disabled(_shape_context_menu.get_item_index(UNGROUP_ACTION), not document.can_ungroup_selection())
 	var popup_position: Vector2 = canvas.get_global_transform_with_canvas() * canvas_position
 	var popup_bounds: Rect2 = get_viewport().get_visible_rect()
 	if not _shape_context_menu.is_embedded():
@@ -409,13 +465,17 @@ func _show_shape_context_menu(canvas_position: Vector2) -> void:
 	interaction_context_changed.emit()
 
 func _shape_context_action(id: int) -> void:
-	if not SHAPE_ACTION_LABELS.has(id) or tutorial_blocked or not is_visible_in_tree(): return
+	if tutorial_blocked or not is_visible_in_tree(): return
+	if not SHAPE_ACTION_LABELS.has(id) and id not in [GROUP_ACTION, UNGROUP_ACTION]: return
 	if _context_shape_id < 0 or document.selected_id != _context_shape_id or document.get_selected().is_empty(): return
 	var index: int = _shape_context_menu.get_item_index(id)
 	if index < 0 or _shape_context_menu.is_item_disabled(index): return
+	if id in [GROUP_ACTION, UNGROUP_ACTION]:
+		_change_shape_group(id == GROUP_ACTION)
+		return
 	_more_edit_action(id)
-	if id == 6: _set_status("도형을 한 단계 뒤로 보냈어요. Ctrl+Z로 되돌릴 수 있어요.")
-	elif id == 7: _set_status("도형을 한 단계 앞으로 보냈어요. Ctrl+Z로 되돌릴 수 있어요.")
+	if id == 6: _set_status("선택한 도형을 한 단계 뒤로 보냈어요. Ctrl+Z로 되돌릴 수 있어요.")
+	elif id == 7: _set_status("선택한 도형을 한 단계 앞으로 보냈어요. Ctrl+Z로 되돌릴 수 있어요.")
 
 func _clear_context_target() -> void:
 	if not _shape_context_menu.visible: _context_shape_id = -1
@@ -576,8 +636,14 @@ func _refresh() -> void:
 		var active: bool = canvas.drawing_tool and canvas.selected_kind == kind
 		button.set_pressed_no_signal(active)
 		Buttons.apply(button, active)
-	_select_button.set_pressed_no_signal(not canvas.drawing_tool)
-	Buttons.apply(_select_button, not canvas.drawing_tool)
+	var select_active: bool = not canvas.drawing_tool and not canvas.multiple_selection
+	var toolbar_font_size: int = 16 if size.x < 1000 else 18
+	_select_button.set_pressed_no_signal(select_active)
+	Buttons.apply(_select_button, select_active, toolbar_font_size)
+	_multiple_selection_button.set_pressed_no_signal(canvas.multiple_selection)
+	Buttons.apply(_multiple_selection_button, canvas.multiple_selection, toolbar_font_size)
+	_group_button.disabled = not document.can_group_selection()
+	_ungroup_button.disabled = not document.can_ungroup_selection()
 	_shape_hint.text = str(SHAPE_HELP[canvas.selected_kind])
 	_undo.disabled = not document.can_undo()
 	_redo.disabled = not document.can_redo()
@@ -602,8 +668,12 @@ func _refresh() -> void:
 		_guide_label.text = "도시, 바다, 우주, 산, 집 등 30가지 배경으로 장면을 꾸며요."
 	for button: Button in _selection_buttons:
 		button.disabled = selected.is_empty()
-	_selection.text = "도형 %d / 128개  ·  " % document.shapes.size()
-	if selected.is_empty():
+	var selection_count: int = document.get_selected_ids().size()
+	_selection.text = "도형 %d / %d개  ·  " % [document.shapes.size(), Model.MAX_SHAPES]
+	if canvas.multiple_selection or selection_count > 1:
+		_selection.text += "%d개 선택" % selection_count
+		if document.can_ungroup_selection(): _selection.text += " · 묶음 포함"
+	elif selected.is_empty():
 		_selection.text += "도형을 고른 뒤 종이에 그리거나, 선택·이동으로 그림을 골라요."
 	else:
 		_selection.text += "%s · 길이 단위: cm · 손잡이로 크기·방향 조절" % QuadrilateralMath.kind_name(str(selected.kind))
@@ -923,6 +993,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	elif event.ctrl_pressed and event.keycode == KEY_D:
 		cancel_gesture()
 		document.duplicate_selected()
+	elif event.ctrl_pressed and event.keycode == KEY_G:
+		_change_shape_group(not event.shift_pressed)
 	elif event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
 		cancel_gesture()
 		document.delete_selected()
@@ -937,7 +1009,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			KEY_RIGHT: direction = Vector2.RIGHT
 			KEY_UP: direction = Vector2.UP
 			KEY_DOWN: direction = Vector2.DOWN
-		document.move_selected(Vector2(document.get_selected().position) + direction * (10.0 if event.shift_pressed else 2.0))
+		document.move_selection(direction * (10.0 if event.shift_pressed else 2.0))
 	else:
 		handled = false
 	if handled:

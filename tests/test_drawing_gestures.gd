@@ -13,6 +13,7 @@ static func run(t: Node) -> void:
 	_test_resize_snap(t)
 	_test_bounds_and_cancel(t)
 	_test_small_shape_move(t)
+	_test_group_selection(t)
 	await t.get_tree().process_frame
 
 static func _new_canvas(t: Node) -> Canvas:
@@ -203,6 +204,60 @@ static func _test_small_shape_move(t: Node) -> void:
 				var midpoint: Vector2 = Vector2(original.position) + (vertices[0] + vertices[1]) * 0.5
 				t.assert_eq(str(canvas._selected_handle_at(midpoint).get("mode", "")), "edge", "Exact tiny edge midpoint keeps its own resize hotspot")
 				canvas.free()
+
+static func _test_group_selection(t: Node) -> void:
+	var canvas: Canvas = _new_canvas(t)
+	canvas.snap_enabled = false
+	var document: Model = canvas.document
+	var left: Vector2 = Vector2(-180, -40)
+	var middle: Vector2 = Vector2(0, 50)
+	var right: Vector2 = Vector2(260, 0)
+	var first: int = document.add_shape("rectangle", left, Color.CORAL)
+	var second: int = document.add_shape("square", middle, Color.TEAL)
+	var third: int = document.add_shape("rhombus", right, Color.GOLD)
+	_pointer(canvas, left, true)
+	_pointer(canvas, left, false)
+	_pointer(canvas, middle, true, true)
+	_pointer(canvas, middle, false, true)
+	t.assert_eq(document.get_selected_ids(), [first, second], "Shift-click adds a second shape to the selection")
+	_pointer(canvas, middle, true, true)
+	_pointer(canvas, middle, false, true)
+	t.assert_eq(document.get_selected_ids(), [first], "Shift-click again removes the selected shape")
+
+	var corner: Vector2 = Vector2(-250, -110)
+	var opposite: Vector2 = Vector2(70, 120)
+	_pointer(canvas, corner, true)
+	_motion(canvas, opposite)
+	_pointer(canvas, opposite, false)
+	t.assert_eq(document.get_selected_ids(), [first, second], "Dragging around two shapes excludes the third")
+	t.assert_true(document.group_selected(), "The rectangle selection can be grouped")
+	_pointer(canvas, corner, true)
+	_pointer(canvas, corner, false)
+	t.assert_true(document.get_selected_ids().is_empty(), "A click on empty paper clears the selection")
+	_pointer(canvas, middle, true)
+	t.assert_eq(document.get_selected_ids(), [first, second], "Pressing either member selects the whole group")
+	var delta: Vector2 = Vector2(56, -33)
+	var original: Array[Dictionary] = document.ordered_shapes()
+	_motion(canvas, middle + delta)
+	t.assert_eq(document.ordered_shapes(), original, "Dragging a group previews without modifying the drawing")
+	_pointer(canvas, middle + delta, false)
+	t.assert_eq(document.shapes[0].position, left + delta, "Dragging a group moves its first member")
+	t.assert_eq(document.shapes[1].position, middle + delta, "Dragging a group moves its second member by the same amount")
+	t.assert_eq(document.shapes[2], original[2], "Dragging a group leaves other shapes alone")
+	document.undo()
+	t.assert_eq(document.ordered_shapes(), original, "One undo restores the complete group position")
+
+	canvas.set_multiple_selection(true)
+	_pointer(canvas, right, true)
+	_pointer(canvas, right, false)
+	t.assert_eq(document.get_selected_ids(), [first, second, third], "Multiple selection mode adds shapes without a keyboard modifier")
+	t.assert_true(document.ungroup_selected(), "A selected group can be ungrouped alongside another shape")
+	canvas.set_multiple_selection(false)
+	_pointer(canvas, middle, true)
+	_pointer(canvas, middle, false)
+	t.assert_eq(document.get_selected_ids(), [second], "After ungrouping a click selects an individual shape again")
+	canvas.free()
+
 
 static func _pointer(canvas: Canvas, point: Vector2, pressed: bool, shift: bool = false) -> void:
 	var event: InputEventMouseButton = InputEventMouseButton.new()

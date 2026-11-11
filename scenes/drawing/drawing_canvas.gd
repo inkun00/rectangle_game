@@ -5,6 +5,7 @@ const Model = preload("res://scripts/core/drawing_document.gd")
 const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 const HANDLE_RADIUS: float = 10.0
 const SNAP_DISTANCE: float = 10.0
+const SELECTION_DRAG_THRESHOLD: float = 5.0
 const MIN_SIDE: float = 4.1
 const UNITS_PER_CM: float = 20.0
 
@@ -17,6 +18,7 @@ var selected_kind: String = "square"
 var selected_trapezoid_variant: String = "symmetric"
 var paint_color: Color = Color("29a995")
 var drawing_tool: bool = true
+var multiple_selection: bool = false
 var show_grid: bool = true
 var snap_enabled: bool = true
 var show_masterpiece: bool = true
@@ -26,6 +28,8 @@ var _masterpiece_path: String = ""
 var _background_texture: Texture2D
 var _masterpiece_texture: Texture2D
 var _creating: bool = false
+var _selecting_box: bool = false
+var _add_to_selection: bool = false
 var _dragging: bool = false
 var _resizing: bool = false
 var _rotating: bool = false
@@ -33,6 +37,7 @@ var _press_position: Vector2 = Vector2.ZERO
 var _drag_position: Vector2 = Vector2.ZERO
 var _drag_origin: Vector2 = Vector2.ZERO
 var _drag_id: int = -1
+var _drag_selection: Array[int] = []
 var _origin_vertices: PackedVector2Array = PackedVector2Array()
 var _preview_vertices: PackedVector2Array = PackedVector2Array()
 var _resize_anchor: Vector2 = Vector2.ZERO
@@ -72,6 +77,7 @@ func select_kind(kind: String) -> void:
 	cancel_gesture()
 	selected_kind = kind
 	drawing_tool = true
+	multiple_selection = false
 	if document != null:
 		document.select_shape(-1)
 	tool_changed.emit()
@@ -80,6 +86,14 @@ func select_kind(kind: String) -> void:
 func select_tool() -> void:
 	cancel_gesture()
 	drawing_tool = false
+	multiple_selection = false
+	tool_changed.emit()
+	queue_redraw()
+
+func set_multiple_selection(enabled: bool) -> void:
+	cancel_gesture()
+	drawing_tool = false
+	multiple_selection = enabled
 	tool_changed.emit()
 	queue_redraw()
 
@@ -99,11 +113,13 @@ func add_at_center() -> void:
 
 func cancel_gesture() -> void:
 	_creating = false
+	_selecting_box = false
 	_dragging = false
 	_resizing = false
 	_rotating = false
 	_snap_active = false
 	_preview_vertices = PackedVector2Array()
+	_drag_selection.clear()
 	_hover.clear()
 	queue_redraw()
 
@@ -111,7 +127,7 @@ func _has_transform_gesture() -> bool:
 	return _dragging or _resizing or _rotating
 
 func _document_changed() -> void:
-	if _has_transform_gesture() and document.selected_id != _drag_id:
+	if _has_transform_gesture() and (document.selected_id != _drag_id or document.get_selected_ids() != _drag_selection):
 		cancel_gesture()
 	_sync_scene_textures()
 	queue_redraw()
@@ -144,7 +160,7 @@ func _gui_input(event: InputEvent) -> void:
 				return
 			if is_inside_tree():
 				grab_focus()
-			_press(point)
+			_press(point, event.shift_pressed)
 		else:
 			_release(point, event.shift_pressed, event.alt_pressed)
 		accept_event()
@@ -165,11 +181,12 @@ func _gui_input(event: InputEvent) -> void:
 				KEY_RIGHT: direction = Vector2.RIGHT
 				KEY_UP: direction = Vector2.UP
 				KEY_DOWN: direction = Vector2.DOWN
-			document.move_selected(Vector2(document.get_selected().position) + direction * (10.0 if event.shift_pressed else 2.0))
+			document.move_selection(direction * (10.0 if event.shift_pressed else 2.0))
 			accept_event()
 
-func _press(point: Vector2) -> void:
-	var handle: Dictionary = _selected_handle_at(point)
+func _press(point: Vector2, shift: bool = false) -> void:
+	var additive: bool = shift or multiple_selection
+	var handle: Dictionary = {} if additive else _selected_handle_at(point)
 	cancel_gesture()
 	_press_position = point
 	_drag_position = point
@@ -178,17 +195,24 @@ func _press(point: Vector2) -> void:
 		queue_redraw()
 		return
 	var id: int = int(handle.get("id", _shape_at(point)))
-	document.select_shape(id)
 	if id < 0:
+		_selecting_box = true
+		_add_to_selection = additive
 		queue_redraw()
 		return
+	if additive:
+		document.toggle_shape_selection(id)
+		return
+	if not document.get_selected_ids().has(id):
+		document.select_shape(id)
 	var selected: Dictionary = document.get_selected()
-	_drag_id = id
+	_drag_id = document.selected_id
+	_drag_selection = document.get_selected_ids()
 	_drag_origin = selected.position
 	_drag_position = _drag_origin
 	_origin_vertices = selected.vertices.duplicate()
 	_preview_vertices = _origin_vertices.duplicate()
-	if handle.is_empty():
+	if _drag_selection.size() == 1 and handle.is_empty():
 		handle = _edge_handle(selected, point)
 	var mode: String = str(handle.get("mode", "move"))
 	if mode == "rotate":
@@ -219,26 +243,47 @@ func _release(point: Vector2, shift: bool = false, alt: bool = false) -> void:
 		if new_id < 0:
 			hint_requested.emit("도형은 최대 128개까지 그릴 수 있어요.")
 		select_tool()
+	elif _selecting_box:
+		_finish_box_selection(point)
+	elif _dragging and _drag_selection.size() > 1 and _press_position.distance_to(point) * canvas_scale() < SELECTION_DRAG_THRESHOLD:
+		# A click narrows an ungrouped selection. A drag keeps it together.
+		var clicked_id: int = _shape_at(_press_position)
+		cancel_gesture()
+		document.select_shape(clicked_id)
 	elif _has_transform_gesture():
 		_update_gesture(point, shift, alt)
 		var vertices: PackedVector2Array = _preview_vertices.duplicate()
 		var position: Vector2 = _drag_position
+		var movement: Vector2 = position - _drag_origin
 		var was_transform: bool = _resizing or _rotating
 		# Commit once only after the full gesture preview has finished.
 		cancel_gesture()
 		if was_transform:
 			document.transform_selected(vertices, position)
 		else:
-			document.move_selected(position)
+			document.move_selection(movement)
 	cancel_gesture()
+
+func _finish_box_selection(point: Vector2) -> void:
+	var box: Rect2 = Rect2(_press_position, point - _press_position).abs()
+	var ids: Array[int] = []
+	if box.size.length() * canvas_scale() >= SELECTION_DRAG_THRESHOLD:
+		for part: Dictionary in document.shapes:
+			var bounds: Rect2 = QuadrilateralMath.bounds(part.vertices)
+			bounds.position += Vector2(part.position)
+			if box.encloses(bounds):
+				ids.append(int(part.id))
+	document.select_shapes(ids, _add_to_selection)
 
 func _update_gesture(point: Vector2, shift: bool = false, alt: bool = false) -> void:
 	_snap_active = false
 	_snap_edge = PackedVector2Array()
 	if _creating:
 		_drag_position = point.clamp(Model.ARTBOARD.position, Model.ARTBOARD.end)
+	elif _selecting_box:
+		_drag_position = point
 	elif _dragging:
-		_drag_position = Model.fitted_position(_origin_vertices, _drag_origin + point - _press_position)
+		_drag_position = _fit_drag_position(_drag_origin + point - _press_position)
 		if snap_enabled and not alt:
 			_drag_position = _snapped_position(_origin_vertices, _drag_position)
 	elif _resizing:
@@ -256,6 +301,11 @@ func _update_gesture(point: Vector2, shift: bool = false, alt: bool = false) -> 
 		if bounds.size.x <= Model.ARTBOARD.size.x and bounds.size.y <= Model.ARTBOARD.size.y:
 			_preview_vertices = vertices
 			_drag_position = Model.fitted_position(vertices, _drag_origin)
+
+func _fit_drag_position(position: Vector2) -> Vector2:
+	if _drag_selection.size() > 1:
+		return _drag_origin + document.constrained_selection_delta(position - _drag_origin)
+	return Model.fitted_position(_origin_vertices, position)
 
 func _update_resize(point: Vector2, allow_snap: bool) -> void:
 	if _resize_vector.length_squared() < 0.01:
@@ -288,7 +338,7 @@ func _snapped_position(vertices: PackedVector2Array, position: Vector2) -> Vecto
 	var found_vertex: bool = false
 	# Vertices take priority over edge proximity so corners meet precisely.
 	for part: Dictionary in document.ordered_shapes():
-		if int(part.id) == _drag_id:
+		if _drag_selection.has(int(part.id)):
 			continue
 		for target_local: Vector2 in part.vertices:
 			var target: Vector2 = Vector2(part.position) + target_local
@@ -302,7 +352,7 @@ func _snapped_position(vertices: PackedVector2Array, position: Vector2) -> Vecto
 					found_vertex = true
 	if not found_vertex:
 		for part: Dictionary in document.ordered_shapes():
-			if int(part.id) == _drag_id:
+			if _drag_selection.has(int(part.id)):
 				continue
 			var target_vertices: PackedVector2Array = part.vertices
 			for index: int in range(4):
@@ -317,7 +367,7 @@ func _snapped_position(vertices: PackedVector2Array, position: Vector2) -> Vecto
 						correction = target - source
 						_set_snap(source, target, PackedVector2Array([edge_start, edge_end]))
 	if _snap_active:
-		var fitted: Vector2 = Model.fitted_position(vertices, position + correction)
+		var fitted: Vector2 = _fit_drag_position(position + correction)
 		if fitted.distance_to(position + correction) < 0.01:
 			return fitted
 		_snap_active = false
@@ -389,7 +439,7 @@ func _edge_handle(part: Dictionary, point: Vector2) -> Dictionary:
 	return {}
 
 func _selected_handle_at(point: Vector2) -> Dictionary:
-	if drawing_tool or document == null:
+	if drawing_tool or multiple_selection or document == null or document.get_selected_ids().size() != 1:
 		return {}
 	var selected: Dictionary = document.get_selected()
 	if selected.is_empty():
@@ -427,6 +477,8 @@ func _update_hover(point: Vector2) -> void:
 	_hover = _selected_handle_at(point)
 	if drawing_tool:
 		mouse_default_cursor_shape = Control.CURSOR_CROSS
+	elif multiple_selection:
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if _shape_at(point) >= 0 else Control.CURSOR_CROSS
 	elif _rotating or str(_hover.get("mode", "")) == "rotate":
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	elif _resizing or not _hover.is_empty():
@@ -453,18 +505,34 @@ func _draw() -> void:
 				draw_circle(artwork_to_screen(Vector2(x, y)), 0.8, Color("dfe8e3"))
 	if document == null:
 		return
+	var selected_ids: Array[int] = document.get_selected_ids()
+	var translating_many: bool = _dragging and _drag_selection.size() > 1
 	for part: Dictionary in document.ordered_shapes():
-		var selected: bool = int(part.id) == document.selected_id
-		var position: Vector2 = _drag_position if _has_transform_gesture() and selected else Vector2(part.position)
-		var vertices: PackedVector2Array = _preview_vertices if _has_transform_gesture() and selected else part.vertices
+		var selected: bool = selected_ids.has(int(part.id))
+		var position: Vector2 = part.position
+		var vertices: PackedVector2Array = part.vertices
+		if _has_transform_gesture() and selected:
+			if translating_many:
+				position += _drag_position - _drag_origin
+			else:
+				position = _drag_position
+				vertices = _preview_vertices
 		_draw_part(vertices, position, part.color, selected)
 	if _creating:
 		var extent: Vector2 = (_drag_position - _press_position).abs().max(Vector2(12, 12))
 		var vertices: PackedVector2Array = QuadrilateralMath.create_vertices(selected_kind, extent, selected_trapezoid_variant)
 		_draw_part(vertices, (_drag_position + _press_position) * 0.5, Color(paint_color, 0.6), false)
-	var selected: Dictionary = preview_selected()
-	if not selected.is_empty():
-		_draw_selection(selected)
+	if selected_ids.size() > 1:
+		var bounds: Rect2 = document.selected_bounds()
+		if translating_many:
+			bounds.position += _drag_position - _drag_origin
+		draw_rect(Rect2(artwork_to_screen(bounds.position), bounds.size * canvas_scale()).grow(5.0), Color("0c6658"), false, 2.0)
+	elif selected_ids.size() == 1 and not multiple_selection:
+		_draw_selection(preview_selected())
+	if _selecting_box:
+		var box: Rect2 = Rect2(artwork_to_screen(_press_position), (_drag_position - _press_position) * canvas_scale()).abs()
+		draw_rect(box, Color(0.05, 0.4, 0.35, 0.13))
+		draw_rect(box, Color("0c6658"), false, 1.5)
 	if _snap_active:
 		_draw_snap()
 	draw_rect(board, Color("c9d9d1"), false, 1.0)
