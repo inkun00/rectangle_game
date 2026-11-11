@@ -164,9 +164,13 @@ powershell -File tools/export_web.ps1
 powershell -File tools/export_desktop.ps1
 ```
 
-웹 빌드 결과는 `build/web`, Windows 패키지는 `build/windows`에 생성됩니다. Windows 패키지의 `Run_QuadrilateralWorld.bat`이 `QuadrilateralWorld.pck`를 실행하며, 실행할 PC에 Godot 4가 필요합니다. 웹 빌드를 로컬에서 확인하려면 `python tools/serve_web.py`를 실행하고 안내된 주소를 엽니다. 빌드의 한글 폰트 처리에는 Python과 `tools/requirements-font.txt`의 패키지가 필요합니다.
+웹 빌드 결과는 `build/web`, Windows 패키지는 `build/windows`에 생성됩니다. Windows 패키지의 `Run_QuadrilateralWorld.bat`이 `QuadrilateralWorld.pck`를 실행하며, 실행할 PC에 Godot 4가 필요합니다. 웹 빌드를 로컬에서 확인하려면 `python tools/serve_web.py`를 실행하고 안내된 주소를 엽니다. 웹 빌드의 한글 폰트·Brotli 압축에는 Python과 `tools/requirements-web.txt`의 패키지가 필요합니다. Windows 전용 빌드는 기존 `tools/requirements-font.txt`를 사용할 수 있습니다.
 
-GitHub·Vercel에 새 버전을 올리는 절차는 [배포 안내](docs/DEPLOYMENT.md)를 참고하세요.
+웹은 엔진·홈·공통 UI를 먼저 받고 그림·건축·모험·우주선 자료를 처음 사용할 때 내려받습니다. 오프닝 영상은 **이야기 시작**을 누를 때만 받으므로 건너뛰면 영상 전송이 없습니다. 현재 로컬 빌드의 초기 파일 예산은 약 **18.27MB**이며, 텍스처의 픽셀·크기와 영상·소리는 유지합니다. 기기 캐시와 기능별 해시 파일을 재사용하고 다운로드 실패 시 재시도·취소할 수 있습니다. Windows 패키지는 전체 자산을 포함해 오프라인으로 동작합니다. [웹 리소스 분리와 검증 안내](docs/WEB_DELIVERY.md).
+
+`build/`는 로컬·CI에서 다시 생성하며 커밋하지 않습니다. GitHub Actions가 전체 검사 후 Web/Windows 결과물을 14일간 보관하고, Vercel은 연결된 저장소의 소스를 Godot 4.7.2로 직접 빌드합니다. [배포 안내](docs/DEPLOYMENT.md)를 참고하세요.
+
+고해상도 제작 원본·영상 제작 산출물·스크린샷은 외부 보관하고, 게임에 필요한 압축 그래픽과 오프닝 OGV를 저장소에 유지합니다. 보관 위치와 복원 방법은 [저장소 용량 관리](docs/REPOSITORY_STORAGE.md)에 있습니다.
 
 ## 참고 자료와 그래픽
 

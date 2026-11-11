@@ -26,3 +26,11 @@ dict_messages.json
 # Local chat attachments and browser automation snapshots
 .codex-attachments/
 .playwright-mcp/
+
+# Reproducible packages, media production output and local working files
+/build/
+/output/
+/tmp/
+/quarantine/
+/.venv/
+/.cache/

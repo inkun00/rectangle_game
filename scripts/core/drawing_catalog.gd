@@ -31,7 +31,7 @@ const MASTERPIECE_DATA: Array[Array] = [
 static func backgrounds() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for row: Array in BACKGROUND_DATA:
-		result.append({"id": str(row[0]), "name": str(row[1]), "category": str(row[2]), "path": ROOT + "backgrounds/" + str(row[0]) + ".png"})
+		result.append({"id": str(row[0]), "name": str(row[1]), "category": str(row[2]), "path": ROOT + "backgrounds/" + str(row[0]) + ".webp"})
 	return result
 
 static func masterpieces() -> Array[Dictionary]:

@@ -96,6 +96,17 @@ var _tutorial: TutorialDirector
 var _opening_screen: OpeningIntro
 var _opening_preferences: OpeningPreferences = OpeningPreferences.new()
 var _space_screen: SpaceHangar
+## Production web builds mount each feature before its first screen is built.
+var defer_feature_screens_for_testing: bool = false
+var _resource_pack_loader: Callable = Callable()
+var _defer_features: bool = false
+var _economy_state: ConstructionState
+var _construction_load_result: Dictionary = {}
+var _feature_navigation: int = 0
+var _feature_request: String = ""
+var _feature_loading_overlay: Control
+var _feature_loading_label: Label
+var _feature_focus_before: Control
 
 func _ready() -> void:
 	if not testing and not learning_progress.load_file():
@@ -103,6 +114,11 @@ func _ready() -> void:
 	document = CharacterDocument.new()
 	journal = QuestJournal.new()
 	adventure = AdventureState.new()
+	_defer_features = defer_feature_screens_for_testing or (not testing and WebResourcePacks.is_web_delivery())
+	_economy_state = ConstructionState.new()
+	if _defer_features and not testing:
+		_construction_load_result = ConstructionSaveStore.load_into(ConstructionStudio.SAVE_PATH, _economy_state)
+	_economy_state.changed.connect(_economy_changed)
 	_sound = SoundManager.new()
 	add_child(_sound)
 	_ui_layer = CanvasLayer.new()
@@ -118,9 +134,10 @@ func _ready() -> void:
 	_ui_layer.add_child(_ui)
 	_build_workshop()
 	_build_home()
-	_build_drawing()
-	_build_construction()
-	_build_space()
+	if not _defer_features:
+		_build_drawing()
+		_build_construction()
+		_build_space()
 	_build_learning()
 	_build_world_hud()
 	_build_toast()
@@ -132,6 +149,7 @@ func _ready() -> void:
 	_tutorial = TutorialDirector.new()
 	add_child(_tutorial)
 	_tutorial.setup(self)
+	_economy_changed()
 	document.changed.connect(_document_changed)
 	journal.changed.connect(_journal_changed)
 	adventure.changed.connect(_adventure_changed)
@@ -195,23 +213,36 @@ func _learning_changed() -> void:
 	if not testing: learning_progress.save_file()
 
 func _build_drawing() -> void:
+	if is_instance_valid(_drawing_screen): return
 	_drawing_screen = DrawingStudio.new()
 	_drawing_screen.testing = testing
 	_drawing_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_drawing_screen.home_requested.connect(_show_home)
 	_drawing_screen.hide()
 	_ui.add_child(_drawing_screen)
+	_drawing_screen.configure_economy(_economy_state)
+	_drawing_screen.art_sale_requested.connect(_sell_art)
+	if _tutorial != null: _tutorial.bind_drawing()
 
 func _build_construction() -> void:
+	if is_instance_valid(_construction_screen): return
 	_construction_screen = ConstructionStudio.new()
 	_construction_screen.testing = testing
+	_construction_screen.state = _economy_state
+	_construction_screen.load_on_ready = not _defer_features
 	_construction_screen.home_requested.connect(_show_home)
 	_construction_screen.hide()
 	_ui.add_child(_construction_screen)
+	if _tutorial != null: _tutorial.bind_construction()
+	if bool(_construction_load_result.get("recovered", false)):
+		_construction_screen._set_status(str(_construction_load_result.get("message", "건축 기록을 복구했어요.")))
+	elif not _construction_load_result.is_empty() and not bool(_construction_load_result.get("ok", false)) and ConstructionSaveStore.has_save(_economy_save_path()):
+		_construction_screen._set_status(str(_construction_load_result.get("error", "건축 기록을 확인하지 못했어요.")))
 
 func _build_space() -> void:
+	if is_instance_valid(_space_screen): return
 	_space_screen = SpaceHangar.new()
-	_space_screen.state = _construction_screen.state
+	_space_screen.state = _economy_state
 	_space_screen.home_requested.connect(_show_home)
 	_space_screen.drawing_requested.connect(_show_drawing)
 	_space_screen.construction_requested.connect(_show_construction)
@@ -219,17 +250,18 @@ func _build_space() -> void:
 	_space_screen.launch_requested.connect(_launch_ship)
 	_space_screen.hide()
 	_ui.add_child(_space_screen)
-	_drawing_screen.configure_economy(_construction_screen.state)
-	_drawing_screen.art_sale_requested.connect(_sell_art)
-	_construction_screen.state.changed.connect(_economy_changed)
 	_economy_changed()
 
 func _economy_changed() -> void:
 	if is_instance_valid(_home_screen):
-		_home_screen.set_space_progress(_construction_screen.state)
+		_home_screen.set_space_progress(_economy_state)
 	if is_instance_valid(_space_screen): _space_screen.refresh()
 
+func _economy_save_path() -> String:
+	return _construction_screen.save_path if is_instance_valid(_construction_screen) else ConstructionStudio.SAVE_PATH
+
 func _sell_art(data: Dictionary) -> void:
+	if not is_instance_valid(_drawing_screen): return
 	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.tutorial_blocked:
 		_drawing_screen.show_sale_result({"ok": false, "error": "그림 화면에서 판매해 주세요."})
 		return
@@ -240,7 +272,7 @@ func _sell_art(data: Dictionary) -> void:
 	if not artwork.restore(data.document):
 		_drawing_screen.show_sale_result({"ok": false, "error": "판매할 그림을 확인하지 못했어요."})
 		return
-	var offer: Dictionary = ArtMarket.quote(artwork, _construction_screen.state.art_sales)
+	var offer: Dictionary = ArtMarket.quote(artwork, _economy_state.art_sales)
 	if not bool(offer.can_sell):
 		_drawing_screen.show_sale_result({"ok": false, "error": str(offer.reason)})
 		return
@@ -255,7 +287,7 @@ func _sell_art(data: Dictionary) -> void:
 		return
 	# A durable PNG precedes payment and clearing. Failed payment leaves both
 	# the editable drawing and its exported copy available for a safe retry.
-	var result: Dictionary = _art_sale_transaction.call(_construction_screen.state, "sell_art", data, _construction_screen.save_path, not testing)
+	var result: Dictionary = _art_sale_transaction.call(_economy_state, "sell_art", data, _economy_save_path(), not testing)
 	if bool(result.get("ok", false)):
 		result["png_path"] = str(image_saved.path)
 		result["filename"] = str(image_saved.filename)
@@ -264,23 +296,100 @@ func _sell_art(data: Dictionary) -> void:
 	_drawing_screen.show_sale_result(result)
 
 func _purchase_ship_part(id: String) -> void:
-	if not _space_screen.is_visible_in_tree(): return
-	var result: Dictionary = ProgressionTransactions.commit(_construction_screen.state, "purchase_part", id, _construction_screen.save_path, not testing)
+	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
+	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "purchase_part", id, _economy_save_path(), not testing)
 	_space_screen.show_transaction_result(result)
 
 func _launch_ship() -> void:
-	if not _space_screen.is_visible_in_tree(): return
-	var result: Dictionary = ProgressionTransactions.commit(_construction_screen.state, "launch", null, _construction_screen.save_path, not testing)
+	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
+	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "launch", null, _economy_save_path(), not testing)
 	if bool(result.get("ok", false)): _space_screen.play_launch()
 	else: _space_screen.show_transaction_result(result)
 
 func _show_space() -> void:
+	if not await _ensure_feature("space"): return
+	_build_space()
 	_leave_activity()
 	_space_screen.show()
 	_space_screen.refresh()
 	_responsive()
 
+func _ensure_feature(feature: String) -> bool:
+	if not _defer_features: return true
+	_feature_navigation += 1
+	var ticket: int = _feature_navigation
+	if not _feature_request.is_empty() and _feature_request != feature and not _resource_pack_loader.is_valid():
+		WebResourcePacks.cancel(_feature_request)
+	_feature_request = feature
+	_show_feature_loading(feature)
+	if world != null and _in_world: world.set_controls_enabled(false)
+	var available: bool = false
+	if _resource_pack_loader.is_valid():
+		available = bool(await _resource_pack_loader.call(feature))
+	else:
+		available = await WebResourcePacks.ensure(feature)
+	if ticket != _feature_navigation: return false
+	_feature_request = ""
+	_clear_feature_loading()
+	if not available:
+		_restore_feature_controls()
+		_show_toast("자료를 내려받지 못했어요. 연결을 확인하고 다시 눌러 주세요.")
+	return available
+
+func _show_feature_loading(feature: String) -> void:
+	var captions: Dictionary = {"drawing": "그림 도구", "construction": "집 짓기 재료", "space": "우주선 제작소", "adventure": "모험의 세계"}
+	if not is_instance_valid(_feature_loading_overlay):
+		_feature_focus_before = get_viewport().gui_get_focus_owner()
+		var shade: ColorRect = ColorRect.new()
+		shade.name = "FeatureLoading"
+		shade.color = Color(0.02, 0.04, 0.07, 0.88)
+		shade.mouse_filter = Control.MOUSE_FILTER_STOP
+		shade.z_index = 2000
+		shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		_ui.add_child(shade)
+		_feature_loading_overlay = shade
+		var center: CenterContainer = CenterContainer.new()
+		center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		shade.add_child(center)
+		var panel: PanelContainer = PanelContainer.new()
+		panel.add_theme_stylebox_override("panel", StarfrontArt.panel(0, 24))
+		center.add_child(panel)
+		var column: VBoxContainer = VBoxContainer.new()
+		column.add_theme_constant_override("separation", 18)
+		panel.add_child(column)
+		_feature_loading_label = QuadTheme.paragraph("", 21, QuadTheme.INK)
+		_feature_loading_label.custom_minimum_size.x = 300.0
+		column.add_child(_feature_loading_label)
+		var cancel_button: Button = QuadTheme.button("취소 · Esc", _cancel_feature_navigation)
+		column.add_child(cancel_button)
+		cancel_button.grab_focus()
+	_feature_loading_label.text = str(captions.get(feature, "놀이 자료")) + "를 준비하고 있어요…"
+	if _tutorial != null: _tutorial.refresh.call_deferred()
+
+func _clear_feature_loading() -> void:
+	if is_instance_valid(_feature_loading_overlay):
+		_feature_loading_overlay.hide()
+		_feature_loading_overlay.queue_free()
+	_feature_loading_overlay = null
+	_feature_loading_label = null
+	if is_instance_valid(_feature_focus_before) and _feature_focus_before.is_visible_in_tree(): _feature_focus_before.grab_focus()
+	_feature_focus_before = null
+	if _tutorial != null: _tutorial.refresh.call_deferred()
+
+func _restore_feature_controls() -> void:
+	if world != null and _in_world:
+		world.set_controls_enabled(not is_instance_valid(_modal_overlay) and (_tutorial == null or not _tutorial.blocks_gameplay()))
+
+func _cancel_feature_navigation() -> void:
+	_feature_navigation += 1
+	if not _feature_request.is_empty() and not _resource_pack_loader.is_valid():
+		WebResourcePacks.cancel(_feature_request)
+	_feature_request = ""
+	_clear_feature_loading()
+	_restore_feature_controls()
+
 func _leave_activity() -> void:
+	_cancel_feature_navigation()
 	if is_instance_valid(_opening_screen):
 		_opening_screen.dismiss()
 		_opening_screen.queue_free()
@@ -289,10 +398,10 @@ func _leave_activity() -> void:
 	_clear_touch_inputs()
 	_close_modal()
 	var save_adventure: bool = _in_world or _workshop_screen.visible
-	if _drawing_screen.visible:
+	if is_instance_valid(_drawing_screen) and _drawing_screen.visible:
 		_drawing_screen.cancel_gesture()
 		if not testing: _drawing_screen.save_drawing(false)
-	if _construction_screen.visible:
+	if is_instance_valid(_construction_screen) and _construction_screen.visible:
 		_construction_screen.cancel_activity()
 	workshop.cancel_gesture()
 	if world != null:
@@ -303,8 +412,8 @@ func _leave_activity() -> void:
 		world.camera.enabled = false
 	_in_world = false
 	_home_screen.hide()
-	_drawing_screen.hide()
-	_construction_screen.hide()
+	if is_instance_valid(_drawing_screen): _drawing_screen.hide()
+	if is_instance_valid(_construction_screen): _construction_screen.hide()
 	if is_instance_valid(_space_screen): _space_screen.hide()
 	_workshop_screen.hide()
 	if is_instance_valid(_learning_screen): _learning_screen.hide()
@@ -336,12 +445,16 @@ func _opening_closed(reason: String) -> void:
 		_show_toast("영상을 재생할 수 없어요. 메인 화면에서 바로 시작해 주세요.")
 
 func _show_drawing() -> void:
+	if not await _ensure_feature("drawing"): return
+	_build_drawing()
 	_leave_activity()
 	_drawing_screen.show()
 	_responsive()
 	_tutorial.visit("masterpiece" if _drawing_screen.document.drawing_mode == "masterpiece" else "drawing")
 
 func _show_construction() -> void:
+	if not await _ensure_feature("construction"): return
+	_build_construction()
 	_leave_activity()
 	_construction_screen.show()
 	_responsive()
@@ -1091,6 +1204,7 @@ func _enter_world() -> void:
 	if not bool(document.completion()["ready"]):
 		_show_toast("골격을 모두 채운 뒤 출발해 주세요.")
 		return
+	if not await _ensure_feature("adventure"): return
 	_leave_activity()
 	if world == null:
 		world = QuadrilateralWorld.new()
@@ -1268,15 +1382,19 @@ func _replay_tutorial(context: String) -> void:
 		match context:
 			"learning": _show_learning()
 			"drawing":
-				if not _drawing_screen.visible: _show_drawing()
+				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: await _show_drawing()
+				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: return
 				if _drawing_screen.document.drawing_mode != "free": _drawing_screen._choose_mode("free")
 			"masterpiece":
-				if not _drawing_screen.visible: _show_drawing()
+				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: await _show_drawing()
+				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: return
 			"construction":
-				if not _construction_screen.visible: _show_construction()
+				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: await _show_construction()
+				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: return
 				if _construction_screen.state.my_house_mode: _construction_screen._exit_my_house_mode()
 			"my_house":
-				if not _construction_screen.visible: _show_construction()
+				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: await _show_construction()
+				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: return
 				if not _construction_screen.state.my_house_mode: _construction_screen._enter_my_house_mode()
 			"workshop": _show_workshop()
 			"world":
@@ -1284,7 +1402,8 @@ func _replay_tutorial(context: String) -> void:
 					_show_workshop()
 					_tutorial.start("workshop")
 					return
-				_enter_world()
+				await _enter_world()
+				if not _in_world: return
 	_tutorial.start(context)
 
 func _show_journal(filter: String = "active") -> void:
@@ -1536,7 +1655,7 @@ func _export_png() -> void:
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
 	var window: Window = get_window()
-	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen))
+	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen))
 	var desired_size: Vector2i = Vector2i(maxi(window.size.x, 800), maxi(window.size.y, 600)) if creation_visible else Vector2i(1600, 900)
 	if window.content_scale_size != desired_size:
 		window.content_scale_size = desired_size
@@ -1568,6 +1687,11 @@ func _ui_size() -> Vector2:
 	return _ui.size if _ui != null and _ui.size.x > 0.0 else get_viewport().get_visible_rect().size
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(_feature_loading_overlay):
+		if event is InputEventKey:
+			if event.pressed and not event.echo and event.keycode == KEY_ESCAPE: _cancel_feature_navigation()
+			if event.keycode not in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]: get_viewport().set_input_as_handled()
+		return
 	if is_instance_valid(_opening_screen):
 		if _opening_screen.handle_key(event): get_viewport().set_input_as_handled()
 		return
@@ -1620,11 +1744,12 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: _clear_touch_inputs()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if is_instance_valid(_feature_loading_overlay): return
 	if is_instance_valid(_opening_screen): return
 	if is_instance_valid(_space_screen) and _space_screen.visible: return
 	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	if not event is InputEventKey or not event.pressed or event.echo: return
-	if _drawing_screen.visible or _construction_screen.visible or (is_instance_valid(_learning_screen) and _learning_screen.visible): return
+	if (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible): return
 	if event.keycode == KEY_ESCAPE:
 		_close_modal()
 		get_viewport().set_input_as_handled()

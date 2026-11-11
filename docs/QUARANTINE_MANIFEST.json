@@ -1,0 +1,1913 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-10",
+  "archive_directory": "rectangle_game_quarantine_2026-11-10",
+  "files": [
+    {
+      "path": ".agents/skills/motion-graphics/LICENSE",
+      "archive_path": "files/.agents/skills/motion-graphics/LICENSE",
+      "bytes": 7169,
+      "sha256": "f4e7f373b9b996950337e8d41a4a2939c2d90b7725e9baf3d5084a22717ad328",
+      "reason": "optional-media-production-skill"
+    },
+    {
+      "path": ".agents/skills/motion-graphics/reference-render.mjs",
+      "archive_path": "files/.agents/skills/motion-graphics/reference-render.mjs",
+      "bytes": 2124,
+      "sha256": "38a6095a096103aecbba5602888e5b9ba034f42078a61854f0c1723a10f1c01d",
+      "reason": "optional-media-production-skill"
+    },
+    {
+      "path": ".agents/skills/motion-graphics/SKILL.md",
+      "archive_path": "files/.agents/skills/motion-graphics/SKILL.md",
+      "bytes": 3641,
+      "sha256": "3f83daac00b33d204216c7eee18a56da846468d2f4169062279d2b8d1635dbe8",
+      "reason": "optional-media-production-skill"
+    },
+    {
+      "path": ".agents/skills/triangle-geometry/SKILL.md",
+      "archive_path": "files/.agents/skills/triangle-geometry/SKILL.md",
+      "bytes": 1285,
+      "sha256": "2fcf306dbb3e3d9acdf72e87dc28ce3724ea353b1746e04aa307f61e0530e6f7",
+      "reason": "obsolete-triangle-skill"
+    },
+    {
+      "path": ".agents/skills/triangle-interaction/SKILL.md",
+      "archive_path": "files/.agents/skills/triangle-interaction/SKILL.md",
+      "bytes": 1479,
+      "sha256": "f5fc717d5d5771de3a8492453ec5a826204a0f23ac327218de6a5f553a057648",
+      "reason": "obsolete-triangle-skill"
+    },
+    {
+      "path": "assets/construction/clients/brow.png",
+      "archive_path": "files/assets/construction/clients/brow.png",
+      "bytes": 365,
+      "sha256": "bf05288fd546e4ccbb9635cd2e2f13681536c996921b251252c5ae034f006234",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/brow.png.import",
+      "archive_path": "files/assets/construction/clients/brow.png.import",
+      "bytes": 983,
+      "sha256": "b1fbabc21b398be2156ba5bd85f731b9503c61489c7af1985f8e9c8bfd686cf2",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/eye.png",
+      "archive_path": "files/assets/construction/clients/eye.png",
+      "bytes": 286,
+      "sha256": "3484fca38cee04245f2a3addf98ba8fe5b142d052f671f047bc90b2fd59cf273",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/eye.png.import",
+      "archive_path": "files/assets/construction/clients/eye.png.import",
+      "bytes": 981,
+      "sha256": "eef6bbc5d17c1d8d4a999645d3db4d8ed256ab9649cd61642d0075c43ce4f7bc",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_0.png",
+      "archive_path": "files/assets/construction/clients/hair_0.png",
+      "bytes": 4963,
+      "sha256": "9d90203ff6461f513433b8c410b923741284807673f767da811d72356f8803f8",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_0.png.import",
+      "archive_path": "files/assets/construction/clients/hair_0.png.import",
+      "bytes": 990,
+      "sha256": "f75be43b7753c31e6f67e2913bfbf81c4fb24b2f2073b002fbece19497ea4bef",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_1.png",
+      "archive_path": "files/assets/construction/clients/hair_1.png",
+      "bytes": 1857,
+      "sha256": "3b374604cfa22a2e85be32f712221e90a1143d4fdcff9afcc90aa45ae0209276",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_1.png.import",
+      "archive_path": "files/assets/construction/clients/hair_1.png.import",
+      "bytes": 990,
+      "sha256": "f4b5280a60ce7c1e1bb6a3c475fd539c73911e3f30d5157a33a36f27af476d69",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_2.png",
+      "archive_path": "files/assets/construction/clients/hair_2.png",
+      "bytes": 1726,
+      "sha256": "60aa3ef48ba380b67054c4181e69d4d85c295a08efdeb008732f310f5fc3064a",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_2.png.import",
+      "archive_path": "files/assets/construction/clients/hair_2.png.import",
+      "bytes": 990,
+      "sha256": "0cb036cef25fc64a1fb90cbb37e465d61a2747decc2bf82dd93152ddd666feec",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_3.png",
+      "archive_path": "files/assets/construction/clients/hair_3.png",
+      "bytes": 1482,
+      "sha256": "8f9b4c388a8d07e3c57b34ce9d054b3425bf114c90681179e706a0b6534bc707",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_3.png.import",
+      "archive_path": "files/assets/construction/clients/hair_3.png.import",
+      "bytes": 990,
+      "sha256": "9a2cb6c85e4f1b9082911192596cb2b11a783eebd0345b139a60710f303b4680",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_4.png",
+      "archive_path": "files/assets/construction/clients/hair_4.png",
+      "bytes": 5386,
+      "sha256": "7865fb1f4ca48a15063cce511d5b546f5b30c2c45a7b46e7558a191de4a91117",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_4.png.import",
+      "archive_path": "files/assets/construction/clients/hair_4.png.import",
+      "bytes": 990,
+      "sha256": "85ff6a82fdb1969f0f75928d4412c339dff65418846b3aa64b54fc0cc966c2cb",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_5.png",
+      "archive_path": "files/assets/construction/clients/hair_5.png",
+      "bytes": 1541,
+      "sha256": "7645daa8f6dc6f8cc0e9c3a1996f1bc4af4cbe4f5d495eb018a81646694c9ec6",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/hair_5.png.import",
+      "archive_path": "files/assets/construction/clients/hair_5.png.import",
+      "bytes": 990,
+      "sha256": "daeb68c5c602783fdcf4c97f0c870965052f4e1b16a04bb338c4f934fce1d990",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_0.png",
+      "archive_path": "files/assets/construction/clients/head_0.png",
+      "bytes": 1993,
+      "sha256": "fc41cf92dc501690fab33b6667624936196be20f89e1bae168d4abbf9657c804",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_0.png.import",
+      "archive_path": "files/assets/construction/clients/head_0.png.import",
+      "bytes": 990,
+      "sha256": "5f95ad73e140cc41337169b2be0889e61e77f3abb499f2208a0d148b4f86de4b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_1.png",
+      "archive_path": "files/assets/construction/clients/head_1.png",
+      "bytes": 2041,
+      "sha256": "c4caf83e757bff9f5c923e9959ab1ecf4ebe0186cba84f2b5bcc52081cfa6831",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_1.png.import",
+      "archive_path": "files/assets/construction/clients/head_1.png.import",
+      "bytes": 990,
+      "sha256": "ea1a8fe778fda680d914ed38a9b4f0e88ba4e55a0e8aaf5def11c80e6244ca77",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_2.png",
+      "archive_path": "files/assets/construction/clients/head_2.png",
+      "bytes": 2058,
+      "sha256": "02270841acd51d5a212df6e8e60df9e87e1861a4063e14b205f106c71ad6c89d",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_2.png.import",
+      "archive_path": "files/assets/construction/clients/head_2.png.import",
+      "bytes": 989,
+      "sha256": "d5656e5d55572fd5408fad0c7cb125ec4e0b397d3eaec0d4b1500dba49ff7fb2",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_3.png",
+      "archive_path": "files/assets/construction/clients/head_3.png",
+      "bytes": 2046,
+      "sha256": "2580775cdca6b9e14518193c254531f382a7740859b9c86ebfcbc627494cfd70",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_3.png.import",
+      "archive_path": "files/assets/construction/clients/head_3.png.import",
+      "bytes": 990,
+      "sha256": "bb0883634fcbc93b6b08c6059f9405e8602e31329f69054cba6c1f6329eb265a",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_4.png",
+      "archive_path": "files/assets/construction/clients/head_4.png",
+      "bytes": 2032,
+      "sha256": "817e486d654180ee42762c2b6fdfd89c6836a96468fa71f512de8553b1eea5d2",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_4.png.import",
+      "archive_path": "files/assets/construction/clients/head_4.png.import",
+      "bytes": 990,
+      "sha256": "61656c4bd9e24f4302bb028cf11c5f7f4698b017bfb6aacbbaba5bc1c32f6171",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_5.png",
+      "archive_path": "files/assets/construction/clients/head_5.png",
+      "bytes": 1991,
+      "sha256": "626f8159dbe0a1c408ea6fdc12360af4468044cea44b7f8370ac4a40e185ba48",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/head_5.png.import",
+      "archive_path": "files/assets/construction/clients/head_5.png.import",
+      "bytes": 990,
+      "sha256": "beae5f6b10862f8f368a2cbc44437a17a37285a9646987c83fc42212799368d7",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/mouth_happy.png",
+      "archive_path": "files/assets/construction/clients/mouth_happy.png",
+      "bytes": 286,
+      "sha256": "87ed4a520c05ed3d985dd1a4459b5338d54ea4e83f090ba94246ee258dbc868b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/mouth_happy.png.import",
+      "archive_path": "files/assets/construction/clients/mouth_happy.png.import",
+      "bytes": 1005,
+      "sha256": "0b60e5940f6e4d9e5e096e2ece66dbbd72f4602d6de24a5fff20ff1028715c91",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/mouth_sad.png",
+      "archive_path": "files/assets/construction/clients/mouth_sad.png",
+      "bytes": 350,
+      "sha256": "02b9f16373db51bb0439dd9af0c51865a93e730ede9e9cfaca6e7ad9811de87e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/mouth_sad.png.import",
+      "archive_path": "files/assets/construction/clients/mouth_sad.png.import",
+      "bytes": 999,
+      "sha256": "55e9d706643b24163f72b6e31b72c24ab5033a0a3e92076308fb78a579aaf8ef",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/mouth_straight.png",
+      "archive_path": "files/assets/construction/clients/mouth_straight.png",
+      "bytes": 180,
+      "sha256": "1b7b8f031cd466bc962506874e0dcfcb5d006dc7030d95f09566f25a4bc33131",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/mouth_straight.png.import",
+      "archive_path": "files/assets/construction/clients/mouth_straight.png.import",
+      "bytes": 1014,
+      "sha256": "7e12e7e7585f2fcc4e3a4ac15980e49776f1d2f9605275a3d042e63514450860",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_0.png",
+      "archive_path": "files/assets/construction/clients/neck_0.png",
+      "bytes": 623,
+      "sha256": "59dfb0fb9b15524e92551e019b2a7ae3ba6fb9f22f3fb0dd99adcc1fcb894a74",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_0.png.import",
+      "archive_path": "files/assets/construction/clients/neck_0.png.import",
+      "bytes": 990,
+      "sha256": "b9bbe996a4c70d60eb582313a2eee9efb7f6f33b05ae34cbf0826a496d8015aa",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_1.png",
+      "archive_path": "files/assets/construction/clients/neck_1.png",
+      "bytes": 628,
+      "sha256": "2fa7fd53a939b3afa8031895e2c39e7ae6f0948e7d122c8e5523138defff7646",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_1.png.import",
+      "archive_path": "files/assets/construction/clients/neck_1.png.import",
+      "bytes": 989,
+      "sha256": "3174b29ea0842b091ebe5de9e5405170a4e57fc497d21fd6f7765c866c35c715",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_2.png",
+      "archive_path": "files/assets/construction/clients/neck_2.png",
+      "bytes": 627,
+      "sha256": "367fb014543961ce2f8a87ea81bf4c139b3450c4193f426909545f347b1d017a",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_2.png.import",
+      "archive_path": "files/assets/construction/clients/neck_2.png.import",
+      "bytes": 990,
+      "sha256": "30d40432cd383162308ea697956309d0a5f381c76a4cf6eb2d7b264580cacb5c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_3.png",
+      "archive_path": "files/assets/construction/clients/neck_3.png",
+      "bytes": 626,
+      "sha256": "4886fff62375116a83a9d6d81fdd7fd5e6bc75b9f548e97f1bf972ef73da8844",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_3.png.import",
+      "archive_path": "files/assets/construction/clients/neck_3.png.import",
+      "bytes": 990,
+      "sha256": "67267c8baf2e7e5940a1304a7d74ba5875ee2a18189c79bc7feffef8f0195470",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_4.png",
+      "archive_path": "files/assets/construction/clients/neck_4.png",
+      "bytes": 619,
+      "sha256": "81f7411605adeaef83487bd4fdad7df53abb4a5372240e292338ef59ebf319b9",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_4.png.import",
+      "archive_path": "files/assets/construction/clients/neck_4.png.import",
+      "bytes": 990,
+      "sha256": "30a2577e30611e7f936150af526e0765a4c668949e7c2debf0695c5d6eaf0203",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_5.png",
+      "archive_path": "files/assets/construction/clients/neck_5.png",
+      "bytes": 602,
+      "sha256": "f01e777eaf746c5e48f326cbe7b8691553df49ab0001d741e5308a0d801a8fbb",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/neck_5.png.import",
+      "archive_path": "files/assets/construction/clients/neck_5.png.import",
+      "bytes": 990,
+      "sha256": "0ddf6368c6678c5fb42510601130555f249e33c247a6949e804b9fe7b2f786ed",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_0.png",
+      "archive_path": "files/assets/construction/clients/nose_0.png",
+      "bytes": 382,
+      "sha256": "48e78d4e36925c425ca0673eb6d9508a2bbe50a69b2daa69f39fc715f09b70e3",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_0.png.import",
+      "archive_path": "files/assets/construction/clients/nose_0.png.import",
+      "bytes": 990,
+      "sha256": "c2a723ca256ad5363d8b6549ebe8f5c7ad823fe9c2007c5bda32c3cc1364f186",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_1.png",
+      "archive_path": "files/assets/construction/clients/nose_1.png",
+      "bytes": 374,
+      "sha256": "75acab37ccb252178659e50baa94a0efb5878740acdf5cb5a9fda4c8ca4cfb35",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_1.png.import",
+      "archive_path": "files/assets/construction/clients/nose_1.png.import",
+      "bytes": 990,
+      "sha256": "283305b6ab6deedf9035253fed6b6f19b99aa6a39155f2d0ae3c6e4f5ab04439",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_2.png",
+      "archive_path": "files/assets/construction/clients/nose_2.png",
+      "bytes": 382,
+      "sha256": "33aa2e16604f8896ab2ebfc4cc81d0433d72837dc9e7082039721c9f0877e152",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_2.png.import",
+      "archive_path": "files/assets/construction/clients/nose_2.png.import",
+      "bytes": 990,
+      "sha256": "fcb7d5fc24abada3465f2506515fc93f49bbf09d3138a3216e9052ee46b708d4",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_3.png",
+      "archive_path": "files/assets/construction/clients/nose_3.png",
+      "bytes": 377,
+      "sha256": "ce105e3c3e8127f21726ab691e429dc880b75470c3d861f857c18ce393944831",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_3.png.import",
+      "archive_path": "files/assets/construction/clients/nose_3.png.import",
+      "bytes": 988,
+      "sha256": "9e2ba4fcba6c566834c22a66ae9a616d2448b0434c2c46853d7ce4265fb6accd",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_4.png",
+      "archive_path": "files/assets/construction/clients/nose_4.png",
+      "bytes": 370,
+      "sha256": "0cd7b83ccb881c89ca0ed72bc4ad9e20e88b4df3cf6facb6f5e3036f4754cde3",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_4.png.import",
+      "archive_path": "files/assets/construction/clients/nose_4.png.import",
+      "bytes": 990,
+      "sha256": "12da4084e435e1139db971cf2516c362ffa9db4f35bea2912abd590dfcd37101",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_5.png",
+      "archive_path": "files/assets/construction/clients/nose_5.png",
+      "bytes": 373,
+      "sha256": "33f2af75f2d659daed289e67c2ebb4e0cbc9cf7c7ed9451c296ff933b3cdbbd7",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/nose_5.png.import",
+      "archive_path": "files/assets/construction/clients/nose_5.png.import",
+      "bytes": 990,
+      "sha256": "dfa6b62c56fbca7384eb55f297edf7f4056ae72c2e9f4524b789ced5cc8d3e8c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_0.png",
+      "archive_path": "files/assets/construction/clients/shirt_0.png",
+      "bytes": 1633,
+      "sha256": "231e8c0d7d46d6f60801344bace4726ec63a0b5c357e4bc003461138b2b69a2c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_0.png.import",
+      "archive_path": "files/assets/construction/clients/shirt_0.png.import",
+      "bytes": 993,
+      "sha256": "90564e26439e30461e609e05c8a7740e0fd71f1022e025f32729bcf369f7d818",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_1.png",
+      "archive_path": "files/assets/construction/clients/shirt_1.png",
+      "bytes": 1619,
+      "sha256": "2e7bea26654c574b13bc142f8367f3a9f729268cddb36e0145db31187717b838",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_1.png.import",
+      "archive_path": "files/assets/construction/clients/shirt_1.png.import",
+      "bytes": 993,
+      "sha256": "1ad3ccce4df0c8f8ae03dc46166b1c6d6a4a6cf3e35703699d67a9db1fe297f2",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_2.png",
+      "archive_path": "files/assets/construction/clients/shirt_2.png",
+      "bytes": 1627,
+      "sha256": "47bf549aec8b15353d37de5fea36d47e5ae281fb05afe3cce9789c460cb0b7cc",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_2.png.import",
+      "archive_path": "files/assets/construction/clients/shirt_2.png.import",
+      "bytes": 993,
+      "sha256": "dafe98609e9da9d17d8d9ad6b31dfcb3eb8e7cdbb5f531d76d9c7c381a47e8dd",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_3.png",
+      "archive_path": "files/assets/construction/clients/shirt_3.png",
+      "bytes": 1621,
+      "sha256": "d35092aa381ab0b2d6b166f392b879ee007d161e293fbd07767e93dc71b5398b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_3.png.import",
+      "archive_path": "files/assets/construction/clients/shirt_3.png.import",
+      "bytes": 992,
+      "sha256": "feb567138f695e7bc3bccfd94506e88926248818afe3c148a2e40e60145749b2",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_4.png",
+      "archive_path": "files/assets/construction/clients/shirt_4.png",
+      "bytes": 1578,
+      "sha256": "9b0737591979ea8fb4a0bcc1a6577142a9518e8c12da8f2305bbdec0edeeab8b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_4.png.import",
+      "archive_path": "files/assets/construction/clients/shirt_4.png.import",
+      "bytes": 992,
+      "sha256": "32f4bbcbe18ad7027f82068cff9d7ccb6a0b76ae9213087129b5efa8b50170d5",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_5.png",
+      "archive_path": "files/assets/construction/clients/shirt_5.png",
+      "bytes": 1969,
+      "sha256": "5784830a129798cb6921149e924fe5b2a878bc3312bb803d5de502878e935e86",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/clients/shirt_5.png.import",
+      "archive_path": "files/assets/construction/clients/shirt_5.png.import",
+      "bytes": 992,
+      "sha256": "220472828af7032238d7c48bd8ffb19a16e79c6a17e7b3ac70ef7a45afcc60e0",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/houseBeigeAlt.png",
+      "archive_path": "files/assets/construction/materials/houseBeigeAlt.png",
+      "bytes": 1228,
+      "sha256": "2bda437c010a2eb30b53691ca5e41d162e4130963550fff950209c62613cce0b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/houseBeigeAlt.png.import",
+      "archive_path": "files/assets/construction/materials/houseBeigeAlt.png.import",
+      "bytes": 1012,
+      "sha256": "5f2d65d9c53540f47e445200cf67a5c9613f09126c1f9ea54376aae3fd1ff0ca",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/houseDarkAlt.png",
+      "archive_path": "files/assets/construction/materials/houseDarkAlt.png",
+      "bytes": 1195,
+      "sha256": "06a29d2afe54de88cbf3c84ccf3443e16f2841be11bf87e99f06d763e1d6ddf8",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/houseDarkAlt.png.import",
+      "archive_path": "files/assets/construction/materials/houseDarkAlt.png.import",
+      "bytes": 1010,
+      "sha256": "02a85084f7847a0b4e6b0781da5360e18b1e6586873a0988555964c0228b582c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/houseGrayAlt.png",
+      "archive_path": "files/assets/construction/materials/houseGrayAlt.png",
+      "bytes": 1211,
+      "sha256": "badefecf30b1ce1c8569d439fb1eb2d45d9c02783638209e7b3d66203ae45ec3",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/houseGrayAlt.png.import",
+      "archive_path": "files/assets/construction/materials/houseGrayAlt.png.import",
+      "bytes": 1010,
+      "sha256": "7ca4d97ae74067a171406bc78a6fc0416586bde08588206bfc40fac639a2433a",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/roofGreyMid.png",
+      "archive_path": "files/assets/construction/materials/roofGreyMid.png",
+      "bytes": 1636,
+      "sha256": "4f2ac5be44713f3ff3a9c1f3de9a271511c82a9c9abe68566d5eff5b8e64f50b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/roofGreyMid.png.import",
+      "archive_path": "files/assets/construction/materials/roofGreyMid.png.import",
+      "bytes": 1006,
+      "sha256": "8647be18dc3d40635a382631ec303622700a6c8417894403897ff75926cd1405",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/roofRedMid.png",
+      "archive_path": "files/assets/construction/materials/roofRedMid.png",
+      "bytes": 1713,
+      "sha256": "6486c162ce35a3e6657ec06123953eb91656e1dda5d6f7aaebf2ce423004425c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/materials/roofRedMid.png.import",
+      "archive_path": "files/assets/construction/materials/roofRedMid.png.import",
+      "bytes": 1004,
+      "sha256": "5d6e5ae92c642138b538a99c7a6fcf6b95def8994b11118bd1346aa34df6d65e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/button_blue.png",
+      "archive_path": "files/assets/construction/ui/button_blue.png",
+      "bytes": 383,
+      "sha256": "6c709a45aae0330ffff5b060d9f14cc2297839f664e0a4c9e516d90ad085ec0b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/button_blue.png.import",
+      "archive_path": "files/assets/construction/ui/button_blue.png.import",
+      "bytes": 1000,
+      "sha256": "58bb0ce5fb744d9117b178e054b21b3e0d63509aea81f0ff61e73e30a9953fa0",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/button_light.png",
+      "archive_path": "files/assets/construction/ui/button_light.png",
+      "bytes": 315,
+      "sha256": "c91ee37858be6035143a8ae26588741e9350e5f42aed548e3ee00910092239e8",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/button_light.png.import",
+      "archive_path": "files/assets/construction/ui/button_light.png.import",
+      "bytes": 1003,
+      "sha256": "f228a33fabb13b50900108aa49a898cee55300ba9346d9b455e6352c2c3ddd79",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/panel_blue.png",
+      "archive_path": "files/assets/construction/ui/panel_blue.png",
+      "bytes": 315,
+      "sha256": "83084c953e57d7506f90600df77f36a8c6156abea0b8ea0e4b3885a596cee2c8",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/panel_blue.png.import",
+      "archive_path": "files/assets/construction/ui/panel_blue.png.import",
+      "bytes": 996,
+      "sha256": "a224a47956b6e1b780110ece368efd2499739b55f9ade0ef0d422c1d7b59530c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/panel_light.png",
+      "archive_path": "files/assets/construction/ui/panel_light.png",
+      "bytes": 355,
+      "sha256": "8d8a2c63a9cfe3bcd45fbf11a9ea1e6b046df74455631f635dafd0012193a75e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/construction/ui/panel_light.png.import",
+      "archive_path": "files/assets/construction/ui/panel_light.png.import",
+      "bytes": 999,
+      "sha256": "be02eff9a79e174ddea4ee3813e7d99e85904fcac390b5b0b899900b2cd8d710",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/check-off.png",
+      "archive_path": "files/assets/generated/buttons-v1/check-off.png",
+      "bytes": 1129494,
+      "sha256": "54b57853f9fd9656092fce4a4b8b58e0f5db10f0575511b49232c8da6f77e3c1",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/check-off.png.import",
+      "archive_path": "files/assets/generated/buttons-v1/check-off.png.import",
+      "bytes": 999,
+      "sha256": "f6d2df8a465d160874a21128dee46f3e0b191924c64e630837c292206f6fab72",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/check-on.png",
+      "archive_path": "files/assets/generated/buttons-v1/check-on.png",
+      "bytes": 1214158,
+      "sha256": "c8e6ab5ebe38d41aa03804588ef16c43607b95f9a2df0705147cf4c8214bc6e8",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/check-on.png.import",
+      "archive_path": "files/assets/generated/buttons-v1/check-on.png.import",
+      "bytes": 994,
+      "sha256": "dba440beb551ec376e158d3132860bd9276014dc00b3faca8fbb641122734882",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/primary.png",
+      "archive_path": "files/assets/generated/buttons-v1/primary.png",
+      "bytes": 1197434,
+      "sha256": "9cd247cbd8945f8a06e9abf9235e72ffc2248f16d6c740486e1d039b4117295c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/primary.png.import",
+      "archive_path": "files/assets/generated/buttons-v1/primary.png.import",
+      "bytes": 993,
+      "sha256": "c7afbb95bfc6ee699d99e66d3787d3a20a64f69c686c223b7804c02eb5d75d12",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/secondary.png",
+      "archive_path": "files/assets/generated/buttons-v1/secondary.png",
+      "bytes": 1237123,
+      "sha256": "293ed3dba253886115620669bd02d4c1be83571106a06d51896ec794a0f433fc",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/buttons-v1/secondary.png.import",
+      "archive_path": "files/assets/generated/buttons-v1/secondary.png.import",
+      "bytes": 999,
+      "sha256": "fbb225066c78c198fd8794a95d99958767f97cace3d8f138c445c4025bd4f2ea",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/button-blue.png",
+      "archive_path": "files/assets/generated/construction-game/button-blue.png",
+      "bytes": 1608548,
+      "sha256": "02055421b54cfdf356c9bac3bdceeba16ffacfecdfb719a821382aed49aa7de5",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/button-blue.png.import",
+      "archive_path": "files/assets/generated/construction-game/button-blue.png.import",
+      "bytes": 1014,
+      "sha256": "214af777dcf16d83cfa81f9d2f2f9d1e67257afc3592caa219ae0ea12028bf23",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/button-light.png",
+      "archive_path": "files/assets/generated/construction-game/button-light.png",
+      "bytes": 1376006,
+      "sha256": "3aed85c372a49a19189003a7510f5a8903cfd30931f66e6ba7def757136e3786",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/button-light.png.import",
+      "archive_path": "files/assets/generated/construction-game/button-light.png.import",
+      "bytes": 1016,
+      "sha256": "3f0f8dac3d25ced6060119af5b4b60f7421214c4bead1eb4a8d53e8553e3ad85",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/client-portraits.png",
+      "archive_path": "files/assets/generated/construction-game/client-portraits.png",
+      "bytes": 2762409,
+      "sha256": "8ebbec9d4ce5ff8f169fcc9d0fb57f6789e2bb0bbd76bff99d084dae9ab211ae",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/client-portraits.png.import",
+      "archive_path": "files/assets/generated/construction-game/client-portraits.png.import",
+      "bytes": 1029,
+      "sha256": "d2d4b1e7db07c440a9ccada4394468f0b3371f16dd749ef6de1e957ec0a26c22",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/material-base.png",
+      "archive_path": "files/assets/generated/construction-game/material-base.png",
+      "bytes": 3336078,
+      "sha256": "e66aceca20c9e42ce3b3db874fb2576c8cd4b61afccaecf3cd59262d3b6a1f8f",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/material-base.png.import",
+      "archive_path": "files/assets/generated/construction-game/material-base.png.import",
+      "bytes": 1020,
+      "sha256": "a1e87d21ebce417d093127d0864a035e34eb4a4cad7fa51805a4ebb570552da9",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/material-expanded.png",
+      "archive_path": "files/assets/generated/construction-game/material-expanded.png",
+      "bytes": 2385873,
+      "sha256": "b0faa8f47b98f8afa4786432eaa39454643dac588ea79b70b439ebd7d27672e3",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/material-expanded.png.import",
+      "archive_path": "files/assets/generated/construction-game/material-expanded.png.import",
+      "bytes": 1033,
+      "sha256": "f06304276b4fab62674a2e0ef06d05cc8fd51d3f96067c9745a5d1ac0760d404",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/panel-dark.png",
+      "archive_path": "files/assets/generated/construction-game/panel-dark.png",
+      "bytes": 1823515,
+      "sha256": "49b49292976286ff3f017e2afa19cdfd212d1dee1900ea58dfac24b2ec061eba",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/panel-dark.png.import",
+      "archive_path": "files/assets/generated/construction-game/panel-dark.png.import",
+      "bytes": 1011,
+      "sha256": "1c06ef50a5ab313ab04ac2e65d7fe4de3dbaa1807cb351fec7fc22875f2e6ece",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/panel-light.png",
+      "archive_path": "files/assets/generated/construction-game/panel-light.png",
+      "bytes": 1492507,
+      "sha256": "724384b8f42bbc356b499901aa872211914330f9b165f7e1bb3eb3bc6b738314",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/panel-light.png.import",
+      "archive_path": "files/assets/generated/construction-game/panel-light.png.import",
+      "bytes": 1013,
+      "sha256": "a5adbbad29419cd163cc2ce948a749c19766a8281377f3c3c8de06fa50fa96fb",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/tool-icons.png",
+      "archive_path": "files/assets/generated/construction-game/tool-icons.png",
+      "bytes": 1492081,
+      "sha256": "b2684f5103400613ef55b83ec01767c5f8b44c9e85e6b37ecd1e3e1ab1a6e365",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/tool-icons.png.import",
+      "archive_path": "files/assets/generated/construction-game/tool-icons.png.import",
+      "bytes": 1012,
+      "sha256": "b5360f55c3754c7d38793eddab17bdb6acef0dab7e085ab7983440fed870c444",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/worksite.png",
+      "archive_path": "files/assets/generated/construction-game/worksite.png",
+      "bytes": 2222501,
+      "sha256": "7889e8f8534f3c0b0f732a8948369fa039583fc41f3f75a0f59a160c88b86b4b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/construction-game/worksite.png.import",
+      "archive_path": "files/assets/generated/construction-game/worksite.png.import",
+      "bytes": 1006,
+      "sha256": "ecff1e5b03aa475b0bc9257903c1c8de5b9c8bd8fadf90fa211419942f010860",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/environment_atlas.png",
+      "archive_path": "files/assets/generated/environment_atlas.png",
+      "bytes": 1399498,
+      "sha256": "2229b81ecf36d22f088adf99f9b46bda90b0c5611179bee379522c07b026e859",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/environment_atlas.png.import",
+      "archive_path": "files/assets/generated/environment_atlas.png.import",
+      "bytes": 1012,
+      "sha256": "e29cb82cf00840c7a341224a87eb1443b2f1df843a6b309d2de4a9a7ccf9f79e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_backdrop.png",
+      "archive_path": "files/assets/generated/expansion_backdrop.png",
+      "bytes": 1747780,
+      "sha256": "721642602c1c4dd2e5f1e85aca765e7b1c2240b4ffe327ef5176de44ede688b3",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_backdrop.png.import",
+      "archive_path": "files/assets/generated/expansion_backdrop.png.import",
+      "bytes": 1015,
+      "sha256": "ac23487273be458970b2a42a88e46b172cde8435c4ad388b752f36786bc75458",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_environment.png",
+      "archive_path": "files/assets/generated/expansion_environment.png",
+      "bytes": 1578796,
+      "sha256": "780cbd5eb8630ef504d7b67bf7a12da37dd5cd734c4b46823470db8e0007e36f",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_environment.png.import",
+      "archive_path": "files/assets/generated/expansion_environment.png.import",
+      "bytes": 1024,
+      "sha256": "7b681314ff3961b9b75b6314ce6a9dd07c5963c9d462f29b5b49b6962f154772",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_items.png",
+      "archive_path": "files/assets/generated/expansion_items.png",
+      "bytes": 1403772,
+      "sha256": "c82d696cb4513c83ac151b6f45c7f5eaea70e8d00abd34e16954eaf8fa40b6b5",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_items.png.import",
+      "archive_path": "files/assets/generated/expansion_items.png.import",
+      "bytes": 1006,
+      "sha256": "5b0895c60a2864531d0436a37ffae8f00fc43491056b54602b11c1ddb5647abb",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_npcs.png",
+      "archive_path": "files/assets/generated/expansion_npcs.png",
+      "bytes": 1651757,
+      "sha256": "334f8dd45230352074ceef2d8a9a742e55158801f1ab48df5fe5873f1336322b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/expansion_npcs.png.import",
+      "archive_path": "files/assets/generated/expansion_npcs.png.import",
+      "bytes": 1003,
+      "sha256": "c41171bbfcc0e47118e51d683073e56202c5113b8b5975723122c4596da70e0b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/items_atlas.png",
+      "archive_path": "files/assets/generated/items_atlas.png",
+      "bytes": 1406204,
+      "sha256": "97f82f187e5dae1ceea2ec0a02efc84d356c0f7e8472c752343a5d85515d56e4",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/items_atlas.png.import",
+      "archive_path": "files/assets/generated/items_atlas.png.import",
+      "bytes": 993,
+      "sha256": "f9e20389f5bc4dc9d08f0e6adef1248eb696151ed54296a654faa92d584b93cf",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/npc_atlas.png",
+      "archive_path": "files/assets/generated/npc_atlas.png",
+      "bytes": 1642056,
+      "sha256": "433c66021d6ad0dcf194f377fbaa6ef16c78a0bbbfe4106c55944365cfd492e6",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/npc_atlas.png.import",
+      "archive_path": "files/assets/generated/npc_atlas.png.import",
+      "bytes": 987,
+      "sha256": "5a5c28d00fe3ef7a7809e00979ab554c26aefd3b24904eda27e8383bc0d22a88",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/opening-v1/alien.png",
+      "archive_path": "files/assets/generated/opening-v1/alien.png",
+      "bytes": 1492105,
+      "sha256": "e8c79b2037f2f21163a503157fec7a67d0528b58b5e0f73850dab4e28428bd37",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/opening-v1/alien.png.import",
+      "archive_path": "files/assets/generated/opening-v1/alien.png.import",
+      "bytes": 986,
+      "sha256": "292307f5c9c3a94f8dc469220331a560ca55f89d1fa3be142624f33ed121af13",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/opening-v1/earth.png",
+      "archive_path": "files/assets/generated/opening-v1/earth.png",
+      "bytes": 2958602,
+      "sha256": "50180b2c6f72e36005accdf99db698df648d6ff73f43e1665f690851eaf715f7",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/opening-v1/earth.png.import",
+      "archive_path": "files/assets/generated/opening-v1/earth.png.import",
+      "bytes": 987,
+      "sha256": "8e33e5efd2bebd1aa583b029e2b47e14a4bcc4c5b7f988a89ec913bcc8d340ed",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/opening-v1/ship.png",
+      "archive_path": "files/assets/generated/opening-v1/ship.png",
+      "bytes": 2072595,
+      "sha256": "fd5e86a6ab657b2463b0be03135117c67992449f4057f628dfbd72f69a8d3af4",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/opening-v1/ship.png.import",
+      "archive_path": "files/assets/generated/opening-v1/ship.png.import",
+      "bytes": 984,
+      "sha256": "44d3d50e65ab29b646884e0dc77d1b3514d7aecaf4becb815d5d92ebabc48136",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/app-icon.png",
+      "archive_path": "files/assets/generated/revision/app-icon.png",
+      "bytes": 2030994,
+      "sha256": "2e268058714ac049edd9baecad98682b82422248b436219071cc0fdf5a918ca9",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/app-icon.png.import",
+      "archive_path": "files/assets/generated/revision/app-icon.png.import",
+      "bytes": 994,
+      "sha256": "78103e71576683e87a2bd9f6b9300afa202e00c8e138ebe59d0d403511a093f0",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/client-portraits.png",
+      "archive_path": "files/assets/generated/revision/client-portraits.png",
+      "bytes": 2410921,
+      "sha256": "a56e1d36dbbdda910c98d1e049f34f9fbe25dbb4ae755dee7d195d7b2e19bcf0",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/client-portraits.png.import",
+      "archive_path": "files/assets/generated/revision/client-portraits.png.import",
+      "bytes": 1018,
+      "sha256": "357ff2c689aefb047cc620246d9eb7b0cc46a122190b44a2c36c40d402ea0cd1",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/construction-cover.png",
+      "archive_path": "files/assets/generated/revision/construction-cover.png",
+      "bytes": 2595755,
+      "sha256": "7075344ba194a5758f3855e77fc838cf4bb34775fba62063451b173fb3159567",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/construction-cover.png.import",
+      "archive_path": "files/assets/generated/revision/construction-cover.png.import",
+      "bytes": 1024,
+      "sha256": "de5e4f7c16e3b0119f7a7323e5114058f1f6db329f99f130d56f623a86117a81",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/construction-materials.png",
+      "archive_path": "files/assets/generated/revision/construction-materials.png",
+      "bytes": 3138570,
+      "sha256": "8d6f8fa5674200e149dd98f7e5be85f3ad47b7b572e67843b5fda1321dcd1ef9",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/construction-materials.png.import",
+      "archive_path": "files/assets/generated/revision/construction-materials.png.import",
+      "bytes": 1036,
+      "sha256": "798fa61b211d767a3ce7b3ecb3338f27938e6343343cee802c3503b831b8e105",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/construction-materials-expanded.png",
+      "archive_path": "files/assets/generated/revision/construction-materials-expanded.png",
+      "bytes": 3060859,
+      "sha256": "997231b54773a7bdacd9ed74654789129f77339f17cf65574305c0bcbf12a510",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/construction-materials-expanded.png.import",
+      "archive_path": "files/assets/generated/revision/construction-materials-expanded.png.import",
+      "bytes": 1063,
+      "sha256": "e872bd2ada1f227de2d39b6e83d0eda762dbcf85f52e5e21f08b88389ee7c073",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/drawing-cover.png",
+      "archive_path": "files/assets/generated/revision/drawing-cover.png",
+      "bytes": 2595562,
+      "sha256": "d04f5223512518242f677bb8b2e7541591e958bd83bdb4a8cda098f3b30e4d2b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/drawing-cover.png.import",
+      "archive_path": "files/assets/generated/revision/drawing-cover.png.import",
+      "bytes": 1009,
+      "sha256": "58d65c9625ba58c1a5ebbb432281b61a3bd175f427b56bc5a9969f70c830c570",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/ui-icons.png",
+      "archive_path": "files/assets/generated/revision/ui-icons.png",
+      "bytes": 739313,
+      "sha256": "5d211d5ab7a0b2f82fa801a15bc98708ec7dc302d5195579f825f86a8e79c2c5",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/ui-icons.png.import",
+      "archive_path": "files/assets/generated/revision/ui-icons.png.import",
+      "bytes": 994,
+      "sha256": "5f5162642354a5d25140975944a78c486ab03f9ebc5dcb5064dd2d5d8021ced3",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/ui-surfaces.png",
+      "archive_path": "files/assets/generated/revision/ui-surfaces.png",
+      "bytes": 2240218,
+      "sha256": "32ec3aeb2c1ce46b08c636c78bd3e7d739164f6872ab0cce04a232bcef73c7bf",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/revision/ui-surfaces.png.import",
+      "archive_path": "files/assets/generated/revision/ui-surfaces.png.import",
+      "bytes": 1003,
+      "sha256": "e7d1fe07c5a01908cc7cd8c139d1fb79fa96636669acb9fc0e15479e62e3f12e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/starfront-v1/environment-scenes.png",
+      "archive_path": "files/assets/generated/starfront-v1/environment-scenes.png",
+      "bytes": 2753941,
+      "sha256": "19c9e3dd2890b80ef77d570cc3c2f705d6d55e6bcd02cf142497d8feceeba9e3",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/starfront-v1/environment-scenes.png.import",
+      "archive_path": "files/assets/generated/starfront-v1/environment-scenes.png.import",
+      "bytes": 1028,
+      "sha256": "0596ebe9f52807fb3996126b8ca712a158e865cd3d41534fa226a17436967cb1",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/starfront-v1/materials.png",
+      "archive_path": "files/assets/generated/starfront-v1/materials.png",
+      "bytes": 2366052,
+      "sha256": "c1b62bb945d36473a897ca33991fd0308faf79fe7e733f84d99a9570ed1141f7",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/starfront-v1/materials.png.import",
+      "archive_path": "files/assets/generated/starfront-v1/materials.png.import",
+      "bytes": 1001,
+      "sha256": "ecf6863c29359fa622715e3dc322bf914abb5f718c0eebcb4fa2afc6cfb9c117",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/starfront-v1/props.png",
+      "archive_path": "files/assets/generated/starfront-v1/props.png",
+      "bytes": 2202517,
+      "sha256": "adcb1ad06026e4b64b49c0bc7e2d189110b7dbeb3bca7c78fb90fbdde86b8ee0",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/starfront-v1/props.png.import",
+      "archive_path": "files/assets/generated/starfront-v1/props.png.import",
+      "bytes": 989,
+      "sha256": "32b849f4c48c85399db3a7d325a6a328ffb09a396e8fef667572eeaf9edcf4f6",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/ui_atlas.png",
+      "archive_path": "files/assets/generated/ui_atlas.png",
+      "bytes": 2209777,
+      "sha256": "faa47f2e052cef00f7e7abb30441d49306867e08d967afd7b92d951b9ab32637",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/ui_atlas.png.import",
+      "archive_path": "files/assets/generated/ui_atlas.png.import",
+      "bytes": 985,
+      "sha256": "9e8acf00fe6b69964c907e4869f3b244d46dd4e928bf589f650620943ff65628",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/world_backdrop.png",
+      "archive_path": "files/assets/generated/world_backdrop.png",
+      "bytes": 1781025,
+      "sha256": "8051980c6975d64b7c9e092b5524bd00940e338ee8e84a2d9be1cd3026d9e327",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/generated/world_backdrop.png.import",
+      "archive_path": "files/assets/generated/world_backdrop.png.import",
+      "bytes": 1003,
+      "sha256": "76cd5dbc4afeae7794bfb20f14fe869c20a9253a000ff7156f60adbb6d25962c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/icons/icon.png",
+      "archive_path": "files/assets/icons/icon.png",
+      "bytes": 21537,
+      "sha256": "90e89846853a783903fa91e98254ef4d667ac7ed6fe71fbf0793a259ad458888",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/icons/icon.png.import",
+      "archive_path": "files/assets/icons/icon.png.import",
+      "bytes": 968,
+      "sha256": "f1f9d9580855af86b1e26e1b6c63e07482e07a9f1ebfde68c7ee50448185312a",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/icons/world_icon.svg",
+      "archive_path": "files/assets/icons/world_icon.svg",
+      "bytes": 346,
+      "sha256": "25f9d1f88e85f621b75d63ebb52297635b462dff6ed5536e4adbb5daca55b6c5",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/icons/world_icon.svg.import",
+      "archive_path": "files/assets/icons/world_icon.svg.import",
+      "bytes": 1087,
+      "sha256": "0f05ad6fd8dfc9a725d0e009c9e35c83d674d5c1051b4c9d5ebdec3642e5d53f",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/castle_beige.png",
+      "archive_path": "files/assets/kenney/castle_beige.png",
+      "bytes": 4190,
+      "sha256": "cb3b11fbdb8359ab7b7a63ec471a0b24dfb98ed369c940d6ca4d33c7af6a2341",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/castle_beige.png.import",
+      "archive_path": "files/assets/kenney/castle_beige.png.import",
+      "bytes": 994,
+      "sha256": "5428148a9d746c10e480369466596762da8cea2f4ea728e0809f43fc6d680e8c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/cloud1.png",
+      "archive_path": "files/assets/kenney/cloud1.png",
+      "bytes": 2137,
+      "sha256": "4b5a364aaf708c7e508747270fbb2bddba255ab93d1affd21a76d2f89ecc2fc6",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/cloud1.png.import",
+      "archive_path": "files/assets/kenney/cloud1.png.import",
+      "bytes": 975,
+      "sha256": "d02b600e70a85db6aafc5ab687b14de43ffaa778b7537bb59ea5352b2177af76",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/cloud4.png",
+      "archive_path": "files/assets/kenney/cloud4.png",
+      "bytes": 2345,
+      "sha256": "253b689259431aafc3013ae91fe3bcd46be94085051d7d0bc5c4d0c5e6662adf",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/cloud4.png.import",
+      "archive_path": "files/assets/kenney/cloud4.png.import",
+      "bytes": 975,
+      "sha256": "932cb5d4a28af46a8965ba8a9404cb425b3193f1c57999b245f9c598a5149b8c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/cloud7.png",
+      "archive_path": "files/assets/kenney/cloud7.png",
+      "bytes": 2140,
+      "sha256": "4d5c2ba62f6efc329969036d09678dc7966682aec6f5b439b846ed08cf454833",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/cloud7.png.import",
+      "archive_path": "files/assets/kenney/cloud7.png.import",
+      "bytes": 976,
+      "sha256": "7e3e6612c08387df5a606eddf84f39071f8dd59e34f160629919e90d04c4b67b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/fence.png",
+      "archive_path": "files/assets/kenney/fence.png",
+      "bytes": 1535,
+      "sha256": "4d0bb396895518eef7c1c72e845bbea264f291f56ab7b9c41dd89738b66e7291",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/fence.png.import",
+      "archive_path": "files/assets/kenney/fence.png.import",
+      "bytes": 972,
+      "sha256": "8e3eac18627284f2071525f375bebf5a8f3a40b46b280fc5e55d023d6d466575",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/grass1.png",
+      "archive_path": "files/assets/kenney/grass1.png",
+      "bytes": 412,
+      "sha256": "3664774005a247e6d192e93beb149367dde83511a4cee4eb301769d7996c22cb",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/grass1.png.import",
+      "archive_path": "files/assets/kenney/grass1.png.import",
+      "bytes": 975,
+      "sha256": "5abc2d75ce4527ccb8307822519a95986de93ee73d3a50a2e4bc92d210ce3a6a",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/grass3.png",
+      "archive_path": "files/assets/kenney/grass3.png",
+      "bytes": 488,
+      "sha256": "26637e760478b06cbc6b0549d52ee3548226fd441699f8dbe2e2afa73851e98e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/grass3.png.import",
+      "archive_path": "files/assets/kenney/grass3.png.import",
+      "bytes": 976,
+      "sha256": "be71effd97847194e07ba4d28735b6d17059603215523ecc90656540541181df",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/house_beige_front.png",
+      "archive_path": "files/assets/kenney/house_beige_front.png",
+      "bytes": 792,
+      "sha256": "839c1cffaa3ccd4d3293eccfc725e8702b1c4574f153dca2c1f82619e43be483",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/house_beige_front.png.import",
+      "archive_path": "files/assets/kenney/house_beige_front.png.import",
+      "bytes": 1008,
+      "sha256": "c89580eea2fa42c1adea4129315b5b77cb7962d541a8f10905a1b8c0eb11c3b5",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/house_beige_side.png",
+      "archive_path": "files/assets/kenney/house_beige_side.png",
+      "bytes": 1019,
+      "sha256": "05aa80d53192a97e57faa578462e3545b16f795a8c64e236ab06012bdf526a16",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/house_beige_side.png.import",
+      "archive_path": "files/assets/kenney/house_beige_side.png.import",
+      "bytes": 1006,
+      "sha256": "698e75c9e8b5560853b9e887a3f8d12e7ac6f8216fb664d66f0aaf1d2aa3e348",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree01.png",
+      "archive_path": "files/assets/kenney/tree01.png",
+      "bytes": 2615,
+      "sha256": "cfc4b3d48000ea11839c5b5dd99ff3cdc138258888d1e2f9aaf3ef06d6697781",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree01.png.import",
+      "archive_path": "files/assets/kenney/tree01.png.import",
+      "bytes": 976,
+      "sha256": "0e425f196edc6e2f07153bc20407c47364bfe4748fbb25149eff5a8a58fc2014",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree05.png",
+      "archive_path": "files/assets/kenney/tree05.png",
+      "bytes": 2509,
+      "sha256": "fc9aeb99df42fc0abe005be144ae2c62e4796da138540b93f8f6d57c389ef6eb",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree05.png.import",
+      "archive_path": "files/assets/kenney/tree05.png.import",
+      "bytes": 975,
+      "sha256": "2e2f567e837ca3bb99eb17393cc68edd63246e4a9fc143656d4d3d0360bb8d7b",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree17.png",
+      "archive_path": "files/assets/kenney/tree17.png",
+      "bytes": 739,
+      "sha256": "15784e76e46ede1fd36a1a54e03e9ec8b14f8286b3d7e50f752525ca0e5db693",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree17.png.import",
+      "archive_path": "files/assets/kenney/tree17.png.import",
+      "bytes": 976,
+      "sha256": "3cb98ee7dcb1ea20979727cdf9ec71327ee100b2157d8264eaba0136d9630477",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree18.png",
+      "archive_path": "files/assets/kenney/tree18.png",
+      "bytes": 1133,
+      "sha256": "7f0d41c15b31f8fe756e84529c65f4f70ad49e67b3f9ddc4c9e81b7c119fbfc8",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree18.png.import",
+      "archive_path": "files/assets/kenney/tree18.png.import",
+      "bytes": 976,
+      "sha256": "9c36f69390a0844a613cca6792694919b4cf02a2e69873abbce734b98535a42e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree22.png",
+      "archive_path": "files/assets/kenney/tree22.png",
+      "bytes": 3057,
+      "sha256": "d0c57751441e0c3d524f7310d3d6091d899c29ad13402676666615251151046c",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree22.png.import",
+      "archive_path": "files/assets/kenney/tree22.png.import",
+      "bytes": 976,
+      "sha256": "30168f9b5e2fce7647abbc264b4d2b9b1933f41abdcdbfa238c1e5bb168c8ba0",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree23.png",
+      "archive_path": "files/assets/kenney/tree23.png",
+      "bytes": 1388,
+      "sha256": "bea1b322c6e5f1d22c96b9e0502aac22645a9bd36155639edd78ccdff0137b6e",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree23.png.import",
+      "archive_path": "files/assets/kenney/tree23.png.import",
+      "bytes": 975,
+      "sha256": "7a49661797201331b4e25d60519039a5c3b0d7697707617e8d3f42c5d8f71538",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree27.png",
+      "archive_path": "files/assets/kenney/tree27.png",
+      "bytes": 1361,
+      "sha256": "3d238b74acba04e36aed9a0e2108f9be02bf4e6235804313148637db95163b74",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "assets/kenney/tree27.png.import",
+      "archive_path": "files/assets/kenney/tree27.png.import",
+      "bytes": 976,
+      "sha256": "a4ac1a4322080073f262a122f1ca915f6f1cc1e80ef2c0ebce91674259be75a7",
+      "reason": "legacy-or-production-asset-excluded-from-game"
+    },
+    {
+      "path": "build/web/.gitignore",
+      "archive_path": "files/build/web/.gitignore",
+      "bytes": 19,
+      "sha256": "2930d204254d96f34d6a6c755a3d707ef71020861baa4fecee735002e8e5a01b",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/art-9227e53b2df5.pck.gz",
+      "archive_path": "files/build/web/art-9227e53b2df5.pck.gz",
+      "bytes": 44137952,
+      "sha256": "e99b25537c6ef9519579ce491f437b1c9edb040c789a544a76a1749ddb7d1193",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/button-primary.png",
+      "archive_path": "files/build/web/button-primary.png",
+      "bytes": 5178,
+      "sha256": "784f835b600bc2a61b9d6c4781475d956f2dfeb921a731a7ff44e33615873234",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/button-secondary.png",
+      "archive_path": "files/build/web/button-secondary.png",
+      "bytes": 4999,
+      "sha256": "0f687c23f090edfffa187b82684a925cdc738db8852610acb15602aa091f447d",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/engine-070842d09381.audio.position.worklet.js",
+      "archive_path": "files/build/web/engine-070842d09381.audio.position.worklet.js",
+      "bytes": 3039,
+      "sha256": "0fba97ee348ded832bdb5eb295a4cec212174938c0c92f28b93962b47a71a2ea",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/engine-070842d09381.audio.worklet.js",
+      "archive_path": "files/build/web/engine-070842d09381.audio.worklet.js",
+      "bytes": 7511,
+      "sha256": "aeac7d92d70ead1cd09b4573ee43cd6660f85915852650dfc2a80c9de94145ac",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/engine-070842d09381.js",
+      "archive_path": "files/build/web/engine-070842d09381.js",
+      "bytes": 303977,
+      "sha256": "ae95ecea6f06a5b4f9f6465d7b267086e992622d5b980e8bdbfe47a6e26845b9",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/engine-070842d09381.wasm.gz",
+      "archive_path": "files/build/web/engine-070842d09381.wasm.gz",
+      "bytes": 10054500,
+      "sha256": "f7b3894102c301c95d878717aeba05611cc7db6c78f8e96059f15b7238110c33",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/frontier-loading.webp",
+      "archive_path": "files/build/web/frontier-loading.webp",
+      "bytes": 551248,
+      "sha256": "23ebe923dfcc606ced25d1e31316cd6c593790dd1c9c86f95dbc4761784b9f6d",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/GENERATED-ART.txt",
+      "archive_path": "files/build/web/GENERATED-ART.txt",
+      "bytes": 1106,
+      "sha256": "90cad992135fabd115a9759a871a8e6898c74e3dca15998c9b08db9a38f62b97",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/GODOT-DEMO-MIT.txt",
+      "archive_path": "files/build/web/GODOT-DEMO-MIT.txt",
+      "bytes": 1155,
+      "sha256": "dff3d6bf5aeb5fb8eb4e070f4560e7feba6059f8504c18c47e34332c469e7389",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/index.apple-touch-icon.png",
+      "archive_path": "files/build/web/index.apple-touch-icon.png",
+      "bytes": 48813,
+      "sha256": "a6135b7d82003b8483da98fae716157e958d569e53df65596c2c70cbf61492b2",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/index.html",
+      "archive_path": "files/build/web/index.html",
+      "bytes": 12076,
+      "sha256": "3fec561b76c92ba319a2fd11652d0f4d246b3135c9f9557f9e61401dbcfd114e",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/index.icon.png",
+      "archive_path": "files/build/web/index.icon.png",
+      "bytes": 83067,
+      "sha256": "83e0a49e43505a27fda706f95fc458f68bf23cff293c63266b9834b6d8fbe016",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/KENNEY-CC0.txt",
+      "archive_path": "files/build/web/KENNEY-CC0.txt",
+      "bytes": 623,
+      "sha256": "1cef3b5b7e9e7aac47ec0967077134b2ebbe221b2e3eaa1afeee0815eab57e2e",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/KENNEY-CONSTRUCTION-CC0.txt",
+      "archive_path": "files/build/web/KENNEY-CONSTRUCTION-CC0.txt",
+      "bytes": 2149,
+      "sha256": "e30d6ce414d08064f04c2e15c0166da43a5eea58b2cbd6cf9416230c46754c98",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/OPENING-TOOLS-NOTICES.txt",
+      "archive_path": "files/build/web/OPENING-TOOLS-NOTICES.txt",
+      "bytes": 1856,
+      "sha256": "a417eef4f5724ae41716c1f38401be03790dff4e3e52107a281b6a1794ca69ce",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/PAKO-LICENSE.txt",
+      "archive_path": "files/build/web/PAKO-LICENSE.txt",
+      "bytes": 1125,
+      "sha256": "3319fd990508d4e84f55ba80153512217f37eb6dbfda57b2ff8c9f72c2268f20",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/SOURCES.txt",
+      "archive_path": "files/build/web/SOURCES.txt",
+      "bytes": 1946,
+      "sha256": "e05ef729fa758bc43d4878779d48ecf2ba1fe016934babc2e7d028adffbf6de8",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/vercel.json",
+      "archive_path": "files/build/web/vercel.json",
+      "bytes": 807,
+      "sha256": "6fa4f8fdef6f7a98acb69ff0affc4023f50272caf70223ae328753714c2286d4",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/web/ZLIB-LICENSE.txt",
+      "archive_path": "files/build/web/ZLIB-LICENSE.txt",
+      "bytes": 1031,
+      "sha256": "98b8e3b283757d80dedf50841a9366c94474f18a8e02863551e92dd6b680d7f8",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/GENERATED-ART.txt",
+      "archive_path": "files/build/windows/GENERATED-ART.txt",
+      "bytes": 1106,
+      "sha256": "90cad992135fabd115a9759a871a8e6898c74e3dca15998c9b08db9a38f62b97",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/godot_common.ps1",
+      "archive_path": "files/build/windows/godot_common.ps1",
+      "bytes": 2919,
+      "sha256": "42b3de716aa0cc2c0542b7dcd4aaa9adc07701d2efd187e0bf7f52a12516fdae",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/GODOT-DEMO-MIT.txt",
+      "archive_path": "files/build/windows/GODOT-DEMO-MIT.txt",
+      "bytes": 1155,
+      "sha256": "dff3d6bf5aeb5fb8eb4e070f4560e7feba6059f8504c18c47e34332c469e7389",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/KENNEY-CC0.txt",
+      "archive_path": "files/build/windows/KENNEY-CC0.txt",
+      "bytes": 623,
+      "sha256": "1cef3b5b7e9e7aac47ec0967077134b2ebbe221b2e3eaa1afeee0815eab57e2e",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/KENNEY-CONSTRUCTION-CC0.txt",
+      "archive_path": "files/build/windows/KENNEY-CONSTRUCTION-CC0.txt",
+      "bytes": 2149,
+      "sha256": "e30d6ce414d08064f04c2e15c0166da43a5eea58b2cbd6cf9416230c46754c98",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/OPENING-TOOLS-NOTICES.txt",
+      "archive_path": "files/build/windows/OPENING-TOOLS-NOTICES.txt",
+      "bytes": 1856,
+      "sha256": "a417eef4f5724ae41716c1f38401be03790dff4e3e52107a281b6a1794ca69ce",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/QuadrilateralWorld.pck",
+      "archive_path": "files/build/windows/QuadrilateralWorld.pck",
+      "bytes": 44426536,
+      "sha256": "9227e53b2df5ffc50c9022e100bee46917ce2c0d6c971123d6bd164311e05b35",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/Run_QuadrilateralWorld.bat",
+      "archive_path": "files/build/windows/Run_QuadrilateralWorld.bat",
+      "bytes": 413,
+      "sha256": "03321f4f17acccad84a9e7d00e52afd490e9050cb4159c68f363cf5637b5b45d",
+      "reason": "generated-build"
+    },
+    {
+      "path": "build/windows/SOURCES.txt",
+      "archive_path": "files/build/windows/SOURCES.txt",
+      "bytes": 1946,
+      "sha256": "e05ef729fa758bc43d4878779d48ecf2ba1fe016934babc2e7d028adffbf6de8",
+      "reason": "generated-build"
+    },
+    {
+      "path": "docs/screenshots/citadel.png",
+      "archive_path": "files/docs/screenshots/citadel.png",
+      "bytes": 1786672,
+      "sha256": "90f749faf2851628b986a0e3b669f03874cf3772e620cebe75cbd9fa8cb355e7",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/citadel.png.import",
+      "archive_path": "files/docs/screenshots/citadel.png.import",
+      "bytes": 982,
+      "sha256": "12e0146e8db2fec592d3f57de57bf1b02147c7ff8a1b1456c7dadc7ba1d4b1e0",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/focused-construction.png",
+      "archive_path": "files/docs/screenshots/focused-construction.png",
+      "bytes": 1409145,
+      "sha256": "0e7780a16c78b0fc1e0f7cb0508549d0c26e7ab8b68fc536d2626d6dca7180ec",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/focused-construction.png.import",
+      "archive_path": "files/docs/screenshots/focused-construction.png.import",
+      "bytes": 1020,
+      "sha256": "79397d6ddd7fea9e0bda3f2b390369de7aa0f4a071a62873b182afbd855dba4d",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/focused-home.png",
+      "archive_path": "files/docs/screenshots/focused-home.png",
+      "bytes": 658557,
+      "sha256": "8bd46f84d57e9905c02e47fd3b32866ee9b76e3b4d00578571c42faea6cc9d01",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/focused-home.png.import",
+      "archive_path": "files/docs/screenshots/focused-home.png.import",
+      "bytes": 997,
+      "sha256": "e425aef0e35d5b488bbb4c73a9b0b10fb55dcc038e4dab6b53119eab1186700c",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/harbor.png",
+      "archive_path": "files/docs/screenshots/harbor.png",
+      "bytes": 1752505,
+      "sha256": "85bf07c06f8409bc0dc36107fcc21121a8996713a962917f9f791ae02048640f",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/harbor.png.import",
+      "archive_path": "files/docs/screenshots/harbor.png.import",
+      "bytes": 979,
+      "sha256": "7824b7cd5904a97a6a038b3c4b72f5cf1f97e9c894a9c1cfb3405ab4eb71e7f3",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/harbor-browser.jpg",
+      "archive_path": "files/docs/screenshots/harbor-browser.jpg",
+      "bytes": 106607,
+      "sha256": "0d3c3812fa851c94eef9de0fa75421c6bf8dd24edd4fb6b84671a088ee83c537",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/harbor-browser.jpg.import",
+      "archive_path": "files/docs/screenshots/harbor-browser.jpg.import",
+      "bytes": 1003,
+      "sha256": "df950b87b24251d398c458e03a7b4e6cc36a4df33596de3a997f5f927fa54aa8",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/pickup-confirmed.jpg",
+      "archive_path": "files/docs/screenshots/pickup-confirmed.jpg",
+      "bytes": 100861,
+      "sha256": "b7dd1e8a4307c97f129ecdb9b4c8cdba2e85f86f12257bde5b03892478bf2349",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/pickup-confirmed.jpg.import",
+      "archive_path": "files/docs/screenshots/pickup-confirmed.jpg.import",
+      "bytes": 1009,
+      "sha256": "b38c6c4ef98c6ed39a2c38b14e4eac33b14eacd45838688484376b78afe71089",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/pickup-inventory.jpg",
+      "archive_path": "files/docs/screenshots/pickup-inventory.jpg",
+      "bytes": 70121,
+      "sha256": "edfdc3e92fcb7eac1445fe8dd2206b9abf68810a4e8cf49e897c0ae73da26f35",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/pickup-inventory.jpg.import",
+      "archive_path": "files/docs/screenshots/pickup-inventory.jpg.import",
+      "bytes": 1009,
+      "sha256": "185f826e223c4457a7f1107e6719d7486ab3feadb60b345ab14eac922bc7ce9a",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/snow.png",
+      "archive_path": "files/docs/screenshots/snow.png",
+      "bytes": 1746716,
+      "sha256": "cd9f42035425ce957515fa2b2d3f9208c9e95f435d43872b51da47a0c6d83ecd",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/snow.png.import",
+      "archive_path": "files/docs/screenshots/snow.png.import",
+      "bytes": 972,
+      "sha256": "63769dc3aa5cc7ccc3f9034e9897b0dcc157bba67ea3c64c5b30258dd217545c",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/story.png",
+      "archive_path": "files/docs/screenshots/story.png",
+      "bytes": 1540208,
+      "sha256": "b735c1fd069588d821f316d5db058c6e09ab930ec03ae1cd9f9b8257366cc459",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/story.png.import",
+      "archive_path": "files/docs/screenshots/story.png.import",
+      "bytes": 976,
+      "sha256": "f13b88d3845babdc22936ac32c64c86d8b569b5b144ffdd4b0abf071aefe80cd",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/world-browser.jpg",
+      "archive_path": "files/docs/screenshots/world-browser.jpg",
+      "bytes": 100048,
+      "sha256": "ebd2eb191df8fa50aa966b844377c251ecb5d9cd2aae3b4badfb23b1442eee6a",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/world-browser.jpg.import",
+      "archive_path": "files/docs/screenshots/world-browser.jpg.import",
+      "bytes": 1000,
+      "sha256": "5b883e2912e60adf8975f4040bac6f42f8dc8660dc2eb2ec9aa7027d32dc3b87",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/world-desktop.png",
+      "archive_path": "files/docs/screenshots/world-desktop.png",
+      "bytes": 1607233,
+      "sha256": "06ec789e0654ee6e9c5a4684db203855949c444e614548c96e06ba28f217c237",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "docs/screenshots/world-desktop.png.import",
+      "archive_path": "files/docs/screenshots/world-desktop.png.import",
+      "bytes": 1000,
+      "sha256": "47a06d88ab442a3c91851e5e04248f70fa251f2397443f55c2ed0cdc3787cb63",
+      "reason": "historical-review-screenshot"
+    },
+    {
+      "path": "output/.gdignore",
+      "archive_path": "files/output/.gdignore",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/.gitignore",
+      "archive_path": "files/output/opening/.gitignore",
+      "bytes": 55,
+      "sha256": "9fbc701d92f1b406789920fbacdeed70a94534e76bbc3a8af47f6f2f07b6578d",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/contact-sheet.jpg",
+      "archive_path": "files/output/opening/contact-sheet.jpg",
+      "bytes": 2014893,
+      "sha256": "f4e359019ef455bfdc9f7b364c90c2fbcd20e228656b723b9cc7712572a7f796",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/contact-sheet.jpg.import",
+      "archive_path": "files/output/opening/contact-sheet.jpg.import",
+      "bytes": 997,
+      "sha256": "0f561a73595fa96cb761bec9a382d66b0bf475a97fbe4191c1eca9dfe56bc2a0",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/frames.json",
+      "archive_path": "files/output/opening/frames.json",
+      "bytes": 9093,
+      "sha256": "11dfb1d56fdcdf5e470d9364bf465d245f6237312028c09472085677a48764d2",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/quadrilateral-opening.mp4",
+      "archive_path": "files/output/opening/quadrilateral-opening.mp4",
+      "bytes": 26694791,
+      "sha256": "b245caa0a98cb95704c64b1a2d3fa565f219a0d87a380b645835b5be18d10f0e",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/quadrilateral-opening.srt",
+      "archive_path": "files/output/opening/quadrilateral-opening.srt",
+      "bytes": 1175,
+      "sha256": "f71a14463e568973fb977885fe95fd246c8e4a17774e5625590602d656e64022",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/render.json",
+      "archive_path": "files/output/opening/render.json",
+      "bytes": 492,
+      "sha256": "a885d103f3069f6cef709e9c947dfcce4e8b743baa1f26606e33b1c21304ff86",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/soundtrack.wav",
+      "archive_path": "files/output/opening/soundtrack.wav",
+      "bytes": 10560078,
+      "sha256": "91a3c06473499512393dc2c2e0be8bb666ce4ce666fd9b664552a90240fbf477",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "output/opening/soundtrack.wav.import",
+      "archive_path": "files/output/opening/soundtrack.wav.import",
+      "bytes": 527,
+      "sha256": "b3594cd15ae5fbdf640301fc9643fb92f34a16c3a9efaf5dcf7686a65a2acd74",
+      "reason": "generated-output-or-existing-workspace-attachment"
+    },
+    {
+      "path": "tools/opening/.gdignore",
+      "archive_path": "files/tools/opening/.gdignore",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/compose_music.py",
+      "archive_path": "files/tools/opening/compose_music.py",
+      "bytes": 15632,
+      "sha256": "54397acd08c1c6c927cc63b54c67eb799264f673837da7a87e0632d1eaf9aa05",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/motion.js",
+      "archive_path": "files/tools/opening/motion.js",
+      "bytes": 18289,
+      "sha256": "d9a7b922df32726a1ada6e62bfdb4fdf189fb3eea8b77d6be95882d81dd8839c",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/MUSIC.md",
+      "archive_path": "files/tools/opening/MUSIC.md",
+      "bytes": 4330,
+      "sha256": "855387e3f5706441b796f648525c6ad944861c964f1346620b7040b88ab43df0",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/package.json",
+      "archive_path": "files/tools/opening/package.json",
+      "bytes": 410,
+      "sha256": "1eeebaffff9a510ac16188f1fc36a2ba3fcfdecf90dffdb24de90abb3ac2030f",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/package-lock.json",
+      "archive_path": "files/tools/opening/package-lock.json",
+      "bytes": 748,
+      "sha256": "fd4de30560774b4028ad92fe745120c6e94f66b663d925a2efc4c924aae69567",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/render.mjs",
+      "archive_path": "files/tools/opening/render.mjs",
+      "bytes": 19517,
+      "sha256": "1306b19f2dcfb9e6ccd997328f1360e3af1732f959a829b4f7a485bcec1d6edd",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/RENDERING.md",
+      "archive_path": "files/tools/opening/RENDERING.md",
+      "bytes": 4857,
+      "sha256": "63f49cac500aabfecd7a4f5469480f4bef61652b4dd4a2e6adca6beb6370a16e",
+      "reason": "opening-production-source"
+    },
+    {
+      "path": "tools/opening/scene.html",
+      "archive_path": "files/tools/opening/scene.html",
+      "bytes": 708,
+      "sha256": "7a4c18c2603012a6a061d8eaa99e07163704b3f3f994ba2cbad226222016f6da",
+      "reason": "opening-production-source"
+    }
+  ],
+  "file_count": 272,
+  "bytes": 220873655
+}

@@ -12,6 +12,14 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 HD = ROOT / "assets/generated/starfront-hd"
 BITMAPS = {".png", ".jpg", ".jpeg", ".webp"}
+ENCODING_MANIFEST = ROOT / "assets/image_optimization_manifest.json"
+
+
+def optimized_sources() -> dict[str, dict]:
+    if not ENCODING_MANIFEST.is_file():
+        return {}
+    rows = json.loads(ENCODING_MANIFEST.read_text(encoding="utf-8"))["files"]
+    return {row["original_path"]: row for row in rows}
 
 
 def usage(path: str) -> str:
@@ -29,12 +37,13 @@ def usage(path: str) -> str:
         return "retained scalable vector artwork/guide"
     if "focused-ui/" in path:
         return "retained quiet drafting paper; no detailed scene stretched across the screen"
-    if re.search(r"construction-game/badge-[1-5]\.png$", path):
+    if re.search(r"construction-game/badge-[1-5]\.(?:png|webp)$", path):
         return "retained badge; displayed at 112 or 148 pixels"
     return "legacy image; not displayed by the current theme"
 
 
 def inspect() -> dict:
+    optimized = optimized_sources()
     preset = (ROOT / "export_presets.cfg").read_text(encoding="utf-8")
     excluded = re.search(r'^exclude_filter="([^"]*)"', preset, re.M).group(1).split(",")
     files = []
@@ -53,12 +62,20 @@ def inspect() -> dict:
     generated = []
     prompts = json.loads((HD / "prompts.json").read_text(encoding="utf-8"))
     for relative in sorted(prompts["assets"]):
-        path = HD / relative
+        original_path = (HD / relative).relative_to(ROOT).as_posix()
+        encoding = optimized.get(original_path, {})
+        path = ROOT / encoding.get("path", original_path)
+        if not path.is_file():
+            continue
         with Image.open(path) as source:
-            generated.append({"path": path.relative_to(ROOT).as_posix(), "native_width": source.width, "native_height": source.height, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+            row = {"path": path.relative_to(ROOT).as_posix(), "native_width": source.width, "native_height": source.height, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+            if encoding:
+                row.update(original_generated_path=original_path, original_sha256=encoding["original_sha256"], rgba_sha256=encoding["rgba_sha256"])
+            generated.append(row)
     return {
-        "review_date": "2026-11-01", "reference_viewport": [1920, 1080],
-        "method": "Source inventory plus native crop dimensions, renderer usage review, and actual 1920x1080/800x600 app captures. No bitmap interpolation or Python image editing.",
+        "review_date": "2026-11-10", "reference_viewport": [1920, 1080],
+        "method": "Current source inventory and original native crop dimensions. The 2026-11-01 renderer review used actual 1920x1080/800x600 app captures. Active PNGs were losslessly re-encoded with exact RGBA equality on 2026-11-10; no resizing or image regeneration.",
+        "encoding_manifest": "assets/image_optimization_manifest.json",
         "baseline_bitmap_count": sum(row["kind"] == "bitmap" and "/starfront-hd/" not in row["path"] for row in files),
         "vector_count": sum(row["kind"] == "vector" for row in files),
         "regenerated_file_count": len(generated),

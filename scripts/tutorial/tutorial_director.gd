@@ -20,6 +20,8 @@ var _world_bound: QuadrilateralWorld
 var _walk_origin: float = 0.0
 var _release_pending: bool = false
 var _focus_action_pending: bool = false
+var _drawing_bound: DrawingStudio
+var _construction_bound: ConstructionStudio
 
 
 func setup(owner_app: QuadrilateralApp) -> void:
@@ -31,24 +33,9 @@ func setup(owner_app: QuadrilateralApp) -> void:
 	app._ui.add_child(overlay)
 	overlay.advance_requested.connect(advance)
 	overlay.skip_requested.connect(skip)
-	_drawing_parts = app._drawing_screen.document.shapes.duplicate(true)
-	_drawing_undo_count = app._drawing_screen.document.command_manager.undo_stack.size()
+	bind_drawing()
+	bind_construction()
 	_learning_before = _learning_snapshot()
-	_construction_mode = app._construction_screen.state.my_house_mode
-	_construction_count = app._construction_screen.state.active_document().parts.size()
-	app._drawing_screen.document.changed.connect(_drawing_changed)
-	app._drawing_screen.mode_selected.connect(_drawing_mode_selected)
-	app._drawing_screen.interaction_context_changed.connect(func(): refresh.call_deferred())
-	app._drawing_screen.tutorial_requested.connect(func(): app._replay_tutorial(current_context()))
-	app._drawing_screen._guide_toggle.toggled.connect(func(_enabled: bool): notify("masterpiece_guide"))
-	app._drawing_screen._guide_opacity.value_changed.connect(func(_value: float): notify("masterpiece_guide"))
-	app._drawing_screen.guide_changed.connect(func(): notify("masterpiece_guide"))
-	app._construction_screen.state.changed.connect(_construction_changed)
-	app._construction_screen.interaction_context_changed.connect(func(): refresh.call_deferred())
-	app._construction_screen.tutorial_requested.connect(func(): app._replay_tutorial(current_context()))
-	app._construction_screen.canvas.inspection_finished.connect(func(_report: Dictionary): notify("construction_inspect"))
-	app._construction_screen.view_changed.connect(func():
-		if app._construction_screen.canvas.presentation_mode: notify("my_house_view"))
 	app._learning_screen.canvas.changed.connect(_learning_changed)
 	app._learning_screen._primary.pressed.connect(func(): notify("learning_check"))
 	app._learning_screen.tutorial_requested.connect(func(): app._replay_tutorial("learning"))
@@ -56,12 +43,39 @@ func setup(owner_app: QuadrilateralApp) -> void:
 	overlay.dismiss()
 
 
+func bind_drawing() -> void:
+	if not is_instance_valid(app._drawing_screen) or app._drawing_screen == _drawing_bound: return
+	_drawing_bound = app._drawing_screen
+	_drawing_parts = app._drawing_screen.document.shapes.duplicate(true)
+	_drawing_undo_count = app._drawing_screen.document.command_manager.undo_stack.size()
+	app._drawing_screen.document.changed.connect(_drawing_changed)
+	app._drawing_screen.mode_selected.connect(_drawing_mode_selected)
+	app._drawing_screen.interaction_context_changed.connect(func(): refresh.call_deferred())
+	app._drawing_screen.tutorial_requested.connect(func(): app._replay_tutorial(current_context()))
+	app._drawing_screen._guide_toggle.toggled.connect(func(_enabled: bool): notify("masterpiece_guide"))
+	app._drawing_screen._guide_opacity.value_changed.connect(func(_value: float): notify("masterpiece_guide"))
+	app._drawing_screen.guide_changed.connect(func(): notify("masterpiece_guide"))
+
+
+func bind_construction() -> void:
+	if not is_instance_valid(app._construction_screen) or app._construction_screen == _construction_bound: return
+	_construction_bound = app._construction_screen
+	_construction_mode = app._construction_screen.state.my_house_mode
+	_construction_count = app._construction_screen.state.active_document().parts.size()
+	app._construction_screen.state.changed.connect(_construction_changed)
+	app._construction_screen.interaction_context_changed.connect(func(): refresh.call_deferred())
+	app._construction_screen.tutorial_requested.connect(func(): app._replay_tutorial(current_context()))
+	app._construction_screen.canvas.inspection_finished.connect(func(_report: Dictionary): notify("construction_inspect"))
+	app._construction_screen.view_changed.connect(func():
+		if app._construction_screen.canvas.presentation_mode: notify("my_house_view"))
+
+
 func current_context() -> String:
 	if app._learning_screen.visible: return "learning"
-	if app._drawing_screen.visible:
+	if is_instance_valid(app._drawing_screen) and app._drawing_screen.visible:
 		if active and mode == "masterpiece": return "masterpiece"
 		return "masterpiece" if app._drawing_screen.document.drawing_mode == "masterpiece" else "drawing"
-	if app._construction_screen.visible:
+	if is_instance_valid(app._construction_screen) and app._construction_screen.visible:
 		return "my_house" if app._construction_screen.state.my_house_mode else "construction"
 	if app._workshop_screen.visible: return "workshop"
 	if app._in_world: return "world"
@@ -130,7 +144,7 @@ func _finish(status: String) -> void:
 	if not app.testing and progress.save_file() != OK:
 		app._show_toast("안내 기록을 저장하지 못했어요. 다음에 안내가 다시 나타날 수 있어요.")
 	if is_instance_valid(previous_focus) and previous_focus.is_visible_in_tree(): previous_focus.grab_focus()
-	if finished_mode in ["construction", "my_house"]:
+	if finished_mode in ["construction", "my_house"] and is_instance_valid(app._construction_screen):
 		app._construction_screen.call_deferred("_ensure_brief")
 
 
@@ -156,8 +170,8 @@ func _present() -> void:
 		_release_pending = Input.is_action_pressed("ui_accept")
 	if blocks_gameplay():
 		app.workshop.cancel_gesture()
-		app._drawing_screen.cancel_gesture()
-		app._construction_screen.canvas.cancel_gesture()
+		if is_instance_valid(app._drawing_screen): app._drawing_screen.cancel_gesture()
+		if is_instance_valid(app._construction_screen): app._construction_screen.canvas.cancel_gesture()
 		app._learning_screen.canvas._dragging = false
 		app._clear_touch_inputs()
 	if is_instance_valid(app._toast): app._toast.hide()
@@ -199,9 +213,10 @@ func refresh() -> void:
 
 
 func _foreign_modal_open() -> bool:
+	if is_instance_valid(app._feature_loading_overlay): return true
 	if is_instance_valid(app._modal_overlay): return true
-	if app._construction_screen.visible and is_instance_valid(app._construction_screen._modal): return true
-	if app._drawing_screen.visible:
+	if is_instance_valid(app._construction_screen) and app._construction_screen.visible and is_instance_valid(app._construction_screen._modal): return true
+	if is_instance_valid(app._drawing_screen) and app._drawing_screen.visible:
 		var studio: DrawingStudio = app._drawing_screen
 		if is_instance_valid(studio._gallery) and studio._gallery.visible: return true
 		if is_instance_valid(studio._color_dialog) and studio._color_dialog.visible: return true
@@ -213,14 +228,15 @@ func _foreign_modal_open() -> bool:
 
 func _apply_gate() -> void:
 	var blocked: bool = blocks_gameplay()
-	app._drawing_screen.tutorial_blocked = blocked
-	app._construction_screen.tutorial_active = active and mode in ["construction", "my_house"]
-	var construction_changed: bool = app._construction_screen.tutorial_blocked != blocked
-	app._construction_screen.tutorial_blocked = blocked
-	if construction_changed: app._construction_screen._refresh()
+	if is_instance_valid(app._drawing_screen): app._drawing_screen.tutorial_blocked = blocked
+	if is_instance_valid(app._construction_screen):
+		app._construction_screen.tutorial_active = active and mode in ["construction", "my_house"]
+		var construction_changed: bool = app._construction_screen.tutorial_blocked != blocked
+		app._construction_screen.tutorial_blocked = blocked
+		if construction_changed: app._construction_screen._refresh()
 	if app.world != null:
 		app.world.peaceful = app.learning_progress.peaceful or (active and mode == "world")
-		app.world.set_controls_enabled(app._in_world and not blocked and not _release_pending and not is_instance_valid(app._modal_overlay))
+		app.world.set_controls_enabled(app._in_world and not blocked and not _release_pending and not is_instance_valid(app._modal_overlay) and not is_instance_valid(app._feature_loading_overlay))
 
 
 func _physics_process(_delta: float) -> void:
@@ -301,6 +317,8 @@ func _construction_changed() -> void:
 
 
 func _target(id: String) -> Control:
+	if (id.begins_with("drawing_") or id.begins_with("masterpiece_")) and not is_instance_valid(app._drawing_screen): return null
+	if (id.begins_with("construction_") or id.begins_with("my_house_")) and not is_instance_valid(app._construction_screen): return null
 	match id:
 		"learning_measure": return _find_button(app._learning_screen._tools, "재어 보기")
 		"learning_adjust": return app._learning_screen._adjustments if app._learning_screen.canvas.is_line_activity() else app._learning_screen._choices

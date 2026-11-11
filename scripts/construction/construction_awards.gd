@@ -95,7 +95,7 @@ static func title_for_tier(tier: int) -> String:
 	return TITLES[tier - 1] if tier >= 1 and tier <= TITLES.size() else ""
 
 static func badge_path(tier: int) -> String:
-	return BADGE_ROOT + "badge-%d.png" % tier if tier >= 1 and tier <= 5 else ""
+	return BADGE_ROOT + "badge-%d.webp" % tier if tier >= 1 and tier <= 5 else ""
 
 static func is_awarded(award: Dictionary) -> bool:
 	if not Document._integer(award.get("version", 0), VERSION, VERSION) or not award.get("eligible", false) is bool or not bool(award.get("eligible", false)):

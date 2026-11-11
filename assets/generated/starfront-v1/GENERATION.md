@@ -17,3 +17,7 @@
 | `app-icon.png` | 위 items 24번째 별빛 핵 셀을 Godot으로 자른 256×256 아이콘. 새 그림 합성 없음. | items 원본에서 파생 |
 
 `tools/export_button_web.gd`는 같은 금속 버튼과 관측실 배경의 실제 픽셀을 웹 로딩 화면으로 내보낸다. 아틀라스 구성과 실제 셀 좌표는 `scripts/core/starfront_art.gd`, 기존 ID 호환 매핑은 `GameArt`·`ConstructionArt`에 있다. 텍스트와 수학 도형은 원화에 포함하지 않으며 별도 렌더링한다.
+
+## 2026-11-10 무손실 저장 형식 최적화
+
+현재 게임에서 쓰는 PNG 원본은 크기와 모든 RGBA 픽셀을 그대로 유지하는 무손실 WebP로 재인코딩했습니다. 이 문서와 프롬프트 JSON의 `.png` 이름·생성 ID는 최초 생성 기록이며, 현재 파일명과 원본/현재 SHA-256·크기·픽셀 해시는 `assets/image_optimization_manifest.json`의 `original_path` → `path` 대응표로 확인합니다. 원본 PNG와 `.import`는 프로젝트 밖의 `rectangle_game_quarantine_2026-11-10/original_images/`에 같은 상대 경로로 백업하고 해시를 검증했습니다. 투명도·해상도·아틀라스 좌표와 Godot import UID·압축/크기 설정은 유지했습니다. 원화와 프롬프트를 새로 생성하거나 손실 압축한 작업이 아닙니다.

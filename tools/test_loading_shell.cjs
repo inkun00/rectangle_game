@@ -12,7 +12,8 @@ const exported = html.replace('$GODOT_HEAD_INCLUDE', '')
   .replace('$GODOT_URL', 'index.js')
   .replace('$GODOT_THREADS_ENABLED', 'false')
   .replace('$GODOT_CONFIG', '{"executable":"index","fileSizes":{}}');
-const script = exported.match(/<script>\s*([\s\S]*?)<\/script>/)[1];
+const script = [...exported.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
+  .map(match => match[1]).find(source => source.includes('engine.startGame'));
 
 function shell(options = {}) {
   const elements = new Map();

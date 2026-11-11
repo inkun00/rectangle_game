@@ -2,7 +2,7 @@ class_name SpaceshipCanvas
 extends Control
 
 const Catalog: GDScript = preload("res://scripts/economy/spaceship_catalog.gd")
-const PLANET_PATH: String = "res://assets/generated/opening-v1/planet.png"
+const PLANET_PATH: String = "res://assets/generated/opening-v1/planet.webp"
 const LAUNCH_SECONDS: float = 16.0
 
 signal part_selected(part_id: String)

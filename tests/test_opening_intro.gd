@@ -5,9 +5,19 @@ const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
 const TEST_PATH: String = "user://test_opening_preference.cfg"
 
 
+class DeferredPreparation extends RefCounted:
+	signal completed(ready: bool)
+	var call_count: int = 0
+
+	func prepare() -> bool:
+		call_count += 1
+		return await completed
+
+
 static func run(t: Node) -> void:
 	_test_preferences(t)
 	await _test_navigation(t)
+	await _test_preparation(t)
 	await _test_playback(t)
 
 
@@ -114,15 +124,79 @@ static func _test_navigation(t: Node) -> void:
 	await t.get_tree().process_frame
 
 
+static func _test_preparation(t: Node) -> void:
+	var skipped_preparation: DeferredPreparation = DeferredPreparation.new()
+	var skipped_intro: OpeningIntro = OpeningIntro.new()
+	skipped_intro.video_preparer = skipped_preparation.prepare
+	t.add_child(skipped_intro)
+	var escape: InputEventKey = InputEventKey.new()
+	escape.keycode = KEY_ESCAPE
+	escape.pressed = true
+	skipped_intro.handle_key(escape)
+	t.assert_eq(skipped_preparation.call_count, 0, "Skipping the initial play gate never downloads the movie")
+	skipped_intro.free()
+	await t.get_tree().process_frame
+	var preparation: DeferredPreparation = DeferredPreparation.new()
+	var intro: OpeningIntro = OpeningIntro.new()
+	intro.video_preparer = preparation.prepare
+	var closing: Array[String] = []
+	intro.closed.connect(func(reason: String): closing.append(reason))
+	t.add_child(intro)
+	t.assert_eq(preparation.call_count, 0, "Opening the play gate never downloads the movie")
+	intro._start_button.pressed.emit()
+	t.assert_eq(preparation.call_count, 1, "The movie download starts with the viewer's play action")
+	t.assert_eq(intro.playback_state, OpeningIntro.PlaybackState.LOADING, "The introduction owns a loading state during a pending download")
+	t.assert_eq(intro._player.stream, null, "A pending download does not start an unavailable video")
+	t.assert_true(intro._poster.visible and intro._gate.visible, "The poster and controls remain available during download")
+	t.assert_true(intro._start_button.disabled, "Repeated play clicks cannot duplicate a download")
+	t.assert_false(intro._skip_button.disabled, "A pending video download can always be skipped")
+	intro.start_playback()
+	var space: InputEventKey = InputEventKey.new()
+	space.keycode = KEY_SPACE
+	space.pressed = true
+	intro.handle_key(space)
+	t.assert_eq(preparation.call_count, 1, "Repeated click and Space do not create concurrent downloads")
+	intro._sound_button.pressed.emit()
+	t.assert_false(intro.sound_enabled, "The mute choice can be made before a download finishes")
+	preparation.completed.emit(false)
+	t.assert_eq(intro.playback_state, OpeningIntro.PlaybackState.READY, "A failed movie download returns to the retry gate")
+	t.assert_false(intro._start_button.disabled, "Download failure enables the retry action")
+	t.assert_eq(intro._start_button.text, "다시 시도", "Download failure offers a readable retry action")
+	t.assert_true(intro._preparation_label.text.contains("건너뛸"), "Download failure also explains the skip option")
+	t.assert_eq(closing.size(), 0, "A network failure does not mark the movie as watched or close the gate")
+	intro._start_button.pressed.emit()
+	t.assert_eq(preparation.call_count, 2, "The viewer can retry a failed movie request")
+	intro._skip_button.pressed.emit()
+	t.assert_eq(closing, ["skipped"], "Skipping a pending download closes the introduction exactly once")
+	preparation.completed.emit(true)
+	t.assert_eq(intro.playback_state, OpeningIntro.PlaybackState.CLOSED, "Late download completion cannot reopen a skipped movie")
+	t.assert_eq(intro._player.stream, null, "A skipped movie never starts playing after its request completes")
+	intro.free()
+	await t.get_tree().process_frame
+	var abandoned_preparation: DeferredPreparation = DeferredPreparation.new()
+	var abandoned: OpeningIntro = OpeningIntro.new()
+	abandoned.video_preparer = abandoned_preparation.prepare
+	t.add_child(abandoned)
+	abandoned.start_playback()
+	abandoned.free()
+	abandoned_preparation.completed.emit(true)
+	await t.get_tree().process_frame
+	t.assert_false(is_instance_valid(abandoned), "Freeing the overlay during download is safe even when completion arrives later")
+
+
 static func _test_playback(t: Node) -> void:
 	if not ResourceLoader.exists(OpeningIntro.VIDEO_PATH, "VideoStream"):
 		print("[Opening] Playback checks await the rendered .ogv; missing-video fallback was verified.")
 		return
 	var intro: OpeningIntro = OpeningIntro.new()
+	var preparation: DeferredPreparation = DeferredPreparation.new()
+	intro.video_preparer = preparation.prepare
 	var closing: Array[String] = []
 	intro.closed.connect(func(reason: String): closing.append(reason))
 	t.add_child(intro)
 	intro._start_button.pressed.emit()
+	t.assert_eq(intro.playback_state, OpeningIntro.PlaybackState.LOADING, "Video playback waits for the requested resource pack")
+	preparation.completed.emit(true)
 	await t.get_tree().process_frame
 	t.assert_eq(intro.playback_state, OpeningIntro.PlaybackState.PLAYING, "The actual movie starts after pressing the play button")
 	t.assert_not_null(intro._player.stream, "The rendered movie is loaded as a native Godot video resource")

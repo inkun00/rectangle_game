@@ -5,9 +5,10 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Preview Quadrilateral World locally")
 parser.add_argument("--port", type=int, default=8080)
+parser.add_argument("--directory", default=os.path.join(os.path.dirname(__file__), "..", "build", "web"))
 options = parser.parse_args()
 PORT = options.port
-DIRECTORY = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "build", "web"))
+DIRECTORY = os.path.abspath(options.directory)
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -17,12 +18,17 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Access-Control-Allow-Origin", "*")
+        path = self.path.split("?", 1)[0]
+        if path.endswith(".br"):
+            self.send_header("Content-Encoding", "br")
+        if path.rsplit("/", 1)[-1].startswith(("engine-", "art-", "feature-")):
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         super().end_headers()
 
     def guess_type(self, path):
-        if path.endswith(".wasm"):
+        if path.endswith((".wasm", ".wasm.br")):
             return "application/wasm"
-        if path.endswith(".pck"):
+        if path.endswith((".pck", ".pck.br")):
             return "application/octet-stream"
         return super().guess_type(path)
 

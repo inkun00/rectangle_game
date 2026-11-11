@@ -71,7 +71,7 @@ static func panel_texture(index: int) -> Texture2D:
 	return StarfrontArt.interior([0, 4, 2, 3][posmod(index, 4)])
 
 static func drafting_paper() -> Texture2D:
-	return load("res://assets/generated/focused-ui/paper-v1.png") as Texture2D
+	return load("res://assets/generated/focused-ui/paper-v1.webp") as Texture2D
 
 static func view(texture: Texture2D, dimensions: Vector2 = Vector2(56, 56)) -> TextureRect:
 	var result: TextureRect = TextureRect.new()

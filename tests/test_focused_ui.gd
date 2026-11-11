@@ -10,7 +10,7 @@ static func run(t: Node) -> void:
 		if texture == null: continue
 		t.assert_true(texture is AtlasTexture, "Quiet surfaces crop the generated skin rather than enlarging ornaments")
 		if texture is AtlasTexture:
-			t.assert_true((texture as AtlasTexture).atlas.resource_path.ends_with("starfront-v1/skin.png"), "All quiet chrome shares the new generated palette")
+			t.assert_true((texture as AtlasTexture).atlas.resource_path.ends_with("starfront-v1/skin.webp"), "All quiet chrome shares the new generated palette")
 		t.assert_ge(texture.get_width(), 64, "Metal face has enough source detail")
 	var window: Window = t.get_window()
 	var previous: Dictionary = {

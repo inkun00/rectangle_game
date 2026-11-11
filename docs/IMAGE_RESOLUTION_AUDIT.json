@@ -1,14 +1,15 @@
 {
-  "review_date": "2026-11-01",
+  "review_date": "2026-11-10",
   "reference_viewport": [
     1920,
     1080
   ],
-  "method": "Source inventory plus native crop dimensions, renderer usage review, and actual 1920x1080/800x600 app captures. No bitmap interpolation or Python image editing.",
-  "baseline_bitmap_count": 136,
-  "vector_count": 21,
+  "method": "Current source inventory and original native crop dimensions. The 2026-11-01 renderer review used actual 1920x1080/800x600 app captures. Active PNGs were losslessly re-encoded with exact RGBA equality on 2026-11-10; no resizing or image regeneration.",
+  "encoding_manifest": "assets/image_optimization_manifest.json",
+  "baseline_bitmap_count": 44,
+  "vector_count": 20,
   "regenerated_file_count": 22,
-  "exported_bitmap_count": 64,
+  "exported_bitmap_count": 66,
   "native_use_comparison": [
     {
       "use": "9 full-screen backgrounds",
@@ -38,573 +39,207 @@
   "limits": "Dimensions are measured from returned ImageGen files, not the requested prompt size. The backgrounds are not represented as 4K; additional scaling on larger displays remains possible. Nine-slice panel centers and repeated single-brick tiles are intentional scalable surfaces.",
   "generated": [
     {
-      "path": "assets/generated/starfront-hd/backgrounds/citadel.png",
+      "path": "assets/generated/starfront-hd/backgrounds/citadel.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "6f0f5ad2eda8a1952ff139422f282d641dec9c80ca40f21fe9c3da9b51b1c70b"
+      "sha256": "5e5aa3ca3a51326b65c0f400fc6b7329786729391f92169517524e261c7f36a2",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/citadel.png",
+      "original_sha256": "6f0f5ad2eda8a1952ff139422f282d641dec9c80ca40f21fe9c3da9b51b1c70b",
+      "rgba_sha256": "a71ec362e7f4bf8fc9d71a67a994c2aa2ef43d21a93c8c39ee70957d55276069"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/construction.png",
+      "path": "assets/generated/starfront-hd/backgrounds/construction.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "b738e43dd522b1de9184b63df6ea210954f5f4a91bfaadaa106deb7cc037f329"
+      "sha256": "6fe699cb5646bee9d073a01fa8d2cb56d8322ecc8026da6c8ccef99d6a2000f0",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/construction.png",
+      "original_sha256": "b738e43dd522b1de9184b63df6ea210954f5f4a91bfaadaa106deb7cc037f329",
+      "rgba_sha256": "bb1ee84b5ba95b3ce79bd5732f539674783254c8a9dd94c3f7c991597cdd52fb"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/forest.png",
+      "path": "assets/generated/starfront-hd/backgrounds/forest.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "0c0189119554ae606c1c07ea38cc4177c67d9653e19484fd4e01560d2ec93d11"
+      "sha256": "30bb3c5ab5204963758ea69c536e8452a4abc9354a3f9779fb4bd3d78980021a",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/forest.png",
+      "original_sha256": "0c0189119554ae606c1c07ea38cc4177c67d9653e19484fd4e01560d2ec93d11",
+      "rgba_sha256": "9ee5afc8dbbda8a73333b7899a22f7a0250181c5961c7fb7ae89c5e95c1276b3"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/harbor.png",
+      "path": "assets/generated/starfront-hd/backgrounds/harbor.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "8ef8a1816019e8364d9f88a8e5b0b6250c0de66710d1440fdeeaa6ca48a34916"
+      "sha256": "7de275634745766a254b83854b4c358324266cd781588686be22f5ae1f855f2d",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/harbor.png",
+      "original_sha256": "8ef8a1816019e8364d9f88a8e5b0b6250c0de66710d1440fdeeaa6ca48a34916",
+      "rgba_sha256": "42b1d107b9b5ed6319f693eb989335a298fcf6bbf6cd985b83d3752285a818e3"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/market.png",
+      "path": "assets/generated/starfront-hd/backgrounds/market.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "1a010401a793010fd86e3b9d8ab06fd33a0280bfe554956cc495710613855dd9"
+      "sha256": "22cfb538d677f1080ecf752b6d7d79d06b2555507a22448e06e6626a6c44aac9",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/market.png",
+      "original_sha256": "1a010401a793010fd86e3b9d8ab06fd33a0280bfe554956cc495710613855dd9",
+      "rgba_sha256": "4d24df7e72cc3cb863e4473209ad419136c4814b3acc4e3e91ddf31350f62b26"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/observatory.png",
+      "path": "assets/generated/starfront-hd/backgrounds/observatory.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "2fae2406f75793593555d68ac6d952b2a1b38f95bc929c664ffec6ede2057531"
+      "sha256": "f03be6fcaacf83a254c629ead770906b7d0b09646adaa63228bcce382e25ee0f",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/observatory.png",
+      "original_sha256": "2fae2406f75793593555d68ac6d952b2a1b38f95bc929c664ffec6ede2057531",
+      "rgba_sha256": "cbfc3f9921d9d9a127bd919274c444b65599c16f6ba4cae4b6ac26cbebd9ffb9"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/snow.png",
+      "path": "assets/generated/starfront-hd/backgrounds/snow.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "c8899752066de0e0e07f817f10f1d1933d5d09afbc683ebd543a7159b5616ead"
+      "sha256": "3409630f28d71c44884fe8d382594edfcd2494163221a1eb0b0a5f0220ade546",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/snow.png",
+      "original_sha256": "c8899752066de0e0e07f817f10f1d1933d5d09afbc683ebd543a7159b5616ead",
+      "rgba_sha256": "793a70818a19b06fbef6e1263fc1e6d512bde9524bb720fc8f7aa9acacefe955"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/valley.png",
+      "path": "assets/generated/starfront-hd/backgrounds/valley.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "27b57a9dbdbca8a19fa0145e26d2b2e888592fdf01ceea8391e31ce08ffab4d0"
+      "sha256": "69887a0ea0b239e2be16b74e739c4da644b525d77927b34585f84a18571ab60a",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/valley.png",
+      "original_sha256": "27b57a9dbdbca8a19fa0145e26d2b2e888592fdf01ceea8391e31ce08ffab4d0",
+      "rgba_sha256": "61d5bb5e93ae8ae571105b245b6574340570c00017383ed1a0d2d871d66d1927"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/workshop.png",
+      "path": "assets/generated/starfront-hd/backgrounds/workshop.webp",
       "native_width": 1672,
       "native_height": 941,
-      "sha256": "ca8ade272a29674f9b3887c78944aca6b6e53aea51ba74eab98c2e47c4c22edb"
+      "sha256": "cdce922e7ea528ae201d2d8d36f869f0e26b6972d0eae6a2dd725508f883a695",
+      "original_generated_path": "assets/generated/starfront-hd/backgrounds/workshop.png",
+      "original_sha256": "ca8ade272a29674f9b3887c78944aca6b6e53aea51ba74eab98c2e47c4c22edb",
+      "rgba_sha256": "6f3ea9d487917f907e6a496d46f7c19c20d947fb8ef169d8197ae4166c6eb470"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/beam-wood.png",
+      "path": "assets/generated/starfront-hd/materials/beam-wood.webp",
       "native_width": 2172,
       "native_height": 724,
-      "sha256": "313bbbfdf167bc5fb22016c1e066927beb8adc4e9604968092ed9c7292804057"
+      "sha256": "26336c8dfa393653141a2c577dbb0bfd32b3d042e9b56bcffd0948180affc1d1",
+      "original_generated_path": "assets/generated/starfront-hd/materials/beam-wood.png",
+      "original_sha256": "313bbbfdf167bc5fb22016c1e066927beb8adc4e9604968092ed9c7292804057",
+      "rgba_sha256": "428b83aa67299ecc6f8cc784a7907e0e4b5826fd6f945cea24e0eb5d2a09fb3b"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/details-a.png",
+      "path": "assets/generated/starfront-hd/materials/details-a.webp",
       "native_width": 1024,
       "native_height": 1536,
-      "sha256": "8133e81520ab090346e801feadf7552e77fcfd4a7edb1a01e42ef81d02cb5925"
+      "sha256": "64c2b9bee94112af772ccda2351e5f07aa431f0e3221246d6a03160cf54bc8ec",
+      "original_generated_path": "assets/generated/starfront-hd/materials/details-a.png",
+      "original_sha256": "8133e81520ab090346e801feadf7552e77fcfd4a7edb1a01e42ef81d02cb5925",
+      "rgba_sha256": "548b442295bd1423f6e32d3ceca0aea47948234b0f3417853238d9b1921aab0a"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/details-b.png",
+      "path": "assets/generated/starfront-hd/materials/details-b.webp",
       "native_width": 1024,
       "native_height": 1536,
-      "sha256": "ccd992cabf385a7df3a560b90076e334da88162ed94b89a094887839e3f7c255"
+      "sha256": "a84ecf86704570b82ba000a8bd798ff49e1c83ecae0e727c8a2ed354621add87",
+      "original_generated_path": "assets/generated/starfront-hd/materials/details-b.png",
+      "original_sha256": "ccd992cabf385a7df3a560b90076e334da88162ed94b89a094887839e3f7c255",
+      "rgba_sha256": "e265fbbbea1efc285cd1b4599ef0369b99a4a9ef2505de9aa24cab8488dce62d"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/details-c.png",
+      "path": "assets/generated/starfront-hd/materials/details-c.webp",
       "native_width": 1024,
       "native_height": 1536,
-      "sha256": "a4d1710ef05b2e93aadae37c1421cb1b0f74b60f31a1ac46bb3cf2522b5398e8"
+      "sha256": "1e81520b959d9d4ec7f06f12d30b6cbe4b48154ff81e76bc670cb8bbb1d88f57",
+      "original_generated_path": "assets/generated/starfront-hd/materials/details-c.png",
+      "original_sha256": "a4d1710ef05b2e93aadae37c1421cb1b0f74b60f31a1ac46bb3cf2522b5398e8",
+      "rgba_sha256": "8d8589eceec3dac968834f2b90e16755abfb78c7e4368289558ea507d3d39bd5"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-blue.png",
+      "path": "assets/generated/starfront-hd/materials/roof-blue.webp",
       "native_width": 2172,
       "native_height": 724,
-      "sha256": "8af0bc86649036f62cbf39abf8149cc85fa46709cb64651b5f3671c3a913dec4"
+      "sha256": "f16f08a607dddc5001a0646d2f86739f33c3578bfe58c4efe18a92c5a34b09a8",
+      "original_generated_path": "assets/generated/starfront-hd/materials/roof-blue.png",
+      "original_sha256": "8af0bc86649036f62cbf39abf8149cc85fa46709cb64651b5f3671c3a913dec4",
+      "rgba_sha256": "d240b63f1dc36e7d54318015d1f8309bec28d164ab7fc18832b175b52ad52cd2"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-metal.png",
+      "path": "assets/generated/starfront-hd/materials/roof-metal.webp",
       "native_width": 2172,
       "native_height": 724,
-      "sha256": "2c1b3d8b4c949c967bf38f03162d68c4a7d5b327e628bb67ed15fa2a6a695f3e"
+      "sha256": "e656e78a2d5407f9db007640ee54bf69e37efecba26229f76fe63e80b05e5243",
+      "original_generated_path": "assets/generated/starfront-hd/materials/roof-metal.png",
+      "original_sha256": "2c1b3d8b4c949c967bf38f03162d68c4a7d5b327e628bb67ed15fa2a6a695f3e",
+      "rgba_sha256": "ca09c79c4bc59691c20f9e6dc874f239363f24c329764e5d64eee23412c86ed6"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-slate.png",
+      "path": "assets/generated/starfront-hd/materials/roof-slate.webp",
       "native_width": 2172,
       "native_height": 724,
-      "sha256": "36553c8d48f153642b9906cc60ca2cdd20047cba13bb38a92591204117d42d79"
+      "sha256": "dc6a0931f2421d6a144fbc6b499077e5698a6a3ebff4f440b96c0252646ecaa2",
+      "original_generated_path": "assets/generated/starfront-hd/materials/roof-slate.png",
+      "original_sha256": "36553c8d48f153642b9906cc60ca2cdd20047cba13bb38a92591204117d42d79",
+      "rgba_sha256": "93ae2e1ddfab62d67b1e6cddf1a2d63304aba79b257c727fea48b4d2640fb59e"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-zinc.png",
+      "path": "assets/generated/starfront-hd/materials/roof-zinc.webp",
       "native_width": 2172,
       "native_height": 724,
-      "sha256": "08a2aa18f6eee848a23e166c5d0d8f58adee981bafc8fd9ff631b3d45c1a4fa9"
+      "sha256": "d2687c2b7bf48ac4ac09ffd8b30fb9c93e25b052250fea459b39a87b0ff15cd5",
+      "original_generated_path": "assets/generated/starfront-hd/materials/roof-zinc.png",
+      "original_sha256": "08a2aa18f6eee848a23e166c5d0d8f58adee981bafc8fd9ff631b3d45c1a4fa9",
+      "rgba_sha256": "2e22f19df4ca6a46627ccdcb98bd692879e105a620569bb17c8f49d6c72fc3a5"
     },
     {
-      "path": "assets/generated/starfront-hd/props/destinations.png",
+      "path": "assets/generated/starfront-hd/props/destinations.webp",
       "native_width": 1254,
       "native_height": 1254,
-      "sha256": "127cab75953da10cf36f1c1e6e2fabce0158e3dc886702ee8eeede8aeeead3a3"
+      "sha256": "3b3e452908081b0a58d6a26edfb6f8054b9641eccc27df248dfbd21dd8336a9a",
+      "original_generated_path": "assets/generated/starfront-hd/props/destinations.png",
+      "original_sha256": "127cab75953da10cf36f1c1e6e2fabce0158e3dc886702ee8eeede8aeeead3a3",
+      "rgba_sha256": "0c9ef4985fa294fc9842999aa7c8a9fcaf3cd607092823f590a30ef29ee6c2ed"
     },
     {
-      "path": "assets/generated/starfront-hd/props/landmarks.png",
+      "path": "assets/generated/starfront-hd/props/landmarks.webp",
       "native_width": 1254,
       "native_height": 1254,
-      "sha256": "024cf5a82491bb61e1c73b487a0eda21efbeb0151b798db5225081dfe55bcfff"
+      "sha256": "253790a4205d678ac828f55edbabe5c3396b20edacb2db267b2d3d709246247a",
+      "original_generated_path": "assets/generated/starfront-hd/props/landmarks.png",
+      "original_sha256": "024cf5a82491bb61e1c73b487a0eda21efbeb0151b798db5225081dfe55bcfff",
+      "rgba_sha256": "d540cb123132fcaaca92cb3fab553dcec0354cd0afc2d30b2496b7507413901b"
     },
     {
-      "path": "assets/generated/starfront-hd/props/settlement.png",
+      "path": "assets/generated/starfront-hd/props/settlement.webp",
       "native_width": 1254,
       "native_height": 1254,
-      "sha256": "07bd073af69c7c6bda9105023146cd0e7dcbf8424b794e5a00a8f4b5a7d70bfc"
+      "sha256": "ffc7652181519b4e31a943326add3c02ae2235bc73213a5269ae8cfbb1d4317a",
+      "original_generated_path": "assets/generated/starfront-hd/props/settlement.png",
+      "original_sha256": "07bd073af69c7c6bda9105023146cd0e7dcbf8424b794e5a00a8f4b5a7d70bfc",
+      "rgba_sha256": "48d0365104508207e80c7cb0f81a816c7b51f275e5ef6f9cc903d4bbbf01e6fd"
     },
     {
-      "path": "assets/generated/starfront-hd/props/terrain.png",
+      "path": "assets/generated/starfront-hd/props/terrain.webp",
       "native_width": 1254,
       "native_height": 1254,
-      "sha256": "817c60c3094dbdcd362a9bca7059b628740b967a044a02134188c030a1f8ce83"
+      "sha256": "fee84fa377b247f61d5b45d6887154a34f1d38e3c5fc47214722468fb03869f1",
+      "original_generated_path": "assets/generated/starfront-hd/props/terrain.png",
+      "original_sha256": "817c60c3094dbdcd362a9bca7059b628740b967a044a02134188c030a1f8ce83",
+      "rgba_sha256": "b8620f58d7dbc7089b33a1ad4a3cbfdf8861ed149ca518f4405c95ae260c013d"
     },
     {
-      "path": "assets/generated/starfront-hd/props/vegetation.png",
+      "path": "assets/generated/starfront-hd/props/vegetation.webp",
       "native_width": 1254,
       "native_height": 1254,
-      "sha256": "6f3ea4845be8930e55906ee324354483bba58bbf156f1a669202913d4bedde84"
+      "sha256": "fe826666858194a25f3e956675e54f4ab3d12b3a3ce0664c85df47146d7ca523",
+      "original_generated_path": "assets/generated/starfront-hd/props/vegetation.png",
+      "original_sha256": "6f3ea4845be8930e55906ee324354483bba58bbf156f1a669202913d4bedde84",
+      "rgba_sha256": "5a03a4629b10bb212c9ad49b68a6e45b500ec02327cbe9cc90bb8c57f00952d2"
     }
   ],
   "files": [
     {
-      "path": "assets/construction/clients/brow.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 40,
-      "height": 17,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/eye.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 15,
-      "height": 16,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/hair_0.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 165,
-      "height": 227,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/hair_1.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 171,
-      "height": 130,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/hair_2.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 159,
-      "height": 138,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/hair_3.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 158,
-      "height": 119,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/hair_4.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 165,
-      "height": 227,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/hair_5.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 158,
-      "height": 119,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/head_0.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 173,
-      "height": 168,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/head_1.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 173,
-      "height": 168,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/head_2.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 173,
-      "height": 168,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/head_3.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 173,
-      "height": 168,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/head_4.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 173,
-      "height": 168,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/head_5.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 173,
-      "height": 168,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/mouth_happy.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 34,
-      "height": 13,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/mouth_sad.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 34,
-      "height": 13,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/mouth_straight.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 36,
-      "height": 6,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/neck_0.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 96,
-      "height": 37,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/neck_1.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 96,
-      "height": 37,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/neck_2.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 96,
-      "height": 37,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/neck_3.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 96,
-      "height": 37,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/neck_4.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 96,
-      "height": 37,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/neck_5.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 96,
-      "height": 37,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/nose_0.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 31,
-      "height": 21,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/nose_1.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 31,
-      "height": 21,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/nose_2.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 31,
-      "height": 21,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/nose_3.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 31,
-      "height": 21,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/nose_4.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 31,
-      "height": 21,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/nose_5.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 31,
-      "height": 21,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/shirt_0.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 153,
-      "height": 174,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/shirt_1.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 153,
-      "height": 174,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/shirt_2.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 153,
-      "height": 174,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/shirt_3.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 153,
-      "height": 174,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/shirt_4.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 153,
-      "height": 174,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/clients/shirt_5.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 153,
-      "height": 174,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/construction/materials/houseBeigeAlt.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 70,
-      "height": 70,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/construction/materials/houseDarkAlt.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 70,
-      "height": 70,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/construction/materials/houseGrayAlt.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 70,
-      "height": 70,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/construction/materials/roofGreyMid.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 70,
-      "height": 70,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/construction/materials/roofRedMid.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 70,
-      "height": 70,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/construction/ui/button_blue.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 192,
-      "height": 64,
-      "mode": "P"
-    },
-    {
-      "path": "assets/construction/ui/button_light.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 192,
-      "height": 64,
-      "mode": "P"
-    },
-    {
-      "path": "assets/construction/ui/panel_blue.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 192,
-      "height": 64,
-      "mode": "P"
-    },
-    {
-      "path": "assets/construction/ui/panel_light.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 192,
-      "height": 64,
-      "mode": "P"
-    },
-    {
-      "path": "assets/generated/buttons-v1/check-off.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/buttons-v1/check-on.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/buttons-v1/primary.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 2172,
-      "height": 724,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/buttons-v1/secondary.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 2172,
-      "height": 724,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/badge-1.png",
+      "path": "assets/generated/construction-game/badge-1.webp",
       "web_exported": true,
       "usage": "retained badge; displayed at 112 or 148 pixels",
       "kind": "bitmap",
@@ -613,7 +248,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/construction-game/badge-2.png",
+      "path": "assets/generated/construction-game/badge-2.webp",
       "web_exported": true,
       "usage": "retained badge; displayed at 112 or 148 pixels",
       "kind": "bitmap",
@@ -622,7 +257,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/construction-game/badge-3.png",
+      "path": "assets/generated/construction-game/badge-3.webp",
       "web_exported": true,
       "usage": "retained badge; displayed at 112 or 148 pixels",
       "kind": "bitmap",
@@ -631,7 +266,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/construction-game/badge-4.png",
+      "path": "assets/generated/construction-game/badge-4.webp",
       "web_exported": true,
       "usage": "retained badge; displayed at 112 or 148 pixels",
       "kind": "bitmap",
@@ -640,7 +275,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/construction-game/badge-5.png",
+      "path": "assets/generated/construction-game/badge-5.webp",
       "web_exported": true,
       "usage": "retained badge; displayed at 112 or 148 pixels",
       "kind": "bitmap",
@@ -649,88 +284,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/construction-game/button-blue.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 2172,
-      "height": 724,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/button-light.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 2172,
-      "height": 724,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/client-portraits.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1536,
-      "height": 1024,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/material-base.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1774,
-      "height": 887,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/material-expanded.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/construction-game/panel-dark.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1995,
-      "height": 788,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/panel-light.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1983,
-      "height": 793,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/tool-icons.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1283,
-      "height": 1226,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/construction-game/worksite.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1672,
-      "height": 941,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/drawing/backgrounds/autumn_mountains.png",
+      "path": "assets/generated/drawing/backgrounds/autumn_mountains.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -739,7 +293,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/bamboo_forest.png",
+      "path": "assets/generated/drawing/backgrounds/bamboo_forest.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -748,7 +302,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/castle.png",
+      "path": "assets/generated/drawing/backgrounds/castle.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -757,7 +311,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/city_day.png",
+      "path": "assets/generated/drawing/backgrounds/city_day.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -766,7 +320,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/city_night.png",
+      "path": "assets/generated/drawing/backgrounds/city_night.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -775,7 +329,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/coral_reef.png",
+      "path": "assets/generated/drawing/backgrounds/coral_reef.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -784,7 +338,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/country_cottage.png",
+      "path": "assets/generated/drawing/backgrounds/country_cottage.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -793,7 +347,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/cozy_home.png",
+      "path": "assets/generated/drawing/backgrounds/cozy_home.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -802,7 +356,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/desert.png",
+      "path": "assets/generated/drawing/backgrounds/desert.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -811,7 +365,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/farm.png",
+      "path": "assets/generated/drawing/backgrounds/farm.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -820,7 +374,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/forest.png",
+      "path": "assets/generated/drawing/backgrounds/forest.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -829,7 +383,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/galaxy.png",
+      "path": "assets/generated/drawing/backgrounds/galaxy.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -838,7 +392,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/garden.png",
+      "path": "assets/generated/drawing/backgrounds/garden.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -847,7 +401,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/green_mountains.png",
+      "path": "assets/generated/drawing/backgrounds/green_mountains.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -856,7 +410,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/harbor.png",
+      "path": "assets/generated/drawing/backgrounds/harbor.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -865,7 +419,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/lake.png",
+      "path": "assets/generated/drawing/backgrounds/lake.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -874,7 +428,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/meadow.png",
+      "path": "assets/generated/drawing/backgrounds/meadow.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -883,7 +437,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/moon_base.png",
+      "path": "assets/generated/drawing/backgrounds/moon_base.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -892,7 +446,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/oasis.png",
+      "path": "assets/generated/drawing/backgrounds/oasis.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -901,7 +455,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/playground.png",
+      "path": "assets/generated/drawing/backgrounds/playground.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -910,7 +464,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/polar.png",
+      "path": "assets/generated/drawing/backgrounds/polar.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -919,7 +473,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/rainbow_sky.png",
+      "path": "assets/generated/drawing/backgrounds/rainbow_sky.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -928,7 +482,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/river.png",
+      "path": "assets/generated/drawing/backgrounds/river.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -937,7 +491,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/seaside.png",
+      "path": "assets/generated/drawing/backgrounds/seaside.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -946,7 +500,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/snowy_mountains.png",
+      "path": "assets/generated/drawing/backgrounds/snowy_mountains.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -955,7 +509,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/space_planets.png",
+      "path": "assets/generated/drawing/backgrounds/space_planets.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -964,7 +518,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/sunset_beach.png",
+      "path": "assets/generated/drawing/backgrounds/sunset_beach.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -973,7 +527,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/treehouse.png",
+      "path": "assets/generated/drawing/backgrounds/treehouse.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -982,7 +536,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/village.png",
+      "path": "assets/generated/drawing/backgrounds/village.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -991,7 +545,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/drawing/backgrounds/waterfall.png",
+      "path": "assets/generated/drawing/backgrounds/waterfall.webp",
       "web_exported": true,
       "usage": "retained 1586x992 artwork background; fits the drawing board at 1920x1080",
       "kind": "bitmap",
@@ -1180,52 +734,7 @@
       "height": "600"
     },
     {
-      "path": "assets/generated/environment_atlas.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1448,
-      "height": 1086,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/expansion_backdrop.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 2172,
-      "height": 724,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/expansion_environment.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1774,
-      "height": 887,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/expansion_items.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1774,
-      "height": 887,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/expansion_npcs.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1774,
-      "height": 887,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/focused-ui/paper-v1.png",
+      "path": "assets/generated/focused-ui/paper-v1.webp",
       "web_exported": true,
       "usage": "retained quiet drafting paper; no detailed scene stretched across the screen",
       "kind": "bitmap",
@@ -1234,8 +743,8 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/items_atlas.png",
-      "web_exported": false,
+      "path": "assets/generated/opening-v1/planet.webp",
+      "web_exported": true,
       "usage": "legacy image; not displayed by the current theme",
       "kind": "bitmap",
       "width": 1254,
@@ -1243,88 +752,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/npc_atlas.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1774,
-      "height": 887,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/revision/app-icon.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/revision/client-portraits.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1536,
-      "height": 1024,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/revision/construction-cover.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1536,
-      "height": 1024,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/revision/construction-materials-expanded.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/revision/construction-materials.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1774,
-      "height": 887,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/revision/drawing-cover.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1536,
-      "height": 1024,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/revision/ui-icons.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/revision/ui-surfaces.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/starfront-hd/backgrounds/citadel.png",
+      "path": "assets/generated/starfront-hd/backgrounds/citadel.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1333,7 +761,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/construction.png",
+      "path": "assets/generated/starfront-hd/backgrounds/construction.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1342,7 +770,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/forest.png",
+      "path": "assets/generated/starfront-hd/backgrounds/forest.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1351,7 +779,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/harbor.png",
+      "path": "assets/generated/starfront-hd/backgrounds/harbor.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1360,7 +788,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/market.png",
+      "path": "assets/generated/starfront-hd/backgrounds/market.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1369,7 +797,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/observatory.png",
+      "path": "assets/generated/starfront-hd/backgrounds/observatory.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1378,7 +806,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/snow.png",
+      "path": "assets/generated/starfront-hd/backgrounds/snow.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1387,7 +815,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/valley.png",
+      "path": "assets/generated/starfront-hd/backgrounds/valley.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1396,7 +824,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/backgrounds/workshop.png",
+      "path": "assets/generated/starfront-hd/backgrounds/workshop.webp",
       "web_exported": true,
       "usage": "regenerated full-frame background",
       "kind": "bitmap",
@@ -1405,7 +833,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/beam-wood.png",
+      "path": "assets/generated/starfront-hd/materials/beam-wood.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1414,7 +842,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/details-a.png",
+      "path": "assets/generated/starfront-hd/materials/details-a.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1423,7 +851,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/details-b.png",
+      "path": "assets/generated/starfront-hd/materials/details-b.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1432,7 +860,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/details-c.png",
+      "path": "assets/generated/starfront-hd/materials/details-c.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1441,7 +869,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-blue.png",
+      "path": "assets/generated/starfront-hd/materials/roof-blue.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1450,7 +878,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-metal.png",
+      "path": "assets/generated/starfront-hd/materials/roof-metal.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1459,7 +887,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-slate.png",
+      "path": "assets/generated/starfront-hd/materials/roof-slate.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1468,7 +896,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/materials/roof-zinc.png",
+      "path": "assets/generated/starfront-hd/materials/roof-zinc.webp",
       "web_exported": true,
       "usage": "regenerated building material; 2x3 detail sheet or single wide texture",
       "kind": "bitmap",
@@ -1477,7 +905,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-hd/props/destinations.png",
+      "path": "assets/generated/starfront-hd/props/destinations.webp",
       "web_exported": true,
       "usage": "regenerated environment sprites; measured silhouette regions",
       "kind": "bitmap",
@@ -1486,7 +914,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-hd/props/landmarks.png",
+      "path": "assets/generated/starfront-hd/props/landmarks.webp",
       "web_exported": true,
       "usage": "regenerated environment sprites; measured silhouette regions",
       "kind": "bitmap",
@@ -1495,7 +923,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-hd/props/settlement.png",
+      "path": "assets/generated/starfront-hd/props/settlement.webp",
       "web_exported": true,
       "usage": "regenerated environment sprites; measured silhouette regions",
       "kind": "bitmap",
@@ -1504,7 +932,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-hd/props/terrain.png",
+      "path": "assets/generated/starfront-hd/props/terrain.webp",
       "web_exported": true,
       "usage": "regenerated environment sprites; measured silhouette regions",
       "kind": "bitmap",
@@ -1513,7 +941,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-hd/props/vegetation.png",
+      "path": "assets/generated/starfront-hd/props/vegetation.webp",
       "web_exported": true,
       "usage": "regenerated environment sprites; measured silhouette regions",
       "kind": "bitmap",
@@ -1522,7 +950,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-v1/app-icon.png",
+      "path": "assets/generated/starfront-v1/app-icon.webp",
       "web_exported": true,
       "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
       "kind": "bitmap",
@@ -1531,7 +959,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-v1/brick.png",
+      "path": "assets/generated/starfront-v1/brick.webp",
       "web_exported": true,
       "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
       "kind": "bitmap",
@@ -1540,7 +968,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-v1/crew.png",
+      "path": "assets/generated/starfront-v1/crew.webp",
       "web_exported": true,
       "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
       "kind": "bitmap",
@@ -1549,16 +977,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-v1/environment-scenes.png",
-      "web_exported": false,
-      "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
-      "kind": "bitmap",
-      "width": 1672,
-      "height": 941,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/starfront-v1/items.png",
+      "path": "assets/generated/starfront-v1/items.webp",
       "web_exported": true,
       "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
       "kind": "bitmap",
@@ -1567,25 +986,7 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/starfront-v1/materials.png",
-      "web_exported": false,
-      "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
-      "kind": "bitmap",
-      "width": 1024,
-      "height": 1536,
-      "mode": "RGB"
-    },
-    {
-      "path": "assets/generated/starfront-v1/props.png",
-      "web_exported": false,
-      "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
-      "kind": "bitmap",
-      "width": 1122,
-      "height": 1402,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/starfront-v1/skin.png",
+      "path": "assets/generated/starfront-v1/skin.webp",
       "web_exported": true,
       "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
       "kind": "bitmap",
@@ -1594,7 +995,7 @@
       "mode": "RGB"
     },
     {
-      "path": "assets/generated/starfront-v1/tools.png",
+      "path": "assets/generated/starfront-v1/tools.webp",
       "web_exported": true,
       "usage": "retained icons, characters or nine-slice skin; replaced large atlases excluded",
       "kind": "bitmap",
@@ -1603,184 +1004,13 @@
       "mode": "RGBA"
     },
     {
-      "path": "assets/generated/ui_atlas.png",
-      "web_exported": false,
+      "path": "assets/video/opening-poster.webp",
+      "web_exported": true,
       "usage": "legacy image; not displayed by the current theme",
       "kind": "bitmap",
-      "width": 1254,
-      "height": 1254,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/generated/world_backdrop.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 2172,
-      "height": 724,
+      "width": 1280,
+      "height": 720,
       "mode": "RGB"
-    },
-    {
-      "path": "assets/icons/icon.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 256,
-      "height": 256,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/icons/world_icon.svg",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "vector",
-      "viewbox": "0 0 256 256",
-      "width": "256",
-      "height": "256"
-    },
-    {
-      "path": "assets/kenney/castle_beige.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 204,
-      "height": 182,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/cloud1.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 190,
-      "height": 127,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/cloud4.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 228,
-      "height": 124,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/cloud7.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 234,
-      "height": 118,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/fence.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 128,
-      "height": 88,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/grass1.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 26,
-      "height": 29,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/grass3.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 38,
-      "height": 35,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/house_beige_front.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 102,
-      "height": 115,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/house_beige_side.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 189,
-      "height": 115,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/tree01.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 128,
-      "height": 230,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/tree05.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 129,
-      "height": 230,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/tree17.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 53,
-      "height": 144,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/tree18.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 70,
-      "height": 144,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/tree22.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 97,
-      "height": 260,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/tree23.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 59,
-      "height": 285,
-      "mode": "RGBA"
-    },
-    {
-      "path": "assets/kenney/tree27.png",
-      "web_exported": false,
-      "usage": "legacy image; not displayed by the current theme",
-      "kind": "bitmap",
-      "width": 59,
-      "height": 259,
-      "mode": "RGBA"
     }
   ]
 }

@@ -16,7 +16,7 @@ static func run(t: Node) -> void:
 	var paper: Texture2D = GameArt.drafting_paper()
 	t.assert_not_null(paper, "Drawing and workshop use the generated quiet paper")
 	if paper != null:
-		t.assert_true(paper.resource_path.ends_with("assets/generated/focused-ui/paper-v1.png"), "Drawing surfaces use the border-free generated paper source")
+		t.assert_true(paper.resource_path.ends_with("assets/generated/focused-ui/paper-v1.webp"), "Drawing surfaces use the border-free generated paper source")
 		t.assert_ge(paper.get_width(), 1024, "Quiet paper retains enough detail for a full work surface")
 	_test_tools(t)
 	_test_materials(t)
@@ -43,7 +43,7 @@ static func _test_materials(t: Node) -> void:
 		var source: Texture2D = Art.texture_source(texture)
 		var source_path: String = source.resource_path
 		if int(material.get("brick_count", 0)) > 0:
-			t.assert_true(source_path.ends_with("starfront-v1/brick.png"), "Counted modules retain the single-brick source: " + id)
+			t.assert_true(source_path.ends_with("starfront-v1/brick.webp"), "Counted modules retain the single-brick source: " + id)
 		else:
 			t.assert_true(source_path.begins_with(StarfrontArt.HD_ROOT + "materials/"), "Building surfaces use regenerated native-detail textures: " + id)
 		t.assert_true(_valid_uvs(texture), "Material UVs stay finite and inside their source image: " + id)

@@ -14,7 +14,13 @@ if (-not (Test-Path $BuildDir)) {
 
 & $PythonExe tools/subset_font.py
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "UI font subsetting failed. Install tools/requirements-font.txt."
+    Write-Error "UI font subsetting failed. Install tools/requirements-web.txt."
+    exit 1
+}
+
+& $PythonExe -c "import brotli"
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Brotli is required for web delivery. Install tools/requirements-web.txt with the selected Python interpreter."
     exit 1
 }
 

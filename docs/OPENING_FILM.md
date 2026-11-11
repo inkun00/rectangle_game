@@ -3,11 +3,16 @@
 55초, 가로 16:9, 한글 자막과 오리지널 음악·효과음으로 만든 앱 오프닝이다.
 사용자는 내레이션 없이 자막과 음악·효과음 구성을 선택했다.
 
+2026-11-10: 실행에 필요한 영상·포스터·행성 이미지는 저장소에 유지하고,
+공유용 MP4·음악 WAV·자막·편집 소스·제작 전용 원화는 외부에 격리했다.
+아래 제작 파일 경로는 격리 폴더에서도 동일하게 유지한다.
+[보관 위치와 복원 안내](REPOSITORY_STORAGE.md)를 참고한다.
+
 ## 결과물
 
 - 감상·공유: `output/opening/quadrilateral-opening.mp4` — 1920×1080, 30 fps, H.264/AAC
 - 앱 재생: `assets/video/quadrilateral-opening.ogv` — 1280×720, 30 fps, Theora/Vorbis
-- 앱 시작 포스터: `assets/video/opening-poster.png`
+- 앱 시작 포스터: `assets/video/opening-poster.webp`
 - 음악 원본: `output/opening/soundtrack.wav` — 55초, 스테레오 48 kHz
 - 편집 가능한 영상 소스: `tools/opening/scene.html`, `tools/opening/motion.js`
 - 원화·정확한 프롬프트: `assets/generated/opening-v1/GENERATION.md`, `prompts.json`
@@ -43,8 +48,9 @@ Codex에서 재현했다. Claude 모델 자체를 호출한 것은 아니다. Pl
 별도 유료 영상 API, 구독형 편집기, 원격 업로드, MCP 설치는 필요하지 않았다.
 
 무료 조건·라이선스·원저자 링크는 [OPENING_REFERENCES.md](OPENING_REFERENCES.md),
-재생성 명령은 [RENDERING.md](../tools/opening/RENDERING.md),
-작곡과 음량 검증은 [MUSIC.md](../tools/opening/MUSIC.md)에 있다.
+재생성 명령은 격리된 `tools/opening/RENDERING.md`,
+작곡과 음량 검증은 `tools/opening/MUSIC.md`에 있다.
+[제작 소스 복원 안내](REPOSITORY_STORAGE.md)에서 원래 경로를 확인한다.
 
 ## 앱 동작
 

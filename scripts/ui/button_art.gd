@@ -46,7 +46,7 @@ static func indicator(checked: bool) -> Texture2D:
 	var pixels: Image = StarfrontArt.face(3 if checked else 4).get_image()
 	pixels.resize(26, 26, Image.INTERPOLATE_NEAREST)
 	var result: ImageTexture = ImageTexture.create_from_image(pixels)
-	result.set_meta("generated_source", StarfrontArt.ROOT + "skin.png")
+	result.set_meta("generated_source", StarfrontArt.ROOT + "skin.webp")
 	return result
 
 static func style(primary: bool = false, state: String = "normal", padding: int = 12) -> StyleBoxTexture:

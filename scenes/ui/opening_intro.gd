@@ -6,11 +6,12 @@ signal sound_changed(enabled: bool)
 
 const VIDEO_PATH: String = "res://assets/video/quadrilateral-opening.ogv"
 const Art: GDScript = preload("res://scripts/construction_art.gd")
-enum PlaybackState { READY, PLAYING, PAUSED, CLOSED }
+enum PlaybackState { READY, PLAYING, PAUSED, CLOSED, LOADING }
 
 var video_path: String = VIDEO_PATH
 var sound_enabled: bool = true
 var playback_state: int = PlaybackState.READY
+var video_preparer: Callable
 var _player: VideoStreamPlayer
 var _poster: TextureRect
 var _poster_dim: ColorRect
@@ -20,8 +21,11 @@ var _sound_button: Button
 var _skip_button: Button
 var _gate: CenterContainer
 var _time_label: Label
+var _preparation_label: Label
 var _stalled_seconds: float = 0.0
 var _last_position: float = -1.0
+var _preparation_generation: int = 0
+var _preparing_web_pack: bool = false
 
 
 func _ready() -> void:
@@ -48,7 +52,7 @@ func _ready() -> void:
 	column.add_child(stage)
 	_poster = TextureRect.new()
 	_poster.name = "OpeningPoster"
-	_poster.texture = preload("res://assets/video/opening-poster.png")
+	_poster.texture = preload("res://assets/video/opening-poster.webp")
 	_poster.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_poster.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_poster.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -87,7 +91,8 @@ func _ready() -> void:
 	_start_button = _button("이야기 시작", start_playback)
 	_start_button.name = "StartOpening"
 	story.add_child(_start_button)
-	story.add_child(QuadTheme.paragraph("소리와 함께 감상할 수 있어요.", 15, Art.INK))
+	_preparation_label = QuadTheme.paragraph("소리와 함께 감상할 수 있어요.", 15, Art.INK)
+	story.add_child(_preparation_label)
 	var controls: HBoxContainer = HBoxContainer.new()
 	controls.add_theme_constant_override("separation", 8)
 	column.add_child(controls)
@@ -121,7 +126,40 @@ func _button(text: String, action: Callable) -> Button:
 
 func start_playback() -> void:
 	if playback_state != PlaybackState.READY: return
-	# Load only after the user's click: this also gives browsers an audio gesture.
+	# Unlock browser audio while this user's click is still active. The movie
+	# itself is fetched only here, and remains local/offline outside web delivery.
+	WebResourcePacks.unlock_audio()
+	playback_state = PlaybackState.LOADING
+	_preparation_generation += 1
+	_preparing_web_pack = not video_preparer.is_valid()
+	_start_button.disabled = true
+	_preparation_label.text = "영상을 준비하고 있어요.\n잠시 기다려 주세요."
+	_time_label.text = "불러오는 중…"
+	_prepare_and_start(weakref(self), _preparation_generation, video_preparer)
+
+
+static func _prepare_and_start(intro_ref: WeakRef, generation: int, preparer: Callable) -> void:
+	# The request owns only a weak reference, so skipping/freeing this overlay
+	# during a network wait cannot resume a coroutine on a deleted Control.
+	var prepared: bool = false
+	if preparer.is_valid(): prepared = await preparer.call()
+	else: prepared = await WebResourcePacks.ensure("opening")
+	var intro: OpeningIntro = intro_ref.get_ref() as OpeningIntro
+	if not is_instance_valid(intro) or not intro.is_inside_tree(): return
+	intro._finish_preparation(prepared, generation)
+
+
+func _finish_preparation(prepared: bool, generation: int) -> void:
+	if generation != _preparation_generation or playback_state != PlaybackState.LOADING: return
+	_preparing_web_pack = false
+	_time_label.text = ""
+	if not prepared:
+		playback_state = PlaybackState.READY
+		_start_button.disabled = false
+		_start_button.text = "다시 시도"
+		_preparation_label.text = "영상을 불러오지 못했어요.\n다시 시도하거나 건너뛸 수 있어요."
+		_start_button.grab_focus()
+		return
 	if not ResourceLoader.exists(video_path, "VideoStream"):
 		finish("unavailable")
 		return
@@ -204,8 +242,12 @@ func finish(reason: String) -> void:
 
 
 func dismiss() -> void:
+	var cancel_download: bool = playback_state == PlaybackState.LOADING and _preparing_web_pack
+	_preparation_generation += 1
+	_preparing_web_pack = false
 	playback_state = PlaybackState.CLOSED
 	set_process(false)
+	if cancel_download: WebResourcePacks.cancel("opening")
 	if is_instance_valid(_player):
 		_player.stop()
 		_player.stream = null
@@ -213,4 +255,9 @@ func dismiss() -> void:
 
 
 func _exit_tree() -> void:
+	var cancel_download: bool = playback_state == PlaybackState.LOADING and _preparing_web_pack
+	_preparation_generation += 1
+	_preparing_web_pack = false
+	playback_state = PlaybackState.CLOSED
+	if cancel_download: WebResourcePacks.cancel("opening")
 	if is_instance_valid(_player): _player.stop()

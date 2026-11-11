@@ -41,7 +41,7 @@ static var _sheets: Dictionary = {}
 static var _cells: Dictionary = {}
 
 static func sheet(asset: String) -> Texture2D:
-	if not _sheets.has(asset): _sheets[asset] = load(ROOT + asset + ".png") as Texture2D
+	if not _sheets.has(asset): _sheets[asset] = load(ROOT + asset + ".webp") as Texture2D
 	return _sheets[asset] as Texture2D
 
 static func cell(asset: String, index: int, columns: int, rows: int, trim: bool = false) -> AtlasTexture:
@@ -76,7 +76,7 @@ static func _slice(source: Texture2D, source_region: Rect2i, key: String, trim: 
 
 static func hd_sheet(asset: String) -> Texture2D:
 	var key: String = "hd:" + asset
-	if not _sheets.has(key): _sheets[key] = load(HD_ROOT + asset + ".png") as Texture2D
+	if not _sheets.has(key): _sheets[key] = load(HD_ROOT + asset + ".webp") as Texture2D
 	return _sheets[key] as Texture2D
 
 static func scene(index: int) -> Texture2D:
@@ -116,7 +116,7 @@ static func face(index: int) -> Texture2D:
 	# source border must never expand into a label's text region.
 	pixels.resize(64, 64, Image.INTERPOLATE_NEAREST)
 	var result: ImageTexture = ImageTexture.create_from_image(pixels)
-	result.set_meta("generated_source", ROOT + "skin.png")
+	result.set_meta("generated_source", ROOT + "skin.webp")
 	_cells[key] = result
 	return result
 

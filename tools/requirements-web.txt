@@ -1,0 +1,2 @@
+-r requirements-font.txt
+Brotli==1.2.1

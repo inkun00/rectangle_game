@@ -1,0 +1,59 @@
+name: Test and build game
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/rectangle-game-build
+            ~/.local/share/godot/export_templates/4.7.2.stable
+          key: godot-4.7.2-linux-web-${{ hashFiles('tools/requirements-font.txt', 'tools/requirements-web.txt', 'tools/ci_build.py') }}
+      - name: Validate build bootstrap
+        run: python tools/ci_build_tests.py
+      - name: Validate resource pack delivery
+        run: |
+          python -m pip install -r tools/requirements-web.txt
+          python tools/test_web_resource_packs.py
+      - name: Build source and run Godot tests
+        run: python tools/ci_build.py --test --desktop
+      - name: Test browser loading shell
+        run: node --test tools/test_loading_shell.cjs tools/test_resource_delivery.cjs
+      - name: Retain web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: quadrilateral-world-web-${{ github.sha }}
+          path: build/web/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain Windows PCK package
+        uses: actions/upload-artifact@v4
+        with:
+          name: quadrilateral-world-windows-${{ github.sha }}
+          path: build/windows/
+          if-no-files-found: error
+          retention-days: 14

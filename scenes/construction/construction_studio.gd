@@ -29,6 +29,8 @@ signal interaction_context_changed
 signal view_changed
 
 var testing: bool = false
+## The app may restore the shared ledger before downloading this screen's art.
+var load_on_ready: bool = true
 var tutorial_active: bool = false
 var tutorial_blocked: bool = false
 var save_path: String = SAVE_PATH
@@ -160,7 +162,7 @@ func _ready() -> void:
 	state.changed.connect(_state_changed)
 	visibility_changed.connect(_on_visibility_changed)
 	resized.connect(_responsive)
-	if not testing: load_game(false)
+	if not testing and load_on_ready: load_game(false)
 	_refresh()
 	call_deferred("_ensure_brief")
 
@@ -1868,7 +1870,7 @@ func _add_award(parent: VBoxContainer, award: Dictionary) -> void:
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 18)
 	parent.add_child(row)
-	row.add_child(GameArt.view(Art.game_texture("badge-%d.png" % tier), Vector2(112, 112)))
+	row.add_child(GameArt.view(Art.game_texture("badge-%d.webp" % tier), Vector2(112, 112)))
 	var words: VBoxContainer = VBoxContainer.new()
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(words)
