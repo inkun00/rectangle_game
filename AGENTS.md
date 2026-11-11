@@ -2,6 +2,14 @@
 
 This project is **사각형 월드 / Quadrilateral World**, a Godot 4.x GDScript game. Players assemble a character from constrained quadrilaterals, then explore a side-scrolling RPG with combat, progression, services, and curriculum-based NPC quests.
 
+## Completing a change
+
+- Identify what the player should be able to do after the change and where they enter that flow. Resolve reversible details using the existing scenes, controls, and elementary-school audience. Ask when a missing decision would materially change the outcome.
+- Follow the affected flow from its normal entry point through the result and the next action. Handle invalid input, loading failures, or retry when the flow can encounter them. Use the actual game state for rewards, saves, and exports where applicable.
+- Match the existing visual hierarchy, Korean terminology, and control behavior. Check that a player can tell what to do next and understand the feedback after an action.
+- Run the relevant game build and exercise the changed flow with representative player data. For changes to browser loading or resource delivery, use a fresh browser session and check which resources are requested before and after the player chooses a mode.
+- Review the running result for missed steps, confusing feedback, and regressions in adjacent actions. Fix concrete issues and verify the affected flow again before handing it back. Report any checks that could not be performed.
+
 ## Geometry and curriculum
 
 1. The only authoritative geometry for an artwork part is its **four ordered local vertices plus its position**. Side lengths, angles, area, parallel pairs, and shape classifications are always derived through `scripts/core/quadrilateral_math.gd`.
