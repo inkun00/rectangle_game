@@ -22,6 +22,7 @@ static func run(t: Node) -> void:
 	t.assert_false(app._space_screen.visible, "Opening drawing hides the hangar")
 	app._tutorial.cancel()
 	app._drawing_screen.sold_art_directory = "user://test_space_integration_sold_art"
+	app._art_publications.path = "user://test_space_integration_sold_art/publications.json"
 	app._drawing_screen.sale_png_renderer = func(_tree: SceneTree, _drawing: DrawingDocument) -> PackedByteArray:
 		return Image.create(960, 600, false, Image.FORMAT_RGBA8).save_png_to_buffer()
 	var art: DrawingDocument = app._drawing_screen.document
@@ -30,7 +31,9 @@ static func run(t: Node) -> void:
 	var quote: Dictionary = ArtMarket.quote(art)
 	t.assert_true(bool(quote.can_sell), "The integration fixture is a real saleable drawing")
 	app._drawing_screen._sale_button.pressed.emit()
+	app._drawing_screen._sale_author.text = "별빛 작가"
 	app._drawing_screen._sale_title.text = "나의 별빛 그림"
+	app._drawing_screen._sale_description.text = "사각형으로 집을 그려 우주선 제작비를 모아요."
 	t.assert_true(app._drawing_screen._sale_dialog.visible, "The actual sale button shows its quote")
 	t.assert_eq(ledger.balance, ConstructionState.INITIAL_BALANCE, "A quote alone does not pay money")
 	app._drawing_screen._sale_dialog.confirmed.emit()
