@@ -2,8 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": "python3 tools/ci_build.py",
-  "installCommand": "",
+  "installCommand": "npm ci --ignore-scripts --no-audit --no-fund && npm run postinstall",
   "outputDirectory": "build/web",
+  "functions": {
+    "api/padlet-artworks.js": { "maxDuration": 60 },
+    "api/artwork-image.js": { "maxDuration": 30 }
+  },
   "cleanUrls": true,
   "headers": [
     {

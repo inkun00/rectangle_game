@@ -5,10 +5,12 @@ const Model = preload("res://scripts/core/drawing_document.gd")
 const Canvas = preload("res://scenes/drawing/drawing_canvas.gd")
 const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 const DrawingExport = preload("res://scripts/export/drawing_exporter.gd")
+const SubmissionMetadata = preload("res://scripts/export/art_submission_metadata.gd")
 const Buttons = preload("res://scripts/ui/button_art.gd")
 const Market = preload("res://scripts/economy/art_market.gd")
 const Money = preload("res://scripts/construction/construction_catalog.gd")
 const SAVE_PATH: String = "user://quadrilateral_drawing_v1.json"
+const PADLET_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 const SHAPE_ORDER: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
 const TRAPEZOID_VARIANT_LABELS: Array[String] = ["양옆이 기울어진 모양", "왼쪽 두 각이 직각", "오른쪽 두 각이 직각"]
 const SHAPE_ACTION_LABELS: Dictionary = {6: "뒤로 보내기", 7: "앞으로 보내기", 2: "왼쪽 15° 회전", 3: "오른쪽 15° 회전", 4: "축소", 5: "확대", 0: "복제", 1: "삭제"}
@@ -37,6 +39,7 @@ signal mode_selected(mode: String)
 signal interaction_context_changed
 signal guide_changed
 signal art_sale_requested(document_data: Dictionary)
+signal art_upload_retry_requested
 
 var testing: bool = false
 var tutorial_blocked: bool = false
@@ -87,10 +90,24 @@ var _sale_button: Button
 var _sale_dialog: ConfirmationDialog
 var _sale_offer: Dictionary = {}
 var _sale_pending: bool = false
+var _sale_author: LineEdit
 var _sale_title: LineEdit
+var _sale_description: TextEdit
+var _sale_description_count: Label
+var _sale_price: Label
+var _sale_validation: Label
 var _sale_details: Label
 var _sale_busy: ColorRect
+var _upload_row: HFlowContainer
+var _upload_status: Label
+var _upload_retry: Button
+var _upload_board: Button
+var _upload_message: String = ""
+var _upload_pending_count: int = 0
+var _upload_post_url: String = PADLET_BOARD_URL
+var _upload_busy: bool = false
 var sold_art_directory: String = ""
+var sale_author_name: String = ""
 var sale_png_renderer: Callable = DrawingExport.export_png
 
 func _ready() -> void:
@@ -349,6 +366,22 @@ func _build_ui() -> void:
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	footer.add_child(_status)
 	column.add_child(footer)
+	_upload_row = HFlowContainer.new()
+	_upload_row.name = "ArtUploadStatus"
+	_upload_row.add_theme_constant_override("h_separation", 10)
+	_upload_row.add_theme_constant_override("v_separation", 4)
+	column.add_child(_upload_row)
+	_upload_status = QuadTheme.paragraph("", 14, QuadTheme.TEAL)
+	_upload_status.custom_minimum_size = Vector2(220, 36)
+	_upload_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_upload_row.add_child(_upload_status)
+	_upload_retry = _button("등록 다시 시도", _request_art_upload_retry)
+	_upload_retry.name = "RetryArtUploadButton"
+	_upload_row.add_child(_upload_retry)
+	_upload_board = _button("패들릿 보기", _open_art_board)
+	_upload_board.name = "OpenArtPadletButton"
+	_upload_row.add_child(_upload_board)
+	_refresh_upload_status()
 	_refresh_sale_button()
 	resized.connect(_responsive_drawing)
 	_responsive_drawing()
@@ -702,6 +735,42 @@ func _economy_changed() -> void:
 func _refresh_sale_button() -> void:
 	if not is_instance_valid(_sale_button): return
 	_sale_button.disabled = economy == null or _sale_pending
+	_refresh_upload_status()
+
+func set_upload_status(message: String, pending_count: int = 0, post_url: String = "", busy: bool = false) -> void:
+	_upload_message = message
+	_upload_pending_count = maxi(0, pending_count)
+	_upload_post_url = _safe_padlet_url(post_url)
+	_upload_busy = busy
+	_refresh_upload_status()
+
+func _refresh_upload_status() -> void:
+	if not is_instance_valid(_upload_row): return
+	_upload_row.visible = not _upload_message.is_empty() or _upload_pending_count > 0 or _upload_busy
+	_upload_status.text = _upload_message
+	if _upload_status.text.is_empty() and _upload_pending_count > 0:
+		_upload_status.text = "패들릿에 등록할 그림이 %d개 있어요." % _upload_pending_count
+	_upload_retry.visible = _upload_pending_count > 0
+	_upload_retry.disabled = _upload_busy or _sale_pending
+	_upload_retry.text = "등록 중…" if _upload_busy else "등록 다시 시도"
+	_upload_board.disabled = _sale_pending
+
+func _request_art_upload_retry() -> void:
+	if _upload_busy or _upload_pending_count < 1 or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
+	_upload_busy = true
+	_refresh_upload_status()
+	art_upload_retry_requested.emit()
+
+func _open_art_board() -> void:
+	if _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
+	OS.shell_open(_upload_post_url)
+
+static func _safe_padlet_url(value: String) -> String:
+	if not value.begins_with("https://padlet.com/") or value.contains("\\"): return PADLET_BOARD_URL
+	for index: int in range(value.length()):
+		var codepoint: int = value.unicode_at(index)
+		if codepoint <= 32 or (codepoint >= 127 and codepoint <= 159): return PADLET_BOARD_URL
+	return value
 
 func _open_sale() -> void:
 	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
@@ -710,13 +779,13 @@ func _open_sale() -> void:
 	if _sale_dialog == null:
 		_sale_dialog = ConfirmationDialog.new()
 		_sale_dialog.name = "ArtSaleDialog"
-		_sale_dialog.title = "그림 판매 · 마을 화랑"
+		_sale_dialog.title = "그림 판매 · 패들릿에 작품 소개"
 		_sale_dialog.dialog_hide_on_ok = false
 		_sale_dialog.exclusive = true
 		_sale_dialog.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
 		_sale_dialog.get_label().hide()
 		var scroll: ScrollContainer = ScrollContainer.new()
-		scroll.custom_minimum_size = Vector2(480, 340)
+		scroll.custom_minimum_size = Vector2(300, 240)
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		scroll.follow_focus = true
 		_sale_dialog.add_child(scroll)
@@ -724,17 +793,49 @@ func _open_sale() -> void:
 		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		column.add_theme_constant_override("separation", 10)
 		scroll.add_child(column)
+		_sale_price = QuadTheme.paragraph("", 22, QuadTheme.TEAL)
+		_sale_price.name = "SoldArtPrice"
+		column.add_child(_sale_price)
+		column.add_child(QuadTheme.paragraph("이름, 제목, 설명, 그림 가격과 PNG 그림이 우리 패들릿에 함께 올라가요.", 16, QuadTheme.INK))
+		column.add_child(QuadTheme.paragraph("사용자 이름 · 최대 40자", 18, QuadTheme.INK))
+		_sale_author = LineEdit.new()
+		_sale_author.name = "SoldArtAuthor"
+		_sale_author.placeholder_text = "작가 이름이나 별명을 적어 주세요"
+		_sale_author.max_length = SubmissionMetadata.MAX_AUTHOR_LENGTH
+		_sale_author.text = sale_author_name
+		_sale_author.custom_minimum_size.y = 46
+		_sale_author.add_theme_font_override("font", QuadTheme.FONT)
+		_sale_author.add_theme_font_size_override("font_size", 20)
+		_sale_author.text_changed.connect(func(text: String):
+			sale_author_name = text.strip_edges()
+			_refresh_sale_dialog(false))
+		_sale_author.text_submitted.connect(func(_text: String): _sale_title.grab_focus())
+		column.add_child(_sale_author)
 		column.add_child(QuadTheme.paragraph("그림 제목 · 최대 80자", 18, QuadTheme.INK))
 		_sale_title = LineEdit.new()
 		_sale_title.name = "SoldArtTitle"
 		_sale_title.placeholder_text = "내 그림의 제목을 적어 주세요"
-		_sale_title.max_length = Market.MAX_TITLE_LENGTH
+		_sale_title.max_length = SubmissionMetadata.MAX_TITLE_LENGTH
 		_sale_title.custom_minimum_size.y = 46
 		_sale_title.add_theme_font_override("font", QuadTheme.FONT)
 		_sale_title.add_theme_font_size_override("font_size", 20)
 		_sale_title.text_changed.connect(func(_text: String): _refresh_sale_dialog(false))
-		_sale_title.text_submitted.connect(func(_text: String): _confirm_sale())
+		_sale_title.text_submitted.connect(func(_text: String): _sale_description.grab_focus())
 		column.add_child(_sale_title)
+		_sale_description_count = QuadTheme.paragraph("그림 설명 · 최대 1000자", 18, QuadTheme.INK)
+		column.add_child(_sale_description_count)
+		_sale_description = TextEdit.new()
+		_sale_description.name = "SoldArtDescription"
+		_sale_description.placeholder_text = "무엇을 그렸나요? 어떤 사각형과 색을 썼는지 소개해 주세요."
+		_sale_description.custom_minimum_size.y = 120
+		_sale_description.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+		_sale_description.add_theme_font_override("font", QuadTheme.FONT)
+		_sale_description.add_theme_font_size_override("font_size", 19)
+		_sale_description.text_changed.connect(func(): _refresh_sale_dialog(false))
+		column.add_child(_sale_description)
+		_sale_validation = QuadTheme.paragraph("", 16, QuadTheme.TEAL)
+		_sale_validation.name = "SoldArtMetadataFeedback"
+		column.add_child(_sale_validation)
 		_sale_details = QuadTheme.paragraph("", 17, QuadTheme.INK)
 		column.add_child(_sale_details)
 		_sale_dialog.get_cancel_button().text = "계속 그리기"
@@ -744,12 +845,13 @@ func _open_sale() -> void:
 		_sale_dialog.confirmed.connect(_confirm_sale)
 		_sale_dialog.visibility_changed.connect(func(): interaction_context_changed.emit())
 		add_child(_sale_dialog)
-	if _sale_title.text.strip_edges().is_empty():
-		_sale_title.text = "나의 작품 %d" % (economy.art_sales.size() + 1)
 	_refresh_sale_dialog()
-	_sale_dialog.popup_centered_clamped(Vector2i(580, 450), 0.9)
-	_sale_title.grab_focus()
-	_sale_title.select_all()
+	_sale_dialog.popup_centered_clamped(Vector2i(620, 660), 0.9)
+	if _sale_author.text.strip_edges().is_empty():
+		_sale_author.grab_focus()
+	else:
+		_sale_title.grab_focus()
+		_sale_title.select_all()
 	interaction_context_changed.emit()
 
 func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
@@ -759,19 +861,22 @@ func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	for check: Dictionary in _sale_offer.get("checks", []):
 		lines.append("%s %s · %s" % ["[완료]" if bool(check.met) else "[보완]", str(check.label), str(check.detail)])
 	var details: String = "판매 기준\n" + "\n".join(lines)
-	var offer_text: String = "판매 가격  " + Money.format_won(int(_sale_offer.price)) if bool(_sale_offer.can_sell) else "아직 판매할 수 없어요"
-	var title_valid: bool = Market.valid_title(_sale_title.text)
-	var reason: String = str(_sale_offer.reason) if title_valid else "그림 제목을 1~80자로 입력해 주세요."
-	_sale_details.text = "%s\n\n%s\n\n%s\n\n구성 예: 집·나무·로봇·우주선 또는 크기와 구획이 있는 기하 구성\n\n통과하면 제목으로 PNG를 저장하고 새 그림을 시작해요.\n같거나 아주 비슷한 작품은 한 번만 판매해요." % [offer_text, details, reason]
+	_sale_price.text = "판매 가격  " + Money.format_won(int(_sale_offer.price)) + " · 화랑에서 정한 가격" if bool(_sale_offer.can_sell) else "아직 판매할 수 없어요"
+	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
+	_sale_description_count.text = "그림 설명 · %d / %d자" % [_sale_description.text.strip_edges().length(), SubmissionMetadata.MAX_DESCRIPTION_LENGTH]
+	_sale_validation.text = metadata_error
+	_sale_validation.visible = not metadata_error.is_empty()
+	_sale_details.text = "%s\n\n%s\n\n판매하면 PNG로 저장한 뒤 패들릿에 등록해요.\n등록이 안 되면 저장한 그림으로 다시 시도할 수 있어요.\n같거나 아주 비슷한 작품은 한 번만 판매해요." % [details, str(_sale_offer.reason)]
 	_sale_dialog.get_ok_button().text = "PNG 저장하고 판매" if bool(_sale_offer.can_sell) else "판매 준비 중"
-	_sale_dialog.get_ok_button().disabled = not bool(_sale_offer.can_sell) or not title_valid or _sale_pending
+	_sale_dialog.get_ok_button().disabled = not bool(_sale_offer.can_sell) or not metadata_error.is_empty() or _sale_pending
 
 func _confirm_sale() -> void:
 	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
 	if not is_instance_valid(_sale_dialog) or not _sale_dialog.visible: return
 	# Recheck at confirmation: the displayed offer can never authorize a stale sale.
 	var current: Dictionary = Market.quote(document, economy.art_sales)
-	if not bool(current.can_sell) or current != _sale_offer or not Market.valid_title(_sale_title.text):
+	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
+	if not bool(current.can_sell) or current != _sale_offer or not metadata_error.is_empty():
 		_refresh_sale_dialog()
 		return
 	_sale_pending = true
@@ -779,7 +884,9 @@ func _confirm_sale() -> void:
 	_sale_dialog.get_ok_button().disabled = true
 	_sale_dialog.get_ok_button().text = "PNG 저장 중…"
 	_sale_dialog.get_cancel_button().disabled = true
+	_sale_author.editable = false
 	_sale_title.editable = false
+	_sale_description.editable = false
 	_sale_dialog.dialog_close_on_escape = false
 	_autosave.stop()
 	if _sale_busy == null:
@@ -798,7 +905,8 @@ func _confirm_sale() -> void:
 		_sale_busy.add_child(notice)
 	_sale_busy.show()
 	# The exclusive dialog keeps edits and navigation blocked while rendering.
-	art_sale_requested.emit({"document": document.serialize(), "title": _sale_title.text.strip_edges()})
+	sale_author_name = _sale_author.text.strip_edges()
+	art_sale_requested.emit({"document": document.serialize(), "author": _sale_author.text.strip_edges(), "title": _sale_title.text.strip_edges(), "description": _sale_description.text.strip_edges()})
 
 func render_sale_png(data: Dictionary) -> PackedByteArray:
 	var snapshot: Model = Model.new()
@@ -811,10 +919,15 @@ func show_sale_result(result: Dictionary) -> void:
 	if is_instance_valid(_sale_busy): _sale_busy.hide()
 	if is_instance_valid(_sale_dialog):
 		_sale_dialog.get_cancel_button().disabled = false
+		_sale_author.editable = true
 		_sale_title.editable = true
+		_sale_description.editable = true
 		_sale_dialog.dialog_close_on_escape = true
 		_sale_dialog.hide()
 	if bool(result.get("ok", false)):
+		if is_instance_valid(_sale_title): _sale_title.text = ""
+		if is_instance_valid(_sale_description): _sale_description.text = ""
+		if is_instance_valid(_sale_author): _sale_author.text = _sale_author.text.strip_edges()
 		var path: String = str(result.get("png_path", ""))
 		if not path.is_empty():
 			var blank: Dictionary = Model.new().serialize()
@@ -830,7 +943,6 @@ func show_sale_result(result: Dictionary) -> void:
 			canvas.select_kind("square")
 			canvas.selected_trapezoid_variant = "symmetric"
 			canvas.queue_redraw()
-			_sale_title.text = ""
 			var title: String = str(result.get("receipt", {}).get("title", "내 그림"))
 			if title.length() > 28: title = title.left(28) + "…"
 			_set_status("‘%s’을(를) %s에 판매했어요. PNG 저장 완료 · 새 그림을 시작해요." % [title, Money.format_won(int(result.get("price", 0)))])

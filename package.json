@@ -1,0 +1,16 @@
+{
+  "name": "quadrilateral-world-publishing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Server-only Padlet publishing endpoints for Quadrilateral World",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "postinstall": "node api/_lib/ignore-dependencies.cjs",
+    "test": "node --test tools/test_padlet_api.cjs",
+    "test:padlet": "node --test tools/test_padlet_api.cjs"
+  },
+  "dependencies": {
+    "@vercel/blob": "2.9.0",
+    "pngjs": "7.0.0"
+  }
+}

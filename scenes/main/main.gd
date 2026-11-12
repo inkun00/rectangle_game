@@ -13,6 +13,9 @@ const SHAPE_NOTES: Dictionary = {
 var document: CharacterDocument
 var testing: bool = false
 var _art_sale_transaction: Callable = ProgressionTransactions.commit
+var _art_publications: ArtPublicationStore = ArtPublicationStore.new()
+var _art_upload_transport: Callable = Callable()
+var _art_upload_busy: bool = false
 var learning_progress: LearningProgress = LearningProgress.new()
 var _learning_screen: LearningStudio
 var journal: QuestJournal
@@ -222,6 +225,13 @@ func _build_drawing() -> void:
 	_ui.add_child(_drawing_screen)
 	_drawing_screen.configure_economy(_economy_state)
 	_drawing_screen.art_sale_requested.connect(_sell_art)
+	_drawing_screen.art_upload_retry_requested.connect(_retry_art_uploads)
+	if not testing:
+		var restored: Dictionary = _art_publications.load_file()
+		if bool(restored.ok):
+			_drawing_screen.sale_author_name = _art_publications.last_author()
+			_retry_art_uploads.call_deferred()
+		else: _drawing_screen.set_upload_status(str(restored.error))
 	if _tutorial != null: _tutorial.bind_drawing()
 
 func _build_construction() -> void:
@@ -265,8 +275,9 @@ func _sell_art(data: Dictionary) -> void:
 	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.tutorial_blocked:
 		_drawing_screen.show_sale_result({"ok": false, "error": "그림 화면에서 판매해 주세요."})
 		return
-	if not data.get("document") is Dictionary or not ArtMarket.valid_title(data.get("title")):
-		_drawing_screen.show_sale_result({"ok": false, "error": "그림과 제목을 확인해 주세요."})
+	var metadata_error: String = ArtSubmissionMetadata.validation_error(data.get("author"), data.get("title"), data.get("description"))
+	if not data.get("document") is Dictionary or not metadata_error.is_empty():
+		_drawing_screen.show_sale_result({"ok": false, "error": metadata_error if not metadata_error.is_empty() else "그림을 확인해 주세요."})
 		return
 	var artwork: DrawingDocument = DrawingDocument.new()
 	if not artwork.restore(data.document):
@@ -285,6 +296,12 @@ func _sell_art(data: Dictionary) -> void:
 	if not bool(image_saved.ok):
 		_drawing_screen.show_sale_result(image_saved)
 		return
+	# Persist the exact image and its publication metadata before payment. A
+	# failed ledger write leaves this entry ineligible for uploading.
+	var prepared: Dictionary = _art_publications.prepare(data, offer, image_saved, bytes)
+	if not bool(prepared.ok):
+		_drawing_screen.show_sale_result(prepared)
+		return
 	# A durable PNG precedes payment and clearing. Failed payment leaves both
 	# the editable drawing and its exported copy available for a safe retry.
 	var result: Dictionary = _art_sale_transaction.call(_economy_state, "sell_art", data, _economy_save_path(), not testing)
@@ -294,6 +311,64 @@ func _sell_art(data: Dictionary) -> void:
 		if OS.has_feature("web"):
 			JavaScriptBridge.download_buffer(bytes, str(image_saved.filename), "image/png")
 	_drawing_screen.show_sale_result(result)
+	if bool(result.get("ok", false)): _retry_art_uploads()
+
+func _retry_art_uploads() -> void:
+	if _art_upload_busy or not is_instance_valid(_drawing_screen): return
+	if not _art_publications.loaded:
+		var restored: Dictionary = _art_publications.load_file()
+		if not bool(restored.ok):
+			_drawing_screen.set_upload_status(str(restored.error))
+			return
+	var pending: Array[Dictionary] = _art_publications.pending(_economy_state.art_sales)
+	if pending.is_empty():
+		_drawing_screen.set_upload_status("")
+		return
+	_art_upload_busy = true
+	var last_url: String = ""
+	var moderated: bool = false
+	var error: String = ""
+	var attempted: Dictionary = {}
+	while true:
+		# Re-read between requests so sales completed during an upload are also
+		# sent. Attempt each ID only once in this batch, including unresolved ones.
+		pending = _art_publications.pending(_economy_state.art_sales)
+		var entry: Dictionary = {}
+		for candidate: Dictionary in pending:
+			if not attempted.has(candidate.id):
+				entry = candidate
+				break
+		if entry.is_empty(): break
+		attempted[entry.id] = true
+		_drawing_screen.set_upload_status("판매 완료 · 패들릿에 그림을 등록하고 있어요…", pending.size(), "", true)
+		var bytes: PackedByteArray = _art_publications.read_png(entry, _drawing_screen.sold_art_directory)
+		if bytes.is_empty():
+			error = "저장한 PNG를 찾지 못했어요. 판매한 그림 폴더의 원본 파일을 확인해 주세요."
+			continue
+		var result: Dictionary
+		if _art_upload_transport.is_valid():
+			result = await _art_upload_transport.call(entry.duplicate(true), bytes)
+		elif testing:
+			result = {"ok": false, "error": "테스트에서는 패들릿에 실제 그림을 등록하지 않아요."}
+		else:
+			result = await PadletUploader.upload(self, entry, bytes)
+		if not bool(result.get("ok", false)):
+			error = str(result.get("error", "패들릿 등록을 다시 시도해 주세요."))
+			if bool(result.get("item_error", false)): continue
+			break
+		last_url = str(result.get("post_url", ""))
+		var saved: Dictionary = _art_publications.mark_published(str(entry.id), last_url)
+		if not bool(saved.ok):
+			error = "패들릿 등록 결과를 저장하지 못했어요. 다시 시도하면 같은 게시물을 확인해요."
+			continue
+		moderated = moderated or bool(result.get("moderation_pending", false))
+	_art_upload_busy = false
+	if not is_instance_valid(_drawing_screen): return
+	var remaining: int = _art_publications.pending(_economy_state.art_sales).size()
+	if not error.is_empty():
+		_drawing_screen.set_upload_status("패들릿 등록 대기 %d개 · %s" % [remaining, error], remaining)
+	else:
+		_drawing_screen.set_upload_status("패들릿 등록 완료 · 보드 관리자 승인 대기" if moderated else "패들릿 등록 완료 · 이름, 제목, 설명, 가격과 PNG를 올렸어요.", remaining, last_url)
 
 func _purchase_ship_part(id: String) -> void:
 	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return

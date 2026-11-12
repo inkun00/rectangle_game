@@ -35,6 +35,10 @@ jobs:
           key: godot-4.7.2-linux-web-${{ hashFiles('tools/requirements-font.txt', 'tools/requirements-web.txt', 'tools/ci_build.py') }}
       - name: Validate build bootstrap
         run: python tools/ci_build_tests.py
+      - name: Validate Padlet publication API
+        run: |
+          npm ci
+          npm test
       - name: Validate resource pack delivery
         run: |
           python -m pip install -r tools/requirements-web.txt

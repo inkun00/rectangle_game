@@ -205,6 +205,12 @@ static func _test_sale_ui(t: Node) -> void:
 	t.assert_eq(requests.size(), 0, "Blank title confirmation never dispatches a sale")
 	studio._sale_title.text = "색깔 우주선"
 	studio._sale_title.text_changed.emit(studio._sale_title.text)
+	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "A title alone cannot submit unnamed artwork without a description")
+	studio._sale_author.text = "네모 작가"
+	studio._sale_author.text_changed.emit(studio._sale_author.text)
+	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "Artwork still needs its own description after an author is provided")
+	studio._sale_description.text = "사각형으로 만든 색깔 우주선이에요."
+	studio._sale_description.text_changed.emit()
 	t.assert_false(studio._sale_dialog.get_ok_button().disabled, "A finished composition enables confirmation")
 	var drawing_before: Dictionary = studio.document.serialize()
 	studio._sale_dialog.hide()
@@ -216,6 +222,8 @@ static func _test_sale_ui(t: Node) -> void:
 	studio._confirm_sale()
 	t.assert_eq(requests.size(), 1, "Repeated confirmations dispatch only one payment request")
 	t.assert_eq(requests[0].title, "색깔 우주선", "Sale intent includes the title chosen in the dialog")
+	t.assert_eq(requests[0].author, "네모 작가", "Sale intent includes the artist's display name")
+	t.assert_eq(requests[0].description, "사각형으로 만든 색깔 우주선이에요.", "Sale intent includes the actual artwork description")
 	t.assert_eq(requests[0].document, drawing_before, "Sale intent captures the exact quoted drawing")
 	t.assert_true(studio._sale_button.disabled, "Sale button is blocked while persistence is pending")
 	studio.show_sale_result({"ok": false, "error": "테스트 저장 실패"})
