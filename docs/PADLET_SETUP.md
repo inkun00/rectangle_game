@@ -4,13 +4,13 @@
 
 - 보드: [사각형 그림 전시관](https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry)
 - 보드 ID: `s025d52oqqhj786g8cry`
-- 게임 주소: <https://rectangle-game-snowy.vercel.app/>
+- 게임 주소: <https://rectangle-game-iota.vercel.app/>
 
 제목은 패들릿 게시물 제목으로, 사용자 이름·설명·게임 내 그림 가격·작품 번호는 본문으로 들어갑니다. 그림 가격의 단위는 게임과 같은 **원**이며 실제 결제 금액이 아닙니다. 첨부 파일은 게임 UI, 격자, 선택 표시를 제외한 960×600 PNG입니다.
 
 ## 운영 환경 설정
 
-Vercel 프로젝트 `rectangle-game`의 **Production 환경**에 다음 두 비밀 환경 변수를 설정하고 다시 배포합니다. 키를 Godot 코드, 브라우저 JavaScript, Git 파일에 넣지 않습니다.
+Vercel 프로젝트 `inkun05/rectangle-game`의 **Production 환경**에 다음 두 비밀 환경 변수를 설정하고 다시 배포합니다. 키를 Godot 코드, 브라우저 JavaScript, Git 파일에 넣지 않습니다.
 
 | 환경 변수 | 값 |
 | --- | --- |
@@ -23,14 +23,14 @@ Vercel 프로젝트의 **Storage → Create Storage → Blob**에서 **Private**
 
 처음 설정한 뒤 재배포해야 이미 실행 중인 서버 함수에도 환경 변수가 적용됩니다. Preview 환경에서 실제 전시관에 테스트 작품을 등록하지 않도록, Production 키를 Preview에 자동 복사하지 않습니다. 로컬 모의 검사는 실제 키 없이 실행됩니다.
 
-보드 ID와 공개 이미지 주소는 서버 코드에 고정돼 있습니다. 요청에 다른 보드나 첨부 URL을 넣어도 게시 대상을 바꿀 수 없습니다. 운영 도메인이 바뀌면 `api/_lib/padlet.cjs`의 `PUBLIC_ORIGIN`을 변경하고, 이미 게시된 PNG 주소도 계속 작동하도록 이전 도메인을 유지해야 합니다.
+서버는 지정된 보드에만 게시하고, 허용 목록에 있는 운영 도메인으로 첨부 주소를 만듭니다. 운영 도메인이 바뀌면 `api/_lib/padlet.cjs`의 허용 목록과 `scripts/export/padlet_uploader.gd`의 기본 주소를 확인합니다. 이미 게시된 PNG를 계속 제공하려면 해당 게시물의 도메인과 Blob 연결을 유지합니다.
 
 ## PNG를 등록하는 방식
 
 Padlet 공개 API의 게시물 생성은 `attachment.url`을 받으며 PNG 바이너리를 직접 받는 업로드 기능은 문서화돼 있지 않습니다. 따라서 PNG 원본을 private Blob에 저장하고 다음 주소가 PNG만 공개하도록 합니다. [게시물 생성 문서](https://docs.padlet.dev/reference/add-post)
 
 ```text
-https://rectangle-game-snowy.vercel.app/api/artwork-image?id=<작품 번호 32자리>
+https://rectangle-game-iota.vercel.app/api/artwork-image?id=<작품 번호 32자리>
 ```
 
 이 URL을 패들릿의 이미지 첨부 주소로 보냅니다. 보드에서 그림을 계속 볼 수 있도록 Blob의 PNG와 이미지 제공 주소를 유지해야 합니다. JSON 제출 기록과 환경 변수는 이 주소로 조회할 수 없습니다.

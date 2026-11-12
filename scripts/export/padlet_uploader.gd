@@ -1,7 +1,7 @@
 class_name PadletUploader
 extends RefCounted
 
-const PRODUCTION_ORIGIN: String = "https://rectangle-game-snowy.vercel.app"
+const PRODUCTION_ORIGIN: String = "https://rectangle-game-iota.vercel.app"
 const BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 
 static func upload(owner: Node, entry: Dictionary, bytes: PackedByteArray) -> Dictionary:

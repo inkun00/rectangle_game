@@ -1,10 +1,10 @@
 # 사각형 월드 배포
 
-GitHub 저장소는 `inkun00/rectangle_game`, Vercel 프로젝트는 `inkeuns-projects-872d3d68/rectangle-game`입니다. 운영 주소는 **https://rectangle-game-snowy.vercel.app/**입니다.
+GitHub 저장소는 `inkun00/rectangle_game`, Vercel 프로젝트는 `inkun05/rectangle-game`입니다. 운영 주소는 **https://rectangle-game-iota.vercel.app/**입니다.
 
 ## 소스만 올려 자동 배포하기
 
-`build/`를 커밋하지 않습니다. 연결된 GitHub 저장소의 `main`에 소스를 올리면 Vercel이 `vercel.json`의 `python3 tools/ci_build.py`를 실행해 `build/web`을 새로 만듭니다. 기존 Vercel Git 연결을 그대로 사용하므로 GitHub Actions용 배포 토큰은 필요하지 않습니다. 이 변경을 아직 원격에 올리지 않은 상태에서는 기존 운영 사이트가 바뀌지 않습니다.
+`build/`를 커밋하지 않습니다. Vercel에 GitHub 저장소를 연결하면 `main`에 소스를 올릴 때 Vercel이 `vercel.json`의 `python3 tools/ci_build.py`를 실행해 `build/web`을 새로 만듭니다. Git 연결을 사용하는 경우 GitHub Actions용 배포 토큰은 필요하지 않습니다.
 
 빌드 스크립트는 Godot **4.7.2 stable** Linux x86_64 에디터와 같은 버전의 웹 내보내기 템플릿을 공식 배포처에서 받아 SHA-256을 확인합니다. 템플릿 패키지는 HTTP 범위 요청으로 필요한 웹 파일 약 21MB만 읽습니다. 범위 요청을 지원하지 않는 서버에서는 전체 공식 패키지를 받아 해시를 검사하는 방식으로 전환합니다. 도구 캐시는 체크아웃 밖의 `~/.cache/rectangle-game-build`에 저장하며 `RECTANGLE_BUILD_CACHE`로 바꿀 수 있습니다.
 
@@ -45,7 +45,7 @@ python tools/ci_build.py --godot 'C:\path\to\Godot_v4.7.2-stable_win64_console.e
 
 ```powershell
 npx vercel login
-npx vercel link --project rectangle-game --scope inkeuns-projects-872d3d68
+npx vercel link --project rectangle-game --scope inkun05
 npx vercel --prod
 ```
 

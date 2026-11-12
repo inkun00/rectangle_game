@@ -5,7 +5,8 @@ const { PNG } = require('pngjs');
 
 const BOARD_ID = 's025d52oqqhj786g8cry';
 const BOARD_URL = `https://padlet.com/inkun02/padlet-${BOARD_ID}`;
-const PUBLIC_ORIGIN = 'https://rectangle-game-snowy.vercel.app';
+const PUBLIC_ORIGIN = 'https://rectangle-game-iota.vercel.app';
+const GAME_ORIGINS = [PUBLIC_ORIGIN, 'https://rectangle-game-snowy.vercel.app'];
 const PADLET_BOARD_API = `https://api.padlet.dev/v1/boards/${BOARD_ID}`;
 const MAX_BODY_BYTES = 3300000;
 const MAX_PNG_BYTES = 2400000;
@@ -40,13 +41,20 @@ function header(request, name) {
 function allowedOrigin(request, env) {
   const origin = header(request, 'origin');
   if (!origin) return true; // Native Godot clients do not send Origin; this is not authentication.
-  const allowed = new Set([PUBLIC_ORIGIN]);
+  const allowed = new Set(GAME_ORIGINS);
   if (env.VERCEL_URL) allowed.add(`https://${env.VERCEL_URL}`);
   if (env.NODE_ENV !== 'production') {
     const host = header(request, 'host');
     if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) allowed.add(`http://${host}`);
   }
   return allowed.has(origin);
+}
+
+function publicOrigin(request, env) {
+  const productionOrigin = `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  if (GAME_ORIGINS.includes(productionOrigin)) return productionOrigin;
+  const requestOrigin = `https://${header(request, 'host')}`;
+  return GAME_ORIGINS.includes(requestOrigin) ? requestOrigin : PUBLIC_ORIGIN;
 }
 
 function sendJson(response, status, data, origin = '') {
@@ -79,8 +87,8 @@ function imagePath(id) {
   return `padlet/artworks/${id}.png`;
 }
 
-function imageUrl(id) {
-  return `${PUBLIC_ORIGIN}/api/artwork-image?id=${id}`;
+function imageUrl(id, origin) {
+  return `${origin}/api/artwork-image?id=${id}`;
 }
 
 function hash(value) {
@@ -254,7 +262,7 @@ function escapeHtml(value) {
   })[character]);
 }
 
-function createPadletBody(submission) {
+function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
   return {
     data: {
       type: 'post',
@@ -262,7 +270,7 @@ function createPadletBody(submission) {
         content: {
           subject: submission.title,
           body: `사용자 이름: ${escapeHtml(submission.author)}\n\n그림 설명: ${escapeHtml(submission.description)}\n\n게임 내 그림 가격: ${submission.price.toLocaleString('en-US')}원\n작품 번호: ${submission.id}`,
-          attachment: { url: imageUrl(submission.id), caption: submission.title },
+          attachment: { url: imageUrl(submission.id, origin), caption: submission.title },
         },
       },
     },
@@ -313,8 +321,9 @@ async function reconcile(deps, current) {
     const board = await response.json();
     const posts = Array.isArray(board.included) ? board.included : [];
     const marker = `작품 번호: ${current.value.id}`;
+    const attachmentUrls = GAME_ORIGINS.map((origin) => imageUrl(current.value.id, origin));
     const match = posts.find((post) => post.type === 'post' && typeof post.id === 'string' && (
-      post.attributes?.content?.attachment?.url === imageUrl(current.value.id) ||
+      attachmentUrls.includes(post.attributes?.content?.attachment?.url) ||
       (typeof post.attributes?.content?.bodyHtml === 'string' && post.attributes.content.bodyHtml.includes(marker))
     ));
     if (match) return await recordSuccess(deps, current, match);
@@ -322,7 +331,7 @@ async function reconcile(deps, current) {
   return pending(deps, current.value);
 }
 
-async function processSubmission(deps, submission) {
+async function processSubmission(deps, submission, origin) {
   let current = await readManifest(deps, submission.id);
   if (!current) {
     const value = {
@@ -360,7 +369,7 @@ async function processSubmission(deps, submission) {
 
   try {
     const response = await deps.fetch(`${PADLET_BOARD_API}/posts`, {
-      method: 'POST', headers: padletHeaders(deps), body: JSON.stringify(createPadletBody(submission)),
+      method: 'POST', headers: padletHeaders(deps), body: JSON.stringify(createPadletBody(submission, origin)),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (response.status === 201) {
@@ -414,7 +423,7 @@ function createSubmissionHandler(overrides = {}) {
           ok: false, error: '등록 요청이 많아요. 1분 뒤에 다시 시도해 주세요.', retryable: true,
         }, origin);
       }
-      const result = await processSubmission(deps, submission);
+      const result = await processSubmission(deps, submission, publicOrigin(request, deps.env));
       return sendJson(response, result.status, result.body, origin);
     } catch (error) {
       const result = error instanceof InputError ? fail(error.message, false, error.status) :

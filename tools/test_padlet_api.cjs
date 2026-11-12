@@ -21,6 +21,8 @@ const base = {
 const manifestPath = `padlet/submissions/${base.id}.json`;
 const pngPath = `padlet/artworks/${base.id}.png`;
 const publicPngUrl = `${PUBLIC_ORIGIN}/api/artwork-image?id=${base.id}`;
+const legacyOrigin = 'https://rectangle-game-snowy.vercel.app';
+const legacyPngUrl = `${legacyOrigin}/api/artwork-image?id=${base.id}`;
 const post = {
   type: 'post', id: 'post_test_example', attributes: {
     status: 'approved', webUrl: { live: `${BOARD_URL}/wish/1234` },
@@ -85,7 +87,7 @@ async function call(handler, body = base, settings = {}) {
   const request = Readable.from([Buffer.from(typeof body === 'string' ? body : JSON.stringify(body))]);
   request.method = settings.method || 'POST';
   request.url = settings.url || '/api/padlet-artworks';
-  request.headers = { 'content-type': 'application/json', host: 'rectangle-game-snowy.vercel.app', 'x-vercel-forwarded-for': '203.0.113.40', ...settings.headers };
+  request.headers = { 'content-type': 'application/json', host: new URL(PUBLIC_ORIGIN).host, 'x-vercel-forwarded-for': '203.0.113.40', ...settings.headers };
   if (settings.parsed !== false) request.body = body;
   const response = {
     headers: {}, statusCode: 0,
@@ -124,6 +126,22 @@ test('posts the completed PNG with all five fields to the fixed board, then serv
   assert.deepEqual(result.bytes, png);
   assert.equal(response.bytes.includes(deps.env.PADLET_API_KEY), false);
   assert.equal(response.bytes.includes(deps.env.BLOB_READ_WRITE_TOKEN), false);
+});
+
+test('attachment URLs stay on an approved production domain', async () => {
+  const legacyHost = new URL(legacyOrigin).host;
+  for (const [host, productionHost, expectedUrl] of [
+    [legacyHost, undefined, legacyPngUrl],
+    ['generated-deployment.vercel.app', legacyHost, legacyPngUrl],
+    ['untrusted.example', 'untrusted.example', publicPngUrl],
+  ]) {
+    const deps = environment();
+    deps.env.VERCEL_PROJECT_PRODUCTION_URL = productionHost;
+    const response = await call(createSubmissionHandler(deps), base, { headers: { host, origin: legacyOrigin } });
+    assert.equal(response.statusCode, 200);
+    const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
+    assert.equal(content.attachment.url, expectedUrl);
+  }
 });
 
 test('repeated and cold-start submissions reuse the receipt; a changed payload cannot reuse its id', async () => {
@@ -167,7 +185,8 @@ test('a lost POST response reconciles the existing post instead of creating anot
   let creates = 0;
   deps.fetch = async (_url, options) => {
     if (options.method === 'POST') { creates += 1; throw new Error('Response lost after remote commit'); }
-    return new Response(JSON.stringify({ data: { type: 'board' }, included: [post] }));
+    const legacyPost = { ...post, attributes: { ...post.attributes, content: { attachment: { url: legacyPngUrl } } } };
+    return new Response(JSON.stringify({ data: { type: 'board' }, included: [legacyPost] }));
   };
   assert.equal((await call(createSubmissionHandler(deps))).json.ok, true);
   assert.equal((await call(createSubmissionHandler(deps))).json.ok, true);
