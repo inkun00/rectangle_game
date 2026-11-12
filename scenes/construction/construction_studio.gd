@@ -12,6 +12,7 @@ const CustomForm = preload("res://scenes/construction/custom_material_form.gd")
 const Language = preload("res://scripts/construction/construction_language.gd")
 const Awards = preload("res://scripts/construction/construction_awards.gd")
 const Exporter = preload("res://scripts/export/construction_exporter.gd")
+const SubmissionMetadata = preload("res://scripts/export/art_submission_metadata.gd")
 const SAVE_PATH: String = "user://quadrilateral_construction_v1.json"
 const INK: Color = Art.INK
 const BLUE: Color = Art.ACCENT
@@ -27,6 +28,8 @@ signal home_requested
 signal tutorial_requested
 signal interaction_context_changed
 signal view_changed
+signal building_publication_requested(data: Dictionary)
+signal building_upload_retry_requested
 
 var testing: bool = false
 ## The app may restore the shared ledger before downloading this screen's art.
@@ -35,6 +38,7 @@ var tutorial_active: bool = false
 var tutorial_blocked: bool = false
 var save_path: String = SAVE_PATH
 var state: State = State.new()
+var publication_author_name: String = ""
 var canvas: Canvas
 var _autosave: Timer
 var _status: Label
@@ -126,6 +130,23 @@ var _phase_bar: HBoxContainer
 var _drawing_title: Label
 var _my_house_button: Button
 var _my_house_export: Button
+var _my_house_publish: Button
+var _completed_publish: Button
+var _publication_author: LineEdit
+var _publication_title: LineEdit
+var _publication_description: TextEdit
+var _publication_validation: Label
+var _publication_submit: Button
+var _publication_offer: Dictionary = {}
+var _publication_pending: bool = false
+var _upload_row: VBoxContainer
+var _upload_status: Label
+var _upload_retry: Button
+var _upload_board: Button
+var _upload_message: String = ""
+var _upload_pending_count: int = 0
+var _upload_post_url: String = ""
+var _upload_busy: bool = false
 var _client_board: PanelContainer
 var _client_board_grid: GridContainer
 var _client_grid: GridContainer:
@@ -584,6 +605,9 @@ func _build_ui() -> void:
 	completed_buttons.add_child(next_client)
 	completed_buttons.add_child(_button("완성한 집 기록", _show_history))
 	completed_buttons.add_child(_button("PNG 저장", _export_current_house))
+	_completed_publish = _button("패들릿에 올리기", _open_building_publication, true)
+	_completed_publish.name = "PublishCompletedBuilding"
+	completed_buttons.add_child(_completed_publish)
 	completed_buttons.add_child(_button("명예의 전당", _show_hall))
 	completed_buttons.add_child(_button("나만의 집 짓기", _enter_my_house_mode, true))
 	canvas = Canvas.new()
@@ -649,8 +673,12 @@ func _build_ui() -> void:
 	_my_house_export = _button("나만의 집 PNG 저장", _export_my_house, true)
 	_my_house_export.name = "ExportMyHousePng"
 	_lower_toolbar.add_child(_my_house_export)
+	_my_house_publish = _button("패들릿에 올리기", _open_building_publication, true)
+	_my_house_publish.name = "PublishMyHouse"
+	_lower_toolbar.add_child(_my_house_publish)
 	_selection = _label("", 13, MUTED)
 	center.add_child(_selection)
+	_build_upload_status(center)
 	_sidebar = PanelContainer.new()
 	_sidebar.add_theme_stylebox_override("panel", Art.card_panel(8, Color("fbfdfc")))
 	_sidebar.custom_minimum_size.x = 250
@@ -1131,7 +1159,7 @@ func _refresh() -> void:
 	_cash.text = "보유 " + Catalog.format_won(state.my_house_available_balance() if my_mode else state.available_balance())
 	if my_mode:
 		var build_cells: Vector2 = ConstructionDocument.BUILD_AREA.size / Catalog.GRID_UNIT
-		_current_goal.text = "가로 %d칸 · 높이 %d칸에서 자유롭게 짓고 PNG로 저장해요." % [int(build_cells.x), int(build_cells.y)]
+		_current_goal.text = "가로 %d칸 · 높이 %d칸 · 시공 검사를 통과하면 패들릿에 올릴 수 있어요." % [int(build_cells.x), int(build_cells.y)]
 		_client.text = "나만의 집 짓기"
 		_brief.text = "수익 %s" % Catalog.format_won(state.earned_profit())
 		var my_counts: Dictionary = State.count_parts(active_doc.parts)
@@ -1246,6 +1274,15 @@ func _refresh() -> void:
 	if is_instance_valid(_my_house_export):
 		_my_house_export.visible = my_mode
 		_my_house_export.disabled = not my_mode or active_doc.parts.is_empty() or canvas.inspection_running or is_instance_valid(_modal)
+	var publication_error: String = _building_publication_error()
+	var publication_blocked: bool = _publication_pending or _exporting or tutorial_blocked or is_instance_valid(_modal)
+	if is_instance_valid(_my_house_publish):
+		_my_house_publish.visible = my_mode
+		_my_house_publish.disabled = not publication_error.is_empty() or publication_blocked
+		_my_house_publish.tooltip_text = publication_error
+	if is_instance_valid(_completed_publish):
+		_completed_publish.disabled = not publication_error.is_empty() or publication_blocked
+	_refresh_building_upload_status()
 	var issues: Array[Dictionary] = _fresh_issues()
 	_repairs.visible = not issues.is_empty()
 	_repairs.disabled = canvas.inspection_running or is_instance_valid(_modal)
@@ -1296,7 +1333,7 @@ func _inspection_finished(report: Dictionary) -> void:
 	_last_report = report.duplicate(true)
 	if state.my_house_mode:
 		var stable: bool = bool(report.get("stable", false))
-		_set_status("나만의 집 시공 검사를 통과했어요! 나만의 집 PNG 저장으로 완성한 집을 저장해 보세요." if stable else str(report.get("message", "검사가 끝났어요.")))
+		_set_status("나만의 집 시공 검사를 통과했어요! PNG로 저장하거나 패들릿에 올려 보세요." if stable else str(report.get("message", "검사가 끝났어요.")))
 	else:
 		var evaluation: Dictionary = state.evaluate(_last_report)
 		_set_status(str(evaluation.feedback) if bool(report.get("stable", false)) else str(report.get("message", "검사가 끝났어요.")))
@@ -1633,6 +1670,7 @@ func _show_settlement(result: Dictionary) -> void:
 		_add_award(_modal_body, award)
 		_modal_body.add_child(_label("멋진 높은 단계의 집을 완성했어요! 이 배지는 집을 PNG로 저장할 때 왼쪽 위에 붙어요.", 18, BLUE))
 	_modal_body.add_child(_label("프로젝트 %03d · %s 님의 새집" % [state.contract_index + 1, str(state.current_contract().client)], 22, BLUE))
+	_modal_body.add_child(_button("패들릿에 올리기", _open_building_publication, true))
 	_money_line(_modal_body, "받기로 한 건축비", int(result.get("total", state.current_contract().total)))
 	_money_line(_modal_body, "만족 보너스", int(result.get("bonus", 0)))
 	_money_line(_modal_body, "기본 공사비", -int(result.get("base_cost", state.current_contract().base_cost)))
@@ -1844,6 +1882,189 @@ func _export_my_house() -> void:
 		return
 	_export_house(state.my_house_document, {}, "my-own-house.png")
 
+func _building_publication_error() -> String:
+	if tutorial_blocked:
+		return "안내를 마친 뒤 건물을 올릴 수 있어요."
+	var model: ConstructionDocument = _active_doc()
+	if model.parts.is_empty():
+		return "먼저 집을 지어 주세요."
+	if is_instance_valid(canvas) and canvas.inspection_running:
+		return "시공 검사가 끝날 때까지 기다려 주세요."
+	if state.my_house_mode:
+		if not bool(_last_report.get("stable", false)) or int(_last_report.get("revision", -1)) != model.revision:
+			return "지금 설계로 시공 검사를 통과한 뒤 올릴 수 있어요."
+	elif state.phase != "settled":
+		return "의뢰인의 부탁을 완성하고 정산한 뒤 올릴 수 있어요."
+	return ""
+
+func building_publication_offer() -> Dictionary:
+	var error: String = _building_publication_error()
+	if not error.is_empty():
+		return {"ok": false, "error": error}
+	var snapshot: Dictionary = _active_doc().serialize()
+	snapshot.selected_id = -1
+	var my_house: bool = state.my_house_mode
+	return {
+		"ok": true,
+		"kind": "my_house" if my_house else "commission",
+		"document": snapshot,
+		"price": state.my_house_cost() if my_house else int(state.current_contract().total),
+		"price_label": "재료비" if my_house else "약속한 돈",
+	}
+
+func _open_building_publication() -> void:
+	if _publication_pending or _exporting or tutorial_blocked or not is_visible_in_tree(): return
+	var offer: Dictionary = building_publication_offer()
+	if not bool(offer.ok):
+		_set_status(str(offer.error))
+		return
+	canvas.cancel_gesture()
+	_open_modal("완성한 건물을 패들릿에 올리기", true)
+	_publication_offer = offer
+	_money_line(_modal_body, str(offer.price_label), int(offer.price), true)
+	_modal_body.add_child(_label("이름, 제목, 설명, 금액과 건물 PNG가 패들릿에 함께 올라가요.", 16, MUTED))
+	_publication_author = _publication_line("사용자 이름", "이름이나 별명을 적어 주세요", SubmissionMetadata.MAX_AUTHOR_LENGTH)
+	_publication_author.name = "BuildingPublicationAuthor"
+	_publication_author.text = publication_author_name
+	_publication_title = _publication_line("건물 제목", "완성한 건물의 제목을 적어 주세요", SubmissionMetadata.MAX_TITLE_LENGTH)
+	_publication_title.name = "BuildingPublicationTitle"
+	_modal_body.add_child(_label("건물 설명 · 최대 %d자" % SubmissionMetadata.MAX_DESCRIPTION_LENGTH, 16))
+	_publication_description = TextEdit.new()
+	_publication_description.name = "BuildingPublicationDescription"
+	_publication_description.placeholder_text = "어떤 사각형과 재료로 지었는지 소개해 주세요."
+	_publication_description.custom_minimum_size.y = 100
+	_publication_description.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_publication_description.add_theme_font_override("font", QuadTheme.FONT)
+	_publication_description.add_theme_font_size_override("font_size", 18)
+	_modal_body.add_child(_publication_description)
+	_publication_author.text_submitted.connect(func(_text: String): _publication_title.grab_focus())
+	_publication_title.text_submitted.connect(func(_text: String): _publication_description.grab_focus())
+	_publication_description.text_changed.connect(_refresh_building_publication_form)
+	_publication_validation = _label("", 15, BLUE)
+	_modal_body.add_child(_publication_validation)
+	_publication_submit = _modal_action("PNG 저장하고 올리기", _confirm_building_publication, true)
+	_publication_submit.name = "ConfirmBuildingPublication"
+	_refresh_building_publication_form()
+	if _publication_author.text.strip_edges().is_empty():
+		_publication_author.grab_focus()
+	else:
+		_publication_title.grab_focus()
+
+func _publication_line(title: String, placeholder: String, maximum: int) -> LineEdit:
+	_modal_body.add_child(_label("%s · 최대 %d자" % [title, maximum], 16))
+	var line: LineEdit = LineEdit.new()
+	line.placeholder_text = placeholder
+	line.max_length = maximum
+	line.custom_minimum_size.y = 44
+	line.add_theme_font_override("font", QuadTheme.FONT)
+	line.add_theme_font_size_override("font_size", 18)
+	line.text_changed.connect(func(_text: String): _refresh_building_publication_form())
+	_modal_body.add_child(line)
+	return line
+
+func _building_metadata_error() -> String:
+	return SubmissionMetadata.validation_error(_publication_author.text, _publication_title.text, _publication_description.text, true)
+
+func _refresh_building_publication_form() -> void:
+	if not is_instance_valid(_publication_submit): return
+	var error: String = _building_metadata_error()
+	var disabled: bool = not error.is_empty() or _publication_pending
+	if _publication_submit.disabled != disabled:
+		call_deferred("_confine_modal_focus", _modal)
+	_publication_submit.disabled = disabled
+	_publication_submit.text = "PNG 저장 중…" if _publication_pending else "PNG 저장하고 올리기"
+	_publication_validation.text = error
+	_publication_validation.visible = not error.is_empty()
+	_publication_author.editable = not _publication_pending
+	_publication_title.editable = not _publication_pending
+	_publication_description.editable = not _publication_pending
+
+func _confirm_building_publication() -> void:
+	if _publication_pending or _exporting or tutorial_blocked or not is_visible_in_tree(): return
+	if not is_instance_valid(_publication_submit) or not _building_metadata_error().is_empty(): return
+	var current: Dictionary = building_publication_offer()
+	if current != _publication_offer:
+		_close_modal()
+		_set_status("건물 정보가 바뀌었어요. 확인한 뒤 다시 열어 주세요.")
+		return
+	_publication_pending = true
+	publication_author_name = _publication_author.text.strip_edges()
+	_refresh_building_publication_form()
+	_refresh()
+	building_publication_requested.emit({
+		"kind": current.kind,
+		"document": current.document,
+		"price": current.price,
+		"author": publication_author_name,
+		"title": _publication_title.text.strip_edges(),
+		"description": _publication_description.text.strip_edges(),
+	})
+
+func render_building_publication_png(snapshot: Dictionary) -> PackedByteArray:
+	var model: ConstructionDocument = ConstructionDocument.new()
+	model.budget_limit = _active_doc().budget_limit
+	if not model.restore(snapshot): return PackedByteArray()
+	return await Exporter.export_padlet_png(get_tree(), model)
+
+func show_building_publication_result(result: Dictionary) -> void:
+	_publication_pending = false
+	if bool(result.get("ok", false)):
+		publication_author_name = str(result.get("author", publication_author_name))
+		if is_instance_valid(_publication_submit): _close_modal()
+		_set_status(str(result.get("message", "건물 PNG를 저장했어요.")))
+	else:
+		var error: String = str(result.get("error", result.get("message", "건물 PNG를 저장하지 못했어요. 다시 시도해 주세요.")))
+		_set_status(error)
+		_refresh_building_publication_form()
+		if is_instance_valid(_publication_validation):
+			_publication_validation.text = error
+			_publication_validation.visible = true
+	_refresh()
+
+func _build_upload_status(parent: VBoxContainer) -> void:
+	_upload_row = VBoxContainer.new()
+	_upload_row.name = "BuildingUploadStatus"
+	_upload_row.hide()
+	parent.add_child(_upload_row)
+	_upload_status = _label("", 14, BLUE)
+	_upload_row.add_child(_upload_status)
+	var actions: HFlowContainer = HFlowContainer.new()
+	_upload_row.add_child(actions)
+	_upload_retry = _button("등록 다시 시도", _request_building_upload_retry)
+	_upload_retry.name = "RetryBuildingUpload"
+	actions.add_child(_upload_retry)
+	_upload_board = _button("패들릿 보기", _open_building_board)
+	_upload_board.name = "OpenBuildingPadlet"
+	actions.add_child(_upload_board)
+
+func set_building_upload_status(message: String, pending_count: int = 0, post_url: String = "", busy: bool = false) -> void:
+	_upload_message = message
+	_upload_pending_count = maxi(0, pending_count)
+	_upload_post_url = post_url if ArtPublicationStore._valid_post_url(post_url) else PadletUploader.BOARD_URL
+	_upload_busy = busy
+	_refresh_building_upload_status()
+
+func _refresh_building_upload_status() -> void:
+	if not is_instance_valid(_upload_row): return
+	_upload_row.visible = not _upload_message.is_empty() or _upload_pending_count > 0 or _upload_busy
+	_upload_status.text = _upload_message
+	if _upload_status.text.is_empty() and _upload_pending_count > 0:
+		_upload_status.text = "패들릿에 등록할 건물이 %d개 있어요." % _upload_pending_count
+	_upload_retry.visible = _upload_pending_count > 0
+	_upload_retry.disabled = _upload_busy or _publication_pending or tutorial_blocked or is_instance_valid(_modal)
+	_upload_retry.text = "등록 중…" if _upload_busy else "등록 다시 시도"
+	_upload_board.disabled = tutorial_blocked or is_instance_valid(_modal)
+
+func _request_building_upload_retry() -> void:
+	if _upload_busy or _publication_pending or _upload_pending_count < 1 or tutorial_blocked or is_instance_valid(_modal) or not is_visible_in_tree(): return
+	_upload_busy = true
+	_refresh_building_upload_status()
+	building_upload_retry_requested.emit()
+
+func _open_building_board() -> void:
+	if tutorial_blocked or is_instance_valid(_modal) or not is_visible_in_tree(): return
+	OS.shell_open(_upload_post_url if not _upload_post_url.is_empty() else PadletUploader.BOARD_URL)
+
 func _select_offer(choice: int) -> void:
 	if not state.select_contract(choice):
 		_set_status(state.last_error)
@@ -2012,6 +2233,7 @@ func _confine_modal_focus(dialog: Control) -> void:
 		controls[index].focus_neighbor_bottom = next
 
 func _close_modal(restore_focus: bool = true) -> void:
+	if restore_focus and _publication_pending and is_instance_valid(_publication_submit) and is_visible_in_tree(): return
 	var previous_focus: Control = _focus_before_modal
 	_focus_before_modal = null
 	if is_instance_valid(_modal):
@@ -2025,6 +2247,12 @@ func _close_modal(restore_focus: bool = true) -> void:
 	_modal_heading = null
 	_modal_compact = false
 	_custom_material_form = null
+	_publication_author = null
+	_publication_title = null
+	_publication_description = null
+	_publication_validation = null
+	_publication_submit = null
+	_publication_offer = {}
 	if is_instance_valid(canvas): _refresh()
 	if restore_focus and is_instance_valid(previous_focus) and previous_focus.is_visible_in_tree() and previous_focus.focus_mode != Control.FOCUS_NONE:
 		if not previous_focus is BaseButton or not previous_focus.disabled: previous_focus.grab_focus()

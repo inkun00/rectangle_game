@@ -127,6 +127,7 @@ static func _test_completed_house_gallery(t: Node) -> void:
 	if export != null: export.pressed.emit()
 	t.assert_false(studio._exporting, "The PNG action returns safely in a headless test session")
 	t.assert_eq(company.serialize(), completed, "Opening an image export never edits the paid house or its money")
+	await _test_building_publication_form(t, studio)
 	studio._show_hall()
 	await _frames(t, 2)
 	t.assert_true(studio._hall_only, "The hall button opens a filtered gallery rather than the whole ledger")
@@ -166,12 +167,72 @@ static func _test_completed_house_gallery(t: Node) -> void:
 	t.assert_true(studio.save_game(false), "My Own House design saves alongside commission progress")
 	t.assert_true(studio.load_game(false), "My Own House design restores cleanly from save")
 	t.assert_eq(studio.state.my_house_document.parts.size(), 2, "Restored My Own House preserves placed personal building parts")
+	await _test_my_house_publication_gate(t, studio)
 	studio._exit_my_house_mode()
 	t.assert_false(studio.state.my_house_mode, "Exiting My Own House mode returns to client commission mode")
 	studio.free()
 	await t.get_tree().process_frame
 	for suffix: String in ["", ".tmp", ".bak"]:
 		if FileAccess.file_exists(path + suffix): DirAccess.remove_absolute(path + suffix)
+
+static func _test_building_publication_form(t: Node, studio: Studio) -> void:
+	var open: Button = _button(studio._modal, "패들릿에 올리기")
+	t.assert_not_null(open, "A settled commission offers Padlet publishing from the completion modal")
+	if open == null: return
+	var state_before: Dictionary = studio.state.serialize()
+	var submissions: Array[Dictionary] = []
+	studio.building_publication_requested.connect(func(data: Dictionary): submissions.append(data))
+	open.pressed.emit()
+	await _frames(t, 2)
+	t.assert_true(studio._publication_submit.disabled, "The building upload form requires a name, title, and description")
+	studio._publication_submit.pressed.emit()
+	t.assert_eq(submissions.size(), 0, "Incomplete metadata cannot submit through the button callback")
+	studio._publication_author.text = " 별빛 "
+	studio._publication_title.text = " 사각형 정원 "
+	studio._publication_description.text = " 벽과 지붕을 사각형으로 지었어요. "
+	studio._publication_description.text_changed.emit()
+	t.assert_false(studio._publication_submit.disabled, "Valid building metadata enables PNG saving and publication")
+	studio._publication_submit.pressed.emit()
+	studio._publication_submit.pressed.emit()
+	t.assert_eq(submissions.size(), 1, "Repeated confirmation while saving sends one building snapshot")
+	if not submissions.is_empty():
+		var submitted: Dictionary = submissions[0]
+		t.assert_eq(submitted.kind, "commission", "The upload distinguishes a paid commission from a personal build")
+		t.assert_eq(submitted.price, int(studio.state.current_contract().total), "The posted amount is the actual commission price")
+		t.assert_eq(submitted.author, "별빛", "The posted building author is trimmed")
+		t.assert_eq(submitted.title, "사각형 정원", "The posted building title is trimmed")
+		t.assert_eq(submitted.document.parts, studio.state.document.serialize().parts, "The upload contains the actual settled building geometry")
+	studio.show_building_publication_result({"ok": false, "error": "PNG 저장에 실패했어요."})
+	t.assert_false(studio._publication_submit.disabled, "A PNG failure allows confirmation again")
+	t.assert_eq(studio._publication_title.text, " 사각형 정원 ", "A PNG failure preserves entered details")
+	studio.show_building_publication_result({"ok": true, "author": "별빛"})
+	t.assert_eq(studio.state.serialize(), state_before, "Posting does not edit the building or change the settlement balance")
+	var retries: Array[bool] = []
+	studio.building_upload_retry_requested.connect(func(): retries.append(true))
+	studio.set_building_upload_status("", 1)
+	studio._upload_retry.pressed.emit()
+	studio._upload_retry.pressed.emit()
+	t.assert_eq(retries.size(), 1, "A pending building upload is retried once while the request is active")
+	studio.set_building_upload_status("")
+
+static func _test_my_house_publication_gate(t: Node, studio: Studio) -> void:
+	t.assert_true(studio._my_house_publish.disabled, "A personal build without a fresh inspection cannot be posted")
+	var model: ConstructionDocument = studio.state.my_house_document
+	t.assert_true(model.replace_parts(studio.state.document.parts), "Use the completed supported house as a personal-build fixture")
+	studio._start_inspection()
+	for frame: int in range(300):
+		await t.get_tree().physics_frame
+		if not studio.canvas.inspection_running: break
+	await _frames(t, 2)
+	var offer: Dictionary = studio.building_publication_offer()
+	t.assert_true(bool(offer.ok), "A current stable personal build can be posted")
+	if bool(offer.ok):
+		t.assert_eq(offer.kind, "my_house", "Personal building submissions carry their own kind")
+		t.assert_eq(offer.price, studio.state.my_house_cost(), "A personal build posts the actual placed-material cost")
+		t.assert_false(studio._my_house_publish.disabled, "Passing an inspection enables the visible Padlet action")
+	t.assert_true(model.replace_parts(studio.state.document.parts.slice(0, 1)), "Modify the inspected house through its document")
+	t.assert_false(bool(studio.building_publication_offer().ok), "Editing an inspected house invalidates publication eligibility")
+	t.assert_true(studio._my_house_publish.disabled, "The Padlet button locks again until the edited house passes inspection")
 
 static func _earned_company(t: Node) -> State:
 	var company: State = State.new()

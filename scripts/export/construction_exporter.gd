@@ -4,10 +4,18 @@ extends RefCounted
 const Document = preload("res://scripts/construction/construction_document.gd")
 const Awards = preload("res://scripts/construction/construction_awards.gd")
 const IMAGE_SIZE: Vector2i = Vector2i(1200, 800)
+const PADLET_IMAGE_SIZE: Vector2i = Vector2i(960, 600)
 
 ## The award must come from a validated completed record. Unsettled drafts pass {}.
 ## Only actual house parts, a quiet paper ground and its earned badge are rendered.
 static func export_png(tree: SceneTree, document: Document, award: Dictionary = {}) -> PackedByteArray:
+	return await _render_png(tree, document, IMAGE_SIZE, award)
+
+## The exhibition attachment uses the same dimensions as drawing submissions.
+static func export_padlet_png(tree: SceneTree, document: Document) -> PackedByteArray:
+	return await _render_png(tree, document, PADLET_IMAGE_SIZE, {})
+
+static func _render_png(tree: SceneTree, document: Document, image_size: Vector2i, award: Dictionary) -> PackedByteArray:
 	if DisplayServer.get_name() == "headless" or document == null or document.parts.is_empty() or not Document._valid_parts(document.parts):
 		return PackedByteArray()
 	var awarded: bool = Awards.is_awarded(award)
@@ -15,12 +23,12 @@ static func export_png(tree: SceneTree, document: Document, award: Dictionary = 
 	if awarded and not ResourceLoader.exists(badge_asset):
 		return PackedByteArray()
 	var viewport: SubViewport = SubViewport.new()
-	viewport.size = IMAGE_SIZE
+	viewport.size = image_size
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	tree.root.add_child(viewport)
 	var paper: ColorRect = ColorRect.new()
 	paper.color = Color("f8f9f5")
-	paper.size = Vector2(IMAGE_SIZE)
+	paper.size = Vector2(image_size)
 	viewport.add_child(paper)
 	var plate: HousePlate = HousePlate.new()
 	plate.document = Document.new()
@@ -31,7 +39,7 @@ static func export_png(tree: SceneTree, document: Document, award: Dictionary = 
 	plate.show_grid = false
 	plate.drawing_tool = false
 	plate.position = Vector2(180, 24) if awarded else Vector2(24, 24)
-	plate.size = Vector2(996, 752) if awarded else Vector2(1152, 752)
+	plate.size = Vector2(image_size) - plate.position - Vector2(24, 24)
 	viewport.add_child(plate)
 	plate.fit_parts()
 	if awarded:

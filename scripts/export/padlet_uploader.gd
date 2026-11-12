@@ -18,6 +18,7 @@ static func upload(owner: Node, entry: Dictionary, bytes: PackedByteArray) -> Di
 		"description": entry.description, "price": int(entry.price),
 		"png_base64": Marshalls.raw_to_base64(bytes)
 	}
+	if entry.has("kind"): payload["kind"] = entry.kind
 	var error: Error = request.request(origin + "/api/padlet-artworks", PackedStringArray(["Content-Type: application/json"]), HTTPClient.METHOD_POST, JSON.stringify(payload))
 	if error != OK:
 		request.queue_free()
@@ -25,7 +26,7 @@ static func upload(owner: Node, entry: Dictionary, bytes: PackedByteArray) -> Di
 	var response: Array = await request.request_completed
 	request.queue_free()
 	if int(response[0]) != HTTPRequest.RESULT_SUCCESS:
-		return _failure("패들릿 응답을 받지 못했어요. 판매와 PNG는 보존했어요. 다시 시도해 주세요.")
+		return _failure("패들릿 응답을 받지 못했어요. 저장한 PNG로 다시 시도해 주세요.")
 	var status: int = int(response[1])
 	var body: PackedByteArray = response[3]
 	var decoded: Variant = JSON.parse_string(body.get_string_from_utf8())

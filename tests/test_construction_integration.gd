@@ -9,6 +9,7 @@ const Language = preload("res://scripts/construction/construction_language.gd")
 
 static func run(t: Node) -> void:
 	await _test_navigation_and_modals(t)
+	await _test_building_publication(t)
 	await _test_save_and_complete_contract(t)
 	await _test_guided_house_and_recovery(t)
 	await _test_inspection_repairs(t)
@@ -17,6 +18,78 @@ static func run(t: Node) -> void:
 	await _test_starter_replacement(t)
 	await _test_material_family_filters(t)
 	await _test_facade_repair_feedback(t)
+
+static func _test_building_publication(t: Node) -> void:
+	var directory: String = "user://test_building_publication_%s" % Crypto.new().generate_random_bytes(8).hex_encode()
+	DirAccess.make_dir_recursive_absolute(directory)
+	var app: QuadrilateralApp = AppScene.instantiate()
+	app.testing = true
+	app._art_publications.path = directory.path_join("queue.json")
+	app._building_png_directory = directory.path_join("png")
+	var png: Image = Image.create_empty(960, 600, false, Image.FORMAT_RGB8)
+	png.fill(Color("345a77"))
+	var bytes: PackedByteArray = png.save_png_to_buffer()
+	var rendered: Array[Dictionary] = []
+	app._building_png_renderer = func(snapshot: Dictionary) -> PackedByteArray:
+		rendered.append(snapshot)
+		return bytes
+	var requests: Array[Dictionary] = []
+	var images: Array[PackedByteArray] = []
+	app._art_upload_transport = func(entry: Dictionary, image: PackedByteArray) -> Dictionary:
+		requests.append(entry)
+		images.append(image)
+		if requests.size() == 1: return {"ok": false, "error": "연결이 끊겼어요."}
+		return {"ok": true, "post_url": PadletUploader.BOARD_URL}
+	t.add_child(app)
+	await t.get_tree().process_frame
+	await app._show_construction()
+	var studio: Studio = app._construction_screen
+	studio._accept_contract()
+	t.assert_true(studio.state.document.replace_parts(ConstructionGuide.plan()), "The publication test builds a real commission design")
+	var ids: Array[int] = []
+	for part: Dictionary in studio.state.document.parts: ids.append(int(part.id))
+	var report: Dictionary = {"stable": true, "stable_ids": ids, "unsupported_ids": [], "revision": studio.state.document.revision}
+	var metadata: Dictionary = {"author": "건축가", "title": "사각형 집", "description": "사다리꼴 지붕을 올렸어요."}
+	var data: Dictionary = metadata.merged({"kind": "commission", "price": int(studio.state.current_contract().total), "document": studio.state.document.serialize()})
+	await app._publish_building(data)
+	t.assert_eq(rendered.size(), 0, "An unfinished commission cannot render or queue a publication")
+	var settlement: Dictionary = studio.state.settle(report)
+	t.assert_false(settlement.is_empty(), "The fixture qualifies for real commission settlement")
+	var before: Dictionary = studio.state.serialize()
+	data.document = studio.building_publication_offer().get("document", {})
+	studio.building_publication_requested.emit(data)
+	await t.get_tree().process_frame
+	t.assert_eq(rendered.size(), 1, "Publishing renders the settled design exactly once")
+	t.assert_eq(requests.size(), 1, "A finished design and metadata enter the same Padlet transport")
+	var pending: Array[Dictionary] = app._art_publications.pending([], true)
+	t.assert_eq(pending.size(), 1, "A failed building upload remains queued without a drawing sale receipt")
+	t.assert_eq(app._art_publications.pending([]).size(), 0, "The drawing queue excludes building submissions")
+	t.assert_eq(studio.state.serialize(), before, "PNG export and a failed publication preserve the settled building and ledger")
+	if pending.size() == 1 and requests.size() == 1:
+		t.assert_eq(requests[0].price, settlement.total, "The upload carries the actual contract price")
+		t.assert_eq(requests[0].kind, "commission", "The upload identifies the type of building price")
+		var restored: ArtPublicationStore = ArtPublicationStore.new()
+		restored.path = app._art_publications.path
+		t.assert_true(restored.load_file().ok, "Building metadata reloads from the durable queue")
+		app._art_publications = restored
+		studio.building_upload_retry_requested.emit()
+		await t.get_tree().process_frame
+		t.assert_eq(requests.size(), 2, "The retry uses the saved PNG after queue reload")
+		if requests.size() == 2:
+			t.assert_eq(requests[1].id, requests[0].id, "The retry keeps the original request ID")
+			t.assert_eq(images[1], bytes, "The retry sends the original saved PNG bytes")
+		t.assert_eq(restored.pending([], true).size(), 0, "A published building leaves the retry queue")
+		await app._publish_building(data)
+		t.assert_eq(requests.size(), 2, "Submitting the same settled design again does not create a duplicate post")
+		t.assert_eq(rendered.size(), 1, "Retry and duplicate detection reuse the saved image")
+		t.assert_eq(studio.state.serialize(), before, "Successful publication never settles or spends money again")
+	app.free()
+	for filename: String in DirAccess.get_files_at(directory.path_join("png")):
+		DirAccess.remove_absolute(directory.path_join("png").path_join(filename))
+	DirAccess.remove_absolute(directory.path_join("png"))
+	for filename: String in DirAccess.get_files_at(directory): DirAccess.remove_absolute(directory.path_join(filename))
+	DirAccess.remove_absolute(directory)
+	await t.get_tree().process_frame
 
 static func _test_facade_repair_feedback(t: Node) -> void:
 	var studio: Studio = Studio.new()

@@ -1,8 +1,8 @@
 class_name ArtPublicationStore
 extends RefCounted
 
-## The upload outbox is separate from the versioned economic receipts. A
-## prepared entry becomes eligible only after its matching sale is committed.
+## Drawing entries become eligible when their sale is committed. Building
+## entries are queued after the completed design and PNG have been checked.
 const DEFAULT_PATH: String = "user://art_publications_v1.json"
 const MAX_RECORDS: int = 512
 var path: String = DEFAULT_PATH
@@ -42,11 +42,12 @@ func prepare(metadata: Dictionary, offer: Dictionary, saved: Dictionary, bytes: 
 	if not loaded:
 		var restored: Dictionary = load_file()
 		if not bool(restored.ok): return restored
-	var error: String = ArtSubmissionMetadata.validation_error(metadata.get("author"), metadata.get("title"), metadata.get("description"))
+	var error: String = ArtSubmissionMetadata.validation_error(metadata.get("author"), metadata.get("title"), metadata.get("description"), offer.has("kind"))
 	if not error.is_empty(): return _failure(error)
 	var index: int = -1
 	for cursor: int in range(entries.size()):
 		if str(entries[cursor].fingerprint) == str(offer.get("fingerprint", "")): index = cursor
+	if index >= 0 and offer.has("kind"): return _failure("이미 패들릿에 보낸 건물이에요. 등록 상태를 확인해 주세요.")
 	if index >= 0 and str(entries[index].status) == "published": return _failure("이미 패들릿에 등록한 그림이에요.")
 	if index < 0 and entries.size() >= MAX_RECORDS: return _failure("패들릿 등록 기록이 가득 찼어요.")
 	var identifier: String = Crypto.new().generate_random_bytes(16).hex_encode()
@@ -57,6 +58,7 @@ func prepare(metadata: Dictionary, offer: Dictionary, saved: Dictionary, bytes: 
 		"png_path": str(saved.get("path", "")), "filename": str(saved.get("filename", "")),
 		"png_sha256": _digest(bytes), "status": "pending", "post_url": ""
 	}
+	if offer.has("kind"): record["kind"] = offer.kind
 	if not _valid_entry(record): return _failure("패들릿에 보낼 그림 정보를 확인하지 못했어요.")
 	var candidate: Array[Dictionary] = entries.duplicate(true)
 	if index >= 0: candidate[index] = record
@@ -65,10 +67,18 @@ func prepare(metadata: Dictionary, offer: Dictionary, saved: Dictionary, bytes: 
 	if bool(result.ok): result["entry"] = record.duplicate(true)
 	return result
 
-func pending(receipts: Array[Dictionary]) -> Array[Dictionary]:
+func find_entry(fingerprint: String) -> Dictionary:
+	for entry: Dictionary in entries:
+		if entry.fingerprint == fingerprint: return entry.duplicate(true)
+	return {}
+
+func pending(receipts: Array[Dictionary], buildings: bool = false) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for entry: Dictionary in entries:
-		if str(entry.status) != "pending": continue
+		if str(entry.status) != "pending" or entry.has("kind") != buildings: continue
+		if buildings:
+			result.append(entry.duplicate(true))
+			continue
 		for receipt: Dictionary in receipts:
 			if entry.fingerprint == receipt.get("fingerprint") and entry.title == receipt.get("title") and int(entry.price) == int(receipt.get("price", 0)):
 				result.append(entry.duplicate(true))
@@ -122,14 +132,23 @@ func _save(candidate: Array[Dictionary]) -> Dictionary:
 	return {"ok": true}
 
 static func _valid_entry(entry: Dictionary) -> bool:
-	if entry.size() != 11 or not entry.has_all(["id", "fingerprint", "author", "title", "description", "price", "png_path", "filename", "png_sha256", "status", "post_url"]): return false
+	var building: bool = entry.has("kind")
+	if entry.size() != (12 if building else 11) or not entry.has_all(["id", "fingerprint", "author", "title", "description", "price", "png_path", "filename", "png_sha256", "status", "post_url"]): return false
+	if building and entry.kind not in ["commission", "my_house"]: return false
 	for key: String in entry:
 		if key != "price" and not entry[key] is String: return false
 	if not _hex(entry.id, 32) or not _hex(entry.fingerprint, 64) or not _hex(entry.png_sha256, 64): return false
-	if not ArtSubmissionMetadata.validation_error(entry.author, entry.title, entry.description).is_empty(): return false
+	if not ArtSubmissionMetadata.validation_error(entry.author, entry.title, entry.description, building).is_empty(): return false
 	if not entry.price is int and not entry.price is float: return false
 	var price: float = float(entry.price)
-	if not is_finite(price) or floorf(price) != price or price < 100 or price > ArtMarket.MAX_PRICE: return false
+	var min_price: int = 100
+	var max_price: int = ArtMarket.MAX_PRICE
+	match entry.get("kind", ""):
+		"commission":
+			min_price = 100000000
+			max_price = 260000000
+		"my_house": max_price = 1250000000
+	if not is_finite(price) or floorf(price) != price or price < min_price or price > max_price: return false
 	var filename: String = str(entry.filename)
 	if filename.is_empty() or filename != filename.get_file() or not filename.ends_with(".png"): return false
 	if str(entry.png_path).length() > 2048 or str(entry.png_path).is_empty(): return false

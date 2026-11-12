@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
 const { Readable } = require('node:stream');
 const { PNG } = require('pngjs');
 const {
@@ -126,6 +127,44 @@ test('posts the completed PNG with all five fields to the fixed board, then serv
   assert.deepEqual(result.bytes, png);
   assert.equal(response.bytes.includes(deps.env.PADLET_API_KEY), false);
   assert.equal(response.bytes.includes(deps.env.BLOB_READ_WRITE_TOKEN), false);
+});
+
+test('posts commissioned and personal buildings with their own price label and original PNG', async () => {
+  for (const [kind, price, priceLine] of [
+    ['commission', 260_000_000, /게임 내 건물 가격: 260,000,000원/],
+    ['my_house', 10_700_000, /게임 내 재료비: 10,700,000원/],
+  ]) {
+    const deps = environment();
+    const submission = { ...base, kind, price };
+    const handler = createSubmissionHandler(deps);
+    assert.equal((await call(handler, submission)).statusCode, 200);
+    const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
+    assert.equal(content.subject, base.title);
+    assert.match(content.body, /사용자 이름: 사각이/);
+    assert.match(content.body, /건물 설명: 네모난 집과 파란 하늘을 표현했어요\./);
+    assert.match(content.body, priceLine);
+    assert.equal(content.attachment.url, publicPngUrl);
+    assert.deepEqual(deps.blob.files.get(pngPath).bytes, png);
+    assert.equal((await call(handler, submission)).statusCode, 200);
+    assert.equal(deps.calls.length, 1);
+    if (kind === 'commission') {
+      assert.equal((await call(handler, { ...submission, kind: 'my_house' })).statusCode, 409);
+    }
+  }
+});
+
+test('a saved drawing receipt is still recognized after the addition of publication kinds', async () => {
+  const deps = environment();
+  const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
+  const legacyPayload = [base.id, base.author, base.title, base.description, base.price, digest(png)];
+  deps.blob.setJson(manifestPath, {
+    version: 1, id: base.id, state: 'published', payload_hash: digest(JSON.stringify(legacyPayload)),
+    post_url: post.attributes.webUrl.live,
+  });
+  const response = await call(createSubmissionHandler(deps));
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json.post_url, post.attributes.webUrl.live);
+  assert.equal(deps.calls.length, 0);
 });
 
 test('attachment URLs stay on an approved production domain', async () => {
@@ -267,6 +306,9 @@ test('invalid fields and malformed PNGs fail before any storage or remote call',
   const hugeHeader = Buffer.from(png);
   hugeHeader.writeUInt32BE(1000000000, 16);
   const variants = [
+    { kind: 'drawing' }, { kind: '__proto__' }, { kind: null }, { kind: ['commission'] },
+    { kind: 'commission', price: 99_999_999 }, { kind: 'commission', price: 260_000_001 },
+    { kind: 'my_house', price: 99 }, { kind: 'my_house', price: 1_250_000_001 },
     { id: '../../private/config' }, { author: '   ' }, { title: '가'.repeat(81) },
     { description: '가'.repeat(1001) }, { title: '안녕\0' }, { author: '이름\u0085' },
     { description: '설명\u009f' }, { price: 99 }, { price: 8000001 }, { price: 100.1 },

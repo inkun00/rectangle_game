@@ -16,6 +16,10 @@ var _art_sale_transaction: Callable = ProgressionTransactions.commit
 var _art_publications: ArtPublicationStore = ArtPublicationStore.new()
 var _art_upload_transport: Callable = Callable()
 var _art_upload_busy: bool = false
+var _building_upload_busy: bool = false
+var _building_png_busy: bool = false
+var _building_png_directory: String = "user://published_buildings"
+var _building_png_renderer: Callable = Callable()
 var learning_progress: LearningProgress = LearningProgress.new()
 var _learning_screen: LearningStudio
 var journal: QuestJournal
@@ -227,7 +231,7 @@ func _build_drawing() -> void:
 	_drawing_screen.art_sale_requested.connect(_sell_art)
 	_drawing_screen.art_upload_retry_requested.connect(_retry_art_uploads)
 	if not testing:
-		var restored: Dictionary = _art_publications.load_file()
+		var restored: Dictionary = _load_publications()
 		if bool(restored.ok):
 			_drawing_screen.sale_author_name = _art_publications.last_author()
 			_retry_art_uploads.call_deferred()
@@ -241,8 +245,16 @@ func _build_construction() -> void:
 	_construction_screen.state = _economy_state
 	_construction_screen.load_on_ready = not _defer_features
 	_construction_screen.home_requested.connect(_show_home)
+	_construction_screen.building_publication_requested.connect(_publish_building)
+	_construction_screen.building_upload_retry_requested.connect(_retry_building_uploads)
 	_construction_screen.hide()
 	_ui.add_child(_construction_screen)
+	if not testing:
+		var restored: Dictionary = _load_publications()
+		if bool(restored.ok):
+			_construction_screen.publication_author_name = _art_publications.last_author()
+			_retry_building_uploads.call_deferred()
+		else: _construction_screen.set_building_upload_status(str(restored.error))
 	if _tutorial != null: _tutorial.bind_construction()
 	if bool(_construction_load_result.get("recovered", false)):
 		_construction_screen._set_status(str(_construction_load_result.get("message", "건축 기록을 복구했어요.")))
@@ -313,18 +325,94 @@ func _sell_art(data: Dictionary) -> void:
 	_drawing_screen.show_sale_result(result)
 	if bool(result.get("ok", false)): _retry_art_uploads()
 
-func _retry_art_uploads() -> void:
-	if _art_upload_busy or not is_instance_valid(_drawing_screen): return
-	if not _art_publications.loaded:
-		var restored: Dictionary = _art_publications.load_file()
-		if not bool(restored.ok):
-			_drawing_screen.set_upload_status(str(restored.error))
-			return
-	var pending: Array[Dictionary] = _art_publications.pending(_economy_state.art_sales)
-	if pending.is_empty():
-		_drawing_screen.set_upload_status("")
+func _publish_building(data: Dictionary) -> void:
+	if _building_png_busy or not is_instance_valid(_construction_screen) or not _construction_screen.is_visible_in_tree(): return
+	var offer: Dictionary = _construction_screen.building_publication_offer()
+	var metadata_error: String = ArtSubmissionMetadata.validation_error(data.get("author"), data.get("title"), data.get("description"), true)
+	if not metadata_error.is_empty():
+		_construction_screen.show_building_publication_result({"ok": false, "error": metadata_error})
 		return
-	_art_upload_busy = true
+	if not _matches_building_offer(data, offer):
+		_construction_screen.show_building_publication_result({"ok": false, "error": "완성한 건물과 금액을 다시 확인해 주세요."})
+		return
+	var restored: Dictionary = _load_publications()
+	if not bool(restored.ok):
+		_construction_screen.show_building_publication_result(restored)
+		return
+	# Ignore selection and edit history when recognizing a previously posted design.
+	var parts: Array = offer.document.parts.duplicate(true)
+	for part: Dictionary in parts: part.erase("id")
+	offer["fingerprint"] = JSON.stringify([offer.kind, offer.price, parts]).sha256_text()
+	var previous: Dictionary = _art_publications.find_entry(str(offer.fingerprint))
+	if not previous.is_empty():
+		if previous.status == "pending":
+			_construction_screen.show_building_publication_result({"ok": true, "message": "저장된 건물 PNG로 패들릿 등록을 다시 시도해요."})
+			_retry_building_uploads()
+		else:
+			_construction_screen.show_building_publication_result({"ok": true, "message": "이미 패들릿에 올린 건물이에요."})
+			_construction_screen.set_building_upload_status("이미 패들릿에 올린 건물이에요.", _art_publications.pending(_economy_state.art_sales, true).size(), str(previous.post_url), _building_upload_busy)
+		return
+	_building_png_busy = true
+	var bytes: PackedByteArray
+	if _building_png_renderer.is_valid():
+		bytes = await _building_png_renderer.call(offer.document.duplicate(true))
+	else:
+		bytes = await _construction_screen.render_building_publication_png(offer.document)
+	_building_png_busy = false
+	if not is_instance_valid(_construction_screen): return
+	if not _construction_screen.is_visible_in_tree() or not _matches_building_offer(data, _construction_screen.building_publication_offer()):
+		_construction_screen.show_building_publication_result({"ok": false, "error": "건물 설계가 바뀌었어요. 완성한 건물을 다시 확인해 주세요."})
+		return
+	if bytes.is_empty():
+		_construction_screen.show_building_publication_result({"ok": false, "error": "건물 PNG를 만들지 못했어요. 다시 시도해 주세요."})
+		return
+	var saved: Dictionary = SoldArtStore.save_png(bytes, str(data.title), _building_png_directory)
+	if not bool(saved.ok):
+		_construction_screen.show_building_publication_result(saved)
+		return
+	var prepared: Dictionary = _art_publications.prepare(data, offer, saved, bytes)
+	if not bool(prepared.ok):
+		_construction_screen.show_building_publication_result(prepared)
+		return
+	if OS.has_feature("web"): JavaScriptBridge.download_buffer(bytes, str(saved.filename), "image/png")
+	_construction_screen.show_building_publication_result({
+		"ok": true, "author": str(prepared.entry.author), "filename": str(saved.filename),
+		"png_path": str(saved.path), "message": "건물 PNG를 저장했어요. 패들릿에 등록할게요."
+	})
+	_retry_building_uploads()
+
+func _matches_building_offer(data: Dictionary, offer: Dictionary) -> bool:
+	return bool(offer.get("ok", false)) and data.get("document") == offer.document and data.get("kind") == offer.kind and data.get("price") == offer.price
+
+func _load_publications() -> Dictionary:
+	return {"ok": true} if _art_publications.loaded else _art_publications.load_file()
+
+func _retry_art_uploads() -> void:
+	await _retry_publications(false)
+
+func _retry_building_uploads() -> void:
+	await _retry_publications(true)
+
+func _set_publication_status(buildings: bool, message: String, pending: int = 0, post_url: String = "", busy: bool = false) -> void:
+	if buildings and is_instance_valid(_construction_screen):
+		_construction_screen.set_building_upload_status(message, pending, post_url, busy)
+	elif not buildings and is_instance_valid(_drawing_screen):
+		_drawing_screen.set_upload_status(message, pending, post_url, busy)
+
+func _retry_publications(buildings: bool) -> void:
+	if buildings and (_building_upload_busy or not is_instance_valid(_construction_screen)): return
+	if not buildings and (_art_upload_busy or not is_instance_valid(_drawing_screen)): return
+	var restored: Dictionary = _load_publications()
+	if not bool(restored.ok):
+		_set_publication_status(buildings, str(restored.error))
+		return
+	var pending: Array[Dictionary] = _art_publications.pending(_economy_state.art_sales, buildings)
+	if pending.is_empty():
+		_set_publication_status(buildings, "")
+		return
+	if buildings: _building_upload_busy = true
+	else: _art_upload_busy = true
+	var directory: String = _building_png_directory if buildings else _drawing_screen.sold_art_directory
 	var last_url: String = ""
 	var moderated: bool = false
 	var error: String = ""
@@ -332,7 +420,7 @@ func _retry_art_uploads() -> void:
 	while true:
 		# Re-read between requests so sales completed during an upload are also
 		# sent. Attempt each ID only once in this batch, including unresolved ones.
-		pending = _art_publications.pending(_economy_state.art_sales)
+		pending = _art_publications.pending(_economy_state.art_sales, buildings)
 		var entry: Dictionary = {}
 		for candidate: Dictionary in pending:
 			if not attempted.has(candidate.id):
@@ -340,10 +428,11 @@ func _retry_art_uploads() -> void:
 				break
 		if entry.is_empty(): break
 		attempted[entry.id] = true
-		_drawing_screen.set_upload_status("판매 완료 · 패들릿에 그림을 등록하고 있어요…", pending.size(), "", true)
-		var bytes: PackedByteArray = _art_publications.read_png(entry, _drawing_screen.sold_art_directory)
+		var progress: String = "패들릿에 건물을 등록하고 있어요…" if buildings else "판매 완료 · 패들릿에 그림을 등록하고 있어요…"
+		_set_publication_status(buildings, progress, pending.size(), "", true)
+		var bytes: PackedByteArray = _art_publications.read_png(entry, directory)
 		if bytes.is_empty():
-			error = "저장한 PNG를 찾지 못했어요. 판매한 그림 폴더의 원본 파일을 확인해 주세요."
+			error = "저장한 PNG를 찾지 못했어요. 원본 파일을 확인해 주세요."
 			continue
 		var result: Dictionary
 		if _art_upload_transport.is_valid():
@@ -362,13 +451,13 @@ func _retry_art_uploads() -> void:
 			error = "패들릿 등록 결과를 저장하지 못했어요. 다시 시도하면 같은 게시물을 확인해요."
 			continue
 		moderated = moderated or bool(result.get("moderation_pending", false))
-	_art_upload_busy = false
-	if not is_instance_valid(_drawing_screen): return
-	var remaining: int = _art_publications.pending(_economy_state.art_sales).size()
+	if buildings: _building_upload_busy = false
+	else: _art_upload_busy = false
+	var remaining: int = _art_publications.pending(_economy_state.art_sales, buildings).size()
 	if not error.is_empty():
-		_drawing_screen.set_upload_status("패들릿 등록 대기 %d개 · %s" % [remaining, error], remaining)
+		_set_publication_status(buildings, "패들릿 등록 대기 %d개 · %s" % [remaining, error], remaining)
 	else:
-		_drawing_screen.set_upload_status("패들릿 등록 완료 · 보드 관리자 승인 대기" if moderated else "패들릿 등록 완료 · 이름, 제목, 설명, 가격과 PNG를 올렸어요.", remaining, last_url)
+		_set_publication_status(buildings, "패들릿 등록 완료 · 보드 관리자 승인 대기" if moderated else "패들릿 등록 완료 · 이름, 제목, 설명, 가격과 PNG를 올렸어요.", remaining, last_url)
 
 func _purchase_ship_part(id: String) -> void:
 	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return

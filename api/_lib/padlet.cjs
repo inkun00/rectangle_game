@@ -14,6 +14,12 @@ const REQUEST_TIMEOUT_MS = 15000;
 const POSTING_GRACE_MS = 45000;
 const ID_PATTERN = /^[a-f0-9]{32}$/;
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const DRAWING_PRICE = { minimum: 100, maximum: 8_000_000, label: '게임 내 그림 가격' };
+const BUILDING_PRICES = new Map([
+  ['commission', { minimum: 100_000_000, maximum: 260_000_000, label: '게임 내 건물 가격' }],
+  // 400 parts, each at most 600 × 400, at the highest custom rate and surcharges.
+  ['my_house', { minimum: 100, maximum: 1_250_000_000, label: '게임 내 재료비' }],
+]);
 
 class InputError extends Error {
   constructor(message, status = 400) {
@@ -182,25 +188,31 @@ function textField(value, maximum, label, multiline = false) {
 }
 
 function validateSubmission(raw) {
+  const kind = raw.kind;
+  const buildingPrice = BUILDING_PRICES.get(kind);
+  if (kind !== undefined && !buildingPrice) throw new InputError('작품 종류를 확인해 주세요.');
+  const work = buildingPrice ? '건물' : '그림';
   if (typeof raw.id !== 'string' || !ID_PATTERN.test(raw.id)) {
-    throw new InputError('작품 번호가 올바르지 않아요. 그림을 다시 열어 주세요.');
+    throw new InputError(`작품 번호가 올바르지 않아요. ${work}을 다시 열어 주세요.`);
   }
   const author = textField(raw.author, 40, '사용자 이름');
-  const title = textField(raw.title, 80, '그림 제목');
-  const description = textField(raw.description, 1000, '그림 설명', true);
-  if (!Number.isSafeInteger(raw.price) || raw.price < 100 || raw.price > 8000000) {
-    throw new InputError('그림 가격이 올바르지 않아요. 판매 화면에서 다시 확인해 주세요.');
+  const title = textField(raw.title, 80, `${work} 제목`);
+  const description = textField(raw.description, 1000, `${work} 설명`, true);
+  const price = buildingPrice ?? DRAWING_PRICE;
+  if (!Number.isSafeInteger(raw.price) || raw.price < price.minimum || raw.price > price.maximum) {
+    throw new InputError(buildingPrice ? '건물 금액이 올바르지 않아요. 건축 화면에서 다시 확인해 주세요.' :
+      '그림 가격이 올바르지 않아요. 판매 화면에서 다시 확인해 주세요.');
   }
   const encoded = raw.png_base64;
   if (typeof encoded !== 'string' || !encoded || encoded.length > Math.ceil(MAX_PNG_BYTES / 3) * 4 ||
       encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) {
-    throw new InputError('PNG 그림 파일을 다시 만들어 주세요.');
+    throw new InputError('작품의 PNG 파일을 다시 만들어 주세요.');
   }
   const png = Buffer.from(encoded, 'base64');
   if (png.length < 33 || png.length > MAX_PNG_BYTES || png.toString('base64') !== encoded ||
       !png.subarray(0, 8).equals(PNG_SIGNATURE) || png.readUInt32BE(8) !== 13 ||
       png.toString('ascii', 12, 16) !== 'IHDR' || png.readUInt32BE(16) !== 960 || png.readUInt32BE(20) !== 600) {
-    throw new InputError('960×600 크기의 PNG 그림이 필요해요. 그림을 다시 저장해 주세요.');
+    throw new InputError(`960×600 크기의 PNG가 필요해요. ${work}을 다시 저장해 주세요.`);
   }
   // Check dimensions before decompression, then verify CRCs and the complete PNG stream.
   try {
@@ -209,11 +221,14 @@ function validateSubmission(raw) {
       throw new Error('Unexpected decoded dimensions');
     }
   } catch {
-    throw new InputError('그림 파일이 손상되었어요. PNG를 다시 저장해 주세요.');
+    throw new InputError('작품 파일이 손상되었어요. PNG를 다시 저장해 주세요.');
   }
   const imageHash = hash(png);
-  const payloadHash = hash(JSON.stringify([raw.id, author, title, description, raw.price, imageHash]));
-  return { id: raw.id, author, title, description, price: raw.price, png, imageHash, payloadHash };
+  const payload = [raw.id, author, title, description, raw.price, imageHash];
+  // Preserve the payload hash already stored for drawing submissions.
+  if (buildingPrice) payload.push(kind);
+  const payloadHash = hash(JSON.stringify(payload));
+  return { id: raw.id, author, title, description, price: raw.price, png, imageHash, payloadHash, kind };
 }
 
 async function readManifest(deps, id) {
@@ -263,13 +278,16 @@ function escapeHtml(value) {
 }
 
 function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
+  const buildingPrice = BUILDING_PRICES.get(submission.kind);
+  const descriptionLabel = buildingPrice ? '건물 설명' : '그림 설명';
+  const priceLabel = (buildingPrice ?? DRAWING_PRICE).label;
   return {
     data: {
       type: 'post',
       attributes: {
         content: {
           subject: submission.title,
-          body: `사용자 이름: ${escapeHtml(submission.author)}\n\n그림 설명: ${escapeHtml(submission.description)}\n\n게임 내 그림 가격: ${submission.price.toLocaleString('en-US')}원\n작품 번호: ${submission.id}`,
+          body: `사용자 이름: ${escapeHtml(submission.author)}\n\n${descriptionLabel}: ${escapeHtml(submission.description)}\n\n${priceLabel}: ${submission.price.toLocaleString('en-US')}원\n작품 번호: ${submission.id}`,
           attachment: { url: imageUrl(submission.id, origin), caption: submission.title },
         },
       },

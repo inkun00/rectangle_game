@@ -5,12 +5,12 @@ const MAX_AUTHOR_LENGTH: int = 40
 const MAX_TITLE_LENGTH: int = 80
 const MAX_DESCRIPTION_LENGTH: int = 1000
 
-static func validation_error(author: Variant, title: Variant, description: Variant) -> String:
+static func validation_error(author: Variant, title: Variant, description: Variant, building: bool = false) -> String:
 	var error: String = _field_error(author, "사용자 이름", MAX_AUTHOR_LENGTH)
 	if not error.is_empty(): return error
-	error = _field_error(title, "그림 제목", MAX_TITLE_LENGTH)
+	error = _field_error(title, "건물 제목" if building else "그림 제목", MAX_TITLE_LENGTH)
 	if not error.is_empty(): return error
-	return _field_error(description, "그림 설명", MAX_DESCRIPTION_LENGTH, true)
+	return _field_error(description, "건물 설명" if building else "그림 설명", MAX_DESCRIPTION_LENGTH, true)
 
 static func _field_error(value: Variant, label: String, maximum: int, multiline: bool = false) -> String:
 	if not value is String:
