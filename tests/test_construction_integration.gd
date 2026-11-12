@@ -20,6 +20,8 @@ static func run(t: Node) -> void:
 	await _test_facade_repair_feedback(t)
 
 static func _test_building_publication(t: Node) -> void:
+	var window: Window = t.get_tree().root
+	var original_scale: Vector2i = window.content_scale_size
 	var directory: String = "user://test_building_publication_%s" % Crypto.new().generate_random_bytes(8).hex_encode()
 	DirAccess.make_dir_recursive_absolute(directory)
 	var app: QuadrilateralApp = AppScene.instantiate()
@@ -84,6 +86,7 @@ static func _test_building_publication(t: Node) -> void:
 		t.assert_eq(rendered.size(), 1, "Retry and duplicate detection reuse the saved image")
 		t.assert_eq(studio.state.serialize(), before, "Successful publication never settles or spends money again")
 	app.free()
+	window.content_scale_size = original_scale
 	for filename: String in DirAccess.get_files_at(directory.path_join("png")):
 		DirAccess.remove_absolute(directory.path_join("png").path_join(filename))
 	DirAccess.remove_absolute(directory.path_join("png"))

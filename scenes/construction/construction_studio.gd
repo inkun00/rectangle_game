@@ -989,8 +989,16 @@ func _choose_material(id: String) -> void:
 	_set_status("%s · %s\n%s" % [material.label, Catalog.format_won(int(material.price)), material.description])
 	_refresh()
 	if _material_buttons[id].visible:
-		var library: ScrollContainer = _materials.get_parent() as ScrollContainer
-		library.call_deferred("ensure_control_visible", _material_buttons[id])
+		_reveal_selected_material(id)
+
+func _reveal_selected_material(id: String) -> void:
+	# Clearing guide filters can change the card positions and scrollbar range.
+	await get_tree().process_frame
+	if not is_visible_in_tree() or not canvas.drawing_tool or canvas.material_id != id: return
+	var card: Button = _material_buttons.get(id) as Button
+	if not is_instance_valid(card) or not card.is_visible_in_tree(): return
+	var library: ScrollContainer = _materials.get_parent() as ScrollContainer
+	library.ensure_control_visible(card)
 
 func _change_brick_mode(index: int) -> void:
 	_filter_materials(_material_category)
