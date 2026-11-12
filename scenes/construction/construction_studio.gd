@@ -114,6 +114,7 @@ var _design_view: Button
 var _material_view: Button
 var _material_category: String = "all"
 var _material_family: String = "all"
+var _material_scroll_revision: int = 0
 var _category_buttons: Dictionary = {}
 var _view_phase: String = ""
 var _compact_edit: MenuButton
@@ -906,6 +907,7 @@ func _browse_materials(category: String) -> void:
 	_reset_material_scroll()
 
 func _reset_material_scroll() -> void:
+	_material_scroll_revision += 1
 	var library: ScrollContainer = _materials.get_parent() as ScrollContainer
 	library.set_deferred("scroll_vertical", 0)
 
@@ -988,12 +990,14 @@ func _choose_material(id: String) -> void:
 	var material: Dictionary = Catalog.material(id)
 	_set_status("%s · %s\n%s" % [material.label, Catalog.format_won(int(material.price)), material.description])
 	_refresh()
+	_material_scroll_revision += 1
 	if _material_buttons[id].visible:
-		_reveal_selected_material(id)
+		_reveal_selected_material(id, _material_scroll_revision)
 
-func _reveal_selected_material(id: String) -> void:
+func _reveal_selected_material(id: String, scroll_revision: int) -> void:
 	# Clearing guide filters can change the card positions and scrollbar range.
 	await get_tree().process_frame
+	if scroll_revision != _material_scroll_revision: return
 	if not is_visible_in_tree() or not canvas.drawing_tool or canvas.material_id != id: return
 	var card: Button = _material_buttons.get(id) as Button
 	if not is_instance_valid(card) or not card.is_visible_in_tree(): return
