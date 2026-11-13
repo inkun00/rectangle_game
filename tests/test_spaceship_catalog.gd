@@ -3,6 +3,7 @@ extends RefCounted
 
 const Catalog: GDScript = preload("res://scripts/economy/spaceship_catalog.gd")
 const Math: GDScript = preload("res://scripts/core/quadrilateral_math.gd")
+const Assembly: GDScript = preload("res://scripts/economy/spaceship_assembly.gd")
 
 static func run(t: Node) -> void:
 	var parts: Array[Dictionary] = Catalog.all_parts()
@@ -68,6 +69,7 @@ static func run(t: Node) -> void:
 	t.assert_eq(installed.front().id, "left_wing_elite", "The wings render underneath the installed body")
 	t.assert_eq(installed.back().id, "shield_elite", "The equipped shield renders above the body")
 	_test_shape_variation(t)
+	_test_connected_assemblies(t)
 
 static func _test_shape_variation(t: Node) -> void:
 	var square_sizes: Dictionary = {}
@@ -123,3 +125,75 @@ static func _test_shape_variation(t: Node) -> void:
 	t.assert_ge(trapezoid_ratios.size(), 6, "Trapezoid products use varied ratios of the short and long bases")
 	t.assert_ge(trapezoid_offsets.size(), 6, "Trapezoid products include different asymmetric offsets")
 	t.assert_eq(trapezoid_facings.size(), 4, "Trapezoids can have a short edge facing up, down, left or right")
+
+
+static func _test_connected_assemblies(t: Node) -> void:
+	var basic_ids: Array[String] = []
+	for base: Dictionary in Catalog.all_parts(): basic_ids.append(str(base.id))
+	for slot: Dictionary in Catalog.all_parts():
+		var previous_vertices: PackedVector2Array = PackedVector2Array()
+		for variant: Dictionary in Catalog.variants(str(slot.id)):
+			var primary: Dictionary = Assembly.product_panel(str(variant.id))
+			t.assert_false(primary.is_empty(), "Each purchased model maps to an installed panel")
+			if primary.is_empty(): continue
+			t.assert_eq(primary.kind, variant.kind, "The installed panel preserves the advertised quadrilateral family")
+			t.assert_true(primary.vertices != previous_vertices, "Each product changes the actual installed panel")
+			previous_vertices = primary.vertices
+
+	var basic: Dictionary = Assembly.build(basic_ids)
+	var finishes: Dictionary = {"finish": "brushed", "base": "night", "accent": "red"}
+	t.assert_eq(Assembly.build(basic_ids, finishes).panels, basic.panels, "Painting and materials leave the shape of the ship unchanged")
+	var choices: Dictionary = {"fore": ["scanner", "sensor"], "wings": ["fins", "solar"], "sides": ["cargo", "pods"], "tail": ["radiators", "boosters"]}
+	for mount: String in choices:
+		var old_panels: Array[Dictionary] = []
+		for option: String in choices[mount]:
+			var appearance: Dictionary = {}
+			appearance[mount] = option
+			var outfitted: Dictionary = Assembly.build(basic_ids, appearance)
+			var new_panels: Array[Dictionary] = []
+			for panel: Dictionary in outfitted.panels:
+				if panel.slot == mount: new_panels.append(panel)
+			t.assert_false(new_panels.is_empty(), "Each optional accessory has mounted geometry")
+			t.assert_true(new_panels != old_panels, "Each accessory option has a different shape")
+			old_panels = new_panels
+			_assert_ship_integrity(t, outfitted, option)
+
+	for hull_tier: int in range(3):
+		for left_tier: int in range(3):
+			for right_tier: int in range(3):
+				var ids: Array[String] = basic_ids.duplicate()
+				ids[0] = str(Catalog.variants("hull")[hull_tier].id)
+				ids[1] = str(Catalog.variants("nose")[right_tier].id)
+				ids[2] = str(Catalog.variants("window")[left_tier].id)
+				ids[3] = str(Catalog.variants("left_wing")[left_tier].id)
+				ids[4] = str(Catalog.variants("right_wing")[right_tier].id)
+				ids[5] = str(Catalog.variants("left_tank")[right_tier].id)
+				ids[6] = str(Catalog.variants("right_tank")[left_tier].id)
+				ids[7] = str(Catalog.variants("engine")[left_tier].id)
+				ids[8] = str(Catalog.variants("nozzle")[right_tier].id)
+				var style: Dictionary = {"fore": "scanner", "wings": "solar", "sides": "pods", "tail": "boosters"}
+				_assert_ship_integrity(t, Assembly.build(ids, style), "mixed grades %d/%d/%d" % [hull_tier, left_tier, right_tier])
+
+
+static func _assert_ship_integrity(t: Node, design: Dictionary, description: String) -> void:
+	var exterior: Array[PackedVector2Array] = []
+	for panel: Dictionary in design.panels:
+		var vertices: PackedVector2Array = panel.vertices
+		t.assert_true(Math.is_valid(vertices) and Math.matches_kind(vertices, str(panel.kind)), "The assembled %s panel is a valid quadrilateral" % panel.slot)
+		if not panel.internal and not panel.detail: exterior.append(vertices)
+	# Starting with any hull piece, reach each exterior piece through a
+	# positive-area overlap or a shared edge. This catches floating attachments
+	# as well as gaps when unlike wing, engine, or nose grades are combined.
+	var connected: Array[PackedVector2Array] = [exterior.pop_back()]
+	var index: int = 0
+	while index < connected.size() and not exterior.is_empty():
+		for candidate: int in range(exterior.size() - 1, -1, -1):
+			if Geometry2D.merge_polygons(connected[index], exterior[candidate]).size() == 1:
+				connected.append(exterior[candidate])
+				exterior.remove_at(candidate)
+		index += 1
+	t.assert_true(exterior.is_empty(), "All visible pieces of %s connect to the same airframe" % description)
+	var port_centers: Array[Vector2] = design.exhausts
+	var port_widths: Array[float] = design.port_widths
+	t.assert_eq(port_centers.size(), port_widths.size(), "Every engine exhaust has a matching port width")
+	t.assert_float_approx(port_centers[0].y, design.bounds.end.y, 0.05, "The main exhaust lands on the rear edge of the completed silhouette")

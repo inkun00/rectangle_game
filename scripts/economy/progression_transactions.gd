@@ -31,6 +31,10 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 		"purchase_part":
 			if not payload is String: return {"ok": false, "error": "구매할 부품을 선택해 주세요."}
 			result = candidate.purchase_ship_part(payload)
+		"set_ship_appearance":
+			result = candidate.set_ship_appearance(payload)
+			if bool(result.ok) and not bool(result.changed):
+				return result
 		"launch":
 			result = candidate.launch_ship()
 		_:
@@ -39,6 +43,8 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 	if persist:
 		var saved: Dictionary = Saves.save(path, candidate)
 		if not bool(saved.ok):
+			if action == "set_ship_appearance":
+				return {"ok": false, "error": "우주선 외형을 저장하지 못했어요. 다시 골라 주세요."}
 			return {"ok": false, "error": "저장하지 못해 거래를 취소했어요. 돈과 부품은 그대로예요. " + str(saved.error)}
 	state.apply_economy_from(candidate)
 	return result

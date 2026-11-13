@@ -2,6 +2,8 @@ class_name SpaceHangar
 extends Control
 
 signal purchase_requested(part_id: String)
+signal appearance_requested(appearance: Dictionary)
+signal export_requested
 signal launch_requested
 signal home_requested
 signal drawing_requested
@@ -12,21 +14,16 @@ const Catalog: GDScript = preload("res://scripts/economy/spaceship_catalog.gd")
 const ShipCanvas: GDScript = preload("res://scenes/space/spaceship_canvas.gd")
 const Money: GDScript = preload("res://scripts/construction/construction_catalog.gd")
 const Art: GDScript = preload("res://scripts/construction_art.gd")
+const Style: GDScript = preload("res://scripts/economy/spaceship_style.gd")
+const INTERNAL_SLOTS: Array[String] = ["core", "navigation", "shield"]
 
 class ProductPreview extends Control:
 	var item: Dictionary = {}
+	var appearance: Dictionary = {}
 
 	func _draw() -> void:
 		if item.is_empty(): return
-		var bounds: Rect2 = QuadrilateralMath.bounds(item.vertices)
-		var room: Vector2 = size - Vector2(6, 6)
-		var factor: float = minf(room.x / bounds.size.x, room.y / bounds.size.y)
-		var points: PackedVector2Array = PackedVector2Array()
-		for vertex: Vector2 in item.vertices:
-			points.append(size * 0.5 + (vertex - bounds.get_center()) * factor)
-		SpaceshipCanvas.draw_installed_part(self, points, item)
-		points.append(points[0])
-		draw_polyline(points, Color("aac1d2"), 1.2, true)
+		SpaceshipCanvas.draw_product(self, Rect2(Vector2(3, 3), size - Vector2(6, 6)), item, appearance)
 
 var state: ConstructionState
 var managed_endings: bool = false
@@ -42,11 +39,24 @@ var _balance: Label
 var _progress: Label
 var _detail: Label
 var _purchase: Button
+var _export_button: Button
 var _launch: Button
 var _status: Label
-var _workspace: HBoxContainer
-var _list_scroll: ScrollContainer
-var _ship_panel: PanelContainer
+var _workspace: BoxContainer
+var _rail: VBoxContainer
+var _options_scroll: ScrollContainer
+var _options: VBoxContainer
+var _shop_options: PanelContainer
+var _appearance_options: PanelContainer
+var _appearance_grid: GridContainer
+var _appearance_rows: Array[BoxContainer] = []
+var _parts_tab: Button
+var _appearance_tab: Button
+var _structure_button: Button
+var _appearance_pickers: Dictionary = {}
+var _appearance_status: Label
+var _appearance_mode: bool = false
+var _structure_visible: bool = false
 var _confirmation: ConfirmationDialog
 var _pending_part: String = ""
 var _pending_price: int = -1
@@ -94,29 +104,47 @@ func _ready() -> void:
 	var funds: VBoxContainer = QuadTheme.card(column, Color("182432"), 10)
 	funds.add_theme_constant_override("separation", 3)
 	_balance = QuadTheme.paragraph("", 19, Art.GOLD)
+	_balance.tooltip_text = "건축 운영비 3천만 원과 내 집에 사용한 돈은 남겨 둬요."
 	funds.add_child(_balance)
 	_progress = QuadTheme.paragraph("", 16, Art.INK)
 	funds.add_child(_progress)
-	_workspace = HBoxContainer.new()
+	_workspace = BoxContainer.new()
 	_workspace.add_theme_constant_override("separation", 10)
 	_workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(_workspace)
-	_ship_panel = PanelContainer.new()
-	_ship_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_ship_panel.add_theme_stylebox_override("panel", Art.panel(false, 8))
-	_workspace.add_child(_ship_panel)
+	var ship_panel: VBoxContainer = QuadTheme.card(_workspace, Color("182432"), 8)
+	(ship_panel.get_parent() as PanelContainer).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ship_panel.add_theme_constant_override("separation", 6)
+	var preview_bar: HBoxContainer = HBoxContainer.new()
+	ship_panel.add_child(preview_bar)
+	preview_bar.add_child(QuadTheme.paragraph("우주선 미리 보기", 17, Art.GOLD))
+	_structure_button = QuadTheme.button("내부 보기", func(): _set_structure_view(not _structure_visible))
+	_structure_button.name = "ShowShipStructure"
+	_structure_button.toggle_mode = true
+	_structure_button.add_theme_font_size_override("font_size", 15)
+	preview_bar.add_child(_structure_button)
 	canvas = ShipCanvas.new()
 	canvas.name = "ShipAssembly"
 	canvas.custom_minimum_size = Vector2(230, 220)
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.part_selected.connect(_select_part)
-	_ship_panel.add_child(canvas)
-	_list_scroll = ScrollContainer.new()
-	_list_scroll.custom_minimum_size = Vector2(320, 342)
-	_list_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_list_scroll.follow_focus = true
-	_workspace.add_child(_list_scroll)
-	_build_shop(_list_scroll)
+	ship_panel.add_child(canvas)
+	_rail = VBoxContainer.new()
+	_rail.add_theme_constant_override("separation", 6)
+	_workspace.add_child(_rail)
+	_build_design_tabs()
+	_appearance_status = QuadTheme.paragraph("꾸미기는 무료예요.", 15, Art.INK)
+	_rail.add_child(_appearance_status)
+	_options_scroll = ScrollContainer.new()
+	_options_scroll.name = "ShipOptionsScroll"
+	_options_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_options_scroll.follow_focus = true
+	_rail.add_child(_options_scroll)
+	_options = VBoxContainer.new()
+	_options.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_options_scroll.add_child(_options)
+	_build_shop()
+	_build_appearance()
 	var detail_panel: VBoxContainer = QuadTheme.card(column, Color("182432"), 10)
 	detail_panel.add_theme_constant_override("separation", 5)
 	_detail = QuadTheme.paragraph("", 16, Art.INK)
@@ -129,6 +157,9 @@ func _ready() -> void:
 	_purchase.name = "BuyShipPart"
 	_purchase.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	actions.add_child(_purchase)
+	_export_button = QuadTheme.button("우주선 PNG 저장", _request_export)
+	_export_button.name = "ExportShip"
+	actions.add_child(_export_button)
 	_launch = QuadTheme.button("모든 부품을 모으면 출발", _request_launch, true)
 	_launch.name = "LaunchShip"
 	_launch.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -146,23 +177,31 @@ func _ready() -> void:
 	resized.connect(_responsive)
 	visibility_changed.connect(_visibility_changed)
 	if state != null: state.changed.connect(refresh)
-	refresh()
+	_set_appearance_mode(false)
 	_responsive()
 	set_process(false)
 
-func _build_shop(parent: ScrollContainer) -> void:
-	var rail: VBoxContainer = VBoxContainer.new()
-	rail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	parent.add_child(rail)
-	var list: VBoxContainer = QuadTheme.card(rail, Color("182432"), 10)
+func _build_design_tabs() -> void:
+	var tabs: HBoxContainer = HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 6)
+	_rail.add_child(tabs)
+	_parts_tab = QuadTheme.button("필수 부품", _set_appearance_mode.bind(false))
+	_parts_tab.name = "RequiredShipParts"
+	_appearance_tab = QuadTheme.button("외형 꾸미기", _set_appearance_mode.bind(true))
+	_appearance_tab.name = "CustomizeShipAppearance"
+	for button: Button in [_parts_tab, _appearance_tab]:
+		button.toggle_mode = true
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 16)
+		tabs.add_child(button)
+
+func _build_shop() -> void:
+	var list: VBoxContainer = QuadTheme.card(_options, Color("182432"), 10)
+	_shop_options = list.get_parent() as PanelContainer
 	list.add_theme_constant_override("separation", 6)
-	list.add_child(QuadTheme.paragraph("필수 부품 고르기", 19, Art.GOLD))
-	_slot_picker = OptionButton.new()
+	_slot_picker = _make_picker()
 	_slot_picker.name = "ShipPartSlot"
 	_slot_picker.tooltip_text = "우주선에 필요한 12종류의 부품"
-	_slot_picker.custom_minimum_size.y = 44
-	_slot_picker.add_theme_font_override("font", QuadTheme.FONT)
-	ButtonArt.apply(_slot_picker)
 	list.add_child(_slot_picker)
 	_slots = Catalog.all_parts()
 	for slot: Dictionary in _slots: _slot_picker.add_item(str(slot.slot_name))
@@ -189,6 +228,62 @@ func _build_shop(parent: ScrollContainer) -> void:
 		thumbnail.offset_top = -28.0
 		thumbnail.offset_bottom = 28.0
 		_variant_previews.append(thumbnail)
+
+func _build_appearance() -> void:
+	var list: VBoxContainer = QuadTheme.card(_options, Color("182432"), 10)
+	_appearance_options = list.get_parent() as PanelContainer
+	_appearance_grid = GridContainer.new()
+	_appearance_grid.add_theme_constant_override("h_separation", 8)
+	_appearance_grid.add_theme_constant_override("v_separation", 4)
+	list.add_child(_appearance_grid)
+	for field: Dictionary in Style.fields():
+		var key: String = str(field.key)
+		var row: BoxContainer = BoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_theme_constant_override("separation", 8)
+		_appearance_grid.add_child(row)
+		_appearance_rows.append(row)
+		var label: Label = QuadTheme.label(str(field.name), 15, Art.INK)
+		label.custom_minimum_size.x = 108.0
+		row.add_child(label)
+		var picker: OptionButton = _make_picker()
+		picker.name = "ShipStyle_" + key
+		picker.tooltip_text = str(field.name)
+		for option: Dictionary in field.options:
+			if option.has("color"):
+				picker.add_icon_item(_color_chip(option.color), str(option.name))
+			else:
+				picker.add_item(str(option.name))
+			picker.set_item_metadata(picker.item_count - 1, str(option.id))
+		picker.item_selected.connect(_change_appearance.bind(key))
+		row.add_child(picker)
+		_appearance_pickers[key] = picker
+	_appearance_options.hide()
+
+func _make_picker() -> OptionButton:
+	var picker: OptionButton = OptionButton.new()
+	picker.custom_minimum_size.y = 44.0
+	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	picker.fit_to_longest_item = false
+	picker.clip_text = true
+	picker.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	picker.add_theme_font_override("font", QuadTheme.FONT)
+	ButtonArt.apply(picker, false, 15)
+	var menu: PopupMenu = picker.get_popup()
+	menu.add_theme_font_override("font", QuadTheme.FONT)
+	menu.add_theme_font_size_override("font_size", 16)
+	menu.add_theme_constant_override("v_separation", 10)
+	menu.add_theme_stylebox_override("panel", Art.panel(false, 8))
+	menu.add_theme_stylebox_override("hover", Art.button_style(false, "hover", 8))
+	menu.add_theme_color_override("font_color", Art.INK)
+	menu.add_theme_color_override("font_hover_color", Art.INK)
+	return picker
+
+func _color_chip(color: Color) -> ImageTexture:
+	var pixels: Image = Image.create_empty(16, 16, false, Image.FORMAT_RGBA8)
+	pixels.fill(Color("c7d6e0"))
+	pixels.fill_rect(Rect2i(1, 1, 14, 14), color)
+	return ImageTexture.create_from_image(pixels)
 
 func _build_confirmation() -> void:
 	_confirmation = ConfirmationDialog.new()
@@ -250,9 +345,11 @@ func _build_launch_panel() -> void:
 func refresh() -> void:
 	if not is_instance_valid(canvas) or state == null: return
 	canvas.set_parts(state.purchased_ship_parts)
+	canvas.set_appearance(state.ship_appearance)
 	canvas.selected_part_id = _selected_id
+	_refresh_appearance_pickers()
 	_balance.text = "부품 구매에 쓸 수 있는 돈  %s" % Money.format_won(state.ship_available_funds())
-	_progress.text = "필수 부품 %d / %d종 · 비행 성능 %d · 사용한 제작비 %s\n건축 운영비 3천만 원과 내 집에 사용한 돈은 남겨 둬요." % [state.purchased_ship_parts.size(), Catalog.PART_COUNT, state.ship_performance(), Money.format_won(state.ship_spent())]
+	_progress.text = "필수 부품 %d / %d종 · 비행 성능 %d · 사용한 제작비 %s" % [state.purchased_ship_parts.size(), Catalog.PART_COUNT, state.ship_performance(), Money.format_won(state.ship_spent())]
 	for index: int in range(_slots.size()):
 		var slot: Dictionary = _slots[index]
 		var equipped: bool = not state.installed_ship_part(str(slot.slot_id)).is_empty()
@@ -265,22 +362,24 @@ func refresh() -> void:
 		var id: String = str(item.id)
 		var due: int = state.ship_purchase_price(id)
 		var label: String = "조립됨" if installed.get("id") == id else ("교체 차액 " + Money.format_won(due) if due >= 0 and not installed.is_empty() else Money.format_won(int(item.price)))
-		button.text = "%s\n%s · 성능 +%d\n%s" % [str(item.name), QuadrilateralMath.kind_name(str(item.kind)), int(item.performance), label]
+		button.text = "%s\n%s 패널 · 성능 +%d\n%s" % [str(item.name), QuadrilateralMath.kind_name(str(item.kind)), int(item.performance), label]
 		button.tooltip_text = _part_detail(item)
 		button.set_pressed_no_signal(id == _selected_variant_id)
 		var thumbnail: ProductPreview = _variant_previews[int(item.tier)]
 		thumbnail.item = item
+		thumbnail.appearance = state.ship_appearance
 		thumbnail.queue_redraw()
 	var selected: Dictionary = Catalog.part(_selected_variant_id)
 	var price: int = state.ship_purchase_price(_selected_variant_id)
 	var missing: int = maxi(0, price - state.ship_available_funds())
 	_detail.text = _part_detail(selected)
-	canvas.show_preview(_selected_variant_id if installed.get("id") != _selected_variant_id else "")
+	canvas.show_preview(_selected_variant_id if not _appearance_mode and installed.get("id") != _selected_variant_id else "")
 	_purchase.disabled = price < 0 or missing > 0
 	if price < 0: _purchase.text = "조립한 부품" if installed.get("id") == _selected_variant_id else "더 높은 등급의 부품을 쓰고 있어요"
 	elif missing > 0: _purchase.text = "%s 더 모으면 구매" % Money.format_won(missing)
 	else: _purchase.text = "선택한 부품 구매" if installed.is_empty() else "차액 내고 교체"
 	_launch.disabled = not state.ship_complete()
+	_export_button.disabled = _launch.disabled
 	var replay: bool = ending_saved or state.launched
 	_launch.text = "엔딩 다시 보기" if replay else ("완성하고 엔딩 보기" if state.ship_complete() else "필수 부품 12종을 갖추면 완성")
 	canvas.queue_redraw()
@@ -288,11 +387,60 @@ func refresh() -> void:
 		_confirmation.get_ok_button().disabled = not _quote_is_current()
 
 func _select_part(id: String) -> void:
+	if _appearance_mode: return
 	var part: Dictionary = Catalog.part(id)
 	if state == null or part.is_empty() or _launch_panel.visible: return
 	_selected_id = str(part.slot_id)
 	var installed: Dictionary = state.installed_ship_part(_selected_id)
 	_selected_variant_id = str(installed.get("id", _selected_id))
+	_set_appearance_mode(false)
+
+func _set_appearance_mode(enabled: bool) -> void:
+	_appearance_mode = enabled
+	_parts_tab.set_pressed_no_signal(not enabled)
+	_appearance_tab.set_pressed_no_signal(enabled)
+	_shop_options.visible = not enabled
+	_appearance_options.visible = enabled
+	_appearance_status.visible = enabled
+	_options_scroll.scroll_vertical = 0
+	_detail.visible = not enabled
+	_purchase.visible = not enabled
+	canvas.show_design_preview(enabled)
+	_set_structure_view(not enabled and INTERNAL_SLOTS.has(_selected_id))
+	_responsive()
+	refresh()
+
+func _set_structure_view(enabled: bool) -> void:
+	_structure_visible = enabled
+	_structure_button.set_pressed_no_signal(enabled)
+	_structure_button.text = "외관 보기" if enabled else "내부 보기"
+	canvas.show_structure(enabled)
+
+func _refresh_appearance_pickers() -> void:
+	for key: String in _appearance_pickers:
+		var picker: OptionButton = _appearance_pickers[key]
+		for index: int in range(picker.item_count):
+			if picker.get_item_metadata(index) == state.ship_appearance.get(key):
+				picker.select(index)
+				break
+
+func _change_appearance(index: int, key: String) -> void:
+	if state == null or not _appearance_mode or not is_visible_in_tree() or _launch_panel.visible: return
+	var picker: OptionButton = _appearance_pickers[key]
+	if index < 0 or index >= picker.item_count: return
+	var choice: Variant = picker.get_item_metadata(index)
+	if state.ship_appearance.get(key) == choice: return
+	var proposed: Dictionary = state.ship_appearance.duplicate()
+	proposed[key] = choice
+	appearance_requested.emit(proposed)
+	_refresh_appearance_pickers()
+
+func show_appearance_result(result: Dictionary) -> void:
+	var saved: bool = bool(result.get("ok", false))
+	var message: String = str(result.get("message", "꾸민 외형을 저장했어요.")) if saved else str(result.get("error", "외형을 저장하지 못했어요. 다시 선택해 주세요."))
+	var feedback: Label = _appearance_status if _appearance_mode else _status
+	feedback.text = message
+	feedback.add_theme_color_override("font_color", QuadTheme.TEAL if saved else Color("ffba99"))
 	refresh()
 
 func _select_tier(tier: int) -> void:
@@ -303,9 +451,8 @@ func _select_tier(tier: int) -> void:
 	refresh()
 
 func _part_detail(item: Dictionary) -> String:
-	var dimensions: Vector2 = QuadrilateralMath.bounds(item.vertices).size
 	var shape: String = QuadrilateralMath.kind_name(str(item.kind))
-	return "%s · %s · %s\n%s · 크기 %d × %d · 비행 성능 +%d" % [str(item.name), shape, Money.format_won(int(item.price)), str(item.description), roundi(dimensions.x), roundi(dimensions.y), int(item.performance)]
+	return "%s · %s 패널 · %s\n%s · 비행 성능 +%d" % [str(item.name), shape, Money.format_won(int(item.price)), str(item.description), int(item.performance)]
 
 func _ask_purchase() -> void:
 	if state == null or _purchase.disabled or _launch_panel.visible or not is_visible_in_tree(): return
@@ -340,14 +487,26 @@ func _quote_is_current() -> bool:
 	return state != null and not _pending_part.is_empty() and _pending_price >= 0 and state.ship_purchase_price(_pending_part) == _pending_price and state.ship_available_funds() >= _pending_price
 
 func _request_launch() -> void:
-	if state == null or not state.ship_complete() or _launch_panel.visible: return
-	# The PNG and ending always use the installed ship. Clear the shop preview
-	# first so players see exactly which parts will be included.
-	if not canvas._preview_id.is_empty():
-		_select_part(_selected_id)
-		_status.text = "조립한 부품으로 사각성에 갈 준비를 해요."
+	if not _can_finish(): return
+	_show_installed_exterior()
 	if state.launched and not managed_endings: play_launch()
 	else: launch_requested.emit()
+
+func _request_export() -> void:
+	if not _can_finish(): return
+	_show_installed_exterior()
+	export_requested.emit()
+
+func _can_finish() -> bool:
+	return state != null and state.ship_complete() and is_visible_in_tree() and not _launch_panel.visible
+
+func _show_installed_exterior() -> void:
+	# Save the actual installed parts, even when a replacement was on screen.
+	if not canvas._preview_id.is_empty():
+		var installed: Dictionary = state.installed_ship_part(_selected_id)
+		_selected_variant_id = str(installed.id)
+		refresh()
+	_set_structure_view(false)
 
 func show_transaction_result(result: Dictionary) -> void:
 	_status.text = str(result.get("message", "구매한 부품을 우주선에 조립했어요.")) if bool(result.get("ok", false)) else str(result.get("error", "잠시 후 다시 시도해 주세요."))
@@ -360,6 +519,7 @@ func play_launch() -> void:
 	_launch_clock = 0.0
 	_launch_done = false
 	_launch_canvas.set_parts(state.purchased_ship_parts)
+	_launch_canvas.set_appearance(state.ship_appearance)
 	_launch_canvas.launch_time = 0.0
 	_launch_canvas.queue_redraw()
 	_launch_panel.show()
@@ -400,7 +560,9 @@ func _visibility_changed() -> void:
 	if not is_visible_in_tree(): cancel_activity()
 	else:
 		refresh()
-		if is_instance_valid(_slot_picker): _slot_picker.grab_focus()
+		if is_instance_valid(_slot_picker):
+			if _appearance_mode: _appearance_tab.grab_focus()
+			else: _slot_picker.grab_focus()
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo: return
@@ -415,7 +577,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 func _responsive() -> void:
-	if not is_instance_valid(_list_scroll): return
-	_list_scroll.custom_minimum_size.x = 325 if size.x < 1000 else 420
+	if not is_instance_valid(_rail): return
+	var compact: bool = size.x < 650.0
+	var compact_pickers: bool = size.x >= 340.0 and size.x < 1000.0
+	_workspace.vertical = compact
+	_rail.custom_minimum_size.x = 0.0 if compact else (325.0 if size.x < 1000.0 else 395.0)
+	_appearance_grid.columns = 2 if compact_pickers else 1
+	for row: BoxContainer in _appearance_rows:
+		row.vertical = compact_pickers
+		row.add_theme_constant_override("separation", 2 if compact_pickers else 8)
+	_options_scroll.custom_minimum_size.y = (302.0 if compact_pickers else 356.0) if _appearance_mode else clampf(size.y - 274.0, 300.0, 384.0)
 	if is_instance_valid(_confirmation) and _confirmation.visible:
 		_confirmation.popup_centered(Vector2i(mini(540, int(size.x) - 32), 220))

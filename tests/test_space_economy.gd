@@ -8,6 +8,7 @@ const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Guide = preload("res://scripts/construction/construction_guide.gd")
 const Market = preload("res://scripts/economy/art_market.gd")
 const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
+const Style = preload("res://scripts/economy/spaceship_style.gd")
 const Transactions = preload("res://scripts/economy/progression_transactions.gd")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
 const ArtSamples = preload("res://tests/test_art_composition.gd")
@@ -21,6 +22,7 @@ static func run(t: Node) -> void:
 	_test_reserved_funds(t)
 	_test_invalid_restores(t)
 	_test_durable_transactions(t)
+	_test_ship_appearance(t)
 	_test_complete_ship(t)
 
 static func _test_village_income(t: Node) -> void:
@@ -428,6 +430,46 @@ static func _test_durable_transactions(t: Node) -> void:
 	t.assert_false(Transactions.commit(state, "unknown", null, path).ok, "Unknown transaction actions are rejected")
 	t.assert_eq(state.serialize(), before, "Rejected transactions cannot mutate the live account")
 	t.assert_eq(FileAccess.get_file_as_string(path), published, "Rejected transactions do not replace the previously published save")
+	_cleanup_save(path)
+
+static func _test_ship_appearance(t: Node) -> void:
+	var state: State = State.new()
+	var path: String = "res://.godot/ship_appearance_%d.json" % Time.get_ticks_usec()
+	var missing: String = "user://missing_ship_appearance_%s/save.json" % Crypto.new().generate_random_bytes(8).hex_encode()
+	var style: Dictionary = Style.defaults()
+	style.merge({"finish": "titanium", "base": "red", "accent": "mint",
+		"fore": "scanner", "wings": "solar", "sides": "cargo", "tail": "boosters"}, true)
+	var previous: Dictionary = state.serialize()
+	t.assert_false(Transactions.commit(state, "set_ship_appearance", style, missing).ok, "A failed appearance save is not applied")
+	t.assert_eq(state.serialize(), previous, "A failed appearance save leaves the ledger intact")
+	t.assert_true(Transactions.commit(state, "set_ship_appearance", style, path).ok, "Appearance can be saved before any parts are purchased")
+	t.assert_eq(state.ship_appearance, style, "The live preview receives every selected appearance field")
+	t.assert_eq(state.balance, State.INITIAL_BALANCE, "Changing the appearance has no price")
+	t.assert_eq(state.ship_performance(), 0, "Appearance choices do not grant flight performance")
+	t.assert_false(state.ship_complete(), "Extra fittings cannot replace required purchased parts")
+	var saved: State = State.new()
+	t.assert_true(Saves.load_into(path, saved).ok, "Appearance-only progress reloads from disk")
+	t.assert_eq(saved.ship_appearance, style, "Material, colors and accessory choices round-trip together")
+	t.assert_true(saved.restore(previous), "A save with no appearance data still loads")
+	t.assert_eq(saved.ship_appearance, Style.defaults(), "Older saves use the default ship appearance")
+	var partial: Dictionary = _json_copy(state.serialize())
+	partial.space_economy.appearance = {"base": "red"}
+	t.assert_true(saved.restore(partial), "Older appearance records can omit choices introduced later")
+	t.assert_eq(saved.ship_appearance.finish, Style.defaults().finish, "Fields absent from an older appearance record use their defaults")
+	t.assert_eq(saved.ship_appearance.base, "red", "An older record's explicit appearance choice is preserved")
+	var invalid: Dictionary = style.duplicate()
+	invalid.wings = "boosters"
+	t.assert_false(Transactions.commit(state, "set_ship_appearance", invalid, path).ok, "A tail fitting is rejected at a wing socket")
+	t.assert_eq(state.ship_appearance, style, "An invalid fitting leaves the last selected appearance intact")
+	partial.space_economy.appearance = invalid
+	t.assert_false(saved.restore(partial), "A save with an invalid fitting is rejected before updating the model")
+	t.assert_eq(saved.ship_appearance.base, "red", "An invalid saved appearance leaves live appearance intact")
+	var styled: Dictionary = Style.palette(style)
+	var only_base: Dictionary = Style.defaults()
+	only_base.base = style.base
+	t.assert_true(Style.palette(only_base).shell != Style.palette(Style.defaults()).shell, "Base paint changes the main shell color")
+	t.assert_eq(Style.palette(only_base).trim, Style.palette(Style.defaults()).trim, "Base paint leaves accent paint independent")
+	t.assert_true(styled.trim != Style.palette(only_base).trim, "Accent paint changes the trim color")
 	_cleanup_save(path)
 
 static func _test_complete_ship(t: Node) -> void:

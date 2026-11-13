@@ -9,6 +9,7 @@ const Awards = preload("res://scripts/construction/construction_awards.gd")
 const Custom = preload("res://scripts/construction/custom_material_catalog.gd")
 const Market = preload("res://scripts/economy/art_market.gd")
 const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
+const ShipStyle = preload("res://scripts/economy/spaceship_style.gd")
 const VillageQuests = preload("res://scripts/world/quest_catalog.gd")
 const INITIAL_BALANCE: int = 30000000
 const VILLAGE_WON_PER_REWARD_COIN: int = 3000000
@@ -36,6 +37,7 @@ var art_sales: Array[Dictionary] = []
 var village_rewards: Array[String] = []
 var purchased_ship_parts: Array[String] = []
 var ship_design: Dictionary = {}
+var ship_appearance: Dictionary = ShipStyle.defaults()
 var launched: bool = false
 
 func _init() -> void:
@@ -196,6 +198,16 @@ func launch_ship() -> Dictionary:
 	if not replay: changed.emit()
 	return {"ok": true, "error": "", "replay": replay}
 
+func set_ship_appearance(value: Variant) -> Dictionary:
+	if not ShipStyle.is_valid(value):
+		return _economy_error("재질, 색 또는 추가 부품을 다시 골라 주세요.")
+	if ship_appearance == value:
+		return {"ok": true, "error": "", "changed": false}
+	ship_appearance = value.duplicate(true)
+	last_error = ""
+	changed.emit()
+	return {"ok": true, "error": "", "changed": true}
+
 func _economy_error(message: String) -> Dictionary:
 	last_error = message
 	return {"ok": false, "error": message, "price": 0}
@@ -207,6 +219,7 @@ func apply_economy_from(candidate: ConstructionState) -> void:
 	village_rewards.assign(candidate.village_rewards)
 	purchased_ship_parts.assign(candidate.purchased_ship_parts)
 	ship_design = candidate.ship_design.duplicate(true)
+	ship_appearance = candidate.ship_appearance.duplicate(true)
 	launched = candidate.launched
 	balance = candidate.balance
 	my_house_document.budget_limit = my_house_budget()
@@ -421,9 +434,11 @@ func next_contract() -> bool:
 func serialize() -> Dictionary:
 	var result: Dictionary = {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
 	if not village_rewards.is_empty(): result["village_rewards"] = village_rewards.duplicate()
-	if not art_sales.is_empty() or not purchased_ship_parts.is_empty() or launched:
+	var customized_ship: bool = ship_appearance != ShipStyle.defaults()
+	if not art_sales.is_empty() or not purchased_ship_parts.is_empty() or launched or customized_ship:
 		result["space_economy"] = {"version": 1, "art_sales": art_sales.duplicate(true), "purchased_parts": purchased_ship_parts.duplicate(), "launched": launched}
 		if not ship_design.is_empty(): result.space_economy["design"] = ship_design.duplicate(true)
+		if customized_ship: result.space_economy["appearance"] = ship_appearance.duplicate(true)
 	if not custom_material_ids.is_empty(): result["custom_materials"] = custom_material_ids.duplicate()
 	if my_house_mode or not my_house_document.parts.is_empty():
 		result["my_house_mode"] = my_house_mode
@@ -477,6 +492,7 @@ func restore(data: Dictionary) -> bool:
 	var checked_sales: Array[Dictionary] = []
 	var checked_parts: Array[String] = []
 	var checked_ship_design: Dictionary = {}
+	var checked_ship_appearance: Dictionary = ShipStyle.defaults()
 	var checked_launched: bool = false
 	if data.has("space_economy"):
 		if not data.space_economy is Dictionary: return false
@@ -507,6 +523,11 @@ func restore(data: Dictionary) -> bool:
 		if economy.has("design"):
 			if not Ship.validate_design(economy.design, checked_parts): return false
 			checked_ship_design = economy.design.duplicate(true)
+		if economy.has("appearance"):
+			if not economy.appearance is Dictionary: return false
+			# Saved choices use defaults for any fields added in newer versions.
+			checked_ship_appearance.merge(economy.appearance, true)
+			if not ShipStyle.is_valid(checked_ship_appearance): return false
 		checked_launched = bool(economy.launched)
 		if checked_launched and checked_parts.size() != Ship.all_parts().size(): return false
 		if expected_balance < INITIAL_BALANCE: return false
@@ -554,6 +575,7 @@ func restore(data: Dictionary) -> bool:
 	village_rewards = checked_rewards
 	purchased_ship_parts = checked_parts
 	ship_design = checked_ship_design
+	ship_appearance = checked_ship_appearance
 	launched = checked_launched
 	balance = expected_balance
 	contract_index = index

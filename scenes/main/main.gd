@@ -28,6 +28,7 @@ var _ending_scene: StoryEnding
 var _ending_branch: String = ""
 var _ending_offer: Dictionary = {}
 var _ending_busy: bool = false
+var _ship_png_busy: bool = false
 var _ending_png_directory: String = ENDING_PNG_DIRECTORY
 var _ending_png_renderer: Callable = Callable()
 var learning_progress: LearningProgress = LearningProgress.new()
@@ -283,6 +284,8 @@ func _build_space() -> void:
 	_space_screen.construction_requested.connect(_show_construction)
 	_space_screen.village_requested.connect(_enter_world)
 	_space_screen.purchase_requested.connect(_purchase_ship_part)
+	_space_screen.appearance_requested.connect(_save_ship_appearance)
+	_space_screen.export_requested.connect(_save_ship_png)
 	_space_screen.launch_requested.connect(_launch_ship)
 	_space_screen.hide()
 	_ui.add_child(_space_screen)
@@ -334,6 +337,10 @@ func _show_ending_choices() -> void:
 	space_button.name = "ChooseSpaceEnding"
 	space_button.disabled = not unlocked and space.is_empty() and not _economy_state.launched
 	ship_card.add_child(space_button)
+	if unlocked and not space.is_empty():
+		var edit_ship: Button = QuadTheme.button("우주선 제작소 열기", _open_ship_workshop)
+		edit_ship.name = "OpenShipWorkshop"
+		ship_card.add_child(edit_ship)
 	var keep_earning: Button = QuadTheme.button("계속 돈 모으기", _close_modal)
 	keep_earning.name = "KeepEarning"
 	body.add_child(keep_earning)
@@ -350,6 +357,10 @@ func _choose_ending_branch(branch: String) -> void:
 		await _show_earth_house()
 	else:
 		await _show_space(_economy_state.launched and not _ending_unlocked())
+
+func _open_ship_workshop() -> void:
+	_close_modal()
+	await _show_space()
 
 func _economy_save_path() -> String:
 	return _construction_screen.save_path if is_instance_valid(_construction_screen) else ConstructionStudio.SAVE_PATH
@@ -532,12 +543,39 @@ func _retry_publications(buildings: bool) -> void:
 		_set_publication_status(buildings, "패들릿 등록 완료 · 보드 관리자 승인 대기" if moderated else "패들릿 등록 완료 · 이름, 제목, 설명, 가격과 PNG를 올렸어요.", remaining, last_url)
 
 func _purchase_ship_part(id: String) -> void:
-	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
+	if _ending_busy or not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
 	if not _ending_unlocked():
 		_space_screen.show_transaction_result({"ok": false, "error": _ending_locked_message()})
 		return
 	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "purchase_part", id, _economy_save_path(), not testing)
 	_space_screen.show_transaction_result(result)
+
+func _save_ship_appearance(appearance: Dictionary) -> void:
+	if _ending_busy or not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
+	if not _ending_unlocked():
+		_space_screen.show_appearance_result({"ok": false, "error": _ending_locked_message()})
+		return
+	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "set_ship_appearance", appearance, _economy_save_path(), not testing)
+	_space_screen.show_appearance_result(result)
+
+func _save_ship_png() -> void:
+	if _ship_png_busy or _ending_busy or testing or not _ending_unlocked(): return
+	var offer: Dictionary = _current_ending_offer("space")
+	if not bool(offer.ok): return
+	_ship_png_busy = true
+	_space_screen.show_appearance_result({"ok": true, "message": "지금 조립한 우주선을 PNG로 저장하고 있어요…"})
+	var bytes: PackedByteArray = await _render_ending_png("space", offer)
+	_ship_png_busy = false
+	var directory: String = "user://saved_spaceships"
+	if not OS.has_feature("web"):
+		var pictures: String = OS.get_system_dir(OS.SYSTEM_DIR_PICTURES)
+		if not pictures.is_empty() and DirAccess.dir_exists_absolute(pictures):
+			directory = pictures.path_join("사각형 월드").path_join("완성한 우주선")
+	var result: Dictionary = SoldArtStore.save_png(bytes, "나의 우주선", directory)
+	if bool(result.ok):
+		if OS.has_feature("web"): JavaScriptBridge.download_buffer(bytes, str(result.filename), "image/png")
+		result["message"] = "우주선 PNG를 저장했어요." if OS.has_feature("web") else "우주선 PNG 저장 · " + str(result.path)
+	_space_screen.show_appearance_result(result)
 
 func _launch_ship() -> void:
 	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
@@ -554,7 +592,7 @@ func _current_ending_offer(branch: String) -> Dictionary:
 	if branch == "earth" and is_instance_valid(_construction_screen) and _construction_screen.is_visible_in_tree():
 		return _construction_screen.earth_ending_offer()
 	if branch == "space" and is_instance_valid(_space_screen) and _space_screen.is_visible_in_tree() and _economy_state.ship_complete():
-		return {"ok": true, "kind": "spaceship", "price": _economy_state.ship_spent(), "parts": _economy_state.purchased_ship_parts.duplicate(), "performance": _economy_state.ship_performance()}
+		return {"ok": true, "kind": "spaceship", "price": _economy_state.ship_spent(), "parts": _economy_state.purchased_ship_parts.duplicate(), "performance": _economy_state.ship_performance(), "appearance": _economy_state.ship_appearance.duplicate(true)}
 	return {"ok": false, "error": "사각형 부품 12개를 모아 우주선을 완성해 주세요."}
 
 func _open_ending_project(branch: String) -> void:
@@ -629,6 +667,8 @@ func _submit_ending_project(metadata: Dictionary) -> void:
 			return
 		var publication: Dictionary = _ending_offer.duplicate(true)
 		publication["fingerprint"] = ("story-ending:" + branch).sha256_text()
+		if branch == "space":
+			publication["ports"] = SpaceshipCanvas.exhaust_layout(publication.parts, publication.appearance)
 		var prepared: Dictionary = _art_publications.prepare(metadata, publication, saved, bytes)
 		if not bool(prepared.ok):
 			_ending_failed(str(prepared.error), false)
@@ -640,7 +680,7 @@ func _submit_ending_project(metadata: Dictionary) -> void:
 
 func _render_ending_png(branch: String, offer: Dictionary) -> PackedByteArray:
 	if _ending_png_renderer.is_valid(): return await _ending_png_renderer.call(branch, offer.duplicate(true))
-	if branch == "space": return await SpaceshipCanvas.export_png(get_tree(), offer.parts)
+	if branch == "space": return await SpaceshipCanvas.export_png(get_tree(), offer.parts, offer.appearance)
 	var model: ConstructionDocument = ConstructionDocument.new()
 	model.budget_limit = _economy_state.my_house_budget()
 	if not model.restore(offer.document): return PackedByteArray()
@@ -678,7 +718,7 @@ func _show_story_ending(branch: String, entry: Dictionary) -> void:
 	if entry.is_empty(): return
 	var bytes: PackedByteArray = _art_publications.read_png(entry, _ending_png_directory)
 	var screen: StoryEnding = StoryEnding.new()
-	if not screen.configure(branch, bytes, str(entry.title), str(entry.post_url), {}, int(entry.get("performance", 12))):
+	if not screen.configure(branch, bytes, str(entry.title), str(entry.post_url), {}, int(entry.get("performance", 12)), entry.get("ports", [])):
 		screen.free()
 		_show_toast("엔딩에 쓸 완성 PNG를 열지 못했어요.")
 		return

@@ -27,6 +27,7 @@ var _artwork: Texture2D
 var _post_url: String = ""
 var _hero: Dictionary = {}
 var _ship_performance: int = 12
+var _ship_ports: Array[Dictionary] = []
 var _stage: EndingStage
 var _chapter: Label
 var _subtitle: Label
@@ -38,7 +39,7 @@ var _padlet_button: Button
 var _home_button: Button
 
 
-func configure(ending_branch: String, png: PackedByteArray, title: String = "", post_url: String = "", protagonist: Dictionary = {}, ship_performance: int = 12) -> bool:
+func configure(ending_branch: String, png: PackedByteArray, title: String = "", post_url: String = "", protagonist: Dictionary = {}, ship_performance: int = 12, ship_ports: Array = []) -> bool:
 	if is_inside_tree() or ending_branch not in ["earth", "space"] or not _valid_png_header(png): return false
 	var image: Image = Image.new()
 	if image.load_png_from_buffer(png) != OK or image.get_size() != PNG_SIZE: return false
@@ -51,6 +52,7 @@ func configure(ending_branch: String, png: PackedByteArray, title: String = "", 
 	artwork_title = title.strip_edges()
 	_hero = protagonist.duplicate(true) if not protagonist.is_empty() else CharacterTemplates.protagonist()
 	_ship_performance = clampi(ship_performance, 12, 36)
+	if branch == "space" and ArtPublicationStore.valid_ship_ports(ship_ports): _ship_ports.assign(ship_ports.duplicate(true))
 	set_post_url(post_url)
 	return true
 
@@ -79,6 +81,7 @@ func _ready() -> void:
 	_stage.branch = branch
 	_stage.artwork = _artwork
 	_stage.ship_power = float(_ship_performance - 12) / 24.0
+	_stage.ship_ports.assign(_ship_ports)
 	_stage.configure_hero(_hero)
 	_stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_stage.custom_minimum_size.y = 180.0
@@ -221,6 +224,7 @@ class EndingStage extends Control:
 	var elapsed: float = 0.0
 	var artwork: Texture2D
 	var ship_power: float = 0.0
+	var ship_ports: Array[Dictionary] = []
 	var _village: Texture2D
 	var _planet: Texture2D
 	var _neighbors: Array[Texture2D] = []
@@ -389,14 +393,22 @@ class EndingStage extends Control:
 
 	func _draw_exhaust(center: Vector2, extent: Vector2, angle: float, intensity: float) -> void:
 		var length: float = size.y * (lerpf(0.22, 0.35, ship_power) + sin(elapsed * 26.0) * 0.035) * intensity
-		var spread: float = minf(extent.x * 0.20, 43.0)
 		draw_set_transform(center, angle)
-		var y: float = extent.y * 0.47
-		var points: PackedVector2Array = PackedVector2Array([Vector2(-spread, y), Vector2(spread, y), Vector2(spread * 0.32, y + length), Vector2(-spread * 0.32, y + length)])
-		draw_colored_polygon(points, Color(0.99, 0.50, 0.23, 0.85 * intensity))
-		var core: Rect2 = Rect2(Vector2(-spread * 0.35, y), Vector2(spread * 0.70, length * 0.66))
-		draw_rect(core, Color(1.0, 0.9, 0.60, intensity))
+		if ship_ports.is_empty():
+			_draw_plume(Vector2(0.0, extent.y * 0.47), minf(extent.x * 0.20, 43.0), length, intensity)
+		else:
+			for port: Dictionary in ship_ports:
+				var origin: Vector2 = (Vector2(float(port.x), float(port.y)) - Vector2(0.5, 0.5)) * extent
+				_draw_plume(origin - Vector2(0.0, 1.0), extent.x * float(port.width) * 0.44, length, intensity)
 		draw_set_transform(Vector2.ZERO)
+
+	func _draw_plume(origin: Vector2, spread: float, length: float, intensity: float) -> void:
+		var points: PackedVector2Array = PackedVector2Array([
+			origin + Vector2(-spread, 0.0), origin + Vector2(spread, 0.0),
+			origin + Vector2(spread * 0.32, length), origin + Vector2(-spread * 0.32, length),
+		])
+		draw_colored_polygon(points, Color(0.99, 0.50, 0.23, 0.85 * intensity))
+		draw_rect(Rect2(origin - Vector2(spread * 0.35, 0.0), Vector2(spread * 0.70, length * 0.66)), Color(1.0, 0.9, 0.60, intensity))
 
 
 	func _draw_sparks(base_y: float, color: Color) -> void:

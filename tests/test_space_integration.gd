@@ -114,6 +114,14 @@ static func _test_story_branches(t: Node) -> void:
 	app._show_home()
 	_choose(app, "ChooseSpaceEnding")
 	t.assert_true(app._space_screen.visible, "The second branch enters the spaceship hangar after the same ten activities")
+	var style: Dictionary = SpaceshipStyle.defaults()
+	style.finish = "titanium"
+	style.base = "teal"
+	style.accent = "coral"
+	style.wings = "solar"
+	style.tail = "boosters"
+	app._space_screen.appearance_requested.emit(style)
+	t.assert_eq(ledger.ship_appearance, style, "The workshop applies exterior choices to the shared ledger")
 	for part: Dictionary in SpaceshipCatalog.all_parts():
 		t.assert_true(ledger.purchase_ship_part(str(part.id)).ok, "Village earnings can buy the %s part" % str(part.id))
 	var premium_hull: String = str(SpaceshipCatalog.variants("hull")[2].id)
@@ -128,7 +136,7 @@ static func _test_story_branches(t: Node) -> void:
 	app._space_screen.launch_requested.emit()
 	t.assert_eq(app._ending_dialog._title_label.text, "우주선 이름", "Space completion explicitly asks the player to name their spaceship")
 	var ship_name: String = "황금빛 사각이호"
-	await app._submit_ending_project({"author": "설계자", "title": ship_name, "description": "황금 장갑 선체를 달았어요."})
+	await app._submit_ending_project({"author": "설계자", "title": ship_name, "description": "대형 장갑 선체를 달았어요."})
 	t.assert_true(is_instance_valid(app._ending_scene) and app._ending_scene.branch == "space", "A completed ship plays the space ending after publication")
 	app._ending_scene.finish()
 	t.assert_true(app._ending_scene._subtitle.text.contains(ship_name), "The space ending displays the player's spaceship name")
@@ -138,13 +146,34 @@ static func _test_story_branches(t: Node) -> void:
 	t.assert_eq(space_entry.get("performance"), ledger.ship_performance(), "The ending stores the performance of the actual components")
 	t.assert_eq(renders.size(), 2, "Each completed project is rendered once")
 	t.assert_eq(requests.size(), 3, "The successful spaceship upload adds one request")
-	if renders.size() == 2: t.assert_eq(renders[1].parts, ledger.purchased_ship_parts, "The exported ship snapshot includes the installed premium variant ID")
+	if renders.size() == 2:
+		t.assert_eq(renders[1].parts, ledger.purchased_ship_parts, "The exported ship snapshot includes the installed premium variant ID")
+		t.assert_eq(renders[1].appearance, style, "The ending exports the saved materials, colors and accessories")
+	var launch_record: Dictionary = app._art_publications.ending_entry("space")
+	t.assert_eq(launch_record.get("ports", []).size(), 3, "The completed ship records its main outlet and both boosters")
+	var reloaded_ship: ArtPublicationStore = ArtPublicationStore.new()
+	reloaded_ship.path = app._art_publications.path
+	t.assert_true(reloaded_ship.load_file().ok, "The custom exhaust layout is compatible with the saved publication queue")
+	var saved_ports: Array = reloaded_ship.ending_entry("space").get("ports", [])
+	var original_ports: Array = launch_record.get("ports", [])
+	t.assert_eq(saved_ports.size(), original_ports.size(), "Replay retains all saved exhaust ports")
+	for index: int in range(mini(saved_ports.size(), original_ports.size())):
+		for coordinate: String in ["x", "y", "width"]:
+			t.assert_true(is_equal_approx(float(saved_ports[index][coordinate]), float(original_ports[index][coordinate])), "Replay uses the stored exhaust layout for the original PNG")
 	if requests.size() == 3:
 		t.assert_eq(requests[2].entry.price, ledger.ship_spent(), "Padlet receives the premium ship price")
 		t.assert_eq(requests[2].bytes, rendered_images.space, "Padlet receives the rendered premium ship PNG")
 		t.assert_eq(requests[2].entry.title, ship_name, "Padlet receives the player's original spaceship name")
 	t.assert_eq(ledger.balance, balance, "Finalizing an ending does not charge a project twice")
 	t.assert_eq(app._art_publications.ending_entry("earth").get("status"), "published", "Completing the ship preserves the separate village ending")
+	app._show_home()
+	_choose(app, "OpenShipWorkshop")
+	t.assert_true(app._space_screen.visible, "Players can reopen the workshop after publishing a ship")
+	var changed_style: Dictionary = style.duplicate()
+	changed_style.base = "red"
+	app._space_screen.appearance_requested.emit(changed_style)
+	t.assert_eq(ledger.ship_appearance, changed_style, "A published ending does not lock further customization")
+	t.assert_eq(app._art_publications.ending_entry("space").get("png_sha256"), launch_record.get("png_sha256"), "Further customization preserves the already published ending art")
 	app.free()
 	window.content_scale_size = original_scale
 	for name: String in DirAccess.get_files_at(directory.path_join("png")):

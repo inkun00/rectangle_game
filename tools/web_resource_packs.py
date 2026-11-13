@@ -139,7 +139,7 @@ def feature_for_source(path: str) -> str:
     if path.startswith("assets/generated/starfront-hd/backgrounds/"):
         if PurePosixPath(path).stem in REGION_BACKGROUNDS:
             return "adventure"
-    if path == "assets/generated/opening-v1/planet.webp" or path.startswith("assets/generated/ship-parts-v2/"):
+    if path == "assets/generated/opening-v1/planet.webp":
         return "space"
     if path in ("assets/video/quadrilateral-opening.ogv", "assets/video/quadrilateral-opening.ogv.uid"):
         return "opening"
