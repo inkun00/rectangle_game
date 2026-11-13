@@ -21,11 +21,13 @@ static func run(t: Node) -> void:
 	window.content_scale_size = window.size
 	for ending_branch: String in ["earth", "space"]:
 		var ending: StoryEnding = Ending.new()
-		t.assert_true(ending.configure(ending_branch, png, "내가 완성한 작품", "https://padlet.com.attacker.example/post"), "Both endings accept the finished artwork snapshot")
+		var performance: int = 36 if ending_branch == "space" else 12
+		t.assert_true(ending.configure(ending_branch, png, "내가 완성한 작품", "https://padlet.com.attacker.example/post", {}, performance), "Both endings accept the finished artwork snapshot")
 		t.add_child(ending)
 		await t.get_tree().process_frame
 		t.assert_eq(ending._stage.artwork.get_size(), Vector2(271, 173), "The visible artwork is cropped to fill its cinematic shot")
 		t.assert_eq(ending._stage.artwork.get_image().get_pixel(100, 50), image.get_pixel(410, 244), "The cinematic draws actual saved pixels")
+		t.assert_eq(ending._stage.ship_power, 1.0 if ending_branch == "space" else 0.0, "Only the fully upgraded ship uses maximum flight effects")
 		t.assert_true(ending._pause_button.has_focus(), "Playback starts with a keyboard control focused")
 		ending.toggle_pause()
 		var time: float = ending.elapsed
@@ -34,10 +36,13 @@ static func run(t: Node) -> void:
 		ending.toggle_pause()
 		ending._process(5.0)
 		t.assert_true(ending._subtitle.text.contains("우주선" if ending_branch == "space" else "집을 지으면서"), "The middle scene describes the chosen path")
+		ending._process(6.0)
+		t.assert_true(ending._subtitle.text.contains("내가 완성한 작품"), "The last story beat already names the player's finished project")
 		ending._skip_button.pressed.emit()
 		await t.get_tree().process_frame
 		t.assert_true(ending.finished and ending._home_button.visible and ending._replay_button.visible, "Skipping reveals the final scene and both navigation actions")
 		t.assert_true(ending._subtitle.text.contains("내가 완성한 작품"), "The completed work's own title appears in the final scene")
+		t.assert_eq(ending._subtitle.text.contains("비행 성능 36"), ending_branch == "space", "The space ending displays the completed ship's rating")
 		t.assert_false(ending._padlet_button.visible, "An untrusted URL is not offered as a Padlet post")
 		ending.set_post_url("https://padlet.com/example/board")
 		await t.get_tree().process_frame

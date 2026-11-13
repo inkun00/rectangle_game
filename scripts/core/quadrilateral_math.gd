@@ -74,6 +74,37 @@ static func create_vertices(kind: String, dimensions: Vector2 = Vector2(92.0, 68
 		_:
 			return PackedVector2Array([Vector2(-half.x, -half.y), Vector2(half.x, -half.y), Vector2(half.x, half.y), Vector2(-half.x, half.y)])
 
+## Offset is a fraction of the available space on either side of the shorter
+## base. An offset of either -1 or 1 gives a trapezoid with two right angles.
+static func create_trapezoid_vertices(dimensions: Vector2, short_base_ratio: float, offset: float) -> PackedVector2Array:
+	if not dimensions.is_finite() or not is_finite(short_base_ratio) or not is_finite(offset):
+		return PackedVector2Array()
+	if short_base_ratio <= 0.0 or short_base_ratio >= 1.0 or absf(offset) > 1.0:
+		return PackedVector2Array()
+	var half: Vector2 = dimensions.abs() * 0.5
+	var short_half: float = half.x * short_base_ratio
+	var shift: float = (half.x - short_half) * offset
+	var vertices: PackedVector2Array = PackedVector2Array([
+		Vector2(shift - short_half, -half.y), Vector2(shift + short_half, -half.y),
+		Vector2(half.x, half.y), Vector2(-half.x, half.y),
+	])
+	if not is_valid(vertices) or parallel_pair_count(vertices) != 1:
+		return PackedVector2Array()
+	return vertices
+
+## Lean is the signed shift of the upper edge as a fraction of the half width.
+static func create_parallelogram_vertices(dimensions: Vector2, lean: float) -> PackedVector2Array:
+	if not dimensions.is_finite() or not is_finite(lean) or is_zero_approx(lean) or absf(lean) >= 1.0:
+		return PackedVector2Array()
+	var half: Vector2 = dimensions.abs() * 0.5
+	var shift: float = half.x * lean
+	var base_half: float = half.x - absf(shift)
+	var vertices: PackedVector2Array = PackedVector2Array([
+		Vector2(shift - base_half, -half.y), Vector2(shift + base_half, -half.y),
+		Vector2(-shift + base_half, half.y), Vector2(-shift - base_half, half.y),
+	])
+	return vertices if is_valid(vertices) else PackedVector2Array()
+
 ## Creation choices are derived from ordered vertices, never saved as extra geometry.
 ## Vertex indices keep their identity through rotation and uniform scaling.
 static func trapezoid_variant(vertices: PackedVector2Array) -> String:

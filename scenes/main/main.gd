@@ -20,7 +20,7 @@ var _building_upload_busy: bool = false
 var _building_png_busy: bool = false
 var _building_png_directory: String = "user://published_buildings"
 var _building_png_renderer: Callable = Callable()
-const EARTH_MIN_EARNINGS: int = 5000000
+const ENDING_ACTIVITY_TARGET: int = 10
 const ENDING_PNG_DIRECTORY: String = "user://story_endings"
 const EndingDialog = preload("res://scenes/ui/story_completion_dialog.gd")
 var _ending_dialog: StoryCompletionDialog
@@ -200,9 +200,7 @@ func _build_home() -> void:
 	_home_screen.learning_requested.connect(_show_learning)
 	_home_screen.tutorials_requested.connect(_show_tutorials)
 	_home_screen.opening_requested.connect(_show_opening)
-	_home_screen.space_requested.connect(_show_space)
-	_home_screen.earth_requested.connect(_show_earth_house)
-	_home_screen.ending_requested.connect(_resume_ending)
+	_home_screen.ending_choice_requested.connect(_show_ending_choices)
 	_ui.add_child(_home_screen)
 	_home_screen.set_learning_progress(learning_progress.completed.size())
 
@@ -285,21 +283,19 @@ func _build_space() -> void:
 	_space_screen.construction_requested.connect(_show_construction)
 	_space_screen.village_requested.connect(_enter_world)
 	_space_screen.purchase_requested.connect(_purchase_ship_part)
-	_space_screen.design_requested.connect(_customize_ship_part)
 	_space_screen.launch_requested.connect(_launch_ship)
 	_space_screen.hide()
 	_ui.add_child(_space_screen)
 	_economy_changed()
 
 func _economy_changed() -> void:
-	var missing: int = _earth_ending_missing()
 	var earth: Dictionary = _art_publications.ending_entry("earth")
 	var space: Dictionary = _art_publications.ending_entry("space")
 	if is_instance_valid(_home_screen):
-		_home_screen.set_space_progress(_economy_state)
-		_home_screen.set_ending_progress(missing, earth, space)
+		var has_saved_ending: bool = not earth.is_empty() or not space.is_empty() or _economy_state.launched
+		_home_screen.set_ending_progress(_economy_state.art_sales.size(), _economy_state.records.size(), ENDING_ACTIVITY_TARGET, has_saved_ending)
 	if is_instance_valid(_construction_screen):
-		var unlocked: bool = missing == 0 or not earth.is_empty()
+		var unlocked: bool = _ending_unlocked() or not earth.is_empty()
 		if _construction_screen.earth_ending_unlocked != unlocked:
 			_construction_screen.earth_ending_unlocked = unlocked
 			_construction_screen._refresh()
@@ -307,9 +303,53 @@ func _economy_changed() -> void:
 		_space_screen.ending_saved = space.get("status") == "published"
 		_space_screen.refresh()
 
-func _earth_ending_missing() -> int:
-	var earned: int = _economy_state.saved_balance() + _economy_state.ship_spent() - ConstructionState.INITIAL_BALANCE
-	return maxi(0, EARTH_MIN_EARNINGS - earned)
+func _ending_unlocked() -> bool:
+	return _economy_state.art_sales.size() + _economy_state.records.size() >= ENDING_ACTIVITY_TARGET
+
+func _ending_locked_message() -> String:
+	return "그림 판매와 건축 의뢰 완료를 합쳐 %d회 달성하면 엔딩을 선택할 수 있어요." % ENDING_ACTIVITY_TARGET
+
+func _show_ending_choices() -> void:
+	var earth: Dictionary = _art_publications.ending_entry("earth")
+	var space: Dictionary = _art_publications.ending_entry("space")
+	var unlocked: bool = _ending_unlocked()
+	if not unlocked and earth.is_empty() and space.is_empty() and not _economy_state.launched:
+		_show_toast(_ending_locked_message())
+		return
+	var body: VBoxContainer = _open_modal("사각이의 다음 이야기")
+	var guidance: String = "지금 골라도 좋아요. 돈을 더 모으면 집에 더 많은 재료를 쓰거나 더 좋은 우주선 부품을 살 수 있어요." if unlocked else _ending_locked_message()
+	body.add_child(QuadTheme.paragraph(guidance, 18, QuadTheme.INK))
+	var home_card: VBoxContainer = QuadTheme.card(body, Color("edf5ef"), 14)
+	var home_note: String = "마을에 나만의 집을 지어요.\n집 짓기 자금 · %s" % ConstructionCatalog.format_won(_economy_state.my_house_available_balance())
+	home_card.add_child(QuadTheme.paragraph(_ending_branch_note(earth, home_note), 17, QuadTheme.INK))
+	var earth_button: Button = QuadTheme.button("지구에 남기", _choose_ending_branch.bind("earth"))
+	earth_button.name = "ChooseEarthEnding"
+	earth_button.disabled = not unlocked and earth.is_empty()
+	home_card.add_child(earth_button)
+	var ship_card: VBoxContainer = QuadTheme.card(body, Color("eef4fa"), 14)
+	var ship_note: String = "부품 12종을 골라 우주선을 만들어요.\n우주선 자금 · %s" % ConstructionCatalog.format_won(_economy_state.ship_available_funds())
+	if _economy_state.launched and not unlocked: ship_note = "완성한 우주선으로 출발 이야기를 다시 봐요."
+	ship_card.add_child(QuadTheme.paragraph(_ending_branch_note(space, ship_note), 17, QuadTheme.INK))
+	var space_button: Button = QuadTheme.button("사각성으로 돌아가기", _choose_ending_branch.bind("space"))
+	space_button.name = "ChooseSpaceEnding"
+	space_button.disabled = not unlocked and space.is_empty() and not _economy_state.launched
+	ship_card.add_child(space_button)
+	var keep_earning: Button = QuadTheme.button("계속 돈 모으기", _close_modal)
+	keep_earning.name = "KeepEarning"
+	body.add_child(keep_earning)
+
+func _ending_branch_note(entry: Dictionary, description: String) -> String:
+	if entry.is_empty(): return description
+	return "완성한 작품이 나오는 엔딩을 다시 봐요." if entry.status == "published" else "저장한 작품으로 패들릿 등록을 이어서 해요."
+
+func _choose_ending_branch(branch: String) -> void:
+	_close_modal()
+	if not _art_publications.ending_entry(branch).is_empty():
+		_resume_ending(branch)
+	elif branch == "earth":
+		await _show_earth_house()
+	else:
+		await _show_space(_economy_state.launched and not _ending_unlocked())
 
 func _economy_save_path() -> String:
 	return _construction_screen.save_path if is_instance_valid(_construction_screen) else ConstructionStudio.SAVE_PATH
@@ -493,12 +533,10 @@ func _retry_publications(buildings: bool) -> void:
 
 func _purchase_ship_part(id: String) -> void:
 	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
+	if not _ending_unlocked():
+		_space_screen.show_transaction_result({"ok": false, "error": _ending_locked_message()})
+		return
 	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "purchase_part", id, _economy_save_path(), not testing)
-	_space_screen.show_transaction_result(result)
-
-func _customize_ship_part(id: String, kind: String, color: String) -> void:
-	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree() or _ending_busy: return
-	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "customize_ship_part", {"id": id, "kind": kind, "color": color}, _economy_save_path(), not testing)
 	_space_screen.show_transaction_result(result)
 
 func _launch_ship() -> void:
@@ -516,7 +554,7 @@ func _current_ending_offer(branch: String) -> Dictionary:
 	if branch == "earth" and is_instance_valid(_construction_screen) and _construction_screen.is_visible_in_tree():
 		return _construction_screen.earth_ending_offer()
 	if branch == "space" and is_instance_valid(_space_screen) and _space_screen.is_visible_in_tree() and _economy_state.ship_complete():
-		return {"ok": true, "kind": "spaceship", "price": _economy_state.ship_spent(), "parts": _economy_state.purchased_ship_parts.duplicate(), "design": _economy_state.ship_design.duplicate(true)}
+		return {"ok": true, "kind": "spaceship", "price": _economy_state.ship_spent(), "parts": _economy_state.purchased_ship_parts.duplicate(), "performance": _economy_state.ship_performance()}
 	return {"ok": false, "error": "사각형 부품 12개를 모아 우주선을 완성해 주세요."}
 
 func _open_ending_project(branch: String) -> void:
@@ -528,6 +566,9 @@ func _open_ending_project(branch: String) -> void:
 	var entry: Dictionary = _art_publications.ending_entry(branch)
 	if not entry.is_empty():
 		_resume_ending(branch)
+		return
+	if not _ending_unlocked():
+		_show_toast(_ending_locked_message())
 		return
 	var offer: Dictionary = _current_ending_offer(branch)
 	if not bool(offer.ok):
@@ -564,7 +605,7 @@ func _submit_ending_project(metadata: Dictionary) -> void:
 	var entry: Dictionary = _art_publications.ending_entry(branch)
 	_ending_busy = true
 	if entry.is_empty():
-		var error: String = ArtSubmissionMetadata.validation_error(metadata.get("author"), metadata.get("title"), metadata.get("description"), true).replace("건물 ", "작품 ")
+		var error: String = EndingDialog.validation_error(branch, metadata.get("author"), metadata.get("title"), metadata.get("description"))
 		if not error.is_empty():
 			_ending_failed(error, false)
 			return
@@ -599,7 +640,7 @@ func _submit_ending_project(metadata: Dictionary) -> void:
 
 func _render_ending_png(branch: String, offer: Dictionary) -> PackedByteArray:
 	if _ending_png_renderer.is_valid(): return await _ending_png_renderer.call(branch, offer.duplicate(true))
-	if branch == "space": return await SpaceshipCanvas.export_png(get_tree(), offer.parts, offer.design)
+	if branch == "space": return await SpaceshipCanvas.export_png(get_tree(), offer.parts)
 	var model: ConstructionDocument = ConstructionDocument.new()
 	model.budget_limit = _economy_state.my_house_budget()
 	if not model.restore(offer.document): return PackedByteArray()
@@ -637,7 +678,7 @@ func _show_story_ending(branch: String, entry: Dictionary) -> void:
 	if entry.is_empty(): return
 	var bytes: PackedByteArray = _art_publications.read_png(entry, _ending_png_directory)
 	var screen: StoryEnding = StoryEnding.new()
-	if not screen.configure(branch, bytes, str(entry.title), str(entry.post_url)):
+	if not screen.configure(branch, bytes, str(entry.title), str(entry.post_url), {}, int(entry.get("performance", 12))):
 		screen.free()
 		_show_toast("엔딩에 쓸 완성 PNG를 열지 못했어요.")
 		return
@@ -647,13 +688,17 @@ func _show_story_ending(branch: String, entry: Dictionary) -> void:
 	_ui.add_child(_ending_scene)
 	_responsive()
 
-func _show_space() -> void:
+func _show_space(replay_legacy: bool = false) -> void:
+	if not _ending_unlocked() and not (replay_legacy and _economy_state.launched):
+		_show_toast(_ending_locked_message())
+		return
 	if not await _ensure_feature("space"): return
 	_build_space()
 	_leave_activity()
 	_space_screen.show()
 	_space_screen.refresh()
 	_responsive()
+	if replay_legacy: _launch_ship()
 
 func _ensure_feature(feature: String) -> bool:
 	if not _defer_features: return true
@@ -802,8 +847,8 @@ func _show_construction() -> void:
 	await _open_construction(false)
 
 func _show_earth_house() -> void:
-	if _earth_ending_missing() > 0 and _art_publications.ending_entry("earth").is_empty():
-		_show_toast("집을 지을 자금 %s을 더 모아 주세요." % ConstructionCatalog.format_won(_earth_ending_missing()))
+	if not _ending_unlocked():
+		_show_toast(_ending_locked_message())
 		return
 	await _open_construction(true)
 

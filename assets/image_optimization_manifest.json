@@ -988,12 +988,12 @@
       "format": "lossless_webp",
       "width": 1280,
       "height": 720,
-      "rgba_sha256": "44eb76e5cc473e20aed724720c2d1631cc9be0b6eb377825e7e69e5dd6e5267b",
-      "original_bytes": 1249688,
-      "bytes": 509430,
-      "saved_bytes": 740258,
-      "original_sha256": "66b59b79c041a80f9130125da1755ccf9a6a465240abfacfd0375487fb0949ed",
-      "sha256": "d06ec5526a91eecd3b004dc30ab64cfb8ae652bbbd569f4581de0cbb6c59aac9",
+      "rgba_sha256": "a92745254015d241115103290f1d4dbb3de0272074d4ecfe289693a3b463cb01",
+      "original_bytes": 1246471,
+      "bytes": 510222,
+      "saved_bytes": 736249,
+      "original_sha256": "2e23337d08c437c20beabcaf955eca74f7e7d8f91bb121dbca298f1681e04b72",
+      "sha256": "2a378bd93a6fc8f8dd1e64b3e060600551603444d802ba7b8e8e41d218b0f4eb",
       "original_import_sha256": "6a7e55fc434781b06721afdd5bbd48076b13e3b3b3c958ff75ac20a0d0706b53",
       "import_uid": "uid://1ql7x7ojeipj"
     }

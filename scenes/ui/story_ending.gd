@@ -15,7 +15,7 @@ const EARTH_BEATS: Array[String] = [
 const SPACE_BEATS: Array[String] = [
 	"마을 사람들과 함께 모은 돈으로 나만의 우주선을 완성했어요.",
 	"친구들의 인사를 뒤로하고, 내가 만든 우주선을 타고 별들 사이로 올라갔어요.",
-	"드디어 별빛 고향에 도착했어요. 지구에서 만난 친구들을 오래 기억할 거예요."
+	"드디어 사각성에 도착했어요. 지구에서 만난 친구들을 오래 기억할 거예요."
 ]
 
 var branch: String = ""
@@ -26,6 +26,7 @@ var finished: bool = false
 var _artwork: Texture2D
 var _post_url: String = ""
 var _hero: Dictionary = {}
+var _ship_performance: int = 12
 var _stage: EndingStage
 var _chapter: Label
 var _subtitle: Label
@@ -37,7 +38,7 @@ var _padlet_button: Button
 var _home_button: Button
 
 
-func configure(ending_branch: String, png: PackedByteArray, title: String = "", post_url: String = "", protagonist: Dictionary = {}) -> bool:
+func configure(ending_branch: String, png: PackedByteArray, title: String = "", post_url: String = "", protagonist: Dictionary = {}, ship_performance: int = 12) -> bool:
 	if is_inside_tree() or ending_branch not in ["earth", "space"] or not _valid_png_header(png): return false
 	var image: Image = Image.new()
 	if image.load_png_from_buffer(png) != OK or image.get_size() != PNG_SIZE: return false
@@ -49,6 +50,7 @@ func configure(ending_branch: String, png: PackedByteArray, title: String = "", 
 	branch = ending_branch
 	artwork_title = title.strip_edges()
 	_hero = protagonist.duplicate(true) if not protagonist.is_empty() else CharacterTemplates.protagonist()
+	_ship_performance = clampi(ship_performance, 12, 36)
 	set_post_url(post_url)
 	return true
 
@@ -76,6 +78,7 @@ func _ready() -> void:
 	_stage.name = "EndingStage"
 	_stage.branch = branch
 	_stage.artwork = _artwork
+	_stage.ship_power = float(_ship_performance - 12) / 24.0
 	_stage.configure_hero(_hero)
 	_stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_stage.custom_minimum_size.y = 180.0
@@ -192,10 +195,11 @@ func _refresh() -> void:
 	var earth: bool = branch == "earth"
 	var beat: int = 0 if elapsed < 4.5 else (1 if elapsed < 10.8 else 2)
 	var caption: String = (EARTH_BEATS if earth else SPACE_BEATS)[beat]
-	if finished and not artwork_title.is_empty(): caption += "\n「%s」" % artwork_title
+	if beat == 2 and not artwork_title.is_empty(): caption += "\n「%s」" % artwork_title
+	if finished and not earth: caption += " · 비행 성능 %d" % _ship_performance
 	_subtitle.text = caption
-	_chapter.text = "지구에 남기로 했어요" if earth else "별빛 고향으로 돌아왔어요"
-	if not finished: _chapter.text = "마을의 새 이웃" if earth else "별빛 고향으로"
+	_chapter.text = "지구에 남기로 했어요" if earth else "사각성에 돌아왔어요"
+	if not finished: _chapter.text = "마을의 새 이웃" if earth else "사각성으로"
 
 
 static func _flat(color: Color) -> StyleBoxFlat:
@@ -216,6 +220,7 @@ class EndingStage extends Control:
 	var branch: String = ""
 	var elapsed: float = 0.0
 	var artwork: Texture2D
+	var ship_power: float = 0.0
 	var _village: Texture2D
 	var _planet: Texture2D
 	var _neighbors: Array[Texture2D] = []
@@ -284,7 +289,7 @@ class EndingStage extends Control:
 
 
 	func _draw_space() -> void:
-		var lift: float = smoothstep(2.0, 7.2, elapsed)
+		var lift: float = smoothstep(2.0, lerpf(7.2, 6.1, ship_power), elapsed)
 		var sky: float = smoothstep(3.6, 7.0, elapsed)
 		var arrival: float = smoothstep(10.2, 16.0, elapsed)
 		if sky < 1.0:
@@ -296,7 +301,7 @@ class EndingStage extends Control:
 				_draw_neighbor(0, Vector2(size.x * 0.16, ground), size.y * 0.18, false)
 				_draw_neighbor(1, Vector2(size.x * 0.10, ground + 9.0), size.y * 0.16, false)
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.025, 0.061, 0.13, sky))
-		_draw_stars(sky, lift * (1.0 - arrival))
+		_draw_stars(sky, lift * (1.0 - arrival) * lerpf(1.0, 1.5, ship_power))
 		if arrival > 0.01: _draw_planet(arrival)
 		var ship_size: Vector2 = _fitted(artwork, Vector2(size.x * lerpf(0.48, 0.44, arrival), size.y * lerpf(0.64, 0.55, arrival)))
 		var climb: float = sin(lift * PI) * 0.20
@@ -383,7 +388,7 @@ class EndingStage extends Control:
 
 
 	func _draw_exhaust(center: Vector2, extent: Vector2, angle: float, intensity: float) -> void:
-		var length: float = size.y * (0.22 + sin(elapsed * 26.0) * 0.035) * intensity
+		var length: float = size.y * (lerpf(0.22, 0.35, ship_power) + sin(elapsed * 26.0) * 0.035) * intensity
 		var spread: float = minf(extent.x * 0.20, 43.0)
 		draw_set_transform(center, angle)
 		var y: float = extent.y * 0.47

@@ -68,6 +68,8 @@ func prepare(metadata: Dictionary, offer: Dictionary, saved: Dictionary, bytes: 
 		"png_sha256": _digest(bytes), "status": "pending", "post_url": ""
 	}
 	if offer.has("kind"): record["kind"] = offer.kind
+	if offer.get("kind") == "spaceship" and offer.has("performance"):
+		record["performance"] = offer.performance
 	if not _valid_entry(record): return _failure("패들릿에 보낼 그림 정보를 확인하지 못했어요.")
 	var candidate: Array[Dictionary] = entries.duplicate(true)
 	if index >= 0: candidate[index] = record
@@ -150,10 +152,13 @@ func _save(candidate: Array[Dictionary]) -> Dictionary:
 
 static func _valid_entry(entry: Dictionary) -> bool:
 	var building: bool = entry.has("kind")
-	if entry.size() != (12 if building else 11) or not entry.has_all(["id", "fingerprint", "author", "title", "description", "price", "png_path", "filename", "png_sha256", "status", "post_url"]): return false
+	var rated: bool = entry.has("performance")
+	var expected_size: int = 11 + int(building) + int(rated)
+	if entry.size() != expected_size or not entry.has_all(["id", "fingerprint", "author", "title", "description", "price", "png_path", "filename", "png_sha256", "status", "post_url"]): return false
 	if building and entry.kind not in ["commission", "my_house", "earth_house", "spaceship"]: return false
 	for key: String in entry:
-		if key != "price" and not entry[key] is String: return false
+		if key not in ["price", "performance"] and not entry[key] is String: return false
+	if rated and (entry.get("kind") != "spaceship" or not _integer_in_range(entry.performance, 12, 36)): return false
 	if not _hex(entry.id, 32) or not _hex(entry.fingerprint, 64) or not _hex(entry.png_sha256, 64): return false
 	if not ArtSubmissionMetadata.validation_error(entry.author, entry.title, entry.description, building).is_empty(): return false
 	if not entry.price is int and not entry.price is float: return false
@@ -166,13 +171,18 @@ static func _valid_entry(entry: Dictionary) -> bool:
 			max_price = 260000000
 		"my_house", "earth_house": max_price = 1250000000
 		"spaceship":
-			min_price = SpaceshipCatalog.total_price()
-			max_price = min_price
+			min_price = SpaceshipCatalog.MIN_TOTAL_PRICE
+			max_price = SpaceshipCatalog.MAX_TOTAL_PRICE
 	if not is_finite(price) or floorf(price) != price or price < min_price or price > max_price: return false
 	var filename: String = str(entry.filename)
 	if filename.is_empty() or filename != filename.get_file() or not filename.ends_with(".png"): return false
 	if str(entry.png_path).length() > 2048 or str(entry.png_path).is_empty(): return false
 	return (entry.status == "pending" and entry.post_url == "") or (entry.status == "published" and _valid_post_url(entry.post_url))
+
+static func _integer_in_range(value: Variant, minimum: int, maximum: int) -> bool:
+	if not value is int and not value is float: return false
+	var number: float = float(value)
+	return is_finite(number) and floorf(number) == number and number >= minimum and number <= maximum
 
 static func _valid_post_url(url: String) -> bool:
 	return url.begins_with("https://padlet.com/") and url.length() <= 2048 and not url.contains("\n") and not url.contains("\r")

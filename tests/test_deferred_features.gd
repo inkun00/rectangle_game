@@ -49,6 +49,9 @@ static func _test_lazy_screens_and_shared_ledger(t: Node) -> void:
 	t.assert_true(app._tutorial != null and app._learning_screen != null, "Learning and tutorial services remain available before optional screens")
 	var ledger: ConstructionState = app._economy_state
 	await app._show_space()
+	t.assert_true(gate.calls.is_empty(), "A locked ending never starts an optional resource download")
+	t.assert_true(TestSpaceIntegration.settle_commissions(ledger, 10), "Ten settled commissions make the hangar available")
+	await app._show_space()
 	t.assert_eq(gate.calls, ["space"], "Opening the hangar requests only its feature")
 	t.assert_true(app._space_screen.visible and app._space_screen.state == ledger, "The hangar uses the authoritative shared ledger")
 	t.assert_false(is_instance_valid(app._construction_screen), "Visiting space never constructs the construction screen")
@@ -92,6 +95,7 @@ static func _test_cancel_and_stale_navigation(t: Node) -> void:
 	var gate: PackGate = PackGate.new()
 	gate.waiting = true
 	var app: QuadrilateralApp = _app(t, gate)
+	t.assert_true(TestSpaceIntegration.settle_commissions(app._economy_state, 10), "The fixture unlocks the optional hangar")
 	app._show_space()
 	t.assert_true(is_instance_valid(app._feature_loading_overlay), "An asynchronous feature request displays its loading state")
 	app._show_home()

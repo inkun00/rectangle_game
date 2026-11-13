@@ -32,18 +32,94 @@ static func run(t: Node) -> void:
 	t.assert_true(Catalog.part("missing").is_empty(), "Unknown component identifiers cannot be purchased")
 	parts[0].vertices[0] = Vector2(99999, 99999)
 	t.assert_true(Math.is_valid(Catalog.part("hull").vertices), "Catalog consumers cannot corrupt future ship geometry")
-	for template: Dictionary in Catalog.all_parts():
-		var id: String = str(template.id)
-		for kind: String in Math.KINDS:
-			var design: Dictionary = {id: {"kind": kind, "color": "e31881"}}
-			var configured: Dictionary = {}
-			for part: Dictionary in Catalog.configured_parts(design):
-				if part.id == id: configured = part
-			var vertices: PackedVector2Array = configured.vertices
-			t.assert_true(Math.is_valid(vertices) and Math.matches_kind(vertices, kind), "%s supports a valid %s choice" % [id, kind])
+	var elite_total: int = 0
+	var elite_ids: Array[String] = []
+	var variant_ids: Dictionary = {}
+	for index: int in range(parts.size()):
+		var slot: Dictionary = parts[index]
+		var id: String = str(slot.id)
+		var models: Array[Dictionary] = Catalog.variants(id)
+		t.assert_eq(models.size(), 3, "Each required slot offers three distinct models")
+		for tier: int in range(models.size()):
+			var model: Dictionary = models[tier]
+			var vertices: PackedVector2Array = model.vertices
+			t.assert_false(variant_ids.has(model.id), "Each product has a unique purchase ID")
+			variant_ids[model.id] = true
+			t.assert_eq(model.slot_id, id, "Variants share one required slot")
+			t.assert_eq(model.slot_index, index, "Models in one slot share the same atlas cell index")
+			t.assert_eq(model.tier, tier, "Each model has its own sprite sheet and price tier")
+			t.assert_true(Math.is_valid(vertices) and Math.matches_kind(vertices, str(model.kind)), "Every variant has its advertised quadrilateral shape")
+			var transformed: PackedVector2Array = Math.scale_vertices(Math.rotate_vertices(vertices, 31.0), 0.65)
+			t.assert_true(Math.matches_kind(transformed, str(model.kind)), "Rotating and scaling a model preserves its family")
 			var angle_sum: float = 0.0
 			for angle: float in Math.angles_degrees(vertices): angle_sum += angle
-			t.assert_float_approx(angle_sum, 360.0, 0.01, "A chosen ship component retains 360 degrees")
-			t.assert_eq(configured.color, Color("e31881"), "Chosen component color reaches the geometry renderer")
-			if kind != template.kind:
-				t.assert_true(vertices != template.vertices, "%s changes its outline when switched to %s" % [id, kind])
+			t.assert_float_approx(angle_sum, 360.0, 0.01, "Each variant retains 360 degrees")
+			if tier > 0:
+				var previous: Dictionary = models[tier - 1]
+				t.assert_gt(int(model.price), int(previous.price), "A larger model costs more than the prior tier")
+				t.assert_gt(int(model.performance), int(previous.performance), "A higher tier gives a stronger ship")
+				t.assert_true(model.name != previous.name and model.vertices != previous.vertices, "A higher tier changes both the label and the outline")
+		elite_total += int(models.back().price)
+		elite_ids.append(str(models.back().id))
+	t.assert_eq(variant_ids.size(), 36, "The catalog offers thirty-six unique products")
+	t.assert_eq(elite_total, Catalog.MAX_TOTAL_PRICE, "The top-tier price bound matches a real complete ship")
+	var installed: Array[Dictionary] = Catalog.installed_parts(elite_ids)
+	t.assert_eq(installed.size(), 12, "The renderer resolves all twelve equipped models")
+	t.assert_eq(installed.front().id, "left_wing_elite", "The wings render underneath the installed body")
+	t.assert_eq(installed.back().id, "shield_elite", "The equipped shield renders above the body")
+	_test_shape_variation(t)
+
+static func _test_shape_variation(t: Node) -> void:
+	var square_sizes: Dictionary = {}
+	var square_orientations: Dictionary = {}
+	var rectangle_aspects: Dictionary = {}
+	var rectangle_orientations: Dictionary = {}
+	var rhombus_ratios: Dictionary = {}
+	var rhombus_orientations: Dictionary = {}
+	var parallelogram_leans: Dictionary = {}
+	var parallelogram_orientations: Dictionary = {}
+	var trapezoid_ratios: Dictionary = {}
+	var trapezoid_offsets: Dictionary = {}
+	var trapezoid_facings: Dictionary = {}
+	for slot: Dictionary in Catalog.all_parts():
+		for part: Dictionary in Catalog.variants(str(slot.id)):
+			var vertices: PackedVector2Array = part.vertices
+			var lengths: PackedFloat32Array = Math.side_lengths(vertices)
+			var top_center: Vector2 = (vertices[0] + vertices[1]) * 0.5
+			var bottom_center: Vector2 = (vertices[2] + vertices[3]) * 0.5
+			var direction: Vector2 = (vertices[1] - vertices[0]).normalized()
+			var orientation: int = roundi(rad_to_deg(direction.angle()))
+			match str(part.kind):
+				"square":
+					square_sizes[roundi(lengths[0])] = true
+					square_orientations[orientation] = true
+				"rectangle":
+					t.assert_false(Math.matches_kind(vertices, "square"), "Rectangle products have distinct adjacent side lengths")
+					rectangle_aspects[roundi(100.0 * lengths[0] / lengths[1])] = true
+					rectangle_orientations[orientation] = true
+				"rhombus":
+					t.assert_false(Math.matches_kind(vertices, "square"), "Rhombus products have unequal diagonals")
+					rhombus_ratios[roundi(100.0 * vertices[0].distance_to(vertices[2]) / vertices[1].distance_to(vertices[3]))] = true
+					rhombus_orientations[orientation] = true
+				"parallelogram":
+					t.assert_false(Math.matches_kind(vertices, "rectangle"), "Parallelogram products have slanted sides")
+					parallelogram_leans[roundi((top_center - bottom_center).dot(direction))] = true
+					parallelogram_orientations[orientation] = true
+				"trapezoid":
+					t.assert_eq(Math.parallel_pair_count(vertices), 1, "Trapezoid products show one parallel pair within the inclusive classification")
+					trapezoid_ratios[roundi(100.0 * lengths[0] / lengths[2])] = true
+					var center_shift: Vector2 = top_center - bottom_center
+					trapezoid_offsets[roundi(center_shift.dot(direction))] = true
+					var facing: Vector2 = (center_shift - center_shift.project(direction)).normalized()
+					trapezoid_facings[Vector2i(roundi(facing.x), roundi(facing.y))] = true
+	t.assert_ge(square_sizes.size(), 4, "Square products have several actual side lengths")
+	t.assert_ge(square_orientations.size(), 3, "Square products include level and differently tilted pieces")
+	t.assert_ge(rectangle_aspects.size(), 4, "Rectangle products have several proportions")
+	t.assert_ge(rectangle_orientations.size(), 2, "Rectangle products include level and tilted pieces")
+	t.assert_ge(rhombus_ratios.size(), 3, "Rhombus products use different diagonal proportions")
+	t.assert_ge(rhombus_orientations.size(), 3, "Rhombus products include differently tilted pieces")
+	t.assert_ge(parallelogram_leans.size(), 5, "Parallelograms lean both ways with varying slant")
+	t.assert_ge(parallelogram_orientations.size(), 4, "Parallelogram products include different rotations")
+	t.assert_ge(trapezoid_ratios.size(), 6, "Trapezoid products use varied ratios of the short and long bases")
+	t.assert_ge(trapezoid_offsets.size(), 6, "Trapezoid products include different asymmetric offsets")
+	t.assert_eq(trapezoid_facings.size(), 4, "Trapezoids can have a short edge facing up, down, left or right")

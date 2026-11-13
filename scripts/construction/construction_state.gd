@@ -124,9 +124,28 @@ func ship_available_funds() -> int:
 	return maxi(0, saved_balance() - INITIAL_BALANCE - my_house_cost())
 
 func ship_complete() -> bool:
-	for part: Dictionary in Ship.all_parts():
-		if not purchased_ship_parts.has(str(part.id)): return false
+	for slot: Dictionary in Ship.all_parts():
+		if installed_ship_part(str(slot.id)).is_empty(): return false
 	return true
+
+func installed_ship_part(slot_id: String) -> Dictionary:
+	for id: String in purchased_ship_parts:
+		var item: Dictionary = Ship.part(id)
+		if item.get("slot_id") == slot_id: return item
+	return {}
+
+func ship_purchase_price(id: String) -> int:
+	var item: Dictionary = Ship.part(id)
+	if item.is_empty(): return -1
+	var installed: Dictionary = installed_ship_part(str(item.slot_id))
+	if not installed.is_empty() and int(item.tier) <= int(installed.tier): return -1
+	return int(item.price) - int(installed.get("price", 0))
+
+func ship_performance() -> int:
+	var performance: int = 0
+	for id: String in purchased_ship_parts:
+		performance += int(Ship.part(id).get("performance", 0))
+	return performance
 
 func sell_art(document_data: Dictionary, title: String = "") -> Dictionary:
 	if not title.is_empty() and not Market.valid_title(title):
@@ -150,31 +169,24 @@ func sell_art(document_data: Dictionary, title: String = "") -> Dictionary:
 func purchase_ship_part(id: String) -> Dictionary:
 	var part: Dictionary = Ship.part(id)
 	if part.is_empty(): return _economy_error("찾을 수 없는 우주선 부품이에요.")
-	if purchased_ship_parts.has(id): return _economy_error("이미 구매한 부품이에요. 돈은 다시 내지 않아요.")
-	var price: int = int(part.price)
+	var installed: Dictionary = installed_ship_part(str(part.slot_id))
+	var price: int = ship_purchase_price(id)
+	if price < 0:
+		if purchased_ship_parts.has(id): return _economy_error("이미 장착한 부품이에요.")
+		return _economy_error("현재 장착한 부품보다 높은 등급을 고를 수 있어요.")
 	if ship_available_funds() < price:
 		return _economy_error("%s 더 모으면 이 부품을 살 수 있어요." % Catalog.format_won(price - ship_available_funds()))
-	purchased_ship_parts.append(id)
+	if installed.is_empty():
+		purchased_ship_parts.append(id)
+	else:
+		var old_id: String = str(installed.id)
+		purchased_ship_parts[purchased_ship_parts.find(old_id)] = id
+		ship_design.erase(old_id)
 	balance -= price
 	my_house_document.budget_limit = my_house_budget()
 	last_error = ""
 	changed.emit()
-	return {"ok": true, "error": "", "price": price, "part_id": id}
-
-func customize_ship_part(id: String, kind: String, color: String) -> Dictionary:
-	var item: Dictionary = Ship.part(id)
-	if item.is_empty() or not purchased_ship_parts.has(id):
-		return _economy_error("구매한 부품의 모양과 색을 바꿀 수 있어요.")
-	if not Ship.valid_selection(kind, color):
-		return _economy_error("부품의 사각형 모양과 색을 다시 골라 주세요.")
-	var default_color: Color = item.color
-	if kind == item.kind and color == default_color.to_html(false):
-		ship_design.erase(id)
-	else:
-		ship_design[id] = {"kind": kind, "color": color}
-	last_error = ""
-	changed.emit()
-	return {"ok": true, "error": "", "message": "선택한 부품의 모양과 색을 저장했어요."}
+	return {"ok": true, "error": "", "price": price, "part_id": id, "upgraded": not installed.is_empty()}
 
 func launch_ship() -> Dictionary:
 	if not ship_complete(): return _economy_error("사각형 부품 12개를 모두 모으면 출발할 수 있어요.")
@@ -484,10 +496,14 @@ func restore(data: Dictionary) -> bool:
 			sold_signatures[signature] = true
 			checked_sales.append(raw_sale.duplicate(true))
 			expected_balance += int(raw_sale.price)
+		var checked_slots: Dictionary = {}
 		for raw_part: Variant in economy.purchased_parts:
-			if not raw_part is String or checked_parts.has(raw_part) or Ship.part(raw_part).is_empty(): return false
+			if not raw_part is String: return false
+			var purchased: Dictionary = Ship.part(raw_part)
+			if purchased.is_empty() or checked_slots.has(purchased.slot_id): return false
+			checked_slots[purchased.slot_id] = true
 			checked_parts.append(raw_part)
-			expected_balance -= int(Ship.part(raw_part).price)
+			expected_balance -= int(purchased.price)
 		if economy.has("design"):
 			if not Ship.validate_design(economy.design, checked_parts): return false
 			checked_ship_design = economy.design.duplicate(true)

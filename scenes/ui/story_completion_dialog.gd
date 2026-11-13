@@ -5,6 +5,7 @@ signal submission_requested(metadata: Dictionary)
 
 var _author: LineEdit
 var _title: LineEdit
+var _title_label: Label
 var _description: TextEdit
 var _form: VBoxContainer
 var _price: Label
@@ -12,6 +13,7 @@ var _feedback: Label
 var _resume: bool = false
 var _busy: bool = false
 var _work: String = ""
+var _branch: String = ""
 
 func _ready() -> void:
 	exclusive = true
@@ -35,9 +37,10 @@ func _ready() -> void:
 	_form = VBoxContainer.new()
 	_form.add_theme_constant_override("separation", 8)
 	column.add_child(_form)
-	_form.add_child(QuadTheme.paragraph("이름, 제목, 설명, 금액과 완성 PNG가 패들릿 전시관에 함께 올라가요.", 16, QuadTheme.INK))
-	_author = _line("사용자 이름", ArtSubmissionMetadata.MAX_AUTHOR_LENGTH)
-	_title = _line("작품 제목", ArtSubmissionMetadata.MAX_TITLE_LENGTH)
+	_form.add_child(QuadTheme.paragraph("사용자 이름, 완성 작품의 이름과 설명, 금액, PNG가 패들릿 전시관에 함께 올라가요.", 16, QuadTheme.INK))
+	_author = _line(QuadTheme.paragraph("사용자 이름", 16, QuadTheme.INK), ArtSubmissionMetadata.MAX_AUTHOR_LENGTH)
+	_title_label = QuadTheme.paragraph("", 16, QuadTheme.INK)
+	_title = _line(_title_label, ArtSubmissionMetadata.MAX_TITLE_LENGTH)
 	_form.add_child(QuadTheme.paragraph("작품 설명", 16, QuadTheme.INK))
 	_description = TextEdit.new()
 	_description.placeholder_text = "어떤 사각형과 색을 사용했는지 소개해 주세요."
@@ -54,13 +57,16 @@ func _ready() -> void:
 	confirmed.connect(_submit)
 
 func open_project(branch: String, price: int, author: String, resume: bool = false) -> void:
-	_work = "우리 집" if branch == "earth" else "귀향선"
-	title = "우리 집에서 새 출발" if branch == "earth" else "귀향선과 함께 출발"
+	_branch = branch
+	_work = "우리 집" if branch == "earth" else "우주선"
+	title = "우리 집에서 새 출발" if branch == "earth" else "사각성으로 출발"
 	_price.text = ("재료비 " if branch == "earth" else "부품 제작비 ") + ConstructionCatalog.format_won(price)
 	_resume = resume
 	_busy = false
 	_form.visible = not resume
 	_author.text = author
+	_title_label.text = _name_label(branch)
+	_title.placeholder_text = _title_label.text + "을 지어 주세요"
 	_title.clear()
 	_description.clear()
 	_refresh()
@@ -81,8 +87,8 @@ func show_failure(message: String, saved: bool) -> void:
 	_refresh()
 	_feedback.text = message
 
-func _line(label: String, max_length: int) -> LineEdit:
-	_form.add_child(QuadTheme.paragraph(label, 16, QuadTheme.INK))
+func _line(label: Label, max_length: int) -> LineEdit:
+	_form.add_child(label)
 	var line: LineEdit = LineEdit.new()
 	line.max_length = max_length
 	line.custom_minimum_size.y = 42
@@ -93,7 +99,13 @@ func _line(label: String, max_length: int) -> LineEdit:
 	return line
 
 func _validation_error() -> String:
-	return ArtSubmissionMetadata.validation_error(_author.text, _title.text, _description.text, true).replace("건물 ", "작품 ")
+	return validation_error(_branch, _author.text, _title.text, _description.text)
+
+static func validation_error(branch: String, author: Variant, project_name: Variant, description: Variant) -> String:
+	return ArtSubmissionMetadata.validation_error(author, project_name, description, true).replace("건물 제목", _name_label(branch)).replace("건물 설명", "작품 설명")
+
+static func _name_label(branch: String) -> String:
+	return "집 이름" if branch == "earth" else "우주선 이름"
 
 func _refresh() -> void:
 	if not is_instance_valid(_feedback): return

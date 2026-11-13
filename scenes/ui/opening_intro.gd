@@ -86,8 +86,8 @@ func _ready() -> void:
 	var story: VBoxContainer = VBoxContainer.new()
 	story.add_theme_constant_override("separation", 16)
 	panel.add_child(story)
-	story.add_child(QuadTheme.paragraph("집으로 돌아가는 작은 도전", 26, Color.WHITE))
-	story.add_child(QuadTheme.paragraph("지구에 불시착한 사각이!\n마을을 도와 돈을 모으고,\n이곳에서 살지 고향으로 돌아갈지 정해요.", 20, Art.INK))
+	story.add_child(QuadTheme.paragraph("사각이의 두 가지 길", 26, Color.WHITE))
+	story.add_child(QuadTheme.paragraph("사각성에서 온 사각이가 지구에 불시착했어요!\n마을을 도와 돈을 모으고,\n지구에 남을지 사각성으로 돌아갈지 골라요.", 20, Art.INK))
 	_start_button = _button("이야기 시작", start_playback)
 	_start_button.name = "StartOpening"
 	story.add_child(_start_button)

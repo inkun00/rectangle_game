@@ -20,7 +20,7 @@ const PROJECT_PRICES = new Map([
   // 400 parts, each at most 600 × 400, at the highest custom rate and surcharges.
   ['my_house', { minimum: 100, maximum: 1_250_000_000, label: '게임 내 재료비' }],
   ['earth_house', { minimum: 100, maximum: 1_250_000_000, label: '게임 내 재료비' }],
-  ['spaceship', { minimum: 1_200_000_000, maximum: 1_200_000_000, label: '게임 내 우주선 제작비' }],
+  ['spaceship', { minimum: 1_200_000_000, maximum: 1_800_000_000, label: '게임 내 우주선 제작비' }],
 ]);
 
 class InputError extends Error {
@@ -198,7 +198,8 @@ function validateSubmission(raw) {
     throw new InputError(`작품 번호가 올바르지 않아요. ${work}을 다시 열어 주세요.`);
   }
   const author = textField(raw.author, 40, '사용자 이름');
-  const title = textField(raw.title, 80, `${work} 제목`);
+  const nameLabel = kind === 'earth_house' ? '집 이름' : kind === 'spaceship' ? '우주선 이름' : `${work} 제목`;
+  const title = textField(raw.title, 80, nameLabel);
   const description = textField(raw.description, 1000, `${work} 설명`, true);
   const price = projectPrice ?? DRAWING_PRICE;
   if (!Number.isSafeInteger(raw.price) || raw.price < price.minimum || raw.price > price.maximum) {

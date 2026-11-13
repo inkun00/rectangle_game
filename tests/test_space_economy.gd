@@ -54,6 +54,15 @@ static func _test_village_income(t: Node) -> void:
 	var all_rewards: Dictionary = Transactions.commit(restored, "village_rewards", all_ids, missing_path, false)
 	t.assert_true(bool(all_rewards.ok), "All mission receipts fit the reward ledger")
 	t.assert_ge(restored.village_income(), Ship.total_price(), "All village errands can fund the complete spaceship")
+	for slot: Dictionary in Ship.all_parts():
+		var upgrade: Dictionary = Ship.variants(str(slot.id))[1]
+		t.assert_true(restored.purchase_ship_part(str(upgrade.id)).ok, "Village earnings can fund every advanced component")
+	t.assert_true(restored.ship_complete(), "Twelve distinct slots unlock departure even when every base part was replaced")
+	t.assert_eq(restored.ship_performance(), Ship.PART_COUNT * 2, "All installed advanced models contribute their performance")
+	t.assert_eq(restored.ship_spent(), 1440000000, "The complete advanced ship costs exactly the combined model prices")
+	t.assert_true(restored.launch_ship().ok, "A complete advanced ship can launch")
+	t.assert_true(state.restore(_json_copy(restored.serialize())), "A launched advanced ship restores from its ledger")
+	t.assert_true(state.launched and state.ship_complete(), "Reload preserves the advanced build and its completed ending")
 
 static func _test_legacy_migration(t: Node) -> void:
 	var original: State = State.new()
@@ -300,6 +309,10 @@ static func _test_invalid_restores(t: Node) -> void:
 	bad.balance -= int(Ship.part("hull").price) * 2
 	malformed.append(bad)
 	bad = valid.duplicate(true)
+	bad.space_economy.purchased_parts = ["hull", "hull_advanced"]
+	bad.balance -= int(Ship.part("hull").price) + int(Ship.part("hull_advanced").price)
+	malformed.append(bad)
+	bad = valid.duplicate(true)
 	bad.space_economy.launched = true
 	malformed.append(bad)
 	bad = valid.duplicate(true)
@@ -378,25 +391,37 @@ static func _test_durable_transactions(t: Node) -> void:
 	t.assert_eq(_json_copy(loaded.serialize()), _json_copy(state.serialize()), "Disk and live state agree after buying the part")
 	var legacy_ship: Dictionary = _json_copy(state.serialize())
 	t.assert_true(loaded.restore(legacy_ship) and loaded.ship_design.is_empty(), "An older purchased ship uses its original design by default")
-	var design: Dictionary = {"id": "hull", "kind": "rhombus", "color": "e31881"}
+	legacy_ship.space_economy.design = {"hull": {"kind": "rhombus", "color": "e31881"}}
+	t.assert_true(loaded.restore(legacy_ship), "The previous color design save is still loadable")
+	t.assert_eq(loaded.purchased_ship_parts, ["hull"], "An older design retains its paid component")
+	t.assert_eq(loaded.ship_design, legacy_ship.space_economy.design, "Restoring a legacy ledger preserves its existing design data")
 	before = state.serialize()
-	t.assert_false(Transactions.commit(state, "customize_ship_part", design, invalid_path).ok, "A failed save cannot modify the visible ship design")
-	t.assert_eq(state.serialize(), before, "The failed customization preserves the whole save")
-	t.assert_true(Transactions.commit(state, "customize_ship_part", design, path).ok, "An owned hull can be customized and saved")
-	t.assert_eq(state.balance, int(before.balance), "Changing a purchased component's shape and color has no cost")
-	t.assert_true(Saves.load_into(path, loaded).ok, "A customized ship reloads from disk")
-	t.assert_eq(loaded.ship_design, {"hull": {"kind": "rhombus", "color": "e31881"}}, "A reload restores the chosen hull geometry recipe and color")
+	var upgrade_price: int = int(Ship.part("hull_advanced").price) - int(Ship.part("hull").price)
+	t.assert_eq(state.ship_purchase_price("hull_advanced"), upgrade_price, "The upgrade quote credits the existing model's price")
+	t.assert_false(Transactions.commit(state, "purchase_part", "hull_advanced", invalid_path).ok, "A failed save cannot install the higher-tier model")
+	t.assert_eq(state.serialize(), before, "The failed upgrade preserves the whole save")
+	var upgraded: Dictionary = Transactions.commit(state, "purchase_part", "hull_advanced", path)
+	t.assert_true(upgraded.ok and upgraded.upgraded, "An owned hull can be upgraded and saved")
+	t.assert_eq(int(upgraded.price), upgrade_price, "Upgrading charges only the quoted difference")
+	t.assert_eq(state.balance, int(before.balance) - upgrade_price, "The old and new model are not both charged")
+	t.assert_eq(state.purchased_ship_parts, ["hull_advanced"], "Upgrading replaces the old model without filling another slot")
+	t.assert_eq(state.ship_spent(), Ship.part("hull_advanced").price, "Total investment equals the fitted model's price")
+	t.assert_eq(state.ship_performance(), 2, "A higher tier raises the ship's actual performance score")
+	t.assert_true(Saves.load_into(path, loaded).ok, "An upgraded ship reloads from disk")
+	t.assert_eq(loaded.installed_ship_part("hull").id, "hull_advanced", "Reload keeps the exact upgraded model mounted in the same slot")
 	var corrupted_design: Dictionary = _json_copy(loaded.serialize())
-	corrupted_design.space_economy.design["nose"] = {"kind": "square", "color": "ffffff"}
+	corrupted_design.space_economy.design = {"nose": {"kind": "square", "color": "ffffff"}}
 	t.assert_false(loaded.restore(corrupted_design), "A configuration for an unowned part cannot enter the ledger")
-	corrupted_design = _json_copy(loaded.serialize())
+	corrupted_design.space_economy.design = {"hull_advanced": {"kind": "square", "color": "ffffff"}}
+	t.assert_false(loaded.restore(corrupted_design), "New models do not accept legacy shape or color choices")
+	corrupted_design = _json_copy(legacy_ship)
 	corrupted_design.space_economy.design.hull.color = "e3188180"
 	t.assert_false(loaded.restore(corrupted_design), "A save cannot make a purchased part translucent")
-	t.assert_false(Transactions.commit(state, "customize_ship_part", {"id": "hull", "kind": "triangle", "color": "ffffff"}, path).ok, "Non-quadrilateral component shapes cannot be saved")
 	_assert_live_documents(t, state, documents, snapshots, undo_sizes, redo_sizes)
 	before = state.serialize()
 	var published: String = FileAccess.get_file_as_string(path)
-	t.assert_false(Transactions.commit(state, "purchase_part", "hull", path).ok, "Durable transaction layer also rejects duplicate purchases")
+	t.assert_false(Transactions.commit(state, "purchase_part", "hull_advanced", path).ok, "Durable transaction layer rejects duplicate purchases")
+	t.assert_false(Transactions.commit(state, "purchase_part", "hull", path).ok, "A cheaper duplicate cannot replace an installed upgraded model")
 	t.assert_false(Transactions.commit(state, "sell_art", drawing.serialize(), path).ok, "Durable transaction layer also rejects a paid artwork")
 	t.assert_false(Transactions.commit(state, "purchase_part", 7, path).ok, "A malformed purchase payload is rejected")
 	t.assert_false(Transactions.commit(state, "sell_art", "wrong", path).ok, "A malformed sale payload is rejected")

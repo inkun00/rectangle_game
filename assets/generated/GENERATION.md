@@ -1,5 +1,7 @@
 # ImageGen 에셋 생성 기록
 
+사각성 귀환 우주선의 12개 슬롯에 사용하는 36종 부품 스프라이트는 [우주선 부품 제작 기록](ship-parts-v2/GENERATION.md)에 정리했습니다.
+
 2026-10-29 초등학생용 건축게임 UI를 위해 새로 생성한 패널·버튼·아이콘·재료·의뢰인·5단계 배지 14종은 [건축게임 제작 기록](construction-game/GENERATION.md)과 해당 폴더의 `prompts.json`에 정리했습니다. [공식 게임 참고 조사](../../docs/CONSTRUCTION_GAME_REFERENCES.md)를 바탕으로 제작했습니다.
 
 생성 방식: 내장 `image_gen` 도구. 외부 CLI/API 키는 사용하지 않았습니다.

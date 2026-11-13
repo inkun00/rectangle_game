@@ -1940,7 +1940,7 @@ func building_publication_offer() -> Dictionary:
 	}
 
 func earth_ending_error() -> String:
-	if not earth_ending_unlocked: return "마을 심부름이나 작품 판매로 집을 지을 자금을 더 모아 주세요."
+	if not earth_ending_unlocked: return "그림 판매와 건축 의뢰 완료를 합쳐 10회 달성해 주세요."
 	if not state.my_house_mode: return "나만의 집을 완성한 뒤 선택할 수 있어요."
 	var error: String = _building_publication_error()
 	if not error.is_empty(): return error
