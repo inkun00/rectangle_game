@@ -217,7 +217,7 @@ static func _test_inventory_actions(t: Node, app: QuadrilateralApp) -> void:
 
 
 static func _assert_game_menu_actions(t: Node, app: QuadrilateralApp) -> void:
-	var action_groups: Array = [["가방", "소지품"], ["부탁", "수첩"], ["지도"], ["이야기"], ["도형", "도감"], ["작업실", "공방", "그림", "꾸미"], ["도움", "조작"]]
+	var action_groups: Array = [["가방", "소지품"], ["부탁", "수첩"], ["지도"], ["이야기"], ["도형", "도감"], ["메인으로"], ["도움", "조작"]]
 	for alternatives: Array in action_groups:
 		var found: bool = false
 		for term: String in alternatives:
