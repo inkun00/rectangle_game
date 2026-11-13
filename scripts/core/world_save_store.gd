@@ -11,7 +11,11 @@ static func save_game(editor: Dictionary, journal: Dictionary, world: Dictionary
 	if file == null: return FileAccess.get_open_error()
 	file.store_string(JSON.stringify(data))
 	file.flush()
+	var write_error: Error = file.get_error()
 	file.close()
+	if write_error != OK:
+		DirAccess.remove_absolute(temp)
+		return write_error
 	var backup: String = path + ".bak"
 	if FileAccess.file_exists(path):
 		if FileAccess.file_exists(backup): DirAccess.remove_absolute(backup)

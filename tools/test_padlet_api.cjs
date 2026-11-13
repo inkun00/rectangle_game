@@ -129,10 +129,12 @@ test('posts the completed PNG with all five fields to the fixed board, then serv
   assert.equal(response.bytes.includes(deps.env.BLOB_READ_WRITE_TOKEN), false);
 });
 
-test('posts commissioned and personal buildings with their own price label and original PNG', async () => {
-  for (const [kind, price, priceLine] of [
-    ['commission', 260_000_000, /게임 내 건물 가격: 260,000,000원/],
-    ['my_house', 10_700_000, /게임 내 재료비: 10,700,000원/],
+test('posts buildings and ending projects with their price labels and original PNG', async () => {
+  for (const [kind, price, priceLine, descriptionLabel] of [
+    ['commission', 260_000_000, /게임 내 건물 가격: 260,000,000원/, '건물 설명'],
+    ['my_house', 10_700_000, /게임 내 재료비: 10,700,000원/, '건물 설명'],
+    ['earth_house', 11_400_000, /게임 내 재료비: 11,400,000원/, '건물 설명'],
+    ['spaceship', 1_200_000_000, /게임 내 우주선 제작비: 1,200,000,000원/, '우주선 설명'],
   ]) {
     const deps = environment();
     const submission = { ...base, kind, price };
@@ -141,7 +143,7 @@ test('posts commissioned and personal buildings with their own price label and o
     const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
     assert.equal(content.subject, base.title);
     assert.match(content.body, /사용자 이름: 사각이/);
-    assert.match(content.body, /건물 설명: 네모난 집과 파란 하늘을 표현했어요\./);
+    assert.ok(content.body.includes(`${descriptionLabel}: ${base.description}`));
     assert.match(content.body, priceLine);
     assert.equal(content.attachment.url, publicPngUrl);
     assert.deepEqual(deps.blob.files.get(pngPath).bytes, png);
@@ -309,6 +311,7 @@ test('invalid fields and malformed PNGs fail before any storage or remote call',
     { kind: 'drawing' }, { kind: '__proto__' }, { kind: null }, { kind: ['commission'] },
     { kind: 'commission', price: 99_999_999 }, { kind: 'commission', price: 260_000_001 },
     { kind: 'my_house', price: 99 }, { kind: 'my_house', price: 1_250_000_001 },
+    { kind: 'earth_house', price: 1_250_000_001 }, { kind: 'spaceship', price: 1_199_999_999 },
     { id: '../../private/config' }, { author: '   ' }, { title: '가'.repeat(81) },
     { description: '가'.repeat(1001) }, { title: '안녕\0' }, { author: '이름\u0085' },
     { description: '설명\u009f' }, { price: 99 }, { price: 8000001 }, { price: 100.1 },

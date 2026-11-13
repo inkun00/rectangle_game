@@ -12,7 +12,9 @@ static func run(t: Node) -> void:
 	var purchases: Array[String] = []
 	var launches: Array[bool] = []
 	var homes: Array[bool] = []
+	var designs: Array[Dictionary] = []
 	hangar.purchase_requested.connect(func(id: String): purchases.append(id))
+	hangar.design_requested.connect(func(id: String, kind: String, color: String): designs.append({"id": id, "kind": kind, "color": color}))
 	hangar.launch_requested.connect(func(): launches.append(true))
 	hangar.home_requested.connect(func(): homes.append(true))
 	t.add_child(hangar)
@@ -53,12 +55,25 @@ static func run(t: Node) -> void:
 	for item: Dictionary in Catalog.all_parts(): state.purchased_ship_parts.append(str(item.id))
 	state.launched = true
 	hangar.refresh()
+	hangar._select_part("hull")
+	hangar._design_shape.select(QuadrilateralMath.KINDS.find("rhombus"))
+	hangar._design_color.color = Color("e31881")
+	hangar._preview_design()
+	t.assert_true(hangar._design_row.visible and not hangar._apply_design.disabled, "Owned parts expose a live design preview and save action")
+	t.assert_eq(hangar.canvas._design.get("hull", {}), {"kind": "rhombus", "color": "e31881"}, "The actual hangar preview shows the selected family and color")
+	t.assert_true(state.ship_design.is_empty(), "Previewing a new part does not mutate the durable design")
+	hangar._request_launch()
+	t.assert_false(hangar._launch_panel.visible, "Departure does not discard an unapplied preview")
+	hangar._request_design()
+	t.assert_eq(designs, [{"id": "hull", "kind": "rhombus", "color": "e31881"}], "The save control emits the selected part and actual design")
+	state.customize_ship_part("hull", "rhombus", "e31881")
 	t.assert_false(hangar._launch.disabled, "A completed ship exposes its departure action")
 	t.assert_true(hangar._launch.text.contains("다시"), "A completed homecoming can be replayed without a new charge")
 	hangar._request_launch()
 	t.assert_true(hangar._launch_panel.visible, "A replay presents the animated homecoming scene")
 	t.assert_false(hangar._content.visible, "Purchases are unavailable during the launch animation")
 	t.assert_eq(hangar._launch_canvas.purchased_ids.size(), 12, "The launched ship uses all twelve assembled components")
+	t.assert_eq(hangar._launch_canvas._design, state.ship_design, "A legacy replay uses the player's chosen geometry and color")
 	hangar._process(4.0)
 	t.assert_gt(hangar._launch_canvas.launch_time, 3.0, "The real launch advances beyond its countdown")
 	var escape: InputEventKey = InputEventKey.new()

@@ -13,6 +13,10 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 		return {"ok": false, "error": "장부를 확인하지 못했어요. 현재 그림과 돈은 그대로예요."}
 	var result: Dictionary
 	match action:
+		"village_rewards":
+			if not payload is Array: return {"ok": false, "error": "주민의 부탁 기록을 확인해 주세요."}
+			result = candidate.claim_village_rewards(payload)
+			if bool(result.ok) and int(result.price) == 0: return result
 		"sell_art":
 			if not payload is Dictionary: return {"ok": false, "error": "판매할 그림을 확인해 주세요."}
 			if payload.has("document") or payload.has("title"):
@@ -27,6 +31,10 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 		"purchase_part":
 			if not payload is String: return {"ok": false, "error": "구매할 부품을 선택해 주세요."}
 			result = candidate.purchase_ship_part(payload)
+		"customize_ship_part":
+			if not payload is Dictionary or not payload.get("id") is String or not payload.get("kind") is String or not payload.get("color") is String:
+				return {"ok": false, "error": "부품의 모양과 색을 확인해 주세요."}
+			result = candidate.customize_ship_part(payload.id, payload.kind, payload.color)
 		"launch":
 			result = candidate.launch_ship()
 		_:

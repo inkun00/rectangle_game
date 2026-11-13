@@ -2,10 +2,12 @@ class_name SpaceHangar
 extends Control
 
 signal purchase_requested(part_id: String)
+signal design_requested(part_id: String, kind: String, color: String)
 signal launch_requested
 signal home_requested
 signal drawing_requested
 signal construction_requested
+signal village_requested
 
 const Catalog: GDScript = preload("res://scripts/economy/spaceship_catalog.gd")
 const ShipCanvas: GDScript = preload("res://scenes/space/spaceship_canvas.gd")
@@ -13,12 +15,18 @@ const Money: GDScript = preload("res://scripts/construction/construction_catalog
 const Art: GDScript = preload("res://scripts/construction_art.gd")
 
 var state: ConstructionState
+var managed_endings: bool = false
+var ending_saved: bool = false
 var canvas: SpaceshipCanvas
 var _selected_id: String = "hull"
 var _part_buttons: Dictionary = {}
 var _balance: Label
 var _progress: Label
 var _detail: Label
+var _design_row: HFlowContainer
+var _design_shape: OptionButton
+var _design_color: ColorPickerButton
+var _apply_design: Button
 var _purchase: Button
 var _launch: Button
 var _status: Label
@@ -112,6 +120,7 @@ func _ready() -> void:
 	detail_panel.add_theme_constant_override("separation", 5)
 	_detail = QuadTheme.paragraph("", 16, Art.INK)
 	detail_panel.add_child(_detail)
+	_build_design_controls(detail_panel)
 	var actions: HBoxContainer = HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 8)
 	detail_panel.add_child(actions)
@@ -128,6 +137,7 @@ func _ready() -> void:
 	column.add_child(earn_row)
 	earn_row.add_child(QuadTheme.button("그림 그려 돈 모으기", func(): drawing_requested.emit()))
 	earn_row.add_child(QuadTheme.button("집 지어 돈 모으기", func(): construction_requested.emit()))
+	earn_row.add_child(QuadTheme.button("마을 주민 심부름하기", func(): village_requested.emit()))
 	_status = QuadTheme.paragraph("부품을 하나씩 모아 사각형 행성으로 돌아가요.", 15, Art.INK)
 	column.add_child(_status)
 	_build_confirmation()
@@ -138,6 +148,38 @@ func _ready() -> void:
 	refresh()
 	_responsive()
 	set_process(false)
+
+func _build_design_controls(parent: VBoxContainer) -> void:
+	_design_row = HFlowContainer.new()
+	_design_row.add_theme_constant_override("h_separation", 8)
+	_design_row.add_theme_constant_override("v_separation", 5)
+	parent.add_child(_design_row)
+	var shape_label: Label = QuadTheme.paragraph("부품 모양", 16, Art.INK)
+	shape_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_design_row.add_child(shape_label)
+	_design_shape = OptionButton.new()
+	_design_shape.name = "ShipPartShape"
+	_design_shape.add_theme_font_override("font", QuadTheme.FONT)
+	_design_shape.custom_minimum_size = Vector2(150, 42)
+	ButtonArt.apply(_design_shape)
+	for kind: String in QuadrilateralMath.KINDS:
+		_design_shape.add_item(QuadrilateralMath.kind_name(kind))
+	_design_shape.item_selected.connect(func(_index: int): _preview_design())
+	_design_row.add_child(_design_shape)
+	var color_label: Label = QuadTheme.paragraph("부품 색", 16, Art.INK)
+	color_label.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_design_row.add_child(color_label)
+	_design_color = ColorPickerButton.new()
+	_design_color.name = "ShipPartColor"
+	_design_color.edit_alpha = false
+	_design_color.custom_minimum_size = Vector2(58, 42)
+	_design_color.tooltip_text = "부품 색 고르기"
+	ButtonArt.apply(_design_color)
+	_design_color.color_changed.connect(func(_color: Color): _preview_design())
+	_design_row.add_child(_design_color)
+	_apply_design = QuadTheme.button("모양과 색 저장", _request_design, true)
+	_apply_design.name = "SaveShipPartDesign"
+	_design_row.add_child(_apply_design)
 
 func _build_confirmation() -> void:
 	_confirmation = ConfirmationDialog.new()
@@ -199,6 +241,7 @@ func _build_launch_panel() -> void:
 func refresh() -> void:
 	if not is_instance_valid(canvas) or state == null: return
 	canvas.set_parts(state.purchased_ship_parts)
+	canvas.set_design(state.ship_design)
 	canvas.selected_part_id = _selected_id
 	_balance.text = "부품 구매에 쓸 수 있는 돈  %s" % Money.format_won(state.ship_available_funds())
 	_progress.text = "조립 %d / 12개 · 구매한 부품 %s / 총 12억 원\n건축 운영비 3천만 원과 내 집에 사용한 돈은 남겨 둬요." % [state.purchased_ship_parts.size(), Money.format_won(state.ship_spent())]
@@ -206,16 +249,26 @@ func refresh() -> void:
 		var button: Button = _part_buttons[id]
 		var item: Dictionary = Catalog.part(id)
 		var owned: bool = state.purchased_ship_parts.has(id)
+		var part_selection: Dictionary = state.ship_design.get(id, {})
+		button.icon = QuadTheme.icon(str(part_selection.get("kind", item.kind)))
 		button.text = "%s %s\n%s" % ["✓" if owned else "□", str(item.name), "구매 완료" if owned else Money.format_won(int(item.price))]
 		button.set_pressed_no_signal(id == _selected_id)
 	var selected: Dictionary = Catalog.part(_selected_id)
 	var bought: bool = state.purchased_ship_parts.has(_selected_id)
+	var selection: Dictionary = state.ship_design.get(_selected_id, {})
+	var current_kind: String = str(selection.get("kind", selected.kind))
+	var current_color: Color = Color(str(selection.color)) if selection.has("color") else Color(selected.color)
 	var missing: int = maxi(0, int(selected.price) - state.ship_available_funds())
-	_detail.text = "%s · %s · %s\n%s" % [str(selected.name), QuadrilateralMath.kind_name(str(selected.kind)), Money.format_won(int(selected.price)), str(selected.description)]
+	_set_part_detail(selected, current_kind)
+	_design_row.visible = bought
+	_design_shape.select(QuadrilateralMath.KINDS.find(current_kind))
+	_design_color.color = current_color
+	_apply_design.disabled = true
 	_purchase.disabled = bought or missing > 0
 	_purchase.text = "이미 조립한 부품" if bought else ("%s 더 모으면 구매" % Money.format_won(missing) if missing > 0 else "선택한 부품 구매")
 	_launch.disabled = not state.ship_complete()
-	_launch.text = "귀향 장면 다시 보기" if state.launched else ("우주로 출발!" if state.ship_complete() else "12개를 모두 모으면 출발")
+	var replay: bool = ending_saved or state.launched
+	_launch.text = "엔딩 다시 보기" if replay else ("완성하고 엔딩 보기" if state.ship_complete() else "12개를 모두 모으면 완성")
 	canvas.queue_redraw()
 	if _confirmation.visible:
 		var pending: Dictionary = Catalog.part(_pending_part)
@@ -225,6 +278,28 @@ func _select_part(id: String) -> void:
 	if Catalog.part(id).is_empty() or _launch_panel.visible: return
 	_selected_id = id
 	refresh()
+
+func _preview_design() -> void:
+	if state == null or not state.purchased_ship_parts.has(_selected_id) or _launch_panel.visible: return
+	var kind: String = QuadrilateralMath.KINDS[_design_shape.selected]
+	var color: String = _design_color.color.to_html(false)
+	var actual: Dictionary = Catalog.part(_selected_id)
+	var current: Dictionary = state.ship_design.get(_selected_id, {})
+	var default_color: Color = actual.color
+	_apply_design.disabled = kind == current.get("kind", actual.kind) and color == current.get("color", default_color.to_html(false))
+	_set_part_detail(actual, kind)
+	var preview: Dictionary = state.ship_design.duplicate(true)
+	preview[_selected_id] = {"kind": kind, "color": color}
+	canvas.set_design(preview)
+
+func _set_part_detail(item: Dictionary, kind: String) -> void:
+	_detail.text = "%s · %s · %s\n%s" % [str(item.name), QuadrilateralMath.kind_name(kind), Money.format_won(int(item.price)), str(item.description)]
+
+func _request_design() -> void:
+	if state == null or not is_visible_in_tree() or _launch_panel.visible or _apply_design.disabled:
+		return
+	if not state.purchased_ship_parts.has(_selected_id): return
+	design_requested.emit(_selected_id, QuadrilateralMath.KINDS[_design_shape.selected], _design_color.color.to_html(false))
 
 func _ask_purchase() -> void:
 	if state == null or _purchase.disabled or _launch_panel.visible: return
@@ -248,7 +323,11 @@ func _confirm_purchase() -> void:
 
 func _request_launch() -> void:
 	if state == null or not state.ship_complete() or _launch_panel.visible: return
-	if state.launched: play_launch()
+	if _design_row.visible and not _apply_design.disabled:
+		_status.text = "바꾼 부품의 모양과 색을 먼저 저장해 주세요."
+		_apply_design.grab_focus()
+		return
+	if state.launched and not managed_endings: play_launch()
 	else: launch_requested.emit()
 
 func show_transaction_result(result: Dictionary) -> void:
@@ -262,6 +341,7 @@ func play_launch() -> void:
 	_launch_clock = 0.0
 	_launch_done = false
 	_launch_canvas.set_parts(state.purchased_ship_parts)
+	_launch_canvas.set_design(state.ship_design)
 	_launch_canvas.launch_time = 0.0
 	_launch_canvas.queue_redraw()
 	_launch_panel.show()

@@ -45,7 +45,7 @@ func _ready() -> void:
 	var column: VBoxContainer = VBoxContainer.new()
 	column.add_theme_constant_override("separation", 8)
 	margin.add_child(column)
-	column.add_child(QuadTheme.paragraph("사각형 월드 · 별빛 고향으로", 20, Color("e8f4ff")))
+	column.add_child(QuadTheme.paragraph("사각형 월드 · 지구에 온 사각이", 20, Color("e8f4ff")))
 	var stage: Control = Control.new()
 	stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -87,7 +87,7 @@ func _ready() -> void:
 	story.add_theme_constant_override("separation", 16)
 	panel.add_child(story)
 	story.add_child(QuadTheme.paragraph("집으로 돌아가는 작은 도전", 26, Color.WHITE))
-	story.add_child(QuadTheme.paragraph("지구에 불시착한 사각형 외계인!\n그림을 팔고, 집을 지어\n새 우주선을 만들 수 있을까요?", 20, Art.INK))
+	story.add_child(QuadTheme.paragraph("지구에 불시착한 사각이!\n마을을 도와 돈을 모으고,\n이곳에서 살지 고향으로 돌아갈지 정해요.", 20, Art.INK))
 	_start_button = _button("이야기 시작", start_playback)
 	_start_button.name = "StartOpening"
 	story.add_child(_start_button)

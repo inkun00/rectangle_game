@@ -20,6 +20,16 @@ var _building_upload_busy: bool = false
 var _building_png_busy: bool = false
 var _building_png_directory: String = "user://published_buildings"
 var _building_png_renderer: Callable = Callable()
+const EARTH_MIN_EARNINGS: int = 5000000
+const ENDING_PNG_DIRECTORY: String = "user://story_endings"
+const EndingDialog = preload("res://scenes/ui/story_completion_dialog.gd")
+var _ending_dialog: StoryCompletionDialog
+var _ending_scene: StoryEnding
+var _ending_branch: String = ""
+var _ending_offer: Dictionary = {}
+var _ending_busy: bool = false
+var _ending_png_directory: String = ENDING_PNG_DIRECTORY
+var _ending_png_renderer: Callable = Callable()
 var learning_progress: LearningProgress = LearningProgress.new()
 var _learning_screen: LearningStudio
 var journal: QuestJournal
@@ -123,6 +133,7 @@ func _ready() -> void:
 	adventure = AdventureState.new()
 	_defer_features = defer_feature_screens_for_testing or (not testing and WebResourcePacks.is_web_delivery())
 	_economy_state = ConstructionState.new()
+	if not testing: _load_publications()
 	if _defer_features and not testing:
 		_construction_load_result = ConstructionSaveStore.load_into(ConstructionStudio.SAVE_PATH, _economy_state)
 	_economy_state.changed.connect(_economy_changed)
@@ -170,7 +181,6 @@ func _ready() -> void:
 	learning_progress.changed.connect(_learning_changed)
 	# Rendering smoke tests use command-line flags, never bypass player-facing validation.
 	if "--quad-preview-world" in OS.get_cmdline_user_args():
-		document.fill_example()
 		_enter_world()
 	elif "--quad-preview-drawing" in OS.get_cmdline_user_args():
 		_show_drawing()
@@ -184,13 +194,15 @@ func _ready() -> void:
 func _build_home() -> void:
 	_home_screen = HomePage.new()
 	_home_screen.drawing_requested.connect(_show_drawing)
-	_home_screen.adventure_requested.connect(_show_workshop)
+	_home_screen.adventure_requested.connect(_enter_world)
 	_home_screen.construction_requested.connect(_show_construction)
 	_home_screen.notebook_requested.connect(_show_notebook)
 	_home_screen.learning_requested.connect(_show_learning)
 	_home_screen.tutorials_requested.connect(_show_tutorials)
 	_home_screen.opening_requested.connect(_show_opening)
 	_home_screen.space_requested.connect(_show_space)
+	_home_screen.earth_requested.connect(_show_earth_house)
+	_home_screen.ending_requested.connect(_resume_ending)
 	_ui.add_child(_home_screen)
 	_home_screen.set_learning_progress(learning_progress.completed.size())
 
@@ -247,6 +259,7 @@ func _build_construction() -> void:
 	_construction_screen.home_requested.connect(_show_home)
 	_construction_screen.building_publication_requested.connect(_publish_building)
 	_construction_screen.building_upload_retry_requested.connect(_retry_building_uploads)
+	_construction_screen.earth_ending_requested.connect(_finish_earth_house)
 	_construction_screen.hide()
 	_ui.add_child(_construction_screen)
 	if not testing:
@@ -260,24 +273,43 @@ func _build_construction() -> void:
 		_construction_screen._set_status(str(_construction_load_result.get("message", "건축 기록을 복구했어요.")))
 	elif not _construction_load_result.is_empty() and not bool(_construction_load_result.get("ok", false)) and ConstructionSaveStore.has_save(_economy_save_path()):
 		_construction_screen._set_status(str(_construction_load_result.get("error", "건축 기록을 확인하지 못했어요.")))
+	_economy_changed()
 
 func _build_space() -> void:
 	if is_instance_valid(_space_screen): return
 	_space_screen = SpaceHangar.new()
 	_space_screen.state = _economy_state
+	_space_screen.managed_endings = true
 	_space_screen.home_requested.connect(_show_home)
 	_space_screen.drawing_requested.connect(_show_drawing)
 	_space_screen.construction_requested.connect(_show_construction)
+	_space_screen.village_requested.connect(_enter_world)
 	_space_screen.purchase_requested.connect(_purchase_ship_part)
+	_space_screen.design_requested.connect(_customize_ship_part)
 	_space_screen.launch_requested.connect(_launch_ship)
 	_space_screen.hide()
 	_ui.add_child(_space_screen)
 	_economy_changed()
 
 func _economy_changed() -> void:
+	var missing: int = _earth_ending_missing()
+	var earth: Dictionary = _art_publications.ending_entry("earth")
+	var space: Dictionary = _art_publications.ending_entry("space")
 	if is_instance_valid(_home_screen):
 		_home_screen.set_space_progress(_economy_state)
-	if is_instance_valid(_space_screen): _space_screen.refresh()
+		_home_screen.set_ending_progress(missing, earth, space)
+	if is_instance_valid(_construction_screen):
+		var unlocked: bool = missing == 0 or not earth.is_empty()
+		if _construction_screen.earth_ending_unlocked != unlocked:
+			_construction_screen.earth_ending_unlocked = unlocked
+			_construction_screen._refresh()
+	if is_instance_valid(_space_screen):
+		_space_screen.ending_saved = space.get("status") == "published"
+		_space_screen.refresh()
+
+func _earth_ending_missing() -> int:
+	var earned: int = _economy_state.saved_balance() + _economy_state.ship_spent() - ConstructionState.INITIAL_BALANCE
+	return maxi(0, EARTH_MIN_EARNINGS - earned)
 
 func _economy_save_path() -> String:
 	return _construction_screen.save_path if is_instance_valid(_construction_screen) else ConstructionStudio.SAVE_PATH
@@ -464,11 +496,156 @@ func _purchase_ship_part(id: String) -> void:
 	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "purchase_part", id, _economy_save_path(), not testing)
 	_space_screen.show_transaction_result(result)
 
+func _customize_ship_part(id: String, kind: String, color: String) -> void:
+	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree() or _ending_busy: return
+	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "customize_ship_part", {"id": id, "kind": kind, "color": color}, _economy_save_path(), not testing)
+	_space_screen.show_transaction_result(result)
+
 func _launch_ship() -> void:
 	if not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return
-	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "launch", null, _economy_save_path(), not testing)
-	if bool(result.get("ok", false)): _space_screen.play_launch()
-	else: _space_screen.show_transaction_result(result)
+	if _economy_state.launched and _art_publications.ending_entry("space").is_empty():
+		_space_screen.play_launch()
+		return
+	_open_ending_project("space")
+
+func _finish_earth_house() -> void:
+	if not is_instance_valid(_construction_screen) or not _construction_screen.is_visible_in_tree(): return
+	_open_ending_project("earth")
+
+func _current_ending_offer(branch: String) -> Dictionary:
+	if branch == "earth" and is_instance_valid(_construction_screen) and _construction_screen.is_visible_in_tree():
+		return _construction_screen.earth_ending_offer()
+	if branch == "space" and is_instance_valid(_space_screen) and _space_screen.is_visible_in_tree() and _economy_state.ship_complete():
+		return {"ok": true, "kind": "spaceship", "price": _economy_state.ship_spent(), "parts": _economy_state.purchased_ship_parts.duplicate(), "design": _economy_state.ship_design.duplicate(true)}
+	return {"ok": false, "error": "사각형 부품 12개를 모아 우주선을 완성해 주세요."}
+
+func _open_ending_project(branch: String) -> void:
+	if _ending_busy: return
+	var restored: Dictionary = _load_publications()
+	if not bool(restored.ok):
+		_show_toast(str(restored.error))
+		return
+	var entry: Dictionary = _art_publications.ending_entry(branch)
+	if not entry.is_empty():
+		_resume_ending(branch)
+		return
+	var offer: Dictionary = _current_ending_offer(branch)
+	if not bool(offer.ok):
+		if branch == "space": _space_screen.show_transaction_result(offer)
+		else: _construction_screen._set_status(str(offer.error))
+		return
+	_ending_branch = branch
+	_ending_offer = offer
+	_ensure_ending_dialog()
+	_ending_dialog.open_project(branch, int(offer.price), _art_publications.last_author())
+
+func _ensure_ending_dialog() -> void:
+	if is_instance_valid(_ending_dialog): return
+	_ending_dialog = EndingDialog.new()
+	_ending_dialog.theme = _ui.theme
+	_ending_dialog.submission_requested.connect(_submit_ending_project)
+	_ui.add_child(_ending_dialog)
+
+func _resume_ending(branch: String) -> void:
+	if _ending_busy: return
+	var entry: Dictionary = _art_publications.ending_entry(branch)
+	if entry.is_empty(): return
+	if entry.status == "published":
+		_show_story_ending(branch, entry)
+		return
+	_ending_branch = branch
+	_ending_offer.clear()
+	_ensure_ending_dialog()
+	_ending_dialog.open_project(branch, int(entry.price), "", true)
+
+func _submit_ending_project(metadata: Dictionary) -> void:
+	if _ending_busy or not is_instance_valid(_ending_dialog) or not _ending_dialog.visible: return
+	var branch: String = _ending_branch
+	var entry: Dictionary = _art_publications.ending_entry(branch)
+	_ending_busy = true
+	if entry.is_empty():
+		var error: String = ArtSubmissionMetadata.validation_error(metadata.get("author"), metadata.get("title"), metadata.get("description"), true).replace("건물 ", "작품 ")
+		if not error.is_empty():
+			_ending_failed(error, false)
+			return
+		if _current_ending_offer(branch) != _ending_offer:
+			_ending_failed("완성 작품이 바뀌었어요. 닫고 현재 작품으로 다시 열어 주세요.", false)
+			return
+		_ending_dialog.show_progress("완성한 작품을 PNG로 저장하고 있어요…")
+		var bytes: PackedByteArray = await _render_ending_png(branch, _ending_offer)
+		if bytes.is_empty() or _current_ending_offer(branch) != _ending_offer:
+			_ending_failed("완성 작품 PNG를 저장하지 못했어요. 작품을 확인하고 다시 시도해 주세요.", false)
+			return
+		# Preserve the current project before writing the durable publication record.
+		if not testing:
+			var saved_project: Dictionary = ConstructionSaveStore.save(_economy_save_path(), _economy_state)
+			if not bool(saved_project.ok):
+				_ending_failed(str(saved_project.error), false)
+				return
+		var saved: Dictionary = SoldArtStore.save_png(bytes, str(metadata.title), _ending_png_directory)
+		if not bool(saved.ok):
+			_ending_failed(str(saved.error), false)
+			return
+		var publication: Dictionary = _ending_offer.duplicate(true)
+		publication["fingerprint"] = ("story-ending:" + branch).sha256_text()
+		var prepared: Dictionary = _art_publications.prepare(metadata, publication, saved, bytes)
+		if not bool(prepared.ok):
+			_ending_failed(str(prepared.error), false)
+			return
+		entry = prepared.entry
+		if OS.has_feature("web"): JavaScriptBridge.download_buffer(bytes, str(saved.filename), "image/png")
+		_economy_changed()
+	await _upload_ending_project(branch, entry)
+
+func _render_ending_png(branch: String, offer: Dictionary) -> PackedByteArray:
+	if _ending_png_renderer.is_valid(): return await _ending_png_renderer.call(branch, offer.duplicate(true))
+	if branch == "space": return await SpaceshipCanvas.export_png(get_tree(), offer.parts, offer.design)
+	var model: ConstructionDocument = ConstructionDocument.new()
+	model.budget_limit = _economy_state.my_house_budget()
+	if not model.restore(offer.document): return PackedByteArray()
+	return await ConstructionExporter.export_ending_png(get_tree(), model)
+
+func _upload_ending_project(branch: String, entry: Dictionary) -> void:
+	var bytes: PackedByteArray = _art_publications.read_png(entry, _ending_png_directory)
+	if bytes.is_empty():
+		_ending_failed("저장한 완성 PNG를 찾지 못했어요.", true)
+		return
+	_ending_dialog.show_progress("패들릿에 완성 작품을 올리고 있어요…")
+	var result: Dictionary
+	if _art_upload_transport.is_valid(): result = await _art_upload_transport.call(entry.duplicate(true), bytes)
+	elif testing: result = {"ok": false, "error": "테스트에서는 실제 게시물을 만들지 않아요."}
+	else: result = await PadletUploader.upload(self, entry, bytes)
+	if not bool(result.get("ok", false)):
+		_ending_failed(str(result.get("error", "패들릿 등록을 마치지 못했어요.")) + " 저장한 작품으로 다시 시도할 수 있어요.", true)
+		return
+	var saved: Dictionary = _art_publications.mark_published(str(entry.id), str(result.get("post_url", "")))
+	if not bool(saved.ok):
+		_ending_failed(str(saved.error), true)
+		return
+	var show_now: bool = is_instance_valid(_ending_dialog) and _ending_dialog.visible
+	_ending_busy = false
+	_ending_dialog.hide()
+	_economy_changed()
+	if show_now: _show_story_ending(branch, _art_publications.ending_entry(branch))
+	else: _show_toast("작품을 올렸어요. 메인 화면에서 엔딩을 다시 볼 수 있어요.")
+
+func _ending_failed(message: String, saved: bool) -> void:
+	_ending_busy = false
+	_ending_dialog.show_failure(message, saved)
+
+func _show_story_ending(branch: String, entry: Dictionary) -> void:
+	if entry.is_empty(): return
+	var bytes: PackedByteArray = _art_publications.read_png(entry, _ending_png_directory)
+	var screen: StoryEnding = StoryEnding.new()
+	if not screen.configure(branch, bytes, str(entry.title), str(entry.post_url)):
+		screen.free()
+		_show_toast("엔딩에 쓸 완성 PNG를 열지 못했어요.")
+		return
+	_leave_activity()
+	_ending_scene = screen
+	_ending_scene.home_requested.connect(_show_home)
+	_ui.add_child(_ending_scene)
+	_responsive()
 
 func _show_space() -> void:
 	if not await _ensure_feature("space"): return
@@ -501,7 +678,7 @@ func _ensure_feature(feature: String) -> bool:
 	return available
 
 func _show_feature_loading(feature: String) -> void:
-	var captions: Dictionary = {"drawing": "그림 도구", "construction": "집 짓기 재료", "space": "우주선 제작소", "adventure": "모험의 세계"}
+	var captions: Dictionary = {"drawing": "그림 도구", "construction": "집 짓기 재료", "space": "우주선 제작소", "adventure": "마을 주민 심부름하기"}
 	if not is_instance_valid(_feature_loading_overlay):
 		_feature_focus_before = get_viewport().gui_get_focus_owner()
 		var shade: ColorRect = ColorRect.new()
@@ -554,6 +731,11 @@ func _cancel_feature_navigation() -> void:
 
 func _leave_activity() -> void:
 	_cancel_feature_navigation()
+	if is_instance_valid(_ending_dialog): _ending_dialog.hide()
+	if is_instance_valid(_ending_scene):
+		_ending_scene.hide()
+		_ending_scene.queue_free()
+		_ending_scene = null
 	if is_instance_valid(_opening_screen):
 		_opening_screen.dismiss()
 		_opening_screen.queue_free()
@@ -617,10 +799,20 @@ func _show_drawing() -> void:
 	_tutorial.visit("masterpiece" if _drawing_screen.document.drawing_mode == "masterpiece" else "drawing")
 
 func _show_construction() -> void:
+	await _open_construction(false)
+
+func _show_earth_house() -> void:
+	if _earth_ending_missing() > 0 and _art_publications.ending_entry("earth").is_empty():
+		_show_toast("집을 지을 자금 %s을 더 모아 주세요." % ConstructionCatalog.format_won(_earth_ending_missing()))
+		return
+	await _open_construction(true)
+
+func _open_construction(earth: bool) -> void:
 	if not await _ensure_feature("construction"): return
 	_build_construction()
 	_leave_activity()
 	_construction_screen.show()
+	if earth and not _construction_screen.state.my_house_mode: _construction_screen._enter_my_house_mode()
 	_responsive()
 	_tutorial.visit("my_house" if _construction_screen.state.my_house_mode else "construction")
 
@@ -690,7 +882,7 @@ func _build_workshop() -> void:
 	var title: Label = QuadTheme.label("01  캐릭터 공방", 23)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
-	_workshop_steps = QuadTheme.label("도형 고르기   →   골격 채우기   →   모험 떠나기", 15, QuadTheme.MUTED)
+	_workshop_steps = QuadTheme.label("도형 고르기   →   골격 채우기   →   캐릭터 저장", 15, QuadTheme.MUTED)
 	title_row.add_child(_workshop_steps)
 	_workshop_compact_selectors = HFlowContainer.new()
 	_workshop_compact_selectors.add_theme_constant_override("h_separation", 8)
@@ -866,7 +1058,7 @@ func _build_workshop() -> void:
 	column.add_child(bottom)
 	_workshop_bottom_note = QuadTheme.paragraph("내가 만든 모습 그대로 걷고 뛰어요. 골격을 모두 채우면 사각형 월드로 출발할 수 있어요.", 15)
 	bottom.add_child(_workshop_bottom_note)
-	_start_button = QuadTheme.button("사각형 월드로 출발  →", _enter_world, true)
+	_start_button = QuadTheme.button("마을 주민 심부름하기  →", _enter_world, true)
 	_start_button.custom_minimum_size = Vector2(280, 54)
 	bottom.add_child(_start_button)
 	_select_kind("square")
@@ -907,7 +1099,7 @@ func _build_world_hud() -> void:
 	var character_info: VBoxContainer = VBoxContainer.new()
 	character_info.add_theme_constant_override("separation", 6)
 	_identity_panel.add_child(character_info)
-	_level_label = QuadTheme.label("LV. 1  사각형 탐험가", 22, Color("f6d794"))
+	_level_label = QuadTheme.label("LV. 1  사각이", 22, Color("f6d794"))
 	character_info.add_child(_level_label)
 	_health_label = QuadTheme.label("", 16, Color("f7edd7"))
 	character_info.add_child(_health_label)
@@ -1119,7 +1311,6 @@ func _document_changed() -> void:
 	_progress.text = "골격 %d / %d 완성" % [int(done["filled"]), int(done["total"])]
 	_progress_bar.max_value = maxi(int(done["total"]), 1)
 	_progress_bar.value = int(done["filled"])
-	_start_button.disabled = not bool(done["ready"])
 	_undo_button.disabled = not document.can_undo()
 	_redo_button.disabled = not document.can_redo()
 	for id: String in _template_buttons:
@@ -1160,7 +1351,7 @@ func _journal_changed() -> void:
 func _adventure_changed() -> void:
 	if _health_label == null: return
 	_health_label.text = "HP  %d / %d      XP  %d / %d" % [adventure.hp, adventure.max_hp, adventure.xp_in_level(), adventure.xp_for_next_level()]
-	_level_label.text = "LV. %d  사각형 탐험가" % adventure.level
+	_level_label.text = "LV. %d  사각이" % adventure.level
 	_health_bar.max_value = adventure.max_hp
 	_health_bar.value = adventure.hp
 	_xp_bar.max_value = adventure.xp_for_next_level()
@@ -1365,19 +1556,16 @@ func _show_travel() -> void:
 	body.add_child(QuadTheme.button("걸어서 계속 탐험", _close_modal))
 
 func _enter_world() -> void:
-	if not bool(document.completion()["ready"]):
-		_show_toast("골격을 모두 채운 뒤 출발해 주세요.")
-		return
 	if not await _ensure_feature("adventure"): return
 	_leave_activity()
 	if world == null:
 		world = QuadrilateralWorld.new()
-		world.setup(document.character_data(), journal)
+		world.setup(CharacterTemplates.protagonist(), journal)
 		add_child(world)
 		world.interaction_requested.connect(_talk_to_npc)
 		world.hint_requested.connect(_show_toast)
 		world.item_collected.connect(_on_item_collected)
-		world.region_changed.connect(func(region: String): _world_region.text = "사각형 월드  ·  " + region)
+		world.region_changed.connect(func(region: String): _world_region.text = region)
 		world.progress_changed.connect(func(): _autosave.start())
 		world.service_requested.connect(_show_service)
 		world.enemy_defeated.connect(_on_enemy_defeated)
@@ -1386,7 +1574,6 @@ func _enter_world() -> void:
 		world.configure_adventure(adventure)
 		if not _world_data.is_empty(): world.restore(_world_data)
 	else:
-		world.update_character(document.character_data())
 		world.show()
 		world.process_mode = Node.PROCESS_MODE_INHERIT
 		world.set_controls_enabled(true)
@@ -1396,15 +1583,12 @@ func _enter_world() -> void:
 	_world_hud.show()
 	_responsive()
 	_adventure_changed()
-	_world_region.text = "사각형 월드  ·  " + world.get_current_region()
+	_world_region.text = world.get_current_region()
 	_sound.play_create()
-	_show_toast("물건 옆에서 G로 줍기! E로 주민과 대화하고, H로 이야기를 확인해요.")
+	_show_toast("E로 주민의 부탁을 받고 G로 물건을 주워요. 심부름을 마치면 집·우주선 자금이 쌓여요.")
 	_refresh_world_guidance()
 	_save(false)
 	_tutorial.visit("world")
-
-func _return_workshop() -> void:
-	_show_workshop()
 
 func _talk_to_npc(npc_id: String) -> void:
 	for quest: Dictionary in QuestCatalog.all_quests():
@@ -1423,7 +1607,8 @@ func _show_quest_dialog(quest: Dictionary) -> void:
 	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	portrait_row.add_child(identity)
 	identity.add_child(QuadTheme.label(String(quest["npc_name"]), 23, QuadTheme.TEAL))
-	identity.add_child(QuadTheme.paragraph("마을의 이야기를 함께 완성해 주세요.\n보상: %d 코인 · %d 경험치" % [int(quest["reward"]), int(quest["reward"]) * 2], 15))
+	var reward_won: String = ConstructionCatalog.format_won(ConstructionState.village_reward_amount(id))
+	identity.add_child(QuadTheme.paragraph("심부름 보상 %s · %d 코인 · %d 경험치" % [reward_won, int(quest["reward"]), int(quest["reward"]) * 2], 15))
 	body.add_child(portrait_row)
 	body.add_child(QuadTheme.label(String(quest["title"]), 25))
 	var state: String = journal.quest_state(id)
@@ -1466,7 +1651,7 @@ func _show_quest_dialog(quest: Dictionary) -> void:
 				story.add_child(QuadTheme.paragraph(str(quest.story_description), 19, QuadTheme.INK))
 				story.add_child(QuadTheme.button("부탁으로 돌아가기", _show_quest_dialog.bind(quest), true))))
 		body.add_child(QuadTheme.paragraph("탐험 목표  ·  " + journal.progress_text(id), 16, QuadTheme.TEAL))
-		body.add_child(QuadTheme.label("선물  ·  %d 코인" % int(quest["reward"]), 15))
+		body.add_child(QuadTheme.label("보상  ·  %s · %d 코인" % [reward_won, int(quest["reward"])], 15))
 		if state == "available":
 			body.add_child(QuadTheme.button("제가 도와드릴게요!", func():
 				journal.accept_quest(id)
@@ -1480,19 +1665,27 @@ func _show_quest_dialog(quest: Dictionary) -> void:
 
 func _show_quest_success(quest: Dictionary, answer: Dictionary) -> void:
 	adventure.claim_quest(String(quest["id"]))
-	var body: VBoxContainer = _open_modal("고마워요, 사각형 탐험가!")
+	# Publish the quest receipt first. The economy can replay any missing
+	# payouts from the completed journal, including after an interrupted save.
+	var paid: Dictionary = _save(false)
+	var body: VBoxContainer = _open_modal("고마워요, 사각이!")
 	body.add_child(QuadTheme.label(String(quest["title"]) + " 완료", 24, QuadTheme.TEAL))
 	body.add_child(QuadTheme.paragraph(String(answer["message"]), 18, QuadTheme.INK))
 	body.add_child(QuadTheme.label("+ %d 코인  ·  도와준 친구 %d / %d" % [int(answer["reward"]), journal.completed_count(), QuestCatalog.all_quests().size()], 20, QuadTheme.TEAL))
+	if bool(paid.get("ok", false)):
+		body.add_child(QuadTheme.paragraph("집 짓기와 우주선 제작에 쓸 돈이 들어왔어요. +%s" % ConstructionCatalog.format_won(ConstructionState.village_reward_amount(str(quest.id))), 17, QuadTheme.INK))
+	else:
+		body.add_child(QuadTheme.paragraph("자금 기록을 저장하지 못했어요. 저장 공간을 확인하고 메뉴에서 다시 저장해 주세요.", 17, QuadTheme.INK))
 	var chapter: Dictionary = QuestCatalog.region_story(str(quest["region"]))
 	if _region_completed(str(quest["region"])):
 		body.add_child(QuadTheme.paragraph(str(chapter.get("outro", "")), 18, QuadTheme.INK))
 	if journal.completed_count() == QuestCatalog.all_quests().size():
 		body.add_child(QuadTheme.paragraph("모든 지역에 별빛이 돌아왔어요! 서로 다른 사각형들의 성질을 알아본 덕분이에요. H로 이야기 수첩을 펼쳐 모험을 다시 읽어 보세요.", 18, QuadTheme.INK))
-	body.add_child(QuadTheme.button("모험 계속하기", _close_modal, true))
+	body.add_child(QuadTheme.button("심부름 계속하기", _close_modal, true))
 
 func _show_game_menu() -> void:
-	var body: VBoxContainer = _open_modal("모험 메뉴")
+	var body: VBoxContainer = _open_modal("마을 주민 심부름하기")
+	body.add_child(QuadTheme.paragraph("심부름으로 번 돈 %s\n집 짓기와 우주선 제작에 사용할 수 있어요." % ConstructionCatalog.format_won(_economy_state.village_income()), 17, QuadTheme.TEAL))
 	var peaceful: CheckButton = CheckButton.new()
 	peaceful.text = "편안한 탐험 · 몬스터에 닿아도 다치지 않아요"
 	ButtonArt.apply(peaceful)
@@ -1521,8 +1714,9 @@ func _show_game_menu() -> void:
 	body.add_child(QuadTheme.button("조작 방법", _show_controls))
 	body.add_child(QuadTheme.button("튜토리얼 다시 보기", func(): _replay_tutorial("world")))
 	body.add_child(QuadTheme.button("모든 모드 안내", _show_tutorials))
-	body.add_child(QuadTheme.button("캐릭터 공방으로", _return_workshop))
-	body.add_child(QuadTheme.button("모험 계속하기", _close_modal))
+	body.add_child(QuadTheme.button("심부름 기록 저장", func(): _save(true)))
+	body.add_child(QuadTheme.button("메인으로", _show_home))
+	body.add_child(QuadTheme.button("심부름 계속하기", _close_modal))
 
 func _show_controls() -> void:
 	var body: VBoxContainer = _open_modal("조작 방법")
@@ -1562,10 +1756,6 @@ func _replay_tutorial(context: String) -> void:
 				if not _construction_screen.state.my_house_mode: _construction_screen._enter_my_house_mode()
 			"workshop": _show_workshop()
 			"world":
-				if not bool(document.completion().ready):
-					_show_workshop()
-					_tutorial.start("workshop")
-					return
 				await _enter_world()
 				if not _in_world: return
 	_tutorial.start(context)
@@ -1747,17 +1937,28 @@ func _close_modal(restore_focus: bool = true) -> void:
 	if world != null and _in_world: world.set_controls_enabled(_tutorial == null or not _tutorial.blocks_gameplay())
 	if _tutorial != null: _tutorial.refresh.call_deferred()
 
-func _save(notify_user: bool) -> void:
-	if _restoring or testing: return
-	if world != null: _world_data = world.serialize()
-	var error: Error = WorldSaveStore.save_game(document.serialize(), journal.serialize(), _world_data, WorldSaveStore.SAVE_PATH, adventure.serialize())
+func _sync_village_rewards() -> Dictionary:
+	var unclaimed: Array[String] = []
+	for id: String in journal.completed:
+		if not _economy_state.village_rewards.has(id): unclaimed.append(id)
+	if unclaimed.is_empty(): return {"ok": true}
+	return ProgressionTransactions.commit(_economy_state, "village_rewards", unclaimed, _economy_save_path(), not testing)
+
+func _save(notify_user: bool) -> Dictionary:
+	if _restoring: return {"ok": false}
+	var error: Error = OK
+	if not testing:
+		if world != null: _world_data = world.serialize()
+		error = WorldSaveStore.save_game(document.serialize(), journal.serialize(), _world_data, WorldSaveStore.SAVE_PATH, adventure.serialize())
+	var result: Dictionary = _sync_village_rewards() if error == OK else {"ok": false}
 	if notify_user:
-		_show_toast("그림과 모험을 저장했어요. 다음에도 이어서 할 수 있어요." if error == OK else "저장 공간을 확인해 주세요. 저장하지 못했어요.")
+		_show_toast("캐릭터 그림과 심부름 기록을 저장했어요." if bool(result.ok) else "저장 공간을 확인해 주세요. 저장하지 못했어요.")
+	return result
 
 func _load(notify_user: bool) -> bool:
 	var data: Dictionary = WorldSaveStore.load_game()
 	if data.is_empty():
-		if notify_user: _show_toast("아직 저장한 그림과 모험이 없어요.")
+		if notify_user: _show_toast("아직 저장한 캐릭터 그림과 심부름 기록이 없어요.")
 		return false
 	var candidate_document: CharacterDocument = CharacterDocument.new()
 	var candidate_journal: QuestJournal = QuestJournal.new()
@@ -1779,10 +1980,10 @@ func _load(notify_user: bool) -> bool:
 	_world_data = data["world"].duplicate(true)
 	if world != null:
 		world.restore(_world_data)
-		world.update_character(document.character_data())
 		world.configure_adventure(adventure)
 	_restoring = false
-	if notify_user: _show_toast("그림과 모험을 불러왔어요.")
+	_sync_village_rewards()
+	if notify_user: _show_toast("캐릭터 그림과 심부름 기록을 불러왔어요.")
 	return true
 
 func _export_png() -> void:
@@ -1819,7 +2020,7 @@ func _export_png() -> void:
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
 	var window: Window = get_window()
-	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen))
+	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen) or is_instance_valid(_ending_scene))
 	var desired_size: Vector2i = Vector2i(maxi(window.size.x, 800), maxi(window.size.y, 600)) if creation_visible else Vector2i(1600, 900)
 	if window.content_scale_size != desired_size:
 		window.content_scale_size = desired_size
@@ -1910,6 +2111,7 @@ func _notification(what: int) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if is_instance_valid(_feature_loading_overlay): return
 	if is_instance_valid(_opening_screen): return
+	if is_instance_valid(_ending_scene) or (is_instance_valid(_ending_dialog) and _ending_dialog.visible): return
 	if is_instance_valid(_space_screen) and _space_screen.visible: return
 	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	if not event is InputEventKey or not event.pressed or event.echo: return

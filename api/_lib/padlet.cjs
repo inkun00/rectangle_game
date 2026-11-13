@@ -15,10 +15,12 @@ const POSTING_GRACE_MS = 45000;
 const ID_PATTERN = /^[a-f0-9]{32}$/;
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const DRAWING_PRICE = { minimum: 100, maximum: 8_000_000, label: '게임 내 그림 가격' };
-const BUILDING_PRICES = new Map([
+const PROJECT_PRICES = new Map([
   ['commission', { minimum: 100_000_000, maximum: 260_000_000, label: '게임 내 건물 가격' }],
   // 400 parts, each at most 600 × 400, at the highest custom rate and surcharges.
   ['my_house', { minimum: 100, maximum: 1_250_000_000, label: '게임 내 재료비' }],
+  ['earth_house', { minimum: 100, maximum: 1_250_000_000, label: '게임 내 재료비' }],
+  ['spaceship', { minimum: 1_200_000_000, maximum: 1_200_000_000, label: '게임 내 우주선 제작비' }],
 ]);
 
 class InputError extends Error {
@@ -189,18 +191,18 @@ function textField(value, maximum, label, multiline = false) {
 
 function validateSubmission(raw) {
   const kind = raw.kind;
-  const buildingPrice = BUILDING_PRICES.get(kind);
-  if (kind !== undefined && !buildingPrice) throw new InputError('작품 종류를 확인해 주세요.');
-  const work = buildingPrice ? '건물' : '그림';
+  const projectPrice = PROJECT_PRICES.get(kind);
+  if (kind !== undefined && !projectPrice) throw new InputError('작품 종류를 확인해 주세요.');
+  const work = kind === 'spaceship' ? '우주선' : projectPrice ? '건물' : '그림';
   if (typeof raw.id !== 'string' || !ID_PATTERN.test(raw.id)) {
     throw new InputError(`작품 번호가 올바르지 않아요. ${work}을 다시 열어 주세요.`);
   }
   const author = textField(raw.author, 40, '사용자 이름');
   const title = textField(raw.title, 80, `${work} 제목`);
   const description = textField(raw.description, 1000, `${work} 설명`, true);
-  const price = buildingPrice ?? DRAWING_PRICE;
+  const price = projectPrice ?? DRAWING_PRICE;
   if (!Number.isSafeInteger(raw.price) || raw.price < price.minimum || raw.price > price.maximum) {
-    throw new InputError(buildingPrice ? '건물 금액이 올바르지 않아요. 건축 화면에서 다시 확인해 주세요.' :
+    throw new InputError(projectPrice ? '작품 금액이 올바르지 않아요. 게임 화면에서 다시 확인해 주세요.' :
       '그림 가격이 올바르지 않아요. 판매 화면에서 다시 확인해 주세요.');
   }
   const encoded = raw.png_base64;
@@ -226,7 +228,7 @@ function validateSubmission(raw) {
   const imageHash = hash(png);
   const payload = [raw.id, author, title, description, raw.price, imageHash];
   // Preserve the payload hash already stored for drawing submissions.
-  if (buildingPrice) payload.push(kind);
+  if (projectPrice) payload.push(kind);
   const payloadHash = hash(JSON.stringify(payload));
   return { id: raw.id, author, title, description, price: raw.price, png, imageHash, payloadHash, kind };
 }
@@ -278,9 +280,9 @@ function escapeHtml(value) {
 }
 
 function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
-  const buildingPrice = BUILDING_PRICES.get(submission.kind);
-  const descriptionLabel = buildingPrice ? '건물 설명' : '그림 설명';
-  const priceLabel = (buildingPrice ?? DRAWING_PRICE).label;
+  const projectPrice = PROJECT_PRICES.get(submission.kind);
+  const descriptionLabel = submission.kind === 'spaceship' ? '우주선 설명' : projectPrice ? '건물 설명' : '그림 설명';
+  const priceLabel = (projectPrice ?? DRAWING_PRICE).label;
   return {
     data: {
       type: 'post',

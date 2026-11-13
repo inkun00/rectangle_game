@@ -5,6 +5,7 @@ extends RefCounted
 ## entries are queued after the completed design and PNG have been checked.
 const DEFAULT_PATH: String = "user://art_publications_v1.json"
 const MAX_RECORDS: int = 512
+const ENDING_KINDS: Dictionary = {"earth": "earth_house", "space": "spaceship"}
 var path: String = DEFAULT_PATH
 var entries: Array[Dictionary] = []
 var loaded: bool = false
@@ -28,9 +29,14 @@ func load_file() -> Dictionary:
 	var candidate: Array[Dictionary] = []
 	var identifiers: Dictionary = {}
 	var fingerprints: Dictionary = {}
+	var endings: Dictionary = {}
 	for record: Variant in records:
 		if not record is Dictionary or not _valid_entry(record): return _failure("패들릿 등록 기록이 올바르지 않아요.")
 		if identifiers.has(record.id) or fingerprints.has(record.fingerprint): return _failure("패들릿 등록 기록이 중복됐어요.")
+		var kind: String = str(record.get("kind", ""))
+		if kind in ENDING_KINDS.values():
+			if endings.has(kind): return _failure("엔딩 등록 기록이 중복됐어요.")
+			endings[kind] = true
 		identifiers[record.id] = true
 		fingerprints[record.fingerprint] = true
 		candidate.append(record.duplicate(true))
@@ -44,6 +50,9 @@ func prepare(metadata: Dictionary, offer: Dictionary, saved: Dictionary, bytes: 
 		if not bool(restored.ok): return restored
 	var error: String = ArtSubmissionMetadata.validation_error(metadata.get("author"), metadata.get("title"), metadata.get("description"), offer.has("kind"))
 	if not error.is_empty(): return _failure(error)
+	for branch: String in ENDING_KINDS:
+		if offer.get("kind") == ENDING_KINDS[branch] and not ending_entry(branch).is_empty():
+			return _failure("이미 이 엔딩의 작품을 저장했어요. 등록 상태를 확인해 주세요.")
 	var index: int = -1
 	for cursor: int in range(entries.size()):
 		if str(entries[cursor].fingerprint) == str(offer.get("fingerprint", "")): index = cursor
@@ -72,9 +81,17 @@ func find_entry(fingerprint: String) -> Dictionary:
 		if entry.fingerprint == fingerprint: return entry.duplicate(true)
 	return {}
 
+func ending_entry(branch: String) -> Dictionary:
+	var kind: String = str(ENDING_KINDS.get(branch, ""))
+	if kind.is_empty(): return {}
+	for entry: Dictionary in entries:
+		if entry.get("kind") == kind: return entry.duplicate(true)
+	return {}
+
 func pending(receipts: Array[Dictionary], buildings: bool = false) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for entry: Dictionary in entries:
+		if entry.get("kind", "") in ENDING_KINDS.values(): continue
 		if str(entry.status) != "pending" or entry.has("kind") != buildings: continue
 		if buildings:
 			result.append(entry.duplicate(true))
@@ -134,7 +151,7 @@ func _save(candidate: Array[Dictionary]) -> Dictionary:
 static func _valid_entry(entry: Dictionary) -> bool:
 	var building: bool = entry.has("kind")
 	if entry.size() != (12 if building else 11) or not entry.has_all(["id", "fingerprint", "author", "title", "description", "price", "png_path", "filename", "png_sha256", "status", "post_url"]): return false
-	if building and entry.kind not in ["commission", "my_house"]: return false
+	if building and entry.kind not in ["commission", "my_house", "earth_house", "spaceship"]: return false
 	for key: String in entry:
 		if key != "price" and not entry[key] is String: return false
 	if not _hex(entry.id, 32) or not _hex(entry.fingerprint, 64) or not _hex(entry.png_sha256, 64): return false
@@ -147,7 +164,10 @@ static func _valid_entry(entry: Dictionary) -> bool:
 		"commission":
 			min_price = 100000000
 			max_price = 260000000
-		"my_house": max_price = 1250000000
+		"my_house", "earth_house": max_price = 1250000000
+		"spaceship":
+			min_price = SpaceshipCatalog.total_price()
+			max_price = min_price
 	if not is_finite(price) or floorf(price) != price or price < min_price or price > max_price: return false
 	var filename: String = str(entry.filename)
 	if filename.is_empty() or filename != filename.get_file() or not filename.ends_with(".png"): return false

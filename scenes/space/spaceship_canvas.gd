@@ -4,23 +4,52 @@ extends Control
 const Catalog: GDScript = preload("res://scripts/economy/spaceship_catalog.gd")
 const PLANET_PATH: String = "res://assets/generated/opening-v1/planet.webp"
 const LAUNCH_SECONDS: float = 16.0
+const PNG_SIZE: Vector2i = Vector2i(960, 600)
 
 signal part_selected(part_id: String)
 
 var purchased_ids: Array[String] = []
 var selected_part_id: String = "hull"
 var launch_time: float = -1.0
+var _design: Dictionary = {}
+var _export_mode: bool = false
 var _planet: Texture2D
 
 func _ready() -> void:
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	clip_contents = true
 	resized.connect(queue_redraw)
-	if ResourceLoader.exists(PLANET_PATH): _planet = load(PLANET_PATH) as Texture2D
+	if not _export_mode and ResourceLoader.exists(PLANET_PATH): _planet = load(PLANET_PATH) as Texture2D
 
 func set_parts(ids: Array[String]) -> void:
 	purchased_ids.assign(ids)
 	queue_redraw()
+
+func set_design(design: Dictionary) -> void:
+	_design = design.duplicate(true)
+	queue_redraw()
+
+static func export_png(tree: SceneTree, ids: Array[String], design: Dictionary) -> PackedByteArray:
+	if DisplayServer.get_name() == "headless" or ids.size() != Catalog.PART_COUNT or not Catalog.validate_design(design, ids):
+		return PackedByteArray()
+	for item: Dictionary in Catalog.all_parts():
+		if not ids.has(str(item.id)): return PackedByteArray()
+	var viewport: SubViewport = SubViewport.new()
+	viewport.size = PNG_SIZE
+	viewport.transparent_bg = true
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	var plate: SpaceshipCanvas = SpaceshipCanvas.new()
+	plate._export_mode = true
+	plate.size = Vector2(PNG_SIZE)
+	plate.set_parts(ids)
+	plate.set_design(design)
+	viewport.add_child(plate)
+	tree.root.add_child(viewport)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var image: Image = viewport.get_texture().get_image()
+	viewport.queue_free()
+	return image.save_png_to_buffer() if image != null and not image.is_empty() else PackedByteArray()
 
 func _scale_factor() -> float:
 	var available_height: float = size.y if launch_time >= 0.0 else size.y - 38.0
@@ -30,11 +59,14 @@ func _ship_center() -> Vector2:
 	return Vector2(size.x * 0.5, size.y * 0.46)
 
 func _ordered_parts() -> Array[Dictionary]:
-	var parts: Array[Dictionary] = Catalog.all_parts()
+	var parts: Array[Dictionary] = Catalog.configured_parts(_design)
 	parts.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.layer) < int(b.layer))
 	return parts
 
 func _draw() -> void:
+	if _export_mode:
+		_draw_export()
+		return
 	draw_rect(Rect2(Vector2.ZERO, size), Color("0a1727"))
 	if launch_time >= 0.0:
 		_draw_launch()
@@ -44,6 +76,19 @@ func _draw() -> void:
 	_draw_ship(_ship_center(), _scale_factor(), 0.0, false)
 	var note: String = "밝은 부품: 구매 완료 · 빈 부품: 미구매"
 	draw_string(QuadTheme.FONT, Vector2(12, size.y - 15), note, HORIZONTAL_ALIGNMENT_CENTER, maxf(0.0, size.x - 24), 14, Color("bacbd9"))
+
+func _draw_export() -> void:
+	var bounds: Rect2 = Rect2()
+	var first: bool = true
+	for item: Dictionary in _ordered_parts():
+		for vertex: Vector2 in item.vertices:
+			var point: Vector2 = vertex + Vector2(item.position)
+			bounds = Rect2(point, Vector2.ZERO) if first else bounds.expand(point)
+			first = false
+	if first or not bounds.has_area(): return
+	var safe_size: Vector2 = size - Vector2(96.0, 80.0)
+	var factor: float = minf(safe_size.x / bounds.size.x, safe_size.y / bounds.size.y)
+	_draw_ship(size * 0.5 - bounds.get_center() * factor, factor, 0.0, true)
 
 func _draw_ship(center: Vector2, factor: float, angle: float, complete: bool) -> void:
 	for item: Dictionary in _ordered_parts():
@@ -55,7 +100,7 @@ func _draw_ship(center: Vector2, factor: float, angle: float, complete: bool) ->
 		draw_colored_polygon(points, fill)
 		var outline: PackedVector2Array = points.duplicate()
 		outline.append(points[0])
-		var selected: bool = launch_time < 0.0 and str(item.id) == selected_part_id
+		var selected: bool = not complete and launch_time < 0.0 and str(item.id) == selected_part_id
 		draw_polyline(outline, Color("fff1b7") if selected else (Color("deefed") if owned else Color("607c91")), 3.0 if selected else 1.7, true)
 		if owned:
 			var inset: PackedVector2Array = PackedVector2Array()

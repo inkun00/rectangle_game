@@ -30,6 +30,7 @@ signal interaction_context_changed
 signal view_changed
 signal building_publication_requested(data: Dictionary)
 signal building_upload_retry_requested
+signal earth_ending_requested
 
 var testing: bool = false
 ## The app may restore the shared ledger before downloading this screen's art.
@@ -131,6 +132,8 @@ var _phase_bar: HBoxContainer
 var _drawing_title: Label
 var _my_house_button: Button
 var _my_house_export: Button
+var _earth_ending_button: Button
+var earth_ending_unlocked: bool = false
 var _my_house_publish: Button
 var _completed_publish: Button
 var _publication_author: LineEdit
@@ -674,6 +677,9 @@ func _build_ui() -> void:
 	_my_house_export = _button("나만의 집 PNG 저장", _export_my_house, true)
 	_my_house_export.name = "ExportMyHousePng"
 	_lower_toolbar.add_child(_my_house_export)
+	_earth_ending_button = _button("이 집에서 살기", _request_earth_ending, true)
+	_earth_ending_button.name = "FinishEarthHouse"
+	_lower_toolbar.add_child(_earth_ending_button)
 	_my_house_publish = _button("패들릿에 올리기", _open_building_publication, true)
 	_my_house_publish.name = "PublishMyHouse"
 	_lower_toolbar.add_child(_my_house_publish)
@@ -1286,6 +1292,11 @@ func _refresh() -> void:
 	if is_instance_valid(_my_house_export):
 		_my_house_export.visible = my_mode
 		_my_house_export.disabled = not my_mode or active_doc.parts.is_empty() or canvas.inspection_running or is_instance_valid(_modal)
+	if is_instance_valid(_earth_ending_button):
+		_earth_ending_button.visible = my_mode and earth_ending_unlocked
+		var ending_error: String = earth_ending_error()
+		_earth_ending_button.disabled = not ending_error.is_empty() or is_instance_valid(_modal) or _publication_pending or _exporting
+		_earth_ending_button.tooltip_text = ending_error
 	var publication_error: String = _building_publication_error()
 	var publication_blocked: bool = _publication_pending or _exporting or tutorial_blocked or is_instance_valid(_modal)
 	if is_instance_valid(_my_house_publish):
@@ -1345,7 +1356,11 @@ func _inspection_finished(report: Dictionary) -> void:
 	_last_report = report.duplicate(true)
 	if state.my_house_mode:
 		var stable: bool = bool(report.get("stable", false))
-		_set_status("나만의 집 시공 검사를 통과했어요! PNG로 저장하거나 패들릿에 올려 보세요." if stable else str(report.get("message", "검사가 끝났어요.")))
+		if stable and earth_ending_unlocked:
+			var offer: Dictionary = earth_ending_offer()
+			_set_status("시공 검사를 통과했어요! ‘이 집에서 살기’로 마을 엔딩을 선택할 수 있어요." if bool(offer.ok) else str(offer.error))
+		else:
+			_set_status("나만의 집 시공 검사를 통과했어요! PNG로 저장하거나 패들릿에 올려 보세요." if stable else str(report.get("message", "검사가 끝났어요.")))
 	else:
 		var evaluation: Dictionary = state.evaluate(_last_report)
 		_set_status(str(evaluation.feedback) if bool(report.get("stable", false)) else str(report.get("message", "검사가 끝났어요.")))
@@ -1572,7 +1587,7 @@ func _show_project_info() -> void:
 	_modal_action("작업대로 돌아가기", _close_modal, true)
 
 func _ensure_brief() -> void:
-	if tutorial_active: return
+	if tutorial_active or state.my_house_mode: return
 	if is_visible_in_tree() and state.phase == "briefing" and not is_instance_valid(_modal): _show_brief()
 
 func _show_brief() -> void:
@@ -1923,6 +1938,35 @@ func building_publication_offer() -> Dictionary:
 		"price": state.my_house_cost() if my_house else int(state.current_contract().total),
 		"price_label": "재료비" if my_house else "약속한 돈",
 	}
+
+func earth_ending_error() -> String:
+	if not earth_ending_unlocked: return "마을 심부름이나 작품 판매로 집을 지을 자금을 더 모아 주세요."
+	if not state.my_house_mode: return "나만의 집을 완성한 뒤 선택할 수 있어요."
+	var error: String = _building_publication_error()
+	if not error.is_empty(): return error
+	var roles: Dictionary = {}
+	for part: Dictionary in state.my_house_document.parts:
+		roles[Catalog.material(str(part.material_id)).get("role", "")] = true
+	if not roles.has_all(["door", "window", "roof"]):
+		return "살 집에 문, 창문, 지붕을 갖춰 주세요."
+	return ""
+
+func earth_ending_offer() -> Dictionary:
+	var error: String = earth_ending_error()
+	if not error.is_empty(): return {"ok": false, "error": error}
+	var facade: Dictionary = ConstructionFacade.inspect(state.my_house_document.parts)
+	if not bool(facade.complete): return {"ok": false, "error": facade.message}
+	var offer: Dictionary = building_publication_offer()
+	offer.kind = "earth_house"
+	return offer
+
+func _request_earth_ending() -> void:
+	if not is_visible_in_tree() or is_instance_valid(_modal) or _exporting or _publication_pending: return
+	var offer: Dictionary = earth_ending_offer()
+	if not bool(offer.ok):
+		_set_status(str(offer.error))
+		return
+	earth_ending_requested.emit()
 
 func _open_building_publication() -> void:
 	if _publication_pending or _exporting or tutorial_blocked or not is_visible_in_tree(): return

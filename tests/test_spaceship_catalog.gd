@@ -32,3 +32,18 @@ static func run(t: Node) -> void:
 	t.assert_true(Catalog.part("missing").is_empty(), "Unknown component identifiers cannot be purchased")
 	parts[0].vertices[0] = Vector2(99999, 99999)
 	t.assert_true(Math.is_valid(Catalog.part("hull").vertices), "Catalog consumers cannot corrupt future ship geometry")
+	for template: Dictionary in Catalog.all_parts():
+		var id: String = str(template.id)
+		for kind: String in Math.KINDS:
+			var design: Dictionary = {id: {"kind": kind, "color": "e31881"}}
+			var configured: Dictionary = {}
+			for part: Dictionary in Catalog.configured_parts(design):
+				if part.id == id: configured = part
+			var vertices: PackedVector2Array = configured.vertices
+			t.assert_true(Math.is_valid(vertices) and Math.matches_kind(vertices, kind), "%s supports a valid %s choice" % [id, kind])
+			var angle_sum: float = 0.0
+			for angle: float in Math.angles_degrees(vertices): angle_sum += angle
+			t.assert_float_approx(angle_sum, 360.0, 0.01, "A chosen ship component retains 360 degrees")
+			t.assert_eq(configured.color, Color("e31881"), "Chosen component color reaches the geometry renderer")
+			if kind != template.kind:
+				t.assert_true(vertices != template.vertices, "%s changes its outline when switched to %s" % [id, kind])

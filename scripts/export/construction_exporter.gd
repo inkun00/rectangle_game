@@ -15,7 +15,11 @@ static func export_png(tree: SceneTree, document: Document, award: Dictionary = 
 static func export_padlet_png(tree: SceneTree, document: Document) -> PackedByteArray:
 	return await _render_png(tree, document, PADLET_IMAGE_SIZE, {})
 
-static func _render_png(tree: SceneTree, document: Document, image_size: Vector2i, award: Dictionary) -> PackedByteArray:
+## Keep the player's building pixels and their alpha for the village animation.
+static func export_ending_png(tree: SceneTree, document: Document) -> PackedByteArray:
+	return await _render_png(tree, document, PADLET_IMAGE_SIZE, {}, true)
+
+static func _render_png(tree: SceneTree, document: Document, image_size: Vector2i, award: Dictionary, transparent: bool = false) -> PackedByteArray:
 	if DisplayServer.get_name() == "headless" or document == null or document.parts.is_empty() or not Document._valid_parts(document.parts):
 		return PackedByteArray()
 	var awarded: bool = Awards.is_awarded(award)
@@ -24,12 +28,14 @@ static func _render_png(tree: SceneTree, document: Document, image_size: Vector2
 		return PackedByteArray()
 	var viewport: SubViewport = SubViewport.new()
 	viewport.size = image_size
+	viewport.transparent_bg = transparent
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	tree.root.add_child(viewport)
-	var paper: ColorRect = ColorRect.new()
-	paper.color = Color("f8f9f5")
-	paper.size = Vector2(image_size)
-	viewport.add_child(paper)
+	if not transparent:
+		var paper: ColorRect = ColorRect.new()
+		paper.color = Color("f8f9f5")
+		paper.size = Vector2(image_size)
+		viewport.add_child(paper)
 	var plate: HousePlate = HousePlate.new()
 	plate.document = Document.new()
 	plate.document.parts = document.parts.duplicate(true)

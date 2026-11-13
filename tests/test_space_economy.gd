@@ -14,6 +14,7 @@ const ArtSamples = preload("res://tests/test_art_composition.gd")
 
 static func run(t: Node) -> void:
 	_test_legacy_migration(t)
+	_test_village_income(t)
 	_test_art_income(t)
 	_test_art_titles(t)
 	_test_titled_transactions(t)
@@ -21,6 +22,38 @@ static func run(t: Node) -> void:
 	_test_invalid_restores(t)
 	_test_durable_transactions(t)
 	_test_complete_ship(t)
+
+static func _test_village_income(t: Node) -> void:
+	var state: State = State.new()
+	var first: String = "rhombus_chocolates"
+	var reward: int = State.village_reward_amount(first)
+	var initial: Dictionary = state.serialize()
+	var missing_path: String = "user://missing_village_save_%s/ledger.json" % Crypto.new().generate_random_bytes(8).hex_encode()
+	t.assert_false(Transactions.commit(state, "village_rewards", [first], missing_path).ok, "A failed won ledger save does not credit village funds")
+	t.assert_eq(state.serialize(), initial, "A failed won ledger save leaves all live records intact")
+	t.assert_false(Transactions.commit(state, "village_rewards", [first, "unknown"], missing_path, false).ok, "Unknown missions reject the entire reward batch")
+	t.assert_eq(state.serialize(), initial, "An invalid village reward batch cannot pay a partial amount")
+	var paid: Dictionary = Transactions.commit(state, "village_rewards", [first, first], missing_path, false)
+	t.assert_true(bool(paid.ok), "A known completed mission can be credited")
+	t.assert_eq(int(paid.price), reward, "A village reward is paid once even if the same ID is repeated")
+	var first_part: Dictionary = Ship.all_parts()[0]
+	var bought: Dictionary = Transactions.commit(state, "purchase_part", str(first_part.id), missing_path, false)
+	t.assert_true(bool(bought.ok), "The first village mission alone can pay for a ship part")
+	t.assert_eq(state.ship_available_funds(), reward - int(first_part.price), "The ship spends the same won balance that the village earned")
+	t.assert_eq(state.my_house_budget(), State.INITIAL_BALANCE + reward - int(first_part.price), "The house budget shares the post-purchase balance")
+	var restored: State = State.new()
+	t.assert_true(restored.restore(_json_copy(state.serialize())), "Save restoration includes village income and the purchased part")
+	var replay: Dictionary = Transactions.commit(restored, "village_rewards", [first], missing_path, false)
+	t.assert_eq(int(replay.price), 0, "A reloaded ledger will not pay the mission again")
+	var tampered: Dictionary = _json_copy(state.serialize())
+	tampered.village_rewards.append(first)
+	tampered.balance = int(tampered.balance) + reward
+	t.assert_false(restored.restore(tampered), "Duplicate mission receipts cannot inflate the restored balance")
+	var all_ids: Array[String] = []
+	for quest: Dictionary in QuestCatalog.all_quests(): all_ids.append(str(quest.id))
+	var all_rewards: Dictionary = Transactions.commit(restored, "village_rewards", all_ids, missing_path, false)
+	t.assert_true(bool(all_rewards.ok), "All mission receipts fit the reward ledger")
+	t.assert_ge(restored.village_income(), Ship.total_price(), "All village errands can fund the complete spaceship")
 
 static func _test_legacy_migration(t: Node) -> void:
 	var original: State = State.new()
@@ -343,6 +376,24 @@ static func _test_durable_transactions(t: Node) -> void:
 	_assert_live_documents(t, state, documents, snapshots, undo_sizes, redo_sizes)
 	t.assert_true(Saves.load_into(path, loaded).ok, "A committed purchase can be restored from disk")
 	t.assert_eq(_json_copy(loaded.serialize()), _json_copy(state.serialize()), "Disk and live state agree after buying the part")
+	var legacy_ship: Dictionary = _json_copy(state.serialize())
+	t.assert_true(loaded.restore(legacy_ship) and loaded.ship_design.is_empty(), "An older purchased ship uses its original design by default")
+	var design: Dictionary = {"id": "hull", "kind": "rhombus", "color": "e31881"}
+	before = state.serialize()
+	t.assert_false(Transactions.commit(state, "customize_ship_part", design, invalid_path).ok, "A failed save cannot modify the visible ship design")
+	t.assert_eq(state.serialize(), before, "The failed customization preserves the whole save")
+	t.assert_true(Transactions.commit(state, "customize_ship_part", design, path).ok, "An owned hull can be customized and saved")
+	t.assert_eq(state.balance, int(before.balance), "Changing a purchased component's shape and color has no cost")
+	t.assert_true(Saves.load_into(path, loaded).ok, "A customized ship reloads from disk")
+	t.assert_eq(loaded.ship_design, {"hull": {"kind": "rhombus", "color": "e31881"}}, "A reload restores the chosen hull geometry recipe and color")
+	var corrupted_design: Dictionary = _json_copy(loaded.serialize())
+	corrupted_design.space_economy.design["nose"] = {"kind": "square", "color": "ffffff"}
+	t.assert_false(loaded.restore(corrupted_design), "A configuration for an unowned part cannot enter the ledger")
+	corrupted_design = _json_copy(loaded.serialize())
+	corrupted_design.space_economy.design.hull.color = "e3188180"
+	t.assert_false(loaded.restore(corrupted_design), "A save cannot make a purchased part translucent")
+	t.assert_false(Transactions.commit(state, "customize_ship_part", {"id": "hull", "kind": "triangle", "color": "ffffff"}, path).ok, "Non-quadrilateral component shapes cannot be saved")
+	_assert_live_documents(t, state, documents, snapshots, undo_sizes, redo_sizes)
 	before = state.serialize()
 	var published: String = FileAccess.get_file_as_string(path)
 	t.assert_false(Transactions.commit(state, "purchase_part", "hull", path).ok, "Durable transaction layer also rejects duplicate purchases")

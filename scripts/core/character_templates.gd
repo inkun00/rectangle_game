@@ -11,6 +11,28 @@ const BLUE: Color = Color("73a9cf")
 static func all_templates() -> Array[Dictionary]:
 	return [get_template("robot"), get_template("cat"), get_template("beetle")]
 
+## The same protagonist appears in the village and the endings. These colors
+## follow the opening's mint head, cream suit and coral scarf.
+static func protagonist() -> Dictionary:
+	var mint: Color = Color("68bdab")
+	var suit: Color = Color("f2e4c7")
+	var parts: Array[Dictionary] = [
+		_part("head", "네모 머리", "square", Vector2(0, -107), Vector2(82, 82), mint, "head"),
+		_part("body", "우주복", "trapezoid", Vector2(0, -12), Vector2(100, 100), suit, "body"),
+		_part("chest", "가슴 표식", "square", Vector2(9, -18), Vector2(17, 17), GOLD, "body"),
+		_part("arm_left", "왼팔", "parallelogram", Vector2(-62, -8), Vector2(26, 67), suit, "arm_left", 15),
+		_part("arm_right", "오른팔", "parallelogram", Vector2(62, -8), Vector2(26, 67), suit, "arm_right", -15),
+		_part("hand_left", "왼손", "square", Vector2(-72, 32), Vector2(22, 22), mint, "arm_left"),
+		_part("hand_right", "오른손", "square", Vector2(72, 32), Vector2(22, 22), mint, "arm_right"),
+		_part("leg_left", "왼다리", "rectangle", Vector2(-27, 77), Vector2(24, 56), mint, "leg_left"),
+		_part("leg_right", "오른다리", "rectangle", Vector2(27, 77), Vector2(24, 56), mint, "leg_right"),
+		_part("foot_left", "왼쪽 장화", "rectangle", Vector2(-32, 112), Vector2(43, 27), NAVY, "leg_left"),
+		_part("foot_right", "오른쪽 장화", "rectangle", Vector2(32, 112), Vector2(43, 27), NAVY, "leg_right"),
+		_part("scarf", "산호색 목도리", "rectangle", Vector2(0, -64), Vector2(74, 18), CORAL, "head"),
+		_part("scarf_end", "목도리 끝", "parallelogram", Vector2(-45, -54), Vector2(33, 14), CORAL, "head", -21),
+	]
+	return {"template_id": "robot", "parts": parts}
+
 static func get_template(id: String) -> Dictionary:
 	var parts: Array[Dictionary] = []
 	match id:

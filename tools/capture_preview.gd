@@ -63,7 +63,7 @@ func capture() -> void:
 		await create_timer(0.3).timeout
 		await _frames()
 		root.get_texture().get_image().save_png("res://.godot/previews/%s.png" % region_id)
-	app._return_workshop()
+	app._show_workshop()
 	root.size = Vector2i(1100, 760)
 	await _frames()
 	root.get_texture().get_image().save_png("res://.godot/previews/workshop-small.png")

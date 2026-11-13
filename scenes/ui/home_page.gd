@@ -9,6 +9,8 @@ signal learning_requested
 signal tutorials_requested
 signal opening_requested
 signal space_requested
+signal earth_requested
+signal ending_requested(branch: String)
 
 const Art = preload("res://scripts/construction_art.gd")
 
@@ -21,6 +23,8 @@ var _learning_record: Label
 var _learning_button: Button
 var _space_status: Label
 var _space_button: Button
+var _earth_button: Button
+var _ending_buttons: Dictionary = {}
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -55,7 +59,7 @@ func _ready() -> void:
 	hero_panel.add_child(introduction)
 	_heading = _label("별빛 너머, 나만의 사각형 월드", 30)
 	introduction.add_child(_heading)
-	introduction.add_child(_label("도형을 발견하고, 나만의 세계를 만들어 떠나요.", 17, Art.INK))
+	introduction.add_child(_label("마을을 도우며 돈을 모으고, 지구에 살지 고향으로 돌아갈지 정해요.", 17, Art.INK))
 	var learn_row: HBoxContainer = HBoxContainer.new()
 	learn_row.add_theme_constant_override("separation", 16)
 	introduction.add_child(learn_row)
@@ -71,7 +75,15 @@ func _ready() -> void:
 	_space_button = _button("우주선 제작 · 0 / 12", func(): space_requested.emit(), true)
 	_space_button.name = "OpenSpaceHangar"
 	space_row.add_child(_space_button)
-	_space_status = _label("그림과 집을 팔아 별빛 고향으로 돌아가요.", 16, Art.INK)
+	_earth_button = _button("지구에 살 집 짓기", func(): earth_requested.emit(), true)
+	_earth_button.name = "OpenEarthHouse"
+	space_row.add_child(_earth_button)
+	for branch: String in ["earth", "space"]:
+		var replay: Button = _button("마을 엔딩 다시 보기" if branch == "earth" else "귀향 엔딩 다시 보기", func(): ending_requested.emit(branch), false)
+		replay.hide()
+		space_row.add_child(replay)
+		_ending_buttons[branch] = replay
+	_space_status = _label("그림을 팔고, 집을 짓고, 마을 부탁을 해결해 자금을 모아요.", 16, Art.INK)
 	_space_status.custom_minimum_size.y = 48
 	_space_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	space_row.add_child(_space_status)
@@ -81,14 +93,14 @@ func _ready() -> void:
 	_cards.add_theme_constant_override("h_separation", 18)
 	_cards.add_theme_constant_override("v_separation", 18)
 	_column.add_child(_cards)
-	_build_mode("Drawing", "그림을 팔아 제작비 모으기", "나만의 그림", "사각형으로 작품을 만들고 판매해 우주선 제작비를 모아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
+	_build_mode("Drawing", "그림을 팔아 자금 모으기", "나만의 그림", "사각형으로 작품을 만들고 판매해 집이나 우주선을 만들 자금을 모아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
 	_build_mode("Construction", "집 짓기 놀이", "뚝딱! 사각형 집 짓기", "의뢰인의 집을 짓고 수익으로 나만의 집도 완성해요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
-	_build_mode("Adventure", "친구와 탐험", "나의 친구와 모험", "사각형 캐릭터를 조립해 여섯 지역을 탐험해요.", GameArt.sheet("world_backdrop"), "모험 시작하기", func(): adventure_requested.emit())
+	_build_mode("Adventure", "마을을 도와 자금 모으기", "마을 주민 심부름하기", "사각이와 여섯 지역을 돌아다니며 주민의 부탁을 해결하고 돈을 벌어요.", GameArt.sheet("world_backdrop"), "마을 주민 심부름하기", func(): adventure_requested.emit())
 	var footer: HFlowContainer = HFlowContainer.new()
 	footer.add_theme_constant_override("h_separation", 24)
 	footer.add_theme_constant_override("v_separation", 6)
 	_column.add_child(footer)
-	footer.add_child(_label("그림·집·모험은 각각 자동 저장돼요.", 15, Art.INK))
+	footer.add_child(_label("그림·집·마을 심부름은 각각 자동 저장돼요.", 15, Art.INK))
 	footer.add_child(_label("초등 수학 4-2 · 사각형", 15, Art.ACCENT))
 	footer.add_child(_button("모드 안내", func(): tutorials_requested.emit(), false))
 	footer.add_child(_button("오프닝 다시 보기", func(): opening_requested.emit(), false))
@@ -125,10 +137,17 @@ func set_learning_progress(count: int) -> void:
 func set_space_progress(economy: ConstructionState) -> void:
 	if not is_instance_valid(_space_button): return
 	_space_button.text = "우주선 제작 · %d / 12" % economy.purchased_ship_parts.size()
-	_space_status.text = "부품 구입 자금 %s · 그림 판매 %d점" % [ConstructionCatalog.format_won(economy.ship_available_funds()), economy.art_sales.size()]
-	if economy.launched:
-		_space_button.text = "우주선 · 귀향 성공!"
-		_space_status.text = "고향으로 돌아왔어요. 창작과 모험은 계속할 수 있어요."
+	_space_status.text = "집에 쓸 자금 %s · 부품 구입 자금 %s · 그림 판매 %d점" % [ConstructionCatalog.format_won(economy.my_house_available_balance()), ConstructionCatalog.format_won(economy.ship_available_funds()), economy.art_sales.size()]
+
+func set_ending_progress(missing: int, earth: Dictionary, space: Dictionary) -> void:
+	_earth_button.disabled = missing > 0 and earth.is_empty()
+	_earth_button.text = "지구에 살 집 짓기" if not _earth_button.disabled else "집 엔딩까지 %s 더 모으기" % ConstructionCatalog.format_won(missing)
+	for branch: String in _ending_buttons:
+		var entry: Dictionary = earth if branch == "earth" else space
+		var button: Button = _ending_buttons[branch]
+		button.visible = not entry.is_empty()
+		if not entry.is_empty():
+			button.text = ("마을 엔딩" if branch == "earth" else "귀향 엔딩") + (" 다시 보기" if entry.status == "published" else " 등록 이어 하기")
 
 func _build_mode(mode: String, badge_text: String, title: String, description: String, texture: Texture2D, action_text: String, action: Callable) -> void:
 	var panel: PanelContainer = PanelContainer.new()
