@@ -429,7 +429,7 @@ func _publish_building(data: Dictionary) -> void:
 	var previous: Dictionary = _art_publications.find_entry(str(offer.fingerprint))
 	if not previous.is_empty():
 		if previous.status == "pending":
-			_construction_screen.show_building_publication_result({"ok": true, "message": "저장된 건물 PNG로 패들릿 등록을 다시 시도해요."})
+			_construction_screen.show_building_publication_result({"ok": true})
 			_retry_building_uploads()
 		else:
 			_construction_screen.show_building_publication_result({"ok": true, "message": "이미 패들릿에 올린 건물이에요."})
@@ -460,7 +460,7 @@ func _publish_building(data: Dictionary) -> void:
 	if OS.has_feature("web"): JavaScriptBridge.download_buffer(bytes, str(saved.filename), "image/png")
 	_construction_screen.show_building_publication_result({
 		"ok": true, "author": str(prepared.entry.author), "filename": str(saved.filename),
-		"png_path": str(saved.path), "message": "건물 PNG를 저장했어요. 패들릿에 등록할게요."
+		"png_path": str(saved.path)
 	})
 	_retry_building_uploads()
 
