@@ -13,6 +13,7 @@ const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
 static func run(t: Node) -> void:
 	_test_examples_and_measurements(t)
 	await _test_manual_measurement(t)
+	await _test_measurement_endpoint_snap(t)
 	_test_progress_files(t)
 	await _test_activity_flow(t)
 	_test_startup_question_bank(t)
@@ -109,7 +110,93 @@ static func _test_manual_measurement(t: Node) -> void:
 	t.assert_false(shape_directions.contains("7 cm") or shape_directions.contains("28 cm"), "Measuring a rhombus leaves its side length and perimeter for the learner")
 	canvas.free()
 
-static func _drag_tool(canvas: Canvas, start: Vector2, end: Vector2) -> void:
+static func _test_measurement_endpoint_snap(t: Node) -> void:
+	var canvas: Canvas = Canvas.new()
+	t.add_child(canvas)
+	await t.get_tree().process_frame
+	canvas.size = Vector2(720, 400)
+	var distance_question: Dictionary = Bank.question("distance", 0)
+	canvas.configure_activity(distance_question)
+	canvas.set_value(-30.0)
+	canvas.select_measure_tool("ruler")
+	canvas.measure_tools.rotate_by(25.0)
+	var ruler_angle: float = canvas.measure_tools.tool_angle
+	var segment_end: Vector2 = Vector2(300 + canvas.value, 150 + float(distance_question.gap) * 0.5)
+	var line_end: Vector2 = _measurement_canvas_point(canvas, canvas._diagram_point(segment_end))
+	var radius: float = Canvas.MeasureTools.ORIGIN_SNAP_RADIUS
+	var during_drag: Vector2 = _drag_measurement_origin(canvas, line_end + Vector2(radius - 1.0, 0), Vector2(25, 14))
+	t.assert_true(during_drag.is_equal_approx(line_end), "The ruler shows the snap while the pointer is still dragging")
+	t.assert_true(canvas.measure_tools.tool_origin.is_equal_approx(line_end), "The zero mark snaps to a nearby endpoint of a rotated line")
+	t.assert_float_approx(canvas.measure_tools.tool_angle, ruler_angle, 0.001, "Snapping the ruler's zero does not turn the ruler")
+	var away: Vector2 = line_end + Vector2(radius + 1.0, 0)
+	_drag_measurement_origin(canvas, away, Vector2(25, 14))
+	t.assert_true(canvas.measure_tools.tool_origin.is_equal_approx(away), "Dragging beyond the snap distance leaves the ruler at its free position")
+	var nudge: InputEventKey = InputEventKey.new()
+	nudge.pressed = true
+	nudge.keycode = KEY_LEFT
+	canvas._gui_input(nudge)
+	t.assert_true(canvas.measure_tools.tool_origin.is_equal_approx(line_end), "A keyboard nudge into the snap distance also attaches the ruler")
+	nudge.keycode = KEY_RIGHT
+	for _step: int in range(5): canvas._gui_input(nudge)
+	t.assert_gt(canvas.measure_tools.tool_origin.x, line_end.x + radius, "Repeated arrow keys move the ruler away from its snapped endpoint")
+
+	canvas.configure_activity(Bank.question("lines", 0))
+	canvas.select_measure_tool("protractor")
+	var intersection: Vector2 = canvas.size * 0.5
+	_drag_measurement_origin(canvas, intersection + Vector2(5, 3), Vector2(12, -28))
+	t.assert_true(canvas.measure_tools.tool_origin.is_equal_approx(intersection), "A visible intersection is a snap point for the protractor's center")
+
+	var rhombus: Dictionary = Bank.question("equal_sides", 9)
+	canvas.configure_activity(rhombus)
+	canvas.size = Vector2(440, 265)
+	await t.get_tree().process_frame
+	canvas.select_measure_tool("protractor")
+	canvas.measure_tools.rotate_by(15.0)
+	var protractor_angle: float = canvas.measure_tools.tool_angle
+	var attached: bool = false
+	for dimensions: Vector2 in [Vector2(440, 265), Vector2(840, 390)]:
+		canvas.size = dimensions
+		canvas.turn()
+		await t.get_tree().process_frame
+		var rotated: PackedVector2Array = Math.rotate_vertices(rhombus.vertices, canvas.diagram_rotation)
+		var bounds: Rect2 = Math.bounds(rotated)
+		var vertex: Vector2 = _measurement_canvas_point(canvas, Vector2(300, 150) + (rotated[1] - bounds.get_center()) * canvas._single_figure_fit(bounds))
+		if not attached:
+			_drag_measurement_origin(canvas, vertex + Vector2(-4, 6), Vector2(12, -28))
+			attached = true
+		t.assert_true(canvas.measure_tools.tool_origin.is_equal_approx(vertex), "The protractor center snaps to the visible vertex of a rotated, resized rhombus")
+		t.assert_float_approx(canvas.measure_tools.tool_angle, protractor_angle, 0.001, "A snapped center leaves the protractor's baseline at its previous angle")
+
+	var selection: Dictionary = Bank.question("right_angles", 0)
+	selection.figures[2] = Math.create_vertices("square", Vector2(28.0, 28.0))
+	canvas.configure_activity(selection)
+	canvas.toggle_choice(2)
+	canvas.turn()
+	canvas.select_measure_tool("ruler")
+	var chosen_vertices: PackedVector2Array = selection.figures[2]
+	var chosen_center: Vector2 = canvas._card(2).get_center() - Vector2(0, 8)
+	var chosen_point: Vector2 = chosen_vertices[1].rotated(deg_to_rad(canvas.diagram_rotation))
+	var chosen_vertex: Vector2 = _measurement_canvas_point(canvas, chosen_center + chosen_point * Canvas.CARD_FIGURE_SCALE)
+	var adjacent_point: Vector2 = chosen_vertices[0].rotated(deg_to_rad(canvas.diagram_rotation))
+	var adjacent_vertex: Vector2 = _measurement_canvas_point(canvas, chosen_center + adjacent_point * Canvas.CARD_FIGURE_SCALE)
+	var between_vertices: Vector2 = chosen_vertex.lerp(adjacent_vertex, 0.45)
+	t.assert_lt(between_vertices.distance_to(adjacent_vertex), radius, "Both close corners are within the snap radius")
+	_drag_measurement_origin(canvas, between_vertices, Vector2(25, 14))
+	t.assert_true(canvas.measure_tools.tool_origin.is_equal_approx(chosen_vertex), "The ruler snaps to the closer of two visible corners in a selection card")
+	t.assert_eq(canvas.selected_choices, [2], "Moving the ruler preserves the student's selected card")
+	var card_corner: Vector2 = _measurement_canvas_point(canvas, canvas._card(2).position) + Vector2(5, 5)
+	_drag_measurement_origin(canvas, card_corner, Vector2(25, 14))
+	t.assert_true(canvas.measure_tools.tool_origin.is_equal_approx(card_corner), "A measurement tool moves freely beside the card frame")
+	canvas.free()
+
+static func _measurement_canvas_point(canvas: Canvas, point: Vector2) -> Vector2:
+	return canvas.size * 0.5 + (point - Vector2(300, 150)) * canvas._model_scale()
+
+static func _drag_measurement_origin(canvas: Canvas, target_origin: Vector2, body_offset: Vector2) -> Vector2:
+	var offset: Vector2 = body_offset.rotated(canvas.measure_tools.tool_angle)
+	return _drag_tool(canvas, canvas.measure_tools.tool_origin + offset, target_origin + offset)
+
+static func _drag_tool(canvas: Canvas, start: Vector2, end: Vector2) -> Vector2:
 	var pointer: InputEventMouseButton = InputEventMouseButton.new()
 	pointer.button_index = MOUSE_BUTTON_LEFT
 	pointer.position = start
@@ -120,9 +207,11 @@ static func _drag_tool(canvas: Canvas, start: Vector2, end: Vector2) -> void:
 	motion.relative = end - start
 	motion.button_mask = MOUSE_BUTTON_MASK_LEFT
 	canvas._gui_input(motion)
+	var moved_origin: Vector2 = canvas.measure_tools.tool_origin
 	pointer.position = end
 	pointer.pressed = false
 	canvas._gui_input(pointer)
+	return moved_origin
 
 static func _test_progress_files(t: Node) -> void:
 	var progress: Progress = Progress.new()

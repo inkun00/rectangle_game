@@ -6,6 +6,7 @@ const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const MeasureTools = preload("res://scenes/learning/learning_measure_tools.gd")
 const LETTERS: Array[String] = ["가", "나", "다", "라"]
 const MODEL_UNITS_PER_CM: float = 20.0
+const MODEL_CENTER: Vector2 = Vector2(300.0, 150.0)
 const CARD_FIGURE_SCALE: float = 0.63
 signal changed
 signal measure_tool_changed(kind: String)
@@ -32,9 +33,9 @@ func _ready() -> void:
 	measure_tools = MeasureTools.new()
 	measure_tools.name = "LearningMeasureTools"
 	add_child(measure_tools)
-	resized.connect(_update_measurement_scale)
+	resized.connect(_update_measurement_geometry)
 	visibility_changed.connect(func(): _dragging = false)
-	_update_measurement_scale()
+	_update_measurement_geometry()
 
 func configure(id: String) -> void:
 	question_mode = false
@@ -60,7 +61,6 @@ func configure_activity(activity: Dictionary) -> void:
 	if figures.size() == 4: _activity_figures.assign(figures)
 	_activity_vertices = activity.get("vertices", PackedVector2Array())
 	diagram_rotation = float(activity.get("rotation", 0.0))
-	_update_measurement_scale()
 	set_value(float(activity.get("start_value", value)))
 
 func configure_question(quest_id: String) -> void:
@@ -71,19 +71,19 @@ func configure_question(quest_id: String) -> void:
 	value = 0.0 if lesson_id == "parallel" else (60.0 if lesson_id == "distance" else 90.0)
 	diagram_rotation = 24.0 if quest_id in ["snow_windows", "right_angle_sign"] else 0.0
 	custom_minimum_size.y = 170
-	_update_measurement_scale()
+	_update_measurement_geometry()
 
 func is_line_activity() -> bool:
 	return lesson_id in ["perpendicular", "parallel", "distance"]
 
 func set_value(next: float) -> void:
 	value = snappedf(clampf(next, -100.0, 100.0), 10.0) if lesson_id == "distance" else snappedf(clampf(next, 0.0, 180.0), 5.0)
+	_update_measurement_geometry()
 	changed.emit()
-	queue_redraw()
 
 func turn() -> void:
 	diagram_rotation = fmod(diagram_rotation + 30.0, 360.0)
-	_update_measurement_scale()
+	_update_measurement_geometry()
 	changed.emit()
 
 func measure() -> void:
@@ -96,7 +96,7 @@ func select_measure_tool(kind: String) -> void:
 	if kind not in ["ruler", "protractor"]: return
 	measured = true
 	if is_instance_valid(measure_tools):
-		_update_measurement_scale()
+		_update_measurement_geometry()
 		measure_tools.select_tool(kind)
 		if is_inside_tree(): grab_focus()
 		measure_tool_changed.emit(kind)
@@ -162,8 +162,8 @@ func _figures() -> Array[PackedVector2Array]:
 func measurement_text() -> String:
 	var guidance: String
 	match _measure_tool_kind():
-		"ruler": guidance = "자의 0을 한쪽 끝에 맞추고 다른 끝의 눈금을 읽어요."
-		"protractor": guidance = "각도기의 중심을 꼭짓점에 놓고, 0° 선을 한쪽 변에 맞춰요."
+		"ruler": guidance = "자의 0을 꼭짓점 가까이 가져가 붙인 뒤, 다른 끝의 눈금을 읽어요."
+		"protractor": guidance = "중심을 꼭짓점에 붙이고 한 변에 0°를 맞춰요. 짧은 변은 안쪽 눈금을 읽어요."
 		_: return "‘재어 보기’를 누르면 투명 자와 각도기를 꺼낼 수 있어요."
 	return guidance + "\n몸체를 끌어 옮기고, 둥근 손잡이로 돌려요. 방향키로 이동하고 Shift+왼쪽·오른쪽 방향키로 돌려요."
 
@@ -189,15 +189,48 @@ func measurement_pixels_per_cm() -> float:
 		diagram_scale = _single_figure_fit(_single_figure_bounds()) if question_mode else CARD_FIGURE_SCALE
 	return MODEL_UNITS_PER_CM * _model_scale() * diagram_scale
 
-func _update_measurement_scale() -> void:
-	if is_instance_valid(measure_tools): measure_tools.set_pixels_per_cm(measurement_pixels_per_cm())
+func _update_measurement_geometry() -> void:
+	if is_instance_valid(measure_tools):
+		measure_tools.set_pixels_per_cm(measurement_pixels_per_cm())
+		measure_tools.set_snap_points(measurement_snap_points())
 	queue_redraw()
 
+func measurement_snap_points() -> PackedVector2Array:
+	var targets: PackedVector2Array = PackedVector2Array()
+	if is_line_activity():
+		var segments: Array[PackedVector2Array] = _diagram_lines()
+		if lesson_id == "distance":
+			for endpoint: Vector2 in segments[2]: targets.append(_diagram_point(endpoint))
+		else:
+			var intersection: Variant = Geometry2D.segment_intersects_segment(segments[0][0], segments[0][1], segments[1][0], segments[1][1])
+			if intersection is Vector2: targets.append(_diagram_point(intersection))
+	else:
+		for vertices: PackedVector2Array in _diagram_figures(): targets.append_array(vertices)
+	return _canvas_transform() * targets
+
+func _canvas_transform() -> Transform2D:
+	var zoom: float = _model_scale()
+	return Transform2D(0.0, Vector2.ONE * zoom, 0.0, size * 0.5 - MODEL_CENTER * zoom)
+
 func _to_model(point: Vector2) -> Vector2:
-	return (point - size * 0.5) / _model_scale() + Vector2(300, 150)
+	return _canvas_transform().affine_inverse() * point
 
 func _card(index: int) -> Rect2:
 	return Rect2(Vector2(12 + (index % 2) * 294, 10 + int(index / 2) * 144), Vector2(282, 134))
+
+func _diagram_figures() -> Array[PackedVector2Array]:
+	if question_mode:
+		var bounds: Rect2 = _single_figure_bounds()
+		var fit: float = _single_figure_fit(bounds)
+		return [_plot_figure(question_vertices(), MODEL_CENTER - bounds.get_center() * fit, fit)]
+	var result: Array[PackedVector2Array] = []
+	var examples: Array[PackedVector2Array] = _figures()
+	for index: int in range(examples.size()):
+		result.append(_plot_figure(examples[index], _card(index).get_center() - Vector2(0, 8), CARD_FIGURE_SCALE))
+	return result
+
+func _plot_figure(vertices: PackedVector2Array, center: Vector2, zoom: float) -> PackedVector2Array:
+	return Transform2D(deg_to_rad(diagram_rotation), Vector2.ONE * zoom, 0.0, center) * vertices
 
 func _gui_input(event: InputEvent) -> void:
 	if is_instance_valid(measure_tools) and measure_tools.handle_input(event):
@@ -233,7 +266,7 @@ func _gui_input(event: InputEvent) -> void:
 			accept_event()
 
 func _drag_to(point: Vector2) -> void:
-	var local: Vector2 = (point - Vector2(300, 150)).rotated(-deg_to_rad(diagram_rotation))
+	var local: Vector2 = (point - MODEL_CENTER).rotated(-deg_to_rad(diagram_rotation))
 	if lesson_id == "distance": set_value(local.x)
 	else:
 		if lesson_id == "parallel": local -= Vector2(20, 30)
@@ -241,21 +274,17 @@ func _drag_to(point: Vector2) -> void:
 
 func _draw() -> void:
 	draw_texture_rect(GameArt.drafting_paper(), Rect2(Vector2.ZERO, size), false)
-	var zoom: float = _model_scale()
-	draw_set_transform(size * 0.5 - Vector2(300, 150) * zoom, 0.0, Vector2.ONE * zoom)
+	draw_set_transform_matrix(_canvas_transform())
 	if is_line_activity(): _draw_lines()
 	elif question_mode:
-		var vertices: PackedVector2Array = question_vertices()
-		var bounds: Rect2 = _single_figure_bounds()
-		var fit: float = _single_figure_fit(bounds)
-		_draw_quad(vertices, Vector2(300, 150) - bounds.get_center() * fit, fit, true, diagram_rotation)
+		_draw_quad(_diagram_figures()[0], true)
 	else:
-		var examples: Array[PackedVector2Array] = _figures()
+		var figures: Array[PackedVector2Array] = _diagram_figures()
 		for index: int in range(4):
 			var card: Rect2 = _card(index)
 			draw_rect(card, Color("d9eee4") if selected_choices.has(index) else Color("f9fbf7"))
 			draw_rect(card, Color("0c6658") if selected_choices.has(index) else Color("bdcec5"), false, 2.0 if selected_choices.has(index) else 1.0)
-			_draw_quad(examples[index], card.get_center() - Vector2(0, 8), CARD_FIGURE_SCALE, not _measure_tool_kind().is_empty() and focus_index == index, diagram_rotation)
+			_draw_quad(figures[index], not _measure_tool_kind().is_empty() and focus_index == index)
 			_text(card.position + Vector2(12, 24), LETTERS[index] + (" · 선택" if selected_choices.has(index) else ""), 18)
 			if has_focus() and focus_index == index: draw_rect(card.grow(-4), Color("0c6658"), false, 2)
 	draw_set_transform(Vector2.ZERO)
@@ -265,21 +294,20 @@ func _text(at: Vector2, text: String, font_size: int = 18, ink: Color = Color("2
 	var readable_size: int = ceili(float(font_size) / _model_scale()) if question_mode else font_size
 	draw_string(QuadTheme.FONT, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, readable_size, ink)
 
-func _draw_quad(vertices: PackedVector2Array, center: Vector2, zoom: float, label_vertices: bool, turn_degrees: float) -> void:
-	var points: PackedVector2Array = PackedVector2Array()
-	for vertex: Vector2 in vertices: points.append(center + vertex.rotated(deg_to_rad(turn_degrees)) * zoom)
+func _draw_quad(points: PackedVector2Array, label_vertices: bool) -> void:
 	draw_colored_polygon(points, Color("c7ded4"))
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(points[0])
 	draw_polyline(outline, Color("0c6658"), 2.5, true)
 	if not label_vertices: return
+	var center: Vector2 = Math.bounds(points).get_center()
 	var labels: Array[String] = ["ㄱ", "ㄴ", "ㄷ", "ㄹ"]
 	for index: int in range(4):
 		var first: Vector2 = points[index]
 		_text(first + (first - center).normalized() * 13 + Vector2(-5, 5), labels[index], 16)
 
 func _diagram_point(point: Vector2) -> Vector2:
-	return Vector2(300, 150) + (point - Vector2(300, 150)).rotated(deg_to_rad(diagram_rotation))
+	return MODEL_CENTER + (point - MODEL_CENTER).rotated(deg_to_rad(diagram_rotation))
 
 func _line(a: Vector2, b: Vector2, color: Color, width: float = 3.0) -> void:
 	draw_line(_diagram_point(a), _diagram_point(b), color, width, true)
@@ -292,25 +320,30 @@ func _straight_line(a: Vector2, b: Vector2, color: Color) -> void:
 		_line(endpoint, endpoint + inward * 10 + inward.orthogonal() * 5, color, 2)
 		_line(endpoint, endpoint + inward * 10 - inward.orthogonal() * 5, color, 2)
 
-func _draw_lines() -> void:
-	var handle: Vector2
+func _diagram_lines() -> Array[PackedVector2Array]:
 	if lesson_id == "perpendicular":
-		_straight_line(Vector2(70, 150), Vector2(530, 150), Color("213b42"))
 		var direction: Vector2 = Vector2.from_angle(deg_to_rad(value)) * 115
-		_straight_line(Vector2(300, 150) - direction, Vector2(300, 150) + direction, Color("0c6658"))
-		handle = Vector2(300, 150) + direction
-	elif lesson_id == "parallel":
-		_straight_line(Vector2(55, 95), Vector2(510, 95), Color("213b42"))
+		return [PackedVector2Array([Vector2(70, 150), Vector2(530, 150)]), PackedVector2Array([MODEL_CENTER - direction, MODEL_CENTER + direction])]
+	if lesson_id == "parallel":
+		var pivot: Vector2 = Vector2(320, 180)
 		var direction: Vector2 = Vector2.from_angle(deg_to_rad(value)) * 90
-		_straight_line(Vector2(320, 180) - direction, Vector2(320, 180) + direction, Color("0c6658"))
-		handle = Vector2(320, 180) + direction
-	else:
-		var top: float = 150.0 - _distance_span * 0.5
-		var bottom: float = 150.0 + _distance_span * 0.5
-		_straight_line(Vector2(65, top), Vector2(535, top), Color("213b42"))
-		_straight_line(Vector2(100, bottom), Vector2(565, bottom), Color("213b42"))
-		_line(Vector2(300, top), Vector2(300 + value, bottom), Color("0c6658"), 4)
-		handle = Vector2(300 + value, bottom)
+		return [PackedVector2Array([Vector2(55, 95), Vector2(510, 95)]), PackedVector2Array([pivot - direction, pivot + direction])]
+	var top: float = MODEL_CENTER.y - _distance_span * 0.5
+	var bottom: float = MODEL_CENTER.y + _distance_span * 0.5
+	return [
+		PackedVector2Array([Vector2(65, top), Vector2(535, top)]),
+		PackedVector2Array([Vector2(100, bottom), Vector2(565, bottom)]),
+		PackedVector2Array([Vector2(MODEL_CENTER.x, top), Vector2(MODEL_CENTER.x + value, bottom)]),
+	]
+
+func _draw_lines() -> void:
+	var segments: Array[PackedVector2Array] = _diagram_lines()
+	var adjustable: PackedVector2Array = segments.back()
+	for index: int in range(segments.size() - 1):
+		_straight_line(segments[index][0], segments[index][1], Color("213b42"))
+	if lesson_id == "distance": _line(adjustable[0], adjustable[1], Color("0c6658"), 4)
+	else: _straight_line(adjustable[0], adjustable[1], Color("0c6658"))
 	if not question_mode:
-		draw_circle(_diagram_point(handle), 12, Color("2c7dba"))
-		draw_circle(_diagram_point(handle), 6, Color.WHITE)
+		var handle: Vector2 = _diagram_point(adjustable[1])
+		draw_circle(handle, 12, Color("2c7dba"))
+		draw_circle(handle, 6, Color.WHITE)

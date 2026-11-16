@@ -1,51 +1,60 @@
 class_name ArtCommissionCatalog
 extends RefCounted
 
-# Saved reward receipts refer to these IDs and targets. Add new IDs for future revisions.
+# Saved reward receipts refer to these IDs and targets. Portraits use the shared Starfront crew atlas.
 const COMMISSIONS: Array[Dictionary] = [
 	{
-		"id": "park_poster", "title": "공원 안내 그림", "client": "공원지기",
-		"brief": "공원에 걸 안내 그림이 필요해요. 빈 도화지를 넓게 채워 멀리서도 잘 보이는 그림을 그려 주세요.",
+		"id": "park_poster", "title": "동네 공원", "client": "공원지기", "portrait": 2,
+		"brief": "공원에는 뭐가 있나요? 길은 긴 직사각형으로 그리고, 옆에 벤치를 놓아 보세요.",
+		"reply": "공원에 놀러 오는 친구들에게 이 그림을 보여 줄게요.",
 		"coverage_percent": 55, "visible_shapes": 6, "families": 2,
 	},
 	{
-		"id": "space_mural", "title": "우주 관측소 벽화", "client": "관측소 연구원",
-		"brief": "관측소 벽을 장식할 그림을 그려 주세요. 여러 사각형을 조합해 별이나 우주 정거장처럼 꾸며 보세요.",
+		"id": "space_mural", "title": "산과 하늘", "client": "등산 안내원", "portrait": 11,
+		"brief": "산과 하늘을 그려 주세요. 넓은 직사각형 위에 사다리꼴을 이어서 산을 만들어 보세요.",
+		"reply": "산에 오르기 전에 친구들과 이 그림부터 살펴볼게요.",
 		"coverage_percent": 45, "visible_shapes": 12, "families": 3,
 	},
 	{
-		"id": "village_map", "title": "우리 마을 지도", "client": "마을 안내원",
-		"brief": "마을에 처음 온 친구가 볼 지도예요. 길이나 건물, 쉼터를 여러 종류의 사각형으로 표현해 주세요.",
+		"id": "village_map", "title": "우리 집", "client": "이웃 주민", "portrait": 1,
+		"brief": "우리 집을 그려 주세요. 벽과 문을 그린 뒤 정사각형 창문을 달아 보세요.",
+		"reply": "우리 집에 손님이 오면 이 그림부터 보여 줄 거예요.",
 		"coverage_percent": 48, "visible_shapes": 7, "families": 4,
 	},
 	{
-		"id": "library_cover", "title": "도서관 책 표지", "client": "사서",
-		"brief": "새 책에 붙일 표지가 필요해요. 큼직한 사각형으로 바탕을 채우고 책 내용을 떠올리게 하는 작은 도형을 넣어 주세요.",
+		"id": "library_cover", "title": "친구 얼굴", "client": "책 읽는 친구", "portrait": 6,
+		"brief": "친구 얼굴을 그려 주세요. 큰 사각형 얼굴에 작은 사각형으로 눈과 입을 넣어 보세요.",
+		"reply": "이 그림을 책 사이에 끼워 두고 오래 보고 싶어요.",
 		"coverage_percent": 60, "visible_shapes": 5, "families": 2,
 	},
 	{
-		"id": "harbor_view", "title": "항구 풍경 그림", "client": "등대지기",
-		"brief": "등대에 찾아온 친구들에게 보여 줄 그림이에요. 배와 파도, 부두를 여러 사각형으로 나누어 표현해 보세요.",
+		"id": "harbor_view", "title": "바닷가", "client": "바닷가 안내원", "portrait": 8,
+		"brief": "바닷가를 그려 주세요. 긴 직사각형으로 바다를, 사다리꼴로 배를 그려 보세요.",
+		"reply": "바닷가에 처음 온 친구들에게 이 그림을 보여 줄게요.",
 		"coverage_percent": 50, "visible_shapes": 10, "families": 3,
 	},
 	{
-		"id": "market_banner", "title": "장터 현수막", "client": "장터지기",
-		"brief": "장터 입구에 걸 현수막이에요. 멀리서도 잘 보이게 양쪽 끝까지 넓게 채우고 물건이나 가게를 그려 주세요.",
+		"id": "market_banner", "title": "동네 빵집", "client": "빵집 주인", "portrait": 0,
+		"brief": "동네 빵집을 그려 주세요. 큰 직사각형 창문 안에 작은 사각형 빵을 놓아 보세요.",
+		"reply": "빵을 사러 오는 손님들이 볼 수 있게 창가에 걸어 둘게요.",
 		"coverage_percent": 65, "visible_shapes": 8, "families": 2,
 	},
 	{
-		"id": "station_window", "title": "기차역 창문 무늬", "client": "역무원",
-		"brief": "기차역 유리창을 꾸미고 싶어요. 작은 사각형을 여러 개 이어 붙여 저마다 다른 모양이 보이게 해 주세요.",
+		"id": "station_window", "title": "우리 학교", "client": "학교 선생님", "portrait": 14,
+		"brief": "학교를 그려 주세요. 긴 사각형으로 건물을 만들고 교실 창문을 줄지어 넣어 보세요.",
+		"reply": "학교 복도에 걸어 두고 친구들과 함께 볼게요.",
 		"coverage_percent": 43, "visible_shapes": 14, "families": 4,
 	},
 	{
-		"id": "insect_poster", "title": "생태관 곤충 포스터", "client": "생태 해설사",
-		"brief": "생태관에 걸 곤충 그림이에요. 몸, 날개, 더듬이에 서로 다른 사각형을 골라 써 보세요.",
+		"id": "insect_poster", "title": "꽃밭", "client": "정원사", "portrait": 5,
+		"brief": "여러 색의 꽃을 그려 주세요. 마름모로 꽃잎을, 긴 직사각형으로 줄기를 만들어 보세요.",
+		"reply": "꽃이 피면 이 그림을 들고 꽃밭에 가 보고 싶어요.",
 		"coverage_percent": 46, "visible_shapes": 9, "families": 5,
 	},
 	{
-		"id": "festival_stage", "title": "축제 무대 배경", "client": "축제 진행자",
-		"brief": "마을 축제 무대를 꾸밀 그림이에요. 넓은 배경을 채우고 깃발과 조명은 여러 사각형을 이어 그려 주세요.",
+		"id": "festival_stage", "title": "비 오는 날", "client": "동네 친구", "portrait": 3,
+		"brief": "창문 밖의 비 오는 모습을 그려 주세요. 사각형 창문과 길쭉한 빗줄기를 넣어 보세요.",
+		"reply": "다음에 비가 오면 우리 같이 창밖을 보며 이 그림을 떠올려요.",
 		"coverage_percent": 58, "visible_shapes": 16, "families": 4,
 	},
 ]

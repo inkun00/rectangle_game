@@ -5,6 +5,7 @@ signal closed(reason: String)
 signal sound_changed(enabled: bool)
 
 const VIDEO_PATH: String = "res://assets/video/quadrilateral-opening.ogv"
+const FINAL_TITLE_START: float = 48.6
 const Art: GDScript = preload("res://scripts/construction_art.gd")
 enum PlaybackState { READY, PLAYING, PAUSED, CLOSED, LOADING }
 
@@ -15,6 +16,7 @@ var video_preparer: Callable
 var _player: VideoStreamPlayer
 var _poster: TextureRect
 var _poster_dim: ColorRect
+var _brand_card: PanelContainer
 var _start_button: Button
 var _pause_button: Button
 var _sound_button: Button
@@ -45,7 +47,7 @@ func _ready() -> void:
 	var column: VBoxContainer = VBoxContainer.new()
 	column.add_theme_constant_override("separation", 8)
 	margin.add_child(column)
-	column.add_child(QuadTheme.paragraph("사각형 월드 · 지구에 온 사각이", 20, Color("e8f4ff")))
+	column.add_child(QuadTheme.paragraph(QuadTheme.GAME_TITLE + " · 지구에 온 사각이", 20, Color("e8f4ff")))
 	var stage: Control = Control.new()
 	stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	stage.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -76,6 +78,7 @@ func _ready() -> void:
 	_player.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_player.finished.connect(func(): finish("completed"))
 	aspect.add_child(_player)
+	_build_brand_card(aspect)
 	_gate = CenterContainer.new()
 	_gate.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stage.add_child(_gate)
@@ -114,6 +117,43 @@ func _ready() -> void:
 	_refresh_sound()
 	_start_button.grab_focus()
 	set_process(false)
+
+
+func _build_brand_card(aspect: AspectRatioContainer) -> void:
+	# The retained film and poster have a title printed into their image.
+	var layer: Control = Control.new()
+	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	aspect.add_child(layer)
+	_brand_card = PanelContainer.new()
+	_brand_card.name = "OpeningGameTitle"
+	_brand_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_brand_card.anchor_left = 0.05
+	_brand_card.anchor_top = 0.072
+	_brand_card.anchor_right = 0.484
+	_brand_card.anchor_bottom = 0.40
+	layer.add_child(_brand_card)
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color("0b2534")
+	style.content_margin_left = 14.0
+	style.content_margin_right = 12.0
+	style.border_color = Color("f5c25c")
+	style.border_width_left = 3
+	_brand_card.add_theme_stylebox_override("panel", style)
+	var words: VBoxContainer = VBoxContainer.new()
+	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_theme_constant_override("separation", 4)
+	_brand_card.add_child(words)
+	var theme_line: Label = QuadTheme.label("그림을 그리고 · 집을 짓고 · 꿈을 모으는", 16, Color("8ce2c4"))
+	var game_title: Label = QuadTheme.label(QuadTheme.GAME_TITLE, 26, Color("fff5da"))
+	var subtitle: Label = QuadTheme.label("지구에 온 사각이", 16, Color("f5c25c"))
+	for label: Label in [theme_line, game_title, subtitle]:
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		words.add_child(label)
+	layer.resized.connect(func():
+		theme_line.add_theme_font_size_override("font_size", maxi(9, roundi(layer.size.x * 0.016)))
+		game_title.add_theme_font_size_override("font_size", maxi(18, roundi(layer.size.x * 0.057)))
+		subtitle.add_theme_font_size_override("font_size", maxi(10, roundi(layer.size.x * 0.024))))
 
 
 func _button(text: String, action: Callable) -> Button:
@@ -172,6 +212,7 @@ func _finish_preparation(prepared: bool, generation: int) -> void:
 	playback_state = PlaybackState.PLAYING
 	_poster.hide()
 	_poster_dim.hide()
+	_brand_card.hide()
 	_gate.hide()
 	_pause_button.disabled = false
 	_pause_button.grab_focus()
@@ -219,6 +260,7 @@ func handle_key(event: InputEvent) -> bool:
 func _process(delta: float) -> void:
 	if playback_state != PlaybackState.PLAYING: return
 	var position_seconds: float = _player.stream_position
+	_brand_card.visible = position_seconds >= FINAL_TITLE_START
 	var length_seconds: float = _player.get_stream_length()
 	_time_label.text = "%s / %s" % [_clock(position_seconds), _clock(length_seconds)] if length_seconds > 0.0 else _clock(position_seconds)
 	if position_seconds > _last_position + 0.01:

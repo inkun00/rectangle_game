@@ -10,6 +10,7 @@ const HANDLE_RADIUS: float = 13.0
 const RULER_DEPTH: float = 41.0
 const MIN_RULER_CENTIMETERS: int = 8
 const MAX_RULER_CENTIMETERS: int = 12
+const ORIGIN_SNAP_RADIUS: float = 16.0
 
 enum Drag { NONE, MOVE, ROTATE }
 
@@ -19,6 +20,9 @@ var tool_angle: float = 0.0
 var pixels_per_cm: float = 20.0
 var _positions: Dictionary = {}
 var _angles: Dictionary = {}
+var _snap_points: PackedVector2Array = PackedVector2Array()
+var _snap_index: int = -1
+var _free_origin: Vector2 = Vector2.ZERO
 var _drag: Drag = Drag.NONE
 var _drag_pointer: Vector2 = Vector2.ZERO
 var _drag_origin: Vector2 = Vector2.ZERO
@@ -41,6 +45,7 @@ func select_tool(kind: String) -> void:
 		_positions[tool_kind] = tool_origin
 		_angles[tool_kind] = tool_angle
 	_end_drag()
+	_snap_index = -1
 	tool_kind = kind
 	if tool_kind.is_empty():
 		hide()
@@ -50,6 +55,7 @@ func select_tool(kind: String) -> void:
 		initial.x = minf(size.x * 0.25, size.x - _ruler_length() - 12.0)
 		initial.y = minf(initial.y, size.y - RULER_DEPTH - HANDLE_RADIUS - 15.0)
 	tool_origin = _clamp_origin(_positions.get(kind, initial))
+	_free_origin = tool_origin
 	tool_angle = float(_angles.get(kind, 0.0))
 	show()
 	queue_redraw()
@@ -59,6 +65,9 @@ func clear_tool() -> void:
 	tool_kind = ""
 	tool_origin = Vector2.ZERO
 	tool_angle = 0.0
+	_free_origin = Vector2.ZERO
+	_snap_index = -1
+	_snap_points = PackedVector2Array()
 	_positions.clear()
 	_angles.clear()
 	hide()
@@ -68,11 +77,24 @@ func set_pixels_per_cm(value: float) -> void:
 	pixels_per_cm = value
 	queue_redraw()
 
+func set_snap_points(points: PackedVector2Array) -> void:
+	_snap_points = points
+	if _snap_index < 0: return
+	if _snap_index >= points.size():
+		_snap_index = -1
+		_free_origin = tool_origin
+	else:
+		var offset: Vector2 = points[_snap_index] - tool_origin
+		tool_origin = points[_snap_index]
+		_free_origin += offset
+		if _drag != Drag.NONE: _drag_origin += offset
+	queue_redraw()
+
 func move_by(delta: Vector2) -> void:
-	if not tool_kind.is_empty(): _apply_transform(tool_origin + delta, tool_angle)
+	if not tool_kind.is_empty(): _move_origin(_free_origin + delta)
 
 func rotate_by(degrees: float) -> void:
-	if not tool_kind.is_empty(): _apply_transform(tool_origin, tool_angle + deg_to_rad(degrees))
+	if not tool_kind.is_empty(): _rotate_tool(tool_angle + deg_to_rad(degrees))
 
 func rotation_handle_position() -> Vector2:
 	var offset: Vector2 = Vector2(minf(_ruler_length() * 0.55, 94.0), RULER_DEPTH + 13.0) if tool_kind == RULER else Vector2(0.0, -_radius() - 12.0)
@@ -145,27 +167,42 @@ func _begin_drag(point: Vector2) -> bool:
 
 func _drag_to(point: Vector2) -> void:
 	if _drag == Drag.MOVE:
-		_apply_transform(_drag_origin + point - _drag_pointer, _drag_angle)
+		_move_origin(_drag_origin + point - _drag_pointer)
 	elif _drag == Drag.ROTATE:
 		var vector: Vector2 = point - _drag_origin
 		if vector.length_squared() >= 64.0:
-			_apply_transform(_drag_origin, _drag_angle + (_drag_pointer - _drag_origin).angle_to(vector))
+			_rotate_tool(_drag_angle + (_drag_pointer - _drag_origin).angle_to(vector))
 
 func _end_drag() -> void:
 	_drag = Drag.NONE
 	_touch_index = -1
 
-func _apply_transform(next_origin: Vector2, next_angle: float) -> void:
-	var bounded: Vector2 = _clamp_origin(next_origin)
-	var wrapped: float = wrapf(next_angle, -PI, PI)
-	if tool_origin.is_equal_approx(bounded) and is_equal_approx(tool_angle, wrapped): return
-	tool_origin = bounded
+func _move_origin(point: Vector2) -> void:
+	_free_origin = _clamp_origin(point)
+	var nearest: int = -1
+	var nearest_distance: float = ORIGIN_SNAP_RADIUS * ORIGIN_SNAP_RADIUS
+	for index: int in range(_snap_points.size()):
+		var distance: float = _free_origin.distance_squared_to(_snap_points[index])
+		if distance <= nearest_distance:
+			nearest = index
+			nearest_distance = distance
+	var next_origin: Vector2 = _snap_points[nearest] if nearest >= 0 else _free_origin
+	if _snap_index == nearest and tool_origin.is_equal_approx(next_origin): return
+	_snap_index = nearest
+	tool_origin = next_origin
+	queue_redraw()
+
+func _rotate_tool(angle: float) -> void:
+	var wrapped: float = wrapf(angle, -PI, PI)
+	if is_equal_approx(tool_angle, wrapped): return
 	tool_angle = wrapped
 	queue_redraw()
 
 func _on_resize() -> void:
 	if tool_kind.is_empty(): return
-	tool_origin = _clamp_origin(tool_origin)
+	if _snap_index < 0:
+		tool_origin = _clamp_origin(tool_origin)
+		_free_origin = tool_origin
 	queue_redraw()
 
 func _clamp_origin(point: Vector2) -> Vector2:
@@ -189,6 +226,7 @@ func _draw() -> void:
 	else:
 		_draw_protractor()
 	draw_set_transform(Vector2.ZERO)
+	if _snap_index >= 0: draw_circle(tool_origin, 5.0, Color("008872"), false, 2.0, true)
 	_draw_rotation_handle()
 
 func _draw_ruler() -> void:
@@ -218,14 +256,43 @@ func _draw_protractor() -> void:
 	draw_colored_polygon(curve, BODY_COLOR)
 	draw_polyline(curve, INK, 1.6, true)
 	draw_line(Vector2(-radius, 0.0), Vector2(radius, 0.0), INK, 1.6, true)
+	var tick_scale: float = clampf(radius / 96.0, 0.48, 1.0)
+	var outer_label_radius: float = radius - maxf(10.0, minf(radius * 0.22, 26.0))
+	var label_step: int = 30 if radius >= 60.0 else 90
+	var label_size: int = clampi(roundi(radius * 0.11), 9, 12)
 	for degree: int in range(0, 181, 1 if radius >= 72.0 else 5):
 		var direction: Vector2 = Vector2.from_angle(-deg_to_rad(float(degree)))
-		var tick: float = 13.0 if degree % 10 == 0 else (7.0 if degree % 5 == 0 else 3.0)
+		var tick: float = (13.0 if degree % 10 == 0 else (7.0 if degree % 5 == 0 else 3.0)) * tick_scale
 		draw_line(direction * radius, direction * (radius - tick), INK, 1.2, true)
-		if degree % 30 == 0:
-			_draw_number(str(degree) + "°", direction * maxf(6.0, radius - 26.0) + Vector2(0.0, 4.0), 12)
+		if degree % label_step == 0:
+			_draw_number(str(degree) + "°", _protractor_label_anchor(direction, outer_label_radius), label_size)
+	_draw_inner_protractor_scale(radius)
 	draw_line(Vector2(-6.0, 0.0), Vector2(6.0, 0.0), INK, 2.0, true)
 	draw_line(Vector2(0.0, -6.0), Vector2(0.0, 6.0), INK, 2.0, true)
+
+func _draw_inner_protractor_scale(radius: float) -> void:
+	const INNER_RAY: Color = Color(0.10, 0.32, 0.38, 0.45)
+	const INNER_MAJOR_RAY: Color = Color(0.08, 0.28, 0.36, 0.72)
+	var hub_radius: float = maxf(5.0, radius * 0.18)
+	var ray_radius: float = maxf(hub_radius + 2.0, minf(radius * 0.54, radius - 18.0))
+	var label_radius: float = minf(radius * 0.65, radius - 46.0)
+	var show_labels: bool = radius >= 86.0
+	if show_labels: ray_radius = minf(ray_radius, label_radius - 5.0)
+	var step: int = 5 if radius >= 65.0 else 10
+	for degree: int in range(step, 180, step):
+		var direction: Vector2 = Vector2.from_angle(-deg_to_rad(float(degree)))
+		var major: bool = degree % 10 == 0
+		draw_line(direction * hub_radius, direction * ray_radius, INNER_MAJOR_RAY if major else INNER_RAY, 1.3 if major else 1.0, true)
+	draw_arc(Vector2.ZERO, hub_radius, PI, TAU, 32, INNER_MAJOR_RAY, 1.1, true)
+	draw_arc(Vector2.ZERO, ray_radius, PI, TAU, 48, INNER_MAJOR_RAY, 1.2, true)
+	if show_labels:
+		for degree: int in range(0, 181, 30):
+			var direction: Vector2 = Vector2.from_angle(-deg_to_rad(float(degree)))
+			_draw_number(str(180 - degree), _protractor_label_anchor(direction, label_radius), 11)
+
+func _protractor_label_anchor(direction: Vector2, radius: float) -> Vector2:
+	var baseline_offset: float = -4.0 if is_zero_approx(direction.y) else 4.0
+	return direction * radius + Vector2(0.0, baseline_offset)
 
 func _draw_number(text: String, anchor: Vector2, font_size: int) -> void:
 	var width: float = QuadTheme.FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x

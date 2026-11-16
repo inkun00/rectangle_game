@@ -62,6 +62,8 @@ test('the shell preserves Godot export and asset fingerprinting contracts', () =
   }
   assert.equal(exported.split('<script src="index.js"></script>').length - 1, 1);
   assert.equal(JSON.parse(exported.match(/\bconst config = (\{.*\});/)[1]).executable, 'index');
+  assert.match(html, /<title>사각이의 모험<\/title>/);
+  assert.match(html, /<h1 id="loading-title">사각이의 모험<\/h1>/);
   assert.ok(html.indexOf('id="game-controls"') < html.indexOf('<section id="loading"'));
   assert.match(html, /aria-describedby="game-controls"/);
   assert.match(html, /#canvas:focus-visible\{outline:/);

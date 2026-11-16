@@ -135,6 +135,7 @@ var _feature_loading_label: Label
 var _feature_focus_before: Control
 
 func _ready() -> void:
+	get_window().title = QuadTheme.GAME_TITLE
 	if not testing and not learning_progress.load_file():
 		learning_progress.touch_controls = DisplayServer.is_touchscreen_available()
 	document = CharacterDocument.new()
@@ -1018,7 +1019,7 @@ func _build_workshop() -> void:
 	var brand: VBoxContainer = VBoxContainer.new()
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(brand)
-	brand.add_child(QuadTheme.label("사각형 월드", 29))
+	brand.add_child(QuadTheme.label(QuadTheme.GAME_TITLE, 29))
 	_workshop_tagline = QuadTheme.label("나의 그림이 모험이 되는 곳", 15, QuadTheme.MUTED)
 	brand.add_child(_workshop_tagline)
 	header.add_child(QuadTheme.button("메인으로", _show_home))
@@ -1211,7 +1212,7 @@ func _build_workshop() -> void:
 	bottom.add_theme_constant_override("h_separation", 16)
 	bottom.add_theme_constant_override("v_separation", 8)
 	column.add_child(bottom)
-	_workshop_bottom_note = QuadTheme.paragraph("내가 만든 모습 그대로 걷고 뛰어요. 골격을 모두 채우면 사각형 월드로 출발할 수 있어요.", 15)
+	_workshop_bottom_note = QuadTheme.paragraph("내가 만든 모습 그대로 걷고 뛰어요. 골격을 모두 채우면 모험을 시작할 수 있어요.", 15)
 	bottom.add_child(_workshop_bottom_note)
 	_start_button = QuadTheme.button("마을 주민 심부름하기  →", _enter_world, true)
 	_start_button.custom_minimum_size = Vector2(280, 54)
@@ -1973,7 +1974,7 @@ func _show_notebook() -> void:
 	body.add_child(QuadTheme.button("닫기", _close_modal))
 
 func _show_map() -> void:
-	var body: VBoxContainer = _open_modal("사각형 월드 지도")
+	var body: VBoxContainer = _open_modal("세계 지도")
 	body.add_child(QuadTheme.paragraph("마을과 숲을 지나, 항구에서 설원과 별빛 성곽까지!\n방향키로 이동 · Space로 발판 오르기 · G로 줍기", 19, QuadTheme.INK))
 	if world != null:
 		var map: WorldMapView = WorldMapView.new()

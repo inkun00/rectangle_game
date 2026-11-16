@@ -52,7 +52,7 @@ func _ready() -> void:
 	var introduction: VBoxContainer = VBoxContainer.new()
 	introduction.add_theme_constant_override("separation", 4)
 	hero_panel.add_child(introduction)
-	_heading = _label("별빛 너머, 나만의 사각형 월드", 30)
+	_heading = _label("별빛 너머, 나만의 이야기", 30)
 	introduction.add_child(_heading)
 	introduction.add_child(_label("돈을 모아 지구에 살 집을 짓거나 사각성으로 돌아갈 우주선을 만들어요.", 17, Art.INK))
 	_cards = GridContainer.new()
@@ -99,7 +99,7 @@ func _build_header(parent: Node) -> void:
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	mark.custom_minimum_size = Vector2(40, 40)
 	header.add_child(mark)
-	var brand: Label = _label("사각형 월드 · QUADRILATERAL WORLD", 22)
+	var brand: Label = _label(QuadTheme.GAME_TITLE, 22)
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header.add_child(brand)

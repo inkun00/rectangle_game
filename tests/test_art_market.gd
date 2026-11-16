@@ -351,6 +351,7 @@ static func _test_sale_ui(t: Node) -> void:
 	studio._sale_dialog.hide()
 	studio.show_sale_result(result)
 	t.assert_true(studio._status.text.contains("의뢰"), "Successful commission gives clear Korean feedback")
+	studio._commission_dialog.hide()
 	studio.document.undo()
 	t.assert_eq(economy.art_sales.size(), 1, "Undoing artwork edits never undoes an economy payment")
 	studio.tutorial_blocked = true

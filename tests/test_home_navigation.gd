@@ -10,6 +10,12 @@ static func run(t: Node) -> void:
 	t.add_child(app)
 	await t.get_tree().process_frame
 	t.assert_true(app._home_screen.visible, "Application starts on the new home page")
+	t.assert_eq(app.get_window().title, "사각이의 모험", "The normal game window uses the Korean title")
+	t.assert_eq(ProjectSettings.get_setting("application/config/name"), "Quadrilateral World", "Existing saves retain their project directory")
+	var has_title: bool = false
+	for label: Label in app._home_screen.find_children("*", "Label", true, false):
+		if label.text == "사각이의 모험": has_title = true
+	t.assert_true(has_title, "The home page displays the exact Korean game title")
 	t.assert_false(app._drawing_screen.visible, "Drawing studio is hidden before choosing it")
 	t.assert_false(app._workshop_screen.visible, "Adventure workshop is hidden on initial home page")
 	t.assert_false(app._world_hud.visible, "World HUD does not overlap the home page")

@@ -276,7 +276,7 @@ func _draw_annotations() -> void:
 		var slot: Dictionary = document.get_slot(_hover_slot)
 		message = "%s  ·  %s" % [str(slot.label), Math.kind_name(str(slot.kind))]
 	elif bool(status.ready):
-		message = "캐릭터 완성! 사각형 월드로 떠날 준비가 됐어요."
+		message = "캐릭터 완성! 모험을 떠날 준비가 됐어요."
 	var text_size: int = 13
 	var message_width: float = _font.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, text_size).x
 	draw_style_box(_bubble_style(), Rect2(Vector2(maxf(14.0, (size.x - message_width) * 0.5 - 16.0), size.y - 51.0), Vector2(minf(message_width + 32.0, size.x - 28.0), 34.0)))

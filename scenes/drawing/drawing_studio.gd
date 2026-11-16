@@ -91,6 +91,7 @@ var _main_colors: Array[Button] = []
 var economy: ConstructionState
 var _commission_dialog: AcceptDialog
 var _commission_body: VBoxContainer
+var _commission_player_reply: Label
 var _commission_brief: Button
 var _commission_summary: Label
 var _work_commission_revision: int = 0
@@ -829,6 +830,7 @@ func _open_commission_action() -> void:
 
 func _can_open_submission_dialog() -> bool:
 	return economy != null and not _sale_pending and not tutorial_blocked and not _exporting and is_visible_in_tree() \
+		and not (is_instance_valid(_commission_player_reply) and _commission_dialog.visible) \
 		and not (is_instance_valid(_gallery) and _gallery.visible) \
 		and not (is_instance_valid(_color_dialog) and _color_dialog.visible) and not _color_picker.get_popup().visible
 
@@ -863,9 +865,16 @@ func _prepare_commission_dialog(title: String) -> void:
 		_commission_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_commission_body.add_theme_constant_override("separation", 10)
 		scroll.add_child(_commission_body)
-		_commission_dialog.visibility_changed.connect(func(): interaction_context_changed.emit())
+		_commission_dialog.confirmed.connect(_reply_to_commission_client)
+		_commission_dialog.visibility_changed.connect(func():
+			interaction_context_changed.emit()
+			if not _commission_dialog.visible and is_instance_valid(_commission_player_reply) and is_visible_in_tree():
+				_sale_button.grab_focus())
 		add_child(_commission_dialog)
 	_commission_dialog.title = title
+	_commission_dialog.dialog_hide_on_ok = true
+	_commission_dialog.get_ok_button().text = "닫기"
+	_commission_player_reply = null
 	for child: Node in _commission_body.get_children():
 		_commission_body.remove_child(child)
 		child.queue_free()
@@ -897,7 +906,6 @@ func _show_commission_brief(commission: Dictionary) -> void:
 	_prepare_commission_dialog("진행 중인 그림 의뢰")
 	var card: VBoxContainer = QuadTheme.card(_commission_body, QuadTheme.PAPER, 12)
 	_add_commission_brief(card, commission)
-	_commission_body.add_child(QuadTheme.paragraph("도화지를 40% 이상 채우고 5분 이상 작업하면 그림을 보여 줄 수 있어요. 부탁을 더 많이 채울수록 만족도와 보상이 높아져요.", 16, QuadTheme.INK))
 	var others: Button = _button("다른 의뢰 보기", _show_commissions)
 	others.name = "ShowOtherArtCommissions"
 	others.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -906,21 +914,85 @@ func _show_commission_brief(commission: Dictionary) -> void:
 	_commission_dialog.get_ok_button().grab_focus()
 
 func _add_commission_brief(parent: VBoxContainer, commission: Dictionary, action: Button = null) -> void:
+	var intro: HBoxContainer = HBoxContainer.new()
+	intro.add_theme_constant_override("separation", 10)
+	parent.add_child(intro)
+	intro.add_child(_commission_portrait(commission, Vector2(68, 76) if action == null else Vector2(50, 60)))
+	var text: VBoxContainer = VBoxContainer.new()
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_constant_override("separation", 6)
+	intro.add_child(text)
 	var heading: Label = QuadTheme.paragraph("%s · %s 님" % [commission.title, commission.client], 20, QuadTheme.TEAL)
 	if action == null:
-		parent.add_child(heading)
+		text.add_child(heading)
 	else:
 		var row: HBoxContainer = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 10)
-		parent.add_child(row)
+		text.add_child(row)
 		heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(heading)
 		row.add_child(action)
-	parent.add_child(QuadTheme.paragraph(str(commission.brief), 16, QuadTheme.INK))
+	text.add_child(QuadTheme.paragraph(str(commission.brief), 16, QuadTheme.INK))
 	var labels: PackedStringArray = []
 	for requirement: Dictionary in Commissions.requirements(str(commission.id)):
 		labels.append(str(requirement.label))
 	parent.add_child(QuadTheme.paragraph(" · ".join(labels), 15, QuadTheme.MUTED))
+
+func _commission_portrait(commission: Dictionary, dimensions: Vector2) -> PanelContainer:
+	var frame: PanelContainer = PanelContainer.new()
+	frame.add_theme_stylebox_override("panel", GameArt.panel(1, 4))
+	frame.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var atlas: Texture2D = StarfrontArt.cell("crew", int(commission.portrait), 4, 4, true)
+	var portrait: TextureRect = GameArt.view(atlas, dimensions)
+	portrait.name = "CommissionPortrait_" + str(commission.id)
+	frame.add_child(portrait)
+	return frame
+
+func _show_commission_completion(receipt: Dictionary, score: int, reward: String) -> void:
+	var commission: Dictionary = Commissions.get_commission(str(receipt.get("commission_id", "")))
+	if commission.is_empty() or not is_visible_in_tree(): return
+	_prepare_commission_dialog("그림을 받은 의뢰인")
+	var card: VBoxContainer = QuadTheme.card(_commission_body, QuadTheme.PAPER, 12)
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	card.add_child(row)
+	row.add_child(_commission_portrait(commission, Vector2(84, 98)))
+	var speech: VBoxContainer = VBoxContainer.new()
+	speech.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	speech.add_theme_constant_override("separation", 8)
+	row.add_child(speech)
+	speech.add_child(QuadTheme.paragraph(str(commission.client), 21, QuadTheme.TEAL))
+	var line: String = "부탁한 조건을 모두 채웠네요. 고마워요! " if score == 100 else "그림을 가져와 줘서 고마워요! "
+	line += str(commission.reply)
+	if score < 100:
+		line += "\n" + _commission_feedback(commission, receipt)
+	var message: Label = QuadTheme.paragraph(line, 18, QuadTheme.INK)
+	message.name = "CommissionClientReply"
+	speech.add_child(message)
+	var summary: Label = QuadTheme.paragraph("%s · 만족도 %d%% · 받은 보상 %s" % [commission.title, score, reward], 16, QuadTheme.TEAL)
+	summary.name = "CommissionRewardSummary"
+	_commission_body.add_child(summary)
+	_commission_player_reply = QuadTheme.paragraph("나 · 그림을 맡겨 주셔서 고마워요!", 16, QuadTheme.INK)
+	_commission_player_reply.name = "CommissionPlayerReply"
+	_commission_body.add_child(_commission_player_reply)
+	_commission_player_reply.hide()
+	_commission_dialog.dialog_hide_on_ok = false
+	_commission_dialog.get_ok_button().text = "대답하기"
+	_commission_dialog.popup_centered_clamped(Vector2i(610, 365), 0.9)
+	_commission_dialog.get_ok_button().grab_focus()
+
+func _commission_feedback(commission: Dictionary, receipt: Dictionary) -> String:
+	if float(receipt.get("coverage", 0.0)) < float(commission.coverage_percent) / 100.0:
+		return "다음에는 도화지를 조금 더 넓게 채워 봐요."
+	if int(receipt.get("visible_shapes", 0)) < int(commission.visible_shapes):
+		return "다음에는 사각형을 조금 더 많이 넣어 봐요."
+	return "다음에는 서로 다른 종류의 사각형을 더 넣어 봐요."
+
+func _reply_to_commission_client() -> void:
+	if not is_instance_valid(_commission_player_reply) or _commission_player_reply.visible: return
+	_commission_player_reply.show()
+	_commission_dialog.get_ok_button().text = "작업실로 돌아가기"
+	_commission_dialog.dialog_hide_on_ok = true
 
 func _accept_commission(commission_id: String) -> void:
 	if not _can_open_submission_dialog() or Commissions.get_commission(commission_id).is_empty(): return
@@ -1149,6 +1221,7 @@ func show_sale_result(result: Dictionary) -> void:
 			if not testing and not _write_drawing_snapshot(blank):
 				_set_status("의뢰를 마치고 %s을 받았어요. 도화지 저장이 어려워 그림은 그대로 두었어요." % reward)
 				_autosave.start()
+				_show_commission_completion(receipt, score, reward)
 				return
 			cancel_gesture()
 			_restoring = true
@@ -1165,6 +1238,7 @@ func show_sale_result(result: Dictionary) -> void:
 			_sale_button.tooltip_text = "저장한 그림: " + ProjectSettings.globalize_path(path)
 		else:
 			_set_status("그림 의뢰 완료 · 만족도 %d%% · 받은 보상 %s" % [score, reward])
+		_show_commission_completion(receipt, score, reward)
 	else:
 		_set_status(str(result.get("error", "그림 의뢰를 마치지 못했어요. 다시 시도해 주세요.")))
 		if not testing: _autosave.start()

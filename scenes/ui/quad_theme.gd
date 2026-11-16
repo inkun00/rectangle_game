@@ -1,6 +1,7 @@
 class_name QuadTheme
 extends RefCounted
 
+const GAME_TITLE: String = "사각이의 모험"
 const INK: Color = Color("edf5fc")
 const MUTED: Color = Color("bacbd9")
 const PAPER: Color = Color("182432")

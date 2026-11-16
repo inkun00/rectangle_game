@@ -8,6 +8,7 @@ const State = preload("res://scripts/construction/construction_state.gd")
 const Market = preload("res://scripts/economy/art_market.gd")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
 const Transactions = preload("res://scripts/economy/progression_transactions.gd")
+const Commissions = preload("res://scripts/economy/art_commission_catalog.gd")
 const ArtSamples = preload("res://tests/art_sale_samples.gd")
 
 class SaleRenderer:
@@ -113,6 +114,14 @@ static func _test_success_and_undo(t: Node) -> void:
 	t.assert_eq(ledger.balance, State.INITIAL_BALANCE, "Trying to submit before accepting a commission cannot earn money")
 	studio._sale_button.pressed.emit()
 	t.assert_true(studio._commission_dialog.visible, "The drawing footer opens the list of available commissions")
+	var portrait_regions: Dictionary = {}
+	for commission: Dictionary in Commissions.all():
+		var portrait: TextureRect = studio._commission_dialog.find_child("CommissionPortrait_" + str(commission.id), true, false) as TextureRect
+		if portrait != null and portrait.texture is AtlasTexture:
+			var atlas: AtlasTexture = portrait.texture as AtlasTexture
+			portrait_regions[atlas.region] = atlas.atlas.resource_path
+	t.assert_eq(portrait_regions.size(), Commissions.all().size(), "Every commission has a different client portrait")
+	t.assert_eq(portrait_regions.values().count("res://assets/generated/starfront-v1/crew.webp"), Commissions.all().size(), "All portraits use the shared crew art")
 	var accept: Button = studio._commission_dialog.find_child("AcceptArtCommission_" + ArtSamples.COMMISSION_ID, true, false) as Button
 	t.assert_not_null(accept, "The commission list offers a named action to accept the park brief")
 	if accept == null:
@@ -123,6 +132,11 @@ static func _test_success_and_undo(t: Node) -> void:
 	t.assert_eq(ledger.art_commission_id, ArtSamples.COMMISSION_ID, "Accepting the visible job selects that exact commission")
 	t.assert_eq(studio.document.work_msec, 0, "Time spent drawing before acceptance does not carry over to the new commission")
 	t.assert_eq(ledger.balance, State.INITIAL_BALANCE, "Accepting a picture commission does not pay before the artist submits")
+	studio._commission_brief.pressed.emit()
+	var brief_portrait: TextureRect = studio._commission_dialog.find_child("CommissionPortrait_" + ArtSamples.COMMISSION_ID, true, false) as TextureRect
+	t.assert_true(brief_portrait != null and brief_portrait.texture is AtlasTexture, "The active brief shows the accepted client portrait")
+	var brief_atlas: AtlasTexture = brief_portrait.texture as AtlasTexture if brief_portrait != null else null
+	studio._commission_dialog.hide()
 	_fill_art(studio.document)
 	studio.document.select_shape(int(studio.document.shapes.back().id))
 	studio.document.delete_selected()
@@ -192,6 +206,17 @@ static func _test_success_and_undo(t: Node) -> void:
 	t.assert_false(studio._sale_busy.visible, "Successful export removes the busy overlay")
 	t.assert_false(studio._sale_dialog.visible, "Successful sale closes its confirmation dialog")
 	t.assert_true(studio._status.text.contains("네모별의 첫 그림") and studio._status.text.contains("PNG"), "The success status identifies the named artwork and its PNG save")
+	t.assert_true(studio._commission_dialog.visible, "The settled client's conversation opens after payment")
+	var client_line: Label = studio._commission_dialog.find_child("CommissionClientReply", true, false) as Label
+	t.assert_true(client_line != null and client_line.text.contains("공원에 놀러 오는") and client_line.text.contains("다음에는"), "The paying client thanks the artist and offers one concrete suggestion")
+	var reward_summary: Label = studio._commission_dialog.find_child("CommissionRewardSummary", true, false) as Label
+	t.assert_true(reward_summary != null and reward_summary.text.contains(str(quote.score) + "%") and reward_summary.text.contains(ConstructionCatalog.format_won(quote.price)), "The dialogue shows the already paid reward and satisfaction")
+	var paid_portrait: TextureRect = studio._commission_dialog.find_child("CommissionPortrait_" + ArtSamples.COMMISSION_ID, true, false) as TextureRect
+	t.assert_true(paid_portrait != null and paid_portrait.texture == brief_atlas, "The commission receipt identifies the same client after the active brief clears")
+	studio._commission_dialog.get_ok_button().pressed.emit()
+	t.assert_true(studio._commission_dialog.visible and studio._commission_player_reply.visible, "Replying shows the player's line and keeps the conversation visible")
+	studio._commission_dialog.get_ok_button().pressed.emit()
+	t.assert_false(studio._commission_dialog.visible, "The next action closes the conversation and returns to the drawing studio")
 	t.assert_true(FileAccess.file_exists(studio.save_path), "The cleared canvas is actually persisted as the next drawing draft")
 	var reloaded: Studio = Studio.new()
 	reloaded.testing = true
@@ -245,6 +270,7 @@ static func _test_failed_png(t: Node, blocked_directory: bool) -> void:
 	t.assert_eq(FileAccess.get_file_as_string(studio.save_path), draft, "A failed PNG save does not replace the original drawing draft")
 	t.assert_false(studio._sale_pending, "A failed PNG save releases the pending UI state")
 	t.assert_false(studio._sale_busy.visible, "A failed PNG save removes the busy overlay")
+	t.assert_true(not is_instance_valid(studio._commission_dialog) or not studio._commission_dialog.visible, "No thank-you conversation opens for an unpaid submission")
 	t.assert_true(studio._sale_title.editable and not studio._sale_dialog.get_cancel_button().disabled, "A failed PNG save restores editable dialog controls for retry")
 	t.assert_true(studio._status.text.contains("PNG") or studio._status.text.contains("폴더"), "The drawing screen explains why image export failed")
 	if blocked_directory:
@@ -328,6 +354,7 @@ static func _test_failed_blank_draft(t: Node) -> void:
 	t.assert_eq(_images(studio.sold_art_directory).size(), 1, "Fresh-draft failure still leaves the paid painting's exported PNG available")
 	t.assert_eq(studio.document.serialize(), artwork, "A fresh-draft write failure preserves the editable painting instead of silently clearing it")
 	t.assert_true(studio._status.text.contains("도화지") and studio._status.text.contains("그대로"), "Fresh-draft failure explains that the sold painting remains on the canvas")
+	t.assert_true(studio._commission_dialog.visible, "A paid sale still opens the conversation if the next draft cannot be saved")
 	t.assert_false(Market.quote(studio.document, app._construction_screen.state.art_sales).can_sell, "Keeping the drawing after a fresh-draft failure cannot cause a second payout")
 	studio.testing = true
 	app.free()
@@ -377,7 +404,7 @@ static func _test_upload_retry_and_reload(t: Node) -> void:
 	var app: QuadrilateralApp = await _app(t, directory)
 	var studio: Studio = app._drawing_screen
 	var ledger: State = app._construction_screen.state
-	_fill_art(studio.document)
+	studio.document.restore(ArtSamples.poster().serialize())
 	var offer: Dictionary = ledger.quote_art_commission(studio.document)
 	var renderer: SaleRenderer = _renderer()
 	var uploader: UploadTransport = UploadTransport.new()
@@ -390,6 +417,9 @@ static func _test_upload_retry_and_reload(t: Node) -> void:
 	t.assert_eq(ledger.art_sales.size(), 1, "An unavailable Padlet connection does not undo a completed sale")
 	t.assert_eq(ledger.balance, State.INITIAL_BALANCE + int(offer.price), "The failed network request preserves exactly one sale payment")
 	t.assert_eq(uploader.calls, 1, "Successful sale automatically starts one upload attempt")
+	var client_line: Label = studio._commission_dialog.find_child("CommissionClientReply", true, false) as Label
+	t.assert_true(studio._commission_dialog.visible and int(offer.score) == 100 and client_line != null and client_line.text.contains("모두 채웠네요"), "Full satisfaction brings the client's complete thanks despite a failed upload")
+	studio._commission_dialog.hide()
 	t.assert_eq(renderer.calls, 1, "Initial publication reuses the single sale rendering")
 	_assert_blank(t, studio.document)
 	t.assert_eq(app._art_publications.pending(ledger.art_sales).size(), 1, "A network failure remains in the durable retry queue")
@@ -477,6 +507,8 @@ static func _test_sale_during_upload(t: Node, first_item_error: bool = false) ->
 	await t.get_tree().process_frame
 	t.assert_eq(uploader.calls, 1, "The first painting's upload can remain in flight while the artist continues drawing")
 	t.assert_true(app._art_upload_busy, "The first in-flight upload holds the network queue lock")
+	studio._commission_dialog.get_ok_button().pressed.emit()
+	studio._commission_dialog.get_ok_button().pressed.emit()
 	studio.art_commission_requested.emit(ArtSamples.COMMISSION_ID)
 	studio.document.restore(ArtSamples.house(true).serialize())
 	_confirm(studio, "다음에 그린 집")
