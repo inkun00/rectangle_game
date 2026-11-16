@@ -87,9 +87,30 @@ static func _test_gallery_workflow(t: Node) -> void:
 	var studio: Studio = Studio.new()
 	studio.testing = true
 	var path: String = "res://.godot/drawing_gallery_test_%d.json" % Time.get_ticks_usec()
-	studio.save_path = path
+	studio.save_path = path + ".commission"
+	studio.personal_save_path = path
 	t.add_child(studio)
 	await _frames(t)
+	studio.document.add_sized_shape("square", Vector2(50, 70), Vector2(80, 80), Color.RED)
+	studio.document.set_masterpiece("starry_night")
+	var commission: Dictionary = studio.document.serialize()
+	t.assert_true(studio.save_drawing(false), "The earlier commission composition has its own saved path")
+	var saved_commission: String = FileAccess.get_file_as_string(studio.save_path)
+	t.assert_false(studio.canvas.show_masterpiece, "An earlier masterpiece draft keeps its geometry while the commission screen hides the guide")
+	studio._open_gallery(true)
+	t.assert_true(not is_instance_valid(studio._gallery), "The commission editor cannot open the personal masterpiece gallery")
+	var broken: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	broken.store_string("{bad drawing data")
+	broken.close()
+	studio.testing = false
+	t.assert_false(studio.open_workspace(true), "An invalid personal file prevents switching workspaces")
+	studio.testing = true
+	t.assert_eq(FileAccess.get_file_as_string(path), "{bad drawing data", "A failed first entry leaves the personal save intact for recovery")
+	t.assert_eq(studio.document.serialize(), commission, "A failed first entry keeps the commission document active")
+	DirAccess.remove_absolute(path)
+	t.assert_true(studio.open_workspace(true), "The personal workspace opens its separate drawing document")
+	t.assert_true(studio.document.shapes.is_empty(), "A fresh personal canvas does not copy the commission draft")
+	t.assert_true(studio.canvas.drawing_tool, "An empty workspace keeps the drawing tool ready")
 	studio.document.add_sized_shape("rectangle", Vector2(-120, -20), Vector2(140, 90), Color.TEAL)
 	studio.document.add_sized_shape("rhombus", Vector2(90, 25), Vector2(80, 100), Color.GOLD)
 	var artwork: Array[Dictionary] = studio.document.ordered_shapes()
@@ -184,10 +205,16 @@ static func _test_gallery_workflow(t: Node) -> void:
 		file.close()
 		t.assert_false(studio.load_drawing(false), "Studio rejects unknown scene metadata")
 		t.assert_eq(JSON.stringify(studio.document.serialize()), saved, "Rejected scene file leaves visible drawing and scene unchanged")
+	t.assert_eq(FileAccess.get_file_as_string(studio.save_path), saved_commission, "Saving personal art never writes the commission file")
+	t.assert_true(studio.open_workspace(false), "The regular workspace reopens the commission draft")
+	t.assert_eq(studio.document.serialize(), commission, "The regular workspace keeps the complete old commission artwork and scene metadata")
+	t.assert_true(studio.canvas.document == studio.document, "The canvas renders the currently selected workspace document")
+	t.assert_false(studio.canvas.drawing_tool, "Returning to a saved selected shape restores its selection tool")
 	studio.free()
 	root.size = original_size
 	root.content_scale_size = original_scale
 	for suffix: String in ["", ".tmp", ".bak"]:
+		if FileAccess.file_exists(path + ".commission" + suffix): DirAccess.remove_absolute(path + ".commission" + suffix)
 		if FileAccess.file_exists(path + suffix):
 			DirAccess.remove_absolute(path + suffix)
 	await t.get_tree().process_frame

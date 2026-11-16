@@ -87,6 +87,14 @@ static func _test_drawing_work(t: Node) -> void:
 	t.assert_eq(restored.work_msec, studio.document.work_msec, "Work time continues after saving and loading")
 	saved.work_msec = Drawing.REQUIRED_WORK_MSEC + 1
 	t.assert_false(restored.restore(saved), "Out-of-range work time cannot replace the current draft")
+	var active_work: int = studio.document.work_msec
+	t.assert_true(studio.open_workspace(true), "Personal drawing can open without consuming the active brief")
+	studio.document.add_sized_shape("square", Vector2.ZERO, Vector2(500, 500), Color.CORAL)
+	studio._begin_drawing_work(41000)
+	studio._record_drawing_work(51000)
+	t.assert_eq(studio.document.work_msec, 0, "Personal drawing never counts towards the client's work time")
+	t.assert_true(studio.open_workspace(false), "The artist can resume the existing commission")
+	t.assert_eq(studio.document.work_msec, active_work, "Switching workspaces preserves the exact earned work time")
 	var changed_brief: Dictionary = economy.accept_art_commission("space_mural")
 	t.assert_true(changed_brief.ok, "The artist can choose a different brief while reusing the canvas")
 	t.assert_eq(studio.document.shapes.size(), 2, "Switching to a different brief preserves the already drawn shapes")

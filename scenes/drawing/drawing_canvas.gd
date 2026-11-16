@@ -62,6 +62,15 @@ func _ready() -> void:
 		_hover.clear()
 		queue_redraw())
 
+func bind_document(next: Model) -> void:
+	if document == next: return
+	cancel_gesture()
+	if document != null and document.changed.is_connected(_document_changed):
+		document.changed.disconnect(_document_changed)
+	document = next
+	document.changed.connect(_document_changed)
+	_document_changed()
+
 func canvas_scale() -> float:
 	return maxf(0.01, minf((size.x - 32.0) / Model.ARTBOARD.size.x, (size.y - 32.0) / Model.ARTBOARD.size.y))
 

@@ -2,6 +2,7 @@ class_name TestTutorialIntegration
 extends RefCounted
 
 const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
+const ArtSamples = preload("res://tests/art_sale_samples.gd")
 
 
 static func run(t: Node) -> void:
@@ -28,6 +29,8 @@ static func run(t: Node) -> void:
 		t.assert_true(app._tutorial.progress.should_offer(mode), "Testing app keeps first-visit preference in memory for " + mode)
 	await _drawing(t, app)
 	await _color_popup(t, app)
+	_test_personal_replay_gate(t, app)
+	_unlock_personal_workspaces(t, app)
 	await _masterpiece(t, app)
 	await _learning(t, app)
 	await _workshop(t, app)
@@ -95,8 +98,15 @@ static func _drawing(t: Node, app: QuadrilateralApp) -> void:
 
 
 static func _masterpiece(t: Node, app: QuadrilateralApp) -> void:
-	app._show_drawing()
+	app._show_home()
+	app._home_screen._ending_choice.pressed.emit()
+	var open: Button = app._modal_body.find_child("OpenPersonalDrawing", true, false) as Button if is_instance_valid(app._modal_body) else null
+	t.assert_not_null(open, "Final Choice offers the personal drawing workspace")
+	if open == null: return
+	open.pressed.emit()
+	await _settle(t)
 	var doc: DrawingDocument = app._drawing_screen.document
+	doc.add_shape("square", Vector2.ZERO, Color.CORAL)
 	var shapes: Array[Dictionary] = doc.shapes.duplicate(true)
 	app._tutorial.start("masterpiece")
 	app._tutorial.advance()
@@ -139,6 +149,27 @@ static func _masterpiece(t: Node, app: QuadrilateralApp) -> void:
 	window.size = previous_size
 	await _settle(t)
 	app._responsive()
+
+
+static func _test_personal_replay_gate(t: Node, app: QuadrilateralApp) -> void:
+	app._show_home()
+	app._show_tutorials()
+	for mode: String in ["masterpiece", "my_house"]:
+		t.assert_eq(_button(app._modal_body, TutorialCatalog.title(mode) + " · 처음 해 보기"), null, "The general tutorial menu does not expose the locked route " + mode)
+		await app._replay_tutorial(mode)
+		t.assert_true(app._home_screen.visible and not app._tutorial.active, "Replaying a locked route does not change workspace: " + mode)
+	app._close_modal()
+
+
+static func _unlock_personal_workspaces(t: Node, app: QuadrilateralApp) -> void:
+	var ledger: ConstructionState = app._economy_state
+	for index: int in range(10):
+		var drawing: DrawingDocument = DrawingDocument.new()
+		drawing.add_sized_shape("square", Vector2.ZERO, Vector2(500, 500), Color.from_hsv(index / 10.0, 0.8, 0.85))
+		drawing.work_msec = DrawingDocument.REQUIRED_WORK_MSEC
+		var accepted: Dictionary = ledger.accept_art_commission(ArtSamples.COMMISSION_ID)
+		t.assert_true(accepted.ok and ledger.sell_art(drawing.serialize()).ok, "A distinct completed art commission counts toward Final Choice")
+	t.assert_true(app._ending_unlocked(), "Completing ten commissions unlocks the personal tutorials through Final Choice")
 
 
 static func _color_popup(t: Node, app: QuadrilateralApp) -> void:
@@ -331,8 +362,14 @@ static func _construction(t: Node, app: QuadrilateralApp) -> void:
 static func _my_house(t: Node, app: QuadrilateralApp) -> void:
 	var studio: ConstructionStudio = app._construction_screen
 	var commission: Dictionary = studio.state.document.serialize()
-	studio._enter_my_house_mode()
+	app._show_home()
+	app._home_screen._ending_choice.pressed.emit()
+	var open: Button = app._modal_body.find_child("ChooseEarthEnding", true, false) as Button if is_instance_valid(app._modal_body) else null
+	t.assert_not_null(open, "Final Choice offers personal construction")
+	if open == null: return
+	open.pressed.emit()
 	await _settle(t)
+	t.assert_true(studio.visible and studio.state.my_house_mode, "Choosing personal construction opens its separate tutorial context")
 	t.assert_false(app._tutorial.active, "Testing submode changes do not force another first-visit tour")
 	app._tutorial.start("my_house")
 	_finish_dialogue(app._tutorial)
@@ -354,7 +391,6 @@ static func _my_house(t: Node, app: QuadrilateralApp) -> void:
 
 
 static func _responsive_overlay(t: Node, app: QuadrilateralApp) -> void:
-	app._drawing_screen.document.set_mode("free")
 	app._show_drawing()
 	var window: Window = t.get_window()
 	for dimensions: Vector2i in [Vector2i(800, 600), Vector2i(1920, 1080)]:

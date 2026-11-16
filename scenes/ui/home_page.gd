@@ -60,10 +60,10 @@ func _ready() -> void:
 	_cards.add_theme_constant_override("h_separation", 18)
 	_cards.add_theme_constant_override("v_separation", 18)
 	_column.add_child(_cards)
-	_drawing_button = _build_mode("Drawing", "그림 의뢰로 자금 모으기", "나만의 그림", "의뢰인의 부탁을 듣고 사각형으로 작품을 그려 보상을 받아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
-	_build_mode("Construction", "집 짓기 놀이", "뚝딱! 사각형 집 짓기", "의뢰인의 집을 짓고 수익으로 나만의 집도 완성해요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
+	_drawing_button = _build_mode("Drawing", "그림 의뢰로 자금 모으기", "사각형 그림 의뢰", "의뢰인의 부탁을 듣고 사각형으로 작품을 그려 보상을 받아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
+	_build_mode("Construction", "건축 의뢰로 자금 모으기", "뚝딱! 사각형 집 짓기", "의뢰인이 부탁한 집을 짓고 완성도에 따라 보상을 받아요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
 	_build_mode("Adventure", "마을을 도와 자금 모으기", "마을 주민 심부름하기", "사각이와 여섯 지역을 돌아다니며 주민의 부탁을 해결하고 돈을 벌어요.", GameArt.sheet("world_backdrop"), "마을 주민 심부름하기", func(): adventure_requested.emit())
-	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", ENDING_CHOICE_TITLE, "그림과 건축 의뢰 완료를 합쳐 10회 달성하면 두 길이 열려요.", StarfrontArt.scene(8), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
+	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", ENDING_CHOICE_TITLE, "나만의 그림을 그리고, 지구에 살 집이나 사각성으로 돌아갈 우주선을 만들어요.", StarfrontArt.scene(8), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
 	var ending_content: VBoxContainer = _ending_choice.get_parent() as VBoxContainer
 	_ending_card = ending_content.get_parent() as PanelContainer
 	_ending_card.hide()

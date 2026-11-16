@@ -110,7 +110,7 @@ static func _test_studio_escape(t: Node) -> void:
 	t.add_child(studio)
 	await _settle(t)
 	studio._close_modal()
-	studio._enter_my_house_mode()
+	studio.open_personal_mode()
 	studio._choose_material("door")
 	t.assert_true(studio._material_buttons.door.button_pressed, "Selecting a material highlights its card")
 	var escape: InputEventKey = InputEventKey.new()

@@ -10,6 +10,7 @@ const Buttons = preload("res://scripts/ui/button_art.gd")
 const Commissions = preload("res://scripts/economy/art_commission_catalog.gd")
 const Money = preload("res://scripts/construction/construction_catalog.gd")
 const SAVE_PATH: String = "user://quadrilateral_drawing_v1.json"
+const PERSONAL_SAVE_PATH: String = "user://quadrilateral_personal_drawing_v1.json"
 const PADLET_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 const DRAWING_IDLE_MSEC: int = 15000
 const TOOLBAR_FONT_SIZE: int = 16
@@ -38,6 +39,7 @@ const PALETTE: Array[Color] = [
 signal home_requested
 signal tutorial_requested
 signal mode_selected(mode: String)
+signal drawing_document_changed
 signal interaction_context_changed
 signal guide_changed
 signal art_commission_requested(commission_id: String)
@@ -47,7 +49,13 @@ signal art_upload_retry_requested
 var testing: bool = false
 var tutorial_blocked: bool = false
 var save_path: String = SAVE_PATH
-var document: Model = Model.new()
+var personal_save_path: String = PERSONAL_SAVE_PATH
+var _commission_document: Model = Model.new()
+var _personal_document: Model
+var document: Model = _commission_document
+var _personal_workspace: bool = false
+var is_personal_drawing: bool:
+	get: return _personal_workspace
 var canvas: Canvas
 var _autosave: Timer
 var _status: Label
@@ -131,8 +139,7 @@ func _ready() -> void:
 	_autosave.timeout.connect(func(): save_drawing(false))
 	add_child(_autosave)
 	document.changed.connect(_document_changed)
-	document.artwork_edited.connect(func():
-		if not testing: _begin_drawing_work(Time.get_ticks_msec()))
+	document.artwork_edited.connect(_on_artwork_edited)
 	visibility_changed.connect(func():
 		if not is_visible_in_tree():
 			_stop_drawing_work()
@@ -140,6 +147,41 @@ func _ready() -> void:
 	if not testing:
 		load_drawing(false)
 	_refresh()
+
+func open_workspace(personal: bool) -> bool:
+	if is_personal_drawing == personal: return true
+	if _sale_pending or _exporting: return false
+	if personal and _personal_document == null:
+		var candidate: Model = Model.new()
+		if not testing and FileAccess.file_exists(personal_save_path):
+			var saved: Dictionary = _read_drawing_snapshot(personal_save_path, false)
+			if saved.is_empty() or not candidate.restore(saved.document):
+				_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
+				return false
+		_personal_document = candidate
+	_record_drawing_work(Time.get_ticks_msec())
+	if not testing and not _autosave.is_stopped() and not save_drawing(false): return false
+	cancel_gesture()
+	_stop_drawing_work()
+	document.changed.disconnect(_document_changed)
+	document.artwork_edited.disconnect(_on_artwork_edited)
+	_personal_workspace = personal
+	document = _personal_document if personal else _commission_document
+	canvas.bind_document(document)
+	document.changed.connect(_document_changed)
+	document.artwork_edited.connect(_on_artwork_edited)
+	canvas.show_masterpiece = personal and _guide_toggle.button_pressed
+	if document.selected_id >= 0: canvas.select_tool()
+	else: canvas.select_kind(canvas.selected_kind)
+	_update_outline_menu()
+	_set_status("원하는 배경과 도형을 골라 그림을 그려요." if personal else "의뢰인의 부탁을 살펴보고 그림을 그려요.")
+	_refresh()
+	_refresh_sale_button()
+	drawing_document_changed.emit()
+	return true
+
+func _on_artwork_edited() -> void:
+	if not testing: _begin_drawing_work(Time.get_ticks_msec())
 
 func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 	var button: Button = QuadTheme.button(text, callback, primary)
@@ -266,7 +308,7 @@ func _build_ui() -> void:
 	Buttons.apply(_more_edits)
 	_more_edits.focus_mode = Control.FOCUS_ALL
 	_more_edits.custom_minimum_size.y = 44
-	for caption: String in ["복제", "삭제", "왼쪽 15°", "오른쪽 15°", "축소", "확대", "뒤로 보내기", "앞으로 보내기", "모두 지우기", "불러오기", "밑그림 표시 전환", "밑그림 진하기 바꾸기"]:
+	for caption: String in ["복제", "삭제", "왼쪽 15°", "오른쪽 15°", "축소", "확대", "뒤로 보내기", "앞으로 보내기", "모두 지우기", "불러오기"]:
 		_more_edits.get_popup().add_item(caption)
 	_more_edits.get_popup().id_pressed.connect(_more_edit_action)
 	toolbar.add_child(_more_edits)
@@ -314,6 +356,7 @@ func _build_ui() -> void:
 	canvas = Canvas.new()
 	canvas.name = "DrawingCanvas"
 	canvas.document = document
+	canvas.show_masterpiece = false
 	canvas.custom_minimum_size = Vector2(240, 160)
 	canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -388,7 +431,7 @@ func _build_ui() -> void:
 	_commission_summary = QuadTheme.label("", 15, QuadTheme.TEAL)
 	_commission_summary.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	footer_text.add_child(_commission_summary)
-	_status = QuadTheme.paragraph("의뢰를 고르거나 도형을 골라 자유롭게 그려 보세요.", 14, QuadTheme.INK)
+	_status = QuadTheme.paragraph("의뢰인의 부탁을 살펴보고 그림을 그려요.", 14, QuadTheme.INK)
 	footer_text.add_child(_status)
 	column.add_child(footer)
 	_upload_row = HFlowContainer.new()
@@ -423,7 +466,16 @@ func _responsive_drawing() -> void:
 	for index: int in range(_main_colors.size()): _main_colors[index].visible = index < (9 if spacious else 6)
 	if _background_button != null: _background_button.text = "배경 고르기"
 
+func _update_outline_menu() -> void:
+	var menu: PopupMenu = _more_edits.get_popup()
+	if is_personal_drawing and menu.item_count == 10:
+		menu.add_item("밑그림 표시 전환", 10)
+		menu.add_item("밑그림 진하기 바꾸기", 11)
+	elif not is_personal_drawing:
+		menu.item_count = 10
+
 func _more_edit_action(id: int) -> void:
+	if id >= 10 and not is_personal_drawing: return
 	cancel_gesture()
 	if id < 8 and document.get_selected().is_empty():
 		_set_status("먼저 선택·이동으로 도형을 골라 주세요.")
@@ -602,6 +654,7 @@ func _open_colors() -> void:
 	_color_dialog.popup_centered_clamped(Vector2i(470, 530), 0.9)
 
 func _choose_mode(mode: String) -> void:
+	if not is_personal_drawing: return
 	cancel_gesture()
 	mode_selected.emit(mode)
 	if mode == "masterpiece" and document.masterpiece_id.is_empty():
@@ -611,6 +664,7 @@ func _choose_mode(mode: String) -> void:
 	_set_status("밑그림 위에 여러 사각형을 겹쳐 명화를 완성해 보세요." if mode == "masterpiece" else "자유 그림 모드예요. 배경과 도형으로 나만의 작품을 만들어요.")
 
 func _open_gallery(masterpieces: bool) -> void:
+	if masterpieces and not is_personal_drawing: return
 	if is_instance_valid(_commission_dialog) and _commission_dialog.visible: return
 	cancel_gesture()
 	if _gallery != null:
@@ -664,6 +718,7 @@ func _open_gallery(masterpieces: bool) -> void:
 	_gallery.popup_centered_clamped(Vector2i(850, 700), 0.92)
 
 func _choose_scene(id: String, masterpiece: bool) -> void:
+	if masterpiece and not is_personal_drawing: return
 	cancel_gesture()
 	if masterpiece:
 		if not document.set_masterpiece(id):
@@ -707,7 +762,12 @@ func _refresh() -> void:
 	_mode_masterpiece.set_pressed_no_signal(document.drawing_mode == "masterpiece")
 	Buttons.apply(_mode_free, document.drawing_mode == "free", TOOLBAR_FONT_SIZE)
 	Buttons.apply(_mode_masterpiece, document.drawing_mode == "masterpiece", TOOLBAR_FONT_SIZE)
-	_masterpiece_tools.visible = document.drawing_mode == "masterpiece"
+	_drawing_title.text = "나만의 그림" if is_personal_drawing else "사각형 그림 의뢰"
+	_drawing_tagline.text = "변과 각을 살피며 나만의 작품을 만들어요" if is_personal_drawing else "의뢰인의 부탁에 맞는 작품을 만들어요"
+	_mode_free.visible = is_personal_drawing
+	_mode_masterpiece.visible = is_personal_drawing
+	_masterpiece_button.visible = is_personal_drawing
+	_masterpiece_tools.visible = is_personal_drawing and document.drawing_mode == "masterpiece"
 	var backdrop: Dictionary = Catalog.background(document.background_id)
 	_background_button.text = "배경 고르기"
 	_background_button.tooltip_text = "현재 배경: " + str(backdrop.get("name", "빈 종이"))
@@ -717,7 +777,7 @@ func _refresh() -> void:
 	_trapezoid_variant_picker.select(QuadrilateralMath.TRAPEZOID_VARIANTS.find(canvas.selected_trapezoid_variant))
 	var masterpiece: Dictionary = Catalog.masterpiece(document.masterpiece_id)
 	_masterpiece_button.text = "명화 10종 고르기"
-	if document.drawing_mode == "masterpiece" and not masterpiece.is_empty():
+	if is_personal_drawing and document.drawing_mode == "masterpiece" and not masterpiece.is_empty():
 		_guide_label.text = "%s\n%s · %s\n%s" % [masterpiece.name, masterpiece.artist, masterpiece.year, masterpiece.description]
 	else:
 		_guide_label.text = "도시, 바다, 우주, 산, 집 등 30가지 배경으로 장면을 꾸며요."
@@ -741,9 +801,10 @@ func _document_changed() -> void:
 	if is_instance_valid(_sale_dialog) and _sale_dialog.visible: _refresh_sale_dialog()
 	if not testing and not _restoring:
 		_autosave.start()
+	drawing_document_changed.emit()
 
 func _begin_drawing_work(now: int) -> void:
-	if _restoring or tutorial_blocked or not is_visible_in_tree() or economy == null or economy.art_commission_id.is_empty():
+	if _restoring or is_personal_drawing or tutorial_blocked or not is_visible_in_tree() or economy == null or economy.art_commission_id.is_empty():
 		return
 	_record_drawing_work(now)
 	if document.work_msec < Model.REQUIRED_WORK_MSEC:
@@ -761,7 +822,7 @@ func _notification(what: int) -> void:
 func _record_drawing_work(now: int) -> void:
 	if _drawing_work_until == 0:
 		return
-	if _restoring or tutorial_blocked or not is_visible_in_tree() or _exporting or _sale_pending \
+	if _restoring or is_personal_drawing or tutorial_blocked or not is_visible_in_tree() or _exporting or _sale_pending \
 		or economy == null or economy.art_commission_id.is_empty() \
 		or (is_instance_valid(_commission_dialog) and _commission_dialog.visible) \
 		or (is_instance_valid(_sale_dialog) and _sale_dialog.visible) \
@@ -801,14 +862,15 @@ func _sync_work_commission() -> void:
 	if economy == null or _work_commission_revision == economy.art_commission_revision: return
 	_work_commission_revision = economy.art_commission_revision
 	_stop_drawing_work()
-	document.work_msec = 0
+	_commission_document.work_msec = 0
 	# Old snapshots can hold elapsed work for the previous commission.
-	document.command_manager.clear()
+	_commission_document.command_manager.clear()
 
 func _refresh_sale_button() -> void:
 	if not is_instance_valid(_sale_button): return
 	var commission: Dictionary = _active_commission()
 	var active: bool = not commission.is_empty()
+	_sale_button.visible = not is_personal_drawing
 	_sale_button.disabled = economy == null or _sale_pending
 	_sale_button.text = "완성작 제출" if active else "그림 의뢰 받기"
 	_sale_button.tooltip_text = "제출 조건과 의뢰인의 만족도를 확인해요." if active else "그림을 부탁한 의뢰인을 골라요."
@@ -820,7 +882,7 @@ func _refresh_sale_button() -> void:
 	_refresh_upload_status()
 
 func _active_commission() -> Dictionary:
-	return {} if economy == null else Commissions.get_commission(economy.art_commission_id)
+	return {} if economy == null or is_personal_drawing else Commissions.get_commission(economy.art_commission_id)
 
 func _open_commission_action() -> void:
 	if _active_commission().is_empty():
@@ -829,7 +891,7 @@ func _open_commission_action() -> void:
 		_open_sale()
 
 func _can_open_submission_dialog() -> bool:
-	return economy != null and not _sale_pending and not tutorial_blocked and not _exporting and is_visible_in_tree() \
+	return economy != null and not is_personal_drawing and not _sale_pending and not tutorial_blocked and not _exporting and is_visible_in_tree() \
 		and not (is_instance_valid(_commission_player_reply) and _commission_dialog.visible) \
 		and not (is_instance_valid(_gallery) and _gallery.visible) \
 		and not (is_instance_valid(_color_dialog) and _color_dialog.visible) and not _color_picker.get_popup().visible
@@ -1017,7 +1079,7 @@ func set_upload_status(message: String, pending_count: int = 0, post_url: String
 
 func _refresh_upload_status() -> void:
 	if not is_instance_valid(_upload_row): return
-	_upload_row.visible = not _upload_message.is_empty() or _upload_pending_count > 0 or _upload_busy
+	_upload_row.visible = not is_personal_drawing and (not _upload_message.is_empty() or _upload_pending_count > 0 or _upload_busy)
 	_upload_status.text = _upload_message
 	if _upload_status.text.is_empty() and _upload_pending_count > 0:
 		_upload_status.text = "패들릿에 등록할 그림이 %d개 있어요." % _upload_pending_count
@@ -1027,13 +1089,13 @@ func _refresh_upload_status() -> void:
 	_upload_board.disabled = _sale_pending
 
 func _request_art_upload_retry() -> void:
-	if _upload_busy or _upload_pending_count < 1 or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
+	if is_personal_drawing or _upload_busy or _upload_pending_count < 1 or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
 	_upload_busy = true
 	_refresh_upload_status()
 	art_upload_retry_requested.emit()
 
 func _open_art_board() -> void:
-	if _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
+	if is_personal_drawing or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
 	OS.shell_open(_upload_post_url)
 
 static func _safe_padlet_url(value: String) -> String:
@@ -1152,7 +1214,7 @@ func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	_sale_dialog.get_ok_button().disabled = not can_submit or not metadata_error.is_empty() or _sale_pending
 
 func _confirm_sale() -> void:
-	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
+	if economy == null or is_personal_drawing or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
 	if not is_instance_valid(_sale_dialog) or not _sale_dialog.visible: return
 	# Recheck the current commission and picture at confirmation.
 	var current: Dictionary = economy.quote_art_commission(document)
@@ -1198,6 +1260,7 @@ func render_sale_png(data: Dictionary) -> PackedByteArray:
 	return await sale_png_renderer.call(get_tree(), snapshot)
 
 func show_sale_result(result: Dictionary) -> void:
+	if is_personal_drawing: return
 	_sale_pending = false
 	_refresh_sale_button()
 	if is_instance_valid(_sale_busy): _sale_busy.hide()
@@ -1280,8 +1343,9 @@ func save_drawing(show_feedback: bool = true) -> bool:
 
 func _write_drawing_snapshot(snapshot: Dictionary) -> bool:
 	var data: Dictionary = {"format": "quadrilateral-drawing", "version": 1, "document": snapshot}
-	if _work_commission_revision > 0: data["commission_revision"] = _work_commission_revision
-	var temporary: String = save_path + ".tmp"
+	if not is_personal_drawing and _work_commission_revision > 0: data["commission_revision"] = _work_commission_revision
+	var path: String = personal_save_path if is_personal_drawing else save_path
+	var temporary: String = path + ".tmp"
 	var file: FileAccess = FileAccess.open(temporary, FileAccess.WRITE)
 	if file == null:
 		_set_status("그림을 저장하지 못했어요. 저장 위치를 확인해 주세요.")
@@ -1293,49 +1357,31 @@ func _write_drawing_snapshot(snapshot: Dictionary) -> bool:
 	if write_error != OK:
 		_set_status("그림을 저장하지 못했어요. 다시 시도해 주세요.")
 		return false
-	var backup: String = save_path + ".bak"
-	if FileAccess.file_exists(save_path):
+	var backup: String = path + ".bak"
+	if FileAccess.file_exists(path):
 		if FileAccess.file_exists(backup):
 			DirAccess.remove_absolute(backup)
-		if DirAccess.rename_absolute(save_path, backup) != OK:
+		if DirAccess.rename_absolute(path, backup) != OK:
 			_set_status("기존 그림을 보관하지 못했어요. 다시 시도해 주세요.")
 			return false
-	if DirAccess.rename_absolute(temporary, save_path) != OK:
+	if DirAccess.rename_absolute(temporary, path) != OK:
 		if FileAccess.file_exists(backup):
-			DirAccess.rename_absolute(backup, save_path)
+			DirAccess.rename_absolute(backup, path)
 		_set_status("그림을 저장하지 못했어요. 다시 시도해 주세요.")
 		return false
 	_autosave.stop()
 	return true
 
 func load_drawing(show_feedback: bool = true) -> bool:
-	if not FileAccess.file_exists(save_path):
-		if show_feedback:
-			_set_status("아직 저장한 그림이 없어요. 새 그림을 그려 보세요.")
-		return false
-	var file: FileAccess = FileAccess.open(save_path, FileAccess.READ)
-	if file == null:
-		_set_status("저장한 그림을 열지 못했어요.")
-		return false
-	if file.get_length() > 2000000:
-		file.close()
-		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
-		return false
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if not parsed is Dictionary or parsed.get("format") != "quadrilateral-drawing" or parsed.get("version") != 1 or not parsed.get("document") is Dictionary:
-		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
-		return false
-	var work_revision: Variant = parsed.get("commission_revision", 0)
-	if not Model._integer(work_revision) or float(work_revision) < 0.0 or float(work_revision) > ConstructionState.MAX_ART_COMMISSION_REVISION:
-		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
-		return false
+	var path: String = personal_save_path if is_personal_drawing else save_path
+	var saved: Dictionary = _read_drawing_snapshot(path, show_feedback)
+	if saved.is_empty(): return false
 	cancel_gesture()
 	_stop_drawing_work()
 	_restoring = true
-	var restored: bool = document.restore(parsed.document)
-	if restored:
-		_work_commission_revision = int(work_revision)
+	var restored: bool = document.restore(saved.document)
+	if restored and not is_personal_drawing:
+		_work_commission_revision = int(saved.get("commission_revision", 0))
 		_sync_work_commission()
 	_restoring = false
 	if not restored:
@@ -1347,6 +1393,32 @@ func load_drawing(show_feedback: bool = true) -> bool:
 	if show_feedback:
 		_set_status("저장한 그림을 불러왔어요.")
 	return true
+
+func _read_drawing_snapshot(path: String, show_feedback: bool) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		if show_feedback:
+			_set_status("아직 저장한 그림이 없어요. 새 그림을 그려 보세요.")
+		return {}
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		_set_status("저장한 그림을 열지 못했어요.")
+		return {}
+	if file.get_length() > 2000000:
+		file.close()
+		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
+		return {}
+	var parser: JSON = JSON.new()
+	var parse_error: Error = parser.parse(file.get_as_text())
+	file.close()
+	var parsed: Variant = parser.data
+	if parse_error != OK or not parsed is Dictionary or parsed.get("format") != "quadrilateral-drawing" or parsed.get("version") != 1 or not parsed.get("document") is Dictionary:
+		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
+		return {}
+	var work_revision: Variant = parsed.get("commission_revision", 0)
+	if not Model._integer(work_revision) or float(work_revision) < 0.0 or float(work_revision) > ConstructionState.MAX_ART_COMMISSION_REVISION:
+		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
+		return {}
+	return parsed
 
 func _export_png() -> void:
 	if _exporting or _sale_pending:

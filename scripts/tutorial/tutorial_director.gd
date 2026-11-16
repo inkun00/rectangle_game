@@ -48,7 +48,7 @@ func bind_drawing() -> void:
 	_drawing_bound = app._drawing_screen
 	_drawing_parts = app._drawing_screen.document.shapes.duplicate(true)
 	_drawing_undo_count = app._drawing_screen.document.command_manager.undo_stack.size()
-	app._drawing_screen.document.changed.connect(_drawing_changed)
+	app._drawing_screen.drawing_document_changed.connect(_drawing_changed)
 	app._drawing_screen.mode_selected.connect(_drawing_mode_selected)
 	app._drawing_screen.interaction_context_changed.connect(func(): refresh.call_deferred())
 	app._drawing_screen.tutorial_requested.connect(func(): app._replay_tutorial(current_context()))
@@ -73,8 +73,8 @@ func bind_construction() -> void:
 func current_context() -> String:
 	if app._learning_screen.visible: return "learning"
 	if is_instance_valid(app._drawing_screen) and app._drawing_screen.visible:
-		if active and mode == "masterpiece": return "masterpiece"
-		return "masterpiece" if app._drawing_screen.document.drawing_mode == "masterpiece" else "drawing"
+		var personal: bool = app._drawing_screen.is_personal_drawing
+		return "masterpiece" if personal and ((active and mode == "masterpiece") or app._drawing_screen.document.drawing_mode == "masterpiece") else "drawing"
 	if is_instance_valid(app._construction_screen) and app._construction_screen.visible:
 		return "my_house" if app._construction_screen.state.my_house_mode else "construction"
 	if app._workshop_screen.visible: return "workshop"
@@ -274,7 +274,7 @@ func _drawing_changed() -> void:
 	_drawing_parts = doc.shapes.duplicate(true)
 	_drawing_undo_count = doc.command_manager.undo_stack.size()
 	if not app._drawing_screen.visible: return
-	if doc.drawing_mode == "masterpiece" and (not active or mode != "masterpiece"):
+	if app._drawing_screen.is_personal_drawing and doc.drawing_mode == "masterpiece" and (not active or mode != "masterpiece"):
 		visit("masterpiece")
 	if added: notify("drawing_add")
 	if edited: notify("drawing_edit")

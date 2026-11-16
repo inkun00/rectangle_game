@@ -370,15 +370,25 @@ func _show_ending_choices() -> void:
 		_show_toast(_ending_locked_message())
 		return
 	var body: VBoxContainer = _open_modal(HomePage.ENDING_CHOICE_TITLE)
-	var guidance: String = "지금 골라도 좋아요. 돈을 더 모으면 집에 더 많은 재료를 쓰거나 더 좋은 우주선 부품을 살 수 있어요." if unlocked else _ending_locked_message()
+	var guidance: String = "나만의 작품을 만들거나 사각이의 다음 이야기를 골라요." if unlocked else _ending_locked_message()
 	body.add_child(QuadTheme.paragraph(guidance, 18, QuadTheme.INK))
 	var home_card: VBoxContainer = QuadTheme.card(body, Color("edf5ef"), 14)
-	var home_note: String = "마을에 나만의 집을 지어요.\n집 짓기 자금 · %s" % ConstructionCatalog.format_won(_economy_state.my_house_available_balance())
+	var home_note: String = "지구에 남아 살 집을 지어요.\n집 짓기 자금 · %s" % ConstructionCatalog.format_won(_economy_state.my_house_available_balance())
 	home_card.add_child(QuadTheme.paragraph(_ending_branch_note(earth, home_note), 17, QuadTheme.INK))
-	var earth_button: Button = QuadTheme.button("지구에 남기", _choose_ending_branch.bind("earth"))
+	var earth_button: Button = QuadTheme.button("나만의 집 짓기" if earth.is_empty() and unlocked else "지구에 남기", _choose_ending_branch.bind("earth"))
 	earth_button.name = "ChooseEarthEnding"
 	earth_button.disabled = not unlocked and earth.is_empty()
 	home_card.add_child(earth_button)
+	if unlocked and not earth.is_empty():
+		var edit_home: Button = QuadTheme.button("나만의 집 짓기", _show_earth_house)
+		edit_home.name = "OpenPersonalHouse"
+		home_card.add_child(edit_home)
+	if unlocked:
+		var art_card: VBoxContainer = QuadTheme.card(body, Color("edf5ef"), 14)
+		art_card.add_child(QuadTheme.paragraph("사각형으로 원하는 그림을 그리거나 명화 밑그림을 꾸며요.", 17, QuadTheme.INK))
+		var art_button: Button = QuadTheme.button("나만의 그림", _show_drawing.bind(true))
+		art_button.name = "OpenPersonalDrawing"
+		art_card.add_child(art_button)
 	var ship_card: VBoxContainer = QuadTheme.card(body, Color("eef4fa"), 14)
 	var ship_note: String = "부품 12종을 골라 우주선을 만들어요.\n우주선 자금 · %s" % ConstructionCatalog.format_won(_economy_state.ship_available_funds())
 	if _economy_state.launched and not unlocked: ship_note = "완성한 우주선으로 출발 이야기를 다시 봐요."
@@ -418,13 +428,13 @@ func _economy_save_path() -> String:
 
 func _accept_art_commission(id: String) -> void:
 	if not is_instance_valid(_drawing_screen) or not _drawing_screen.is_visible_in_tree(): return
-	if _drawing_screen.tutorial_blocked or _drawing_screen._sale_pending or _art_submission_busy: return
+	if _drawing_screen.is_personal_drawing or _drawing_screen.tutorial_blocked or _drawing_screen._sale_pending or _art_submission_busy: return
 	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "accept_art_commission", id, _economy_save_path(), not testing)
 	_drawing_screen.show_art_commission_result(result)
 
 func _sell_art(data: Dictionary) -> void:
 	if not is_instance_valid(_drawing_screen) or _art_submission_busy: return
-	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.tutorial_blocked:
+	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.is_personal_drawing or _drawing_screen.tutorial_blocked:
 		_drawing_screen.show_sale_result({"ok": false, "error": "사각형 그림 화면에서 의뢰를 제출해 주세요."})
 		return
 	var commission: String = _economy_state.art_commission_id
@@ -945,13 +955,20 @@ func _opening_closed(reason: String) -> void:
 	if reason == "unavailable":
 		_show_toast("영상을 재생할 수 없어요. 메인 화면에서 바로 시작해 주세요.")
 
-func _show_drawing() -> void:
+func _show_drawing(personal: bool = false) -> void:
+	if personal and not _ending_unlocked():
+		_show_toast(_ending_locked_message())
+		return
 	if not await _ensure_feature("drawing"): return
 	_build_drawing()
 	_leave_activity()
+	if not _drawing_screen.open_workspace(personal):
+		_show_home()
+		_show_toast("그림 기록을 열지 못했어요. 메인 화면에서 다시 시도해 주세요.")
+		return
 	_drawing_screen.show()
 	_responsive()
-	_tutorial.visit("masterpiece" if _drawing_screen.document.drawing_mode == "masterpiece" else "drawing")
+	_tutorial.visit("masterpiece" if personal and _drawing_screen.document.drawing_mode == "masterpiece" else "drawing")
 
 func _show_construction() -> void:
 	await _open_construction(false)
@@ -962,14 +979,15 @@ func _show_earth_house() -> void:
 		return
 	await _open_construction(true)
 
-func _open_construction(earth: bool) -> void:
+func _open_construction(personal: bool) -> void:
 	if not await _ensure_feature("construction"): return
 	_build_construction()
 	_leave_activity()
+	if personal: _construction_screen.open_personal_mode()
+	else: _construction_screen.open_commission_mode()
 	_construction_screen.show()
-	if earth and not _construction_screen.state.my_house_mode: _construction_screen._enter_my_house_mode()
 	_responsive()
-	_tutorial.visit("my_house" if _construction_screen.state.my_house_mode else "construction")
+	_tutorial.visit("my_house" if personal else "construction")
 
 func _show_workshop() -> void:
 	if is_instance_valid(_startup_learning): return
@@ -1891,30 +1909,24 @@ func _show_tutorials() -> void:
 	var body: VBoxContainer = _open_modal("함께 해 보는 모드 안내")
 	body.add_child(QuadTheme.paragraph("직각이와 이야기하며 직접 해 봐요. 언제든 건너뛸 수 있고, 지금 만든 작품과 모험은 그대로 이어져요.", 18))
 	for context: String in TutorialCatalog.MODE_IDS:
+		if context in ["masterpiece", "my_house"]: continue
 		var status: String = str(_tutorial.progress.statuses.get(context, ""))
 		var suffix: String = " · 다시 보기" if not status.is_empty() else " · 처음 해 보기"
 		body.add_child(QuadTheme.button(TutorialCatalog.title(context) + suffix, _replay_tutorial.bind(context)))
 
 func _replay_tutorial(context: String) -> void:
+	var current: String = _tutorial.current_context()
+	if context in ["masterpiece", "my_house"] and context != current: return
 	_close_modal(false)
-	if context != _tutorial.current_context():
+	if context != current:
 		match context:
 			"learning": _show_learning()
 			"drawing":
-				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: await _show_drawing()
-				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: return
-				if _drawing_screen.document.drawing_mode != "free": _drawing_screen._choose_mode("free")
-			"masterpiece":
-				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: await _show_drawing()
+				await _show_drawing()
 				if not is_instance_valid(_drawing_screen) or not _drawing_screen.visible: return
 			"construction":
-				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: await _show_construction()
+				await _show_construction()
 				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: return
-				if _construction_screen.state.my_house_mode: _construction_screen._exit_my_house_mode()
-			"my_house":
-				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: await _show_construction()
-				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: return
-				if not _construction_screen.state.my_house_mode: _construction_screen._enter_my_house_mode()
 			"workshop": _show_workshop()
 			"world":
 				await _enter_world()

@@ -130,7 +130,6 @@ var _title_label: Label
 var _view_bar: HBoxContainer
 var _phase_bar: HBoxContainer
 var _drawing_title: Label
-var _my_house_button: Button
 var _my_house_export: Button
 var _earth_ending_button: Button
 var earth_ending_unlocked: bool = false
@@ -178,6 +177,7 @@ func _active_doc() -> ConstructionDocument:
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if state.my_house_mode: state.set_my_house_mode(false)
 	_build_ui()
 	_autosave = Timer.new()
 	_autosave.one_shot = true
@@ -220,7 +220,7 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 		"삭제": "delete", "회전": "rotate", "확대": "zoom", "축소": "zoom",
 		"집에 맞추기": "fit", "시공 검사": "inspect", "집 보여 주기": "receipt",
 		"의뢰인에게 보여주기": "receipt", "설계 보기": "draw", "재료 보기": "book",
-		"나만의 집 짓기": "home", "첫 집 안내": "help", "안내 접기": "help",
+		"첫 집 안내": "help", "안내 접기": "help",
 		"안내대로 놓기": "fit"
 	}
 	if icons.has(text):
@@ -565,9 +565,6 @@ func _build_ui() -> void:
 	_drawing_title = drawing_title
 	_drawing_title.visible = false
 	view_bar.add_child(drawing_title)
-	_my_house_button = _button("나만의 집 짓기", _toggle_my_house_mode, true)
-	_my_house_button.name = "MyHouseModeButton"
-	view_bar.add_child(_my_house_button)
 	_guide_toggle = _button("첫 집 안내", _toggle_guide)
 	_guide_toggle.custom_minimum_size.x = 92
 	view_bar.add_child(_guide_toggle)
@@ -611,7 +608,6 @@ func _build_ui() -> void:
 	_completed_publish.name = "PublishCompletedBuilding"
 	completed_buttons.add_child(_completed_publish)
 	completed_buttons.add_child(_button("명예의 전당", _show_hall))
-	completed_buttons.add_child(_button("나만의 집 짓기", _enter_my_house_mode, true))
 	canvas = Canvas.new()
 	canvas.name = "ConstructionCanvas"
 	canvas.document = state.document
@@ -1138,6 +1134,11 @@ func _refresh() -> void:
 		canvas.document = active_doc
 	var contract: Dictionary = state.current_contract()
 	var my_mode: bool = state.my_house_mode
+	_title_label.text = "나만의 집 짓기" if my_mode else ("뚝딱! 집 짓기" if size.x < 1200 else "뚝딱! 사각형 집 짓기")
+	_compact_details.text = "돈 기록" if my_mode else ("부탁" if size.x < 1200 else "부탁·돈 기록")
+	_stage_button.visible = not my_mode
+	_portrait_holder.visible = not my_mode
+	_client_action.visible = not my_mode
 	if is_instance_valid(_drawing_title):
 		_drawing_title.text = "나만의 집" if my_mode else "건설 작업장"
 	if is_instance_valid(_pan_button):
@@ -1146,8 +1147,6 @@ func _refresh() -> void:
 		_pan_button_lower.button_pressed = canvas.pan_tool
 	if is_instance_valid(_select_button):
 		_select_button.button_pressed = not canvas.pan_tool and not canvas.drawing_tool
-	if is_instance_valid(_my_house_button):
-		_my_house_button.text = ("의뢰 모드" if size.x < 1100 else "의뢰 집 짓기") if my_mode else ("내 집 짓기" if size.x < 1100 else "나만의 집 짓기")
 	if my_mode:
 		_project_label.text = "나만의 집 · %s" % Catalog.format_won(state.my_house_available_balance())
 	else:
@@ -1190,7 +1189,6 @@ func _refresh() -> void:
 		_costs.text = "보유 자산  %s\n사용 재료비  %s\n남은 자금  %s" % [Catalog.format_won(state.my_house_budget()), Catalog.format_won(state.my_house_cost()), Catalog.format_won(state.my_house_available_balance())]
 		_budget.value = 100.0 * state.my_house_cost() / maxi(1, state.my_house_budget())
 		_budget_label.text = "자산 %.0f%% 사용" % _budget.value
-		_client_action.text = "의뢰 선택"
 	else:
 		_client.text = "%d단계 · %s" % [int(contract.get("stage", 1)), str(contract.client)]
 		_brief.text = str(contract.title)
@@ -1428,10 +1426,8 @@ func _focus_repair(part_id: int) -> void:
 	_refresh()
 
 func _client_clicked() -> void:
-	if state.my_house_mode:
-		_exit_my_house_mode()
-		_show_stages()
-	elif state.phase == "settled":
+	if state.my_house_mode: return
+	if state.phase == "settled":
 		_next_contract()
 	else:
 		_show_brief()
@@ -1459,9 +1455,6 @@ func _build_onscreen_client_board() -> void:
 	top_row.add_child(heading)
 	_client_board_asset_label = _label("", 15, Color("ffd18a"))
 	top_row.add_child(_client_board_asset_label)
-	var my_house_btn: Button = _button("나만의 집 짓기", _enter_my_house_mode, true)
-	my_house_btn.name = "BoardMyHouseButton"
-	top_row.add_child(my_house_btn)
 	_client_board_grid = GridContainer.new()
 	_client_board_grid.name = "OnscreenClientGrid"
 	_client_board_grid.columns = 3
@@ -1520,12 +1513,12 @@ func _populate_client_grid(grid: GridContainer, include_direct_title_buttons: bo
 			var select: Button = _button(str(offer.title), func(): _select_offer(choice), unlocked)
 			select.name = "StageOffer_%d" % choice
 			select.custom_minimum_size.y = 40
-			select.disabled = not unlocked or (state.phase == "building" and not state.my_house_mode)
-			select.tooltip_text = "지금 집을 완성한 다음 다른 부탁을 고를 수 있어요." if (state.phase == "building" and not state.my_house_mode) else str(status.reason)
+			select.disabled = not unlocked or state.phase == "building"
+			select.tooltip_text = "지금 집을 완성한 다음 다른 부탁을 고를 수 있어요." if state.phase == "building" else str(status.reason)
 			cell.add_child(select)
 
 func _show_client_offer_modal(choice: int) -> void:
-	if choice < 0 or choice >= Catalog.contract_count(): return
+	if state.my_house_mode or choice < 0 or choice >= Catalog.contract_count(): return
 	var offer: Dictionary = Catalog.contract(choice)
 	var stage_num: int = int(offer.get("stage", choice + 1))
 	var status: Dictionary = state.stage_unlock_status(stage_num)
@@ -1557,7 +1550,6 @@ func _show_client_offer_modal(choice: int) -> void:
 	var can_accept_now: bool = unlocked and (state.phase in ["briefing", "settled"])
 	var accept_btn: Button = _modal_action("이 의뢰 수락하고 시작" if unlocked else "건축 실적 부족 (수락 불가)", func():
 		if not can_accept_now: return
-		if state.my_house_mode: state.set_my_house_mode(false)
 		if state.contract_choice != choice:
 			if not state.select_contract(choice): return
 		_accept_contract()
@@ -1567,6 +1559,11 @@ func _show_client_offer_modal(choice: int) -> void:
 	_modal_action("3×3 의뢰인 목록", _show_stages)
 
 func _show_project_info() -> void:
+	if state.my_house_mode:
+		_open_modal("나만의 집 · 돈 기록")
+		_modal_body.add_child(_label(_costs.text, 19))
+		_modal_action("작업대로 돌아가기", _close_modal, true)
+		return
 	_open_modal("의뢰와 공사 장부")
 	_modal_body.add_child(_label(_client.text + "\n" + _brief.text, 23, BLUE))
 	_modal_body.add_child(_label(_requirements.text, 18))
@@ -1589,6 +1586,7 @@ func _ensure_brief() -> void:
 	if is_visible_in_tree() and state.phase == "briefing" and not is_instance_valid(_modal): _show_brief()
 
 func _show_brief() -> void:
+	if state.my_house_mode: return
 	var contract: Dictionary = state.current_contract()
 	var stage_num: int = int(contract.get("stage", 1))
 	var status: Dictionary = state.stage_unlock_status(stage_num)
@@ -1596,14 +1594,10 @@ func _show_brief() -> void:
 	var held_assets: int = state.saved_balance()
 	var required_assets: int = int(contract.get("minimum_balance", status.get("minimum_balance", 30000000)))
 	_open_modal("%s 님이 찾아왔어요" % str(contract.client))
-	var switch_row: HBoxContainer = HBoxContainer.new()
-	switch_row.add_theme_constant_override("separation", 8)
-	_modal_body.add_child(switch_row)
 	var choose_client_btn: Button = _button("3×3 의뢰인 선택 (9단계)", _show_stages, true)
 	choose_client_btn.name = "OpenClientGridFromBrief"
-	switch_row.add_child(choose_client_btn)
-	var my_house_from_brief: Button = _button("나만의 집 짓기 모드", _enter_my_house_mode)
-	switch_row.add_child(my_house_from_brief)
+	choose_client_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_modal_body.add_child(choose_client_btn)
 	var intro: HBoxContainer = HBoxContainer.new()
 	intro.add_theme_constant_override("separation", 22)
 	_modal_body.add_child(intro)
@@ -1632,8 +1626,7 @@ func _show_brief() -> void:
 		_modal_action("계속 짓기", _close_modal, true)
 
 func _accept_contract() -> void:
-	if state.my_house_mode:
-		state.set_my_house_mode(false)
+	if state.my_house_mode: return
 	if not state.accept_contract():
 		_set_status("계약을 시작할 수 없어요. 현재 의뢰를 확인해 주세요.")
 		return
@@ -1854,6 +1847,7 @@ func _show_glossary() -> void:
 	_modal_action("집 짓기로 돌아가기", _close_modal, true)
 
 func _show_stages() -> void:
+	if state.my_house_mode: return
 	_open_modal("3×3 의뢰인 선택 · 금액별 9단계")
 	_modal_body.add_child(_label("보유 자산 %s · 누적 건축 수익 %s" % [Catalog.format_won(state.saved_balance()), Catalog.format_won(state.earned_profit())], 16, BLUE))
 	var grid: GridContainer = GridContainer.new()
@@ -1865,16 +1859,10 @@ func _show_stages() -> void:
 	_modal_body.add_child(grid)
 	_populate_client_grid(grid, true)
 	if state.phase == "settled": _modal_action("지금 단계의 집 다시 짓기", _repeat_contract, true)
-	_modal_action("나만의 집 짓기 모드로 이동", _enter_my_house_mode)
 	_modal_action("닫기", _close_modal)
 
-func _toggle_my_house_mode() -> void:
-	if state.my_house_mode:
-		_exit_my_house_mode()
-	else:
-		_enter_my_house_mode()
-
-func _enter_my_house_mode() -> void:
+func open_personal_mode() -> void:
+	if state.my_house_mode: return
 	_close_modal()
 	canvas.stop_inspection()
 	canvas.cancel_gesture()
@@ -1888,7 +1876,8 @@ func _enter_my_house_mode() -> void:
 	_set_status("나만의 집 짓기 모드예요! 의뢰를 통해 모은 자산(%s)으로 나만의 집을 자유롭게 짓고 PNG 파일로 저장해 보세요." % Catalog.format_won(state.my_house_budget()))
 	_refresh()
 
-func _exit_my_house_mode() -> void:
+func open_commission_mode() -> void:
+	if not state.my_house_mode: return
 	_close_modal()
 	canvas.stop_inspection()
 	canvas.cancel_gesture()
@@ -1897,7 +1886,7 @@ func _exit_my_house_mode() -> void:
 	_last_revision = state.document.revision
 	canvas.document = state.document
 	canvas.call_deferred("fit_parts")
-	_set_status("의뢰 집 짓기 모드로 돌아왔어요. 3×3 의뢰인 보드에서 원하는 의뢰를 선택해 보세요.")
+	_set_status("진행 중인 부탁을 이어서 하거나 다른 의뢰를 살펴볼 수 있어요.")
 	_refresh()
 
 func _export_my_house() -> void:
@@ -2333,7 +2322,6 @@ func _on_visibility_changed() -> void:
 
 func _responsive() -> void:
 	if is_instance_valid(_phase_bar): _phase_bar.visible = false
-	if is_instance_valid(_title_label): _title_label.text = "뚝딱! 집 짓기" if size.x < 1200 else "뚝딱! 사각형 집 짓기"
 	if is_instance_valid(_cash): _cash.custom_minimum_size.x = 116 if size.x < 1200 else 132
 	if is_instance_valid(_cash): _cash.visible = size.x >= 1000
 	if is_instance_valid(_cash_pill): _cash_pill.visible = size.x >= 1000
@@ -2342,7 +2330,6 @@ func _responsive() -> void:
 		for child: Node in header.get_children():
 			if child is Button and child.has_meta("construction_tool"):
 				child.icon = null if size.x < 1200 else Art.tool_icon(str(child.get_meta("construction_tool")))
-	if is_instance_valid(_compact_details): _compact_details.text = "부탁" if size.x < 1200 else "부탁·돈 기록"
 	if is_instance_valid(_stage_summary): _stage_summary.visible = false
 	if is_instance_valid(_stage_card): _stage_card.visible = false
 	if is_instance_valid(_palette_hint): _palette_hint.visible = false
@@ -2376,8 +2363,12 @@ func save_game(show_message: bool = true) -> bool:
 
 func load_game(show_message: bool = true) -> bool:
 	if not Saves.has_save(save_path): return false
+	# Older saves include their last mode. Use the current workspace route when loading.
+	var editing_personal_house: bool = state.my_house_mode
 	_restoring = true
 	var result: Dictionary = Saves.load_into(save_path, state)
+	if bool(result.ok) and state.my_house_mode != editing_personal_house:
+		state.set_my_house_mode(editing_personal_house)
 	_restoring = false
 	if bool(result.ok):
 		_last_report.clear()

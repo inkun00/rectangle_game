@@ -7,7 +7,7 @@ const MODE_IDS: Array[String] = ["learning", "drawing", "masterpiece", "construc
 static func title(mode: String) -> String:
 	match mode:
 		"learning": return "수학 직접 해 보기 안내"
-		"drawing": return "자유 그림 안내"
+		"drawing": return "그림 그리기 안내"
 		"masterpiece": return "명화 채우기 안내"
 		"construction": return "부탁받은 집 짓기 안내"
 		"my_house": return "나만의 집 짓기 안내"
@@ -28,12 +28,12 @@ static func steps(mode: String) -> Array[Dictionary]:
 			]
 		"drawing":
 			return [
-				_step("여기는 사각형으로 그림을 만드는 종이야. 네가 고른 색과 도형으로 자유롭게 꾸며 보자.", "만들고 싶은 그림을 떠올려요."),
+				_step("여기는 사각형으로 그림을 만드는 곳이야. 만들고 싶은 장면에 어울리는 색과 도형을 골라 보자.", "그림에 넣을 사각형을 떠올려요."),
 				_step("도형을 고른 뒤 종이에서 드래그해 봐. ‘가운데에 도형 추가’를 눌러도 도형을 놓을 수 있어.", "종이에 도형을 하나 놓아요.", "drawing_add"),
 				_step("‘선택·이동’으로 도형을 잡아 옮겨 봐. 변과 꼭짓점의 손잡이는 크기, 둥근 손잡이는 방향을 바꾸는 데 써.", "선택한 도형을 옮기거나 크기·방향을 바꿔요.", "drawing_edit"),
 				_step("바꾸기 전 모습도 다시 볼까? ‘되돌리기’를 누르면 방금 한 편집을 한 번 되돌릴 수 있어.", "되돌리기를 한 번 눌러요.", "drawing_undo"),
 				_step("‘다시’를 누르면 되돌렸던 편집을 다시 적용할 수 있어. 마음에 드는 배치를 천천히 찾아보자.", "편집 버튼의 역할을 알아봐요."),
-				_step("그림은 자동으로 저장돼. 준비되면 ‘그림 의뢰 받기’에서 의뢰인의 부탁을 살펴보고 그림을 그려 보자.", "자유롭게 그림을 그리거나 그림 의뢰를 받아요.")
+				_step("그림은 자동으로 저장돼. 어떤 색과 모양을 더하면 떠올린 장면이 잘 보일까?", "자동으로 저장되는 그림을 이어서 그려요.")
 			]
 		"masterpiece":
 			return [
