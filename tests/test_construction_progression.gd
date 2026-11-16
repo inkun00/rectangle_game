@@ -6,11 +6,13 @@ const State = preload("res://scripts/construction/construction_state.gd")
 const Document = preload("res://scripts/construction/construction_document.gd")
 const Guide = preload("res://scripts/construction/construction_guide.gd")
 const Facade = preload("res://scripts/construction/construction_facade.gd")
+const Transactions = preload("res://scripts/economy/progression_transactions.gd")
 
 static func run(t: Node) -> void:
 	_test_stages_and_flat_roofs(t)
 	_test_right_trapezoid_roofs(t)
 	_test_progression_and_repeats(t)
+	_test_transaction_after_settled_restore(t)
 	_test_legacy_and_atomic_restore(t)
 	_test_v5_compatibility(t)
 
@@ -139,6 +141,26 @@ static func _test_progression_and_repeats(t: Node) -> void:
 	invalid.records.back().award.tier = int(invalid.records.back().award.tier) + 1
 	t.assert_false(state.restore(JSON.parse_string(JSON.stringify(invalid))), "Award metadata cannot be edited independently of the saved house")
 	t.assert_eq(JSON.stringify(state.serialize()), before, "A forged award leaves the entire live ledger unchanged")
+
+static func _test_transaction_after_settled_restore(t: Node) -> void:
+	var state: State = State.new()
+	_finish_offer(t, state)
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(state.serialize()))
+	var restored: State = State.new()
+	t.assert_true(restored.restore(saved), "A settled construction ledger can be loaded from JSON")
+	var accepted: Dictionary = Transactions.commit(restored, "accept_art_commission", "park_poster", "", false)
+	t.assert_true(bool(accepted.ok), "A loaded settled ledger can accept a drawing commission")
+	t.assert_eq(restored.art_commission_id, "park_poster", "The drawing commission is active after the transaction")
+	t.assert_eq(restored.balance, state.balance, "Accepting a drawing commission preserves the settled balance")
+	var altered: Dictionary = saved.duplicate(true)
+	for part: Dictionary in altered.document.parts:
+		part.position[0] = float(part.position[0]) + 4.0
+	var other_house: Document = Document.new()
+	other_house.budget_limit = int(state.current_contract().material_budget)
+	t.assert_true(other_house.restore(altered.document), "The altered house is valid on its own")
+	var before: Dictionary = restored.serialize()
+	t.assert_false(restored.restore(altered), "The active settled house must still match its paid record")
+	t.assert_eq(restored.serialize(), before, "Rejecting a mismatched house leaves the current account intact")
 
 static func _finish_offer(t: Node, state: State) -> void:
 	t.assert_true(state.accept_contract(), "Chosen commission can be accepted once")

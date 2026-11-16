@@ -519,10 +519,11 @@ func restore(data: Dictionary) -> bool:
 	var expected_records: int = index + (1 if str(data.phase) == "settled" else 0)
 	if data.records.size() != expected_records: return false
 	var checked_records: Array[Dictionary] = []
+	var last_record_document: Document = Document.new()
 	var expected_balance: int = INITIAL_BALANCE
 	for number: int in range(data.records.size()):
 		var raw: Variant = data.records[number]
-		if not raw is Dictionary or not _valid_record(raw, number, checked_custom_ids): return false
+		if not raw is Dictionary or not _valid_record(raw, number, checked_custom_ids, last_record_document): return false
 		if int(raw.get("grading_version", 1)) >= 5:
 			if not bool(_unlock_status(int(record_contract(raw).stage), checked_records).unlocked): return false
 		checked_records.append(raw.duplicate(true))
@@ -613,7 +614,7 @@ func restore(data: Dictionary) -> bool:
 	if not checked.restore(data.document): return false
 	if not _custom_parts_registered(checked.parts, checked_custom_ids): return false
 	if str(data.phase) == "briefing" and not checked.parts.is_empty(): return false
-	if str(data.phase) == "settled" and data.document.parts != checked_records.back().document.parts:
+	if str(data.phase) == "settled" and checked.parts != last_record_document.parts:
 		return false
 	var checked_my_house_mode: bool = false
 	if data.has("my_house_mode"):
@@ -840,7 +841,7 @@ static func _part_lengths(item: Dictionary) -> Vector2:
 		longest = maxf(longest, length / Catalog.GRID_UNIT)
 	return Vector2(shortest, longest)
 
-static func _valid_record(raw: Dictionary, index: int, registered: Array[String] = []) -> bool:
+static func _valid_record(raw: Dictionary, index: int, registered: Array[String], model: Document) -> bool:
 	if not raw.has_all(["index", "id", "client", "title", "total", "advance", "base_cost", "material_cost", "score", "bonus", "final_payment", "profit", "document"]): return false
 	var grading: Variant = raw.get("grading_version", 1)
 	if not Document._integer(grading, 1, GRADING_VERSION): return false
@@ -854,7 +855,6 @@ static func _valid_record(raw: Dictionary, index: int, registered: Array[String]
 	for field: String in ["total", "advance", "base_cost"]:
 		if not Document._integer(raw[field], int(offer[field]), int(offer[field])): return false
 	if not raw.document is Dictionary: return false
-	var model: Document = Document.new()
 	model.budget_limit = int(offer.material_budget)
 	if not model.restore(raw.document): return false
 	if not _custom_parts_registered(model.parts, registered): return false
