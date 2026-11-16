@@ -1,24 +1,22 @@
 class_name ArtMarket
 extends RefCounted
 
-## A deterministic offer for a player's visible quadrilateral composition.
-## The market rewards composition variety, not a subjective artistic grade.
+## Quotes use the visible quadrilaterals, their shape families, and paper coverage.
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const Drawing = preload("res://scripts/core/drawing_document.gd")
-const Composition = preload("res://scripts/economy/art_composition.gd")
 const MAX_SALES: int = 512
 const GRID: Vector2i = Vector2i(48, 30)
 const SAMPLE_COUNT: int = 1440
 const EMPTY: String = "___"
 const MIN_VISIBLE_SAMPLES: int = 3
-const MIN_SHAPES: int = 5
-const MIN_COVERAGE: float = 0.08
-# Historical receipts retain the original five-piece/8% price and validation
-# rules. These stricter requirements apply only when offering a new painting.
+const LEGACY_MIN_SHAPES: int = 5
+const LEGACY_MIN_COVERAGE: float = 0.08
+const RECEIPT_VERSION: int = 3
 const MIN_SALE_SHAPES: int = 6
+const MIN_SALE_FAMILIES: int = 3
 const MIN_SALE_COVERAGE: float = 0.12
-const MIN_COLOR_SHARE: float = 0.03
-const MIN_COLOR_DISTANCE: float = 0.18
+# Keep the earlier minimum palette allowance in the base amount.
+const BASE_PRICE: int = 700000
 const MAX_PRICE: int = 8000000
 const MAX_TITLE_LENGTH: int = 80
 
@@ -36,7 +34,7 @@ static func valid_title(value: Variant) -> bool:
 
 
 static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Dictionary:
-	var result: Dictionary = {"can_sell": false, "price": 0, "reason": "", "fingerprint": "", "signature": "", "visible_shapes": 0, "families": 0, "colors": 0, "coverage": 0.0, "subject": "", "checks": []}
+	var result: Dictionary = {"can_sell": false, "price": 0, "full_price": 0, "completion_ratio": 0.0, "reason": "", "fingerprint": "", "signature": "", "visible_shapes": 0, "families": 0, "colors": 0, "coverage": 0.0, "checks": []}
 	if document == null:
 		result.reason = "먼저 사각형으로 그림을 그려 주세요."
 		return result
@@ -46,52 +44,52 @@ static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Di
 		return result
 	var parts: Array[Dictionary] = checked.ordered_shapes()
 	var raster: Dictionary = _rasterize(parts)
+	var coverage: float = float(raster.covered) / float(SAMPLE_COUNT)
 	result.signature = str(raster.signature)
-	result.coverage = float(raster.covered) / float(SAMPLE_COUNT)
+	result.coverage = coverage
 	var families: Dictionary = {}
-	var visible: Array[Dictionary] = []
+	var visible_shapes: int = 0
 	for index: int in range(parts.size()):
 		if int(raster.visible.get(index, 0)) < MIN_VISIBLE_SAMPLES: continue
-		visible.append(parts[index])
+		visible_shapes += 1
 		families[_specific_family(parts[index].vertices)] = true
-	result.visible_shapes = visible.size()
-	result.families = families.size()
+	var family_count: int = families.size()
+	result.visible_shapes = visible_shapes
+	result.families = family_count
 	result.colors = int(raster.colors)
 	# Keep obscured geometry in this order-independent identity: changing layers
 	# alone must not create another sale. The visible signature catches hidden additions.
 	result.fingerprint = _fingerprint(parts)
-	result.price = _price(int(result.visible_shapes), int(result.families), int(result.colors), float(result.coverage))
-	var palette_ok: bool = _has_meaningful_colors(raster.color_samples, int(raster.covered))
-	var form: Dictionary = Composition.assess(parts, raster.visible)
-	result.subject = str(form.get("subject", ""))
+	var enough_shapes: bool = visible_shapes >= MIN_SALE_SHAPES
+	var enough_families: bool = family_count >= MIN_SALE_FAMILIES
+	var enough_coverage: bool = coverage >= MIN_SALE_COVERAGE
+	var required_percent: int = roundi(MIN_SALE_COVERAGE * 100.0)
 	var checks: Array[Dictionary] = [
-		{"id": "pieces", "label": "눈에 보이는 도형 6개 이상", "met": visible.size() >= MIN_SALE_SHAPES, "detail": "%d / 6개" % visible.size()},
-		{"id": "palette", "label": "구별되는 색 2가지 이상", "met": palette_ok, "detail": "작은 점을 제외하고 두 색이 각각 3% 이상 보여야 해요."},
-		{"id": "coverage", "label": "종이의 12% 이상 그리기", "met": float(result.coverage) >= MIN_SALE_COVERAGE, "detail": "현재 %.1f%%" % (float(result.coverage) * 100.0)}
+		{"id": "pieces", "label": "눈에 보이는 사각형 %d개 이상" % MIN_SALE_SHAPES, "met": enough_shapes, "detail": "%d / %d개" % [visible_shapes, MIN_SALE_SHAPES]},
+		{"id": "families", "label": "서로 다른 사각형 %d종류 이상" % MIN_SALE_FAMILIES, "met": enough_families, "detail": "%d / %d종류" % [family_count, MIN_SALE_FAMILIES]},
+		{"id": "coverage", "label": "도화지의 %d%% 이상 채우기" % required_percent, "met": enough_coverage, "detail": "현재 %.1f%%" % (coverage * 100.0)}
 	]
-	for check: Dictionary in form.get("criteria", []): checks.append(check)
 	result.checks = checks
-	if visible.size() < MIN_SALE_SHAPES:
-		result.reason = "눈에 보이는 사각형을 6개 이상 조합해 주세요. 아주 작거나 완전히 가려진 도형은 세지 않아요."
-	elif not palette_ok:
-		result.reason = "잘 구별되는 두 색으로 큰 부분과 세부를 꾸며 주세요. 아주 작은 색 점은 조건에 세지 않아요."
-	elif float(result.coverage) < MIN_SALE_COVERAGE:
-		result.reason = "그림을 조금 더 크게 그려 주세요. 종이의 12% 이상을 직접 그린 사각형으로 채워 주세요."
-	elif not bool(form.get("has_form", false)):
-		result.reason = str(form.get("reason", "사각형을 조합해 사물의 몸체와 세부 또는 정렬된 기하 구성을 만들어 주세요."))
+	if visible_shapes == 0:
+		result.reason = "도화지에 잘 보이는 사각형을 하나 이상 그려 주세요."
 	elif sold.size() >= MAX_SALES:
 		result.reason = "작품 판매 기록이 가득 찼어요. 집 짓기로 우주선 제작비를 더 모을 수 있어요."
 	elif is_duplicate(result, sold):
 		result.reason = "이미 판매한 작품과 같거나 아주 비슷해요. 새 구도나 도형으로 다른 작품을 만들어 주세요."
 	else:
+		var completion_ratio: float = _completion_ratio(visible_shapes, family_count, coverage)
+		var full_price: int = _full_price(visible_shapes, family_count, coverage)
 		result.can_sell = true
-		result.reason = "%s 구성 기준을 갖췄어요. 마을 화랑에서 이 가격에 작품을 구매해요." % str(result.subject)
+		result.completion_ratio = completion_ratio
+		result.full_price = full_price
+		result.price = _discounted_price(full_price, completion_ratio)
+		result.reason = "세 가지 목표를 모두 채웠어요." if completion_ratio == 1.0 else "지금 팔거나, 부족한 목표를 더 채워 값을 높일 수 있어요."
 	return result
 
 
 static func receipt_from_quote(offer: Dictionary, title: String = "") -> Dictionary:
 	if not bool(offer.get("can_sell", false)): return {}
-	var result: Dictionary = {"version": 1, "title": title.strip_edges().left(80)}
+	var result: Dictionary = {"version": RECEIPT_VERSION, "title": title.strip_edges().left(MAX_TITLE_LENGTH)}
 	if str(result.title).is_empty(): result.title = "나의 사각형 작품"
 	for key: String in ["fingerprint", "signature", "price", "visible_shapes", "families", "colors", "coverage"]:
 		if not offer.has(key): return {}
@@ -106,14 +104,27 @@ static func validate_receipt(receipt: Dictionary) -> bool:
 
 
 static func _validate_receipt_fields(receipt: Dictionary) -> bool:
-	if not _integer(receipt.version, 1, 1) or not receipt.title is String or str(receipt.title).length() > 80 or str(receipt.title).strip_edges().is_empty(): return false
+	if not _integer(receipt.version, 1, RECEIPT_VERSION) or not receipt.title is String or str(receipt.title).length() > MAX_TITLE_LENGTH or str(receipt.title).strip_edges().is_empty(): return false
 	if not receipt.fingerprint is String or str(receipt.fingerprint).length() != 64 or not _is_hex(str(receipt.fingerprint)): return false
 	if not receipt.signature is String or str(receipt.signature).length() != SAMPLE_COUNT * 3: return false
-	if not _integer(receipt.visible_shapes, MIN_SHAPES, 128) or not _integer(receipt.families, 1, 5): return false
-	if int(receipt.families) > int(receipt.visible_shapes) or not _integer(receipt.colors, 2, 128): return false
+	var version: int = int(receipt.version)
+	var legacy: bool = version == 1
+	var minimum_shapes: int = 1
+	var minimum_families: int = 1
+	var minimum_coverage: float = 0.0
+	if legacy:
+		minimum_shapes = LEGACY_MIN_SHAPES
+		minimum_coverage = LEGACY_MIN_COVERAGE
+	elif version == 2:
+		minimum_shapes = MIN_SALE_SHAPES
+		minimum_families = MIN_SALE_FAMILIES
+		minimum_coverage = MIN_SALE_COVERAGE
+	if not _integer(receipt.visible_shapes, minimum_shapes, 128): return false
+	if not _integer(receipt.families, minimum_families, 5): return false
+	if int(receipt.families) > int(receipt.visible_shapes) or not _integer(receipt.colors, 2 if legacy else 1, 128): return false
 	if not receipt.coverage is float and not receipt.coverage is int: return false
 	var coverage: float = float(receipt.coverage)
-	if not is_finite(coverage) or coverage < MIN_COVERAGE or coverage > 1.0: return false
+	if not is_finite(coverage) or coverage < minimum_coverage or coverage > 1.0: return false
 	var signature: String = str(receipt.signature)
 	var occupied: int = 0
 	var colors: Dictionary = {}
@@ -123,9 +134,18 @@ static func _validate_receipt_fields(receipt: Dictionary) -> bool:
 		if not _is_hex(token): return false
 		occupied += 1
 		colors[token] = true
-	if colors.size() != int(receipt.colors) or absf(coverage - float(occupied) / float(SAMPLE_COUNT)) > 0.0000001: return false
-	if occupied < int(receipt.visible_shapes) * MIN_VISIBLE_SAMPLES: return false
-	return _integer(receipt.price, 100, MAX_PRICE) and int(receipt.price) == _price(int(receipt.visible_shapes), int(receipt.families), int(receipt.colors), coverage)
+	var measured_coverage: float = float(occupied) / float(SAMPLE_COUNT)
+	if colors.size() != int(receipt.colors) or absf(coverage - measured_coverage) > 0.0000001: return false
+	var shapes: int = int(receipt.visible_shapes)
+	var families: int = int(receipt.families)
+	if occupied < shapes * MIN_VISIBLE_SAMPLES: return false
+	var expected_price: int
+	if version < RECEIPT_VERSION:
+		var base_price: int = 500000 + mini(int(receipt.colors), 8) * 100000 if legacy else BASE_PRICE
+		expected_price = _price(shapes, families, coverage, base_price)
+	else:
+		expected_price = _discounted_price(_full_price(shapes, families, measured_coverage), _completion_ratio(shapes, families, measured_coverage))
+	return _integer(receipt.price, 100, MAX_PRICE) and int(receipt.price) == expected_price
 
 
 static func income(records: Array[Dictionary]) -> int:
@@ -152,24 +172,26 @@ static func is_duplicate(offer: Dictionary, sold: Array[Dictionary]) -> bool:
 	return false
 
 
-static func _price(shapes: int, families: int, colors: int, coverage: float) -> int:
-	if shapes < MIN_SHAPES or colors < 2 or coverage < MIN_COVERAGE: return 0
-	var amount: int = 500000 + mini(shapes, 24) * 150000 + mini(families, 5) * 450000 + mini(colors, 8) * 100000 + int(coverage * 1000000.0)
+static func _price(shapes: int, families: int, coverage: float, base_price: int = BASE_PRICE) -> int:
+	var amount: int = base_price + mini(shapes, 24) * 150000 + mini(families, 5) * 450000 + int(coverage * 1000000.0)
 	return mini(MAX_PRICE, int(float(amount) / 100.0) * 100)
 
 
-static func _has_meaningful_colors(samples: Dictionary, covered: int) -> bool:
-	if covered <= 0: return false
-	var colors: Array[Color] = []
-	var digits: String = "0123456789abcdef"
-	for token: String in samples:
-		if float(samples[token]) / float(covered) < MIN_COLOR_SHARE: continue
-		colors.append(Color(float(digits.find(token[0])) / 15.0, float(digits.find(token[1])) / 15.0, float(digits.find(token[2])) / 15.0))
-	for left: int in range(colors.size()):
-		for right: int in range(left + 1, colors.size()):
-			var difference: Vector3 = Vector3(colors[left].r - colors[right].r, colors[left].g - colors[right].g, colors[left].b - colors[right].b)
-			if difference.length() >= MIN_COLOR_DISTANCE: return true
-	return false
+static func _completion_ratio(shapes: int, families: int, coverage: float) -> float:
+	var shape_ratio: float = minf(float(shapes) / MIN_SALE_SHAPES, 1.0)
+	var family_ratio: float = minf(float(families) / MIN_SALE_FAMILIES, 1.0)
+	var area_ratio: float = minf(coverage / MIN_SALE_COVERAGE, 1.0)
+	return (shape_ratio + family_ratio + area_ratio) / 3.0
+
+
+static func _full_price(shapes: int, families: int, coverage: float) -> int:
+	# Quote the value with each goal filled before applying the buyer's discount.
+	return _price(maxi(shapes, MIN_SALE_SHAPES), maxi(families, MIN_SALE_FAMILIES), maxf(coverage, MIN_SALE_COVERAGE))
+
+
+static func _discounted_price(full_price: int, completion_ratio: float) -> int:
+	# Neutralize floating-point noise at an exact 100-won boundary.
+	return floori(float(full_price) * completion_ratio / 100.0 + 0.00000001) * 100
 
 
 static func _rasterize(parts: Array[Dictionary]) -> Dictionary:
@@ -199,9 +221,9 @@ static func _rasterize(parts: Array[Dictionary]) -> Dictionary:
 				if not Math.contains_point(vertices, point - position): continue
 				tokens[sample] = token
 				visible[index] = int(visible.get(index, 0)) + 1
-				colors[token] = int(colors.get(token, 0)) + 1
+				colors[token] = true
 				covered += 1
-	return {"signature": "".join(tokens), "visible": visible, "covered": covered, "colors": colors.size(), "color_samples": colors}
+	return {"signature": "".join(tokens), "visible": visible, "covered": covered, "colors": colors.size()}
 
 
 static func _fingerprint(parts: Array[Dictionary]) -> String:

@@ -5,11 +5,11 @@ const Market = preload("res://scripts/economy/art_market.gd")
 const Model = preload("res://scripts/core/drawing_document.gd")
 const Studio = preload("res://scenes/drawing/drawing_studio.gd")
 const Economy = preload("res://scripts/construction/construction_state.gd")
-const ArtSamples = preload("res://tests/test_art_composition.gd")
+const ArtSamples = preload("res://tests/art_sale_samples.gd")
 
 static func run(t: Node) -> void:
 	_test_quotes(t)
-	_test_quality_gates(t)
+	_test_sale_requirements(t)
 	_test_receipts(t)
 	_test_duplicate_sales(t)
 	await _test_sale_ui(t)
@@ -22,14 +22,15 @@ static func _test_quotes(t: Node) -> void:
 	var before: Dictionary = drawing.serialize()
 	var history: int = drawing.command_manager.undo_stack.size()
 	var offer: Dictionary = Market.quote(drawing)
-	t.assert_true(offer.can_sell, "A connected house with body, roof, door, windows and chimney can be sold")
+	t.assert_true(offer.can_sell, "The house fixture meets the three geometry requirements")
 	t.assert_eq(offer.visible_shapes, 6, "Quote counts actual visible quadrilaterals")
 	t.assert_eq(offer.families, 3, "Rectangle, trapezoid and square geometry avoid inclusive double counting")
 	t.assert_eq(offer.colors, 3, "Visible colors are counted once each")
-	t.assert_true(not str(offer.subject).is_empty(), "A qualifying house quote identifies the recognized subject")
-	t.assert_true(not offer.checks.is_empty(), "A quality quote exposes reviewable requirement checks")
+	var check_ids: Array[String] = []
 	for check: Dictionary in offer.checks:
-		t.assert_true(bool(check.met), "A saleable house passes every stated quality check: " + str(check.label))
+		check_ids.append(str(check.id))
+		t.assert_true(bool(check.met), "The fixture passes each stated sale requirement: " + str(check.label))
+	t.assert_eq(check_ids, ["pieces", "families", "coverage"], "The quote evaluates only shape count, variety and occupied paper area")
 	t.assert_gt(offer.price, 1000000, "Art sales contribute meaningful spaceship savings")
 	t.assert_le(offer.price, Market.MAX_PRICE, "Art offers respect the long-term progression cap")
 	t.assert_eq(int(offer.price) % 100, 0, "Art prices use 100 won increments")
@@ -39,21 +40,24 @@ static func _test_quotes(t: Node) -> void:
 	var hidden: DrawingDocument = Model.new()
 	for index: int in range(8):
 		hidden.add_sized_shape("square", Vector2.ZERO, Vector2(240, 240), Color.RED if index % 2 == 0 else Color.BLUE)
-	t.assert_eq(Market.quote(hidden).visible_shapes, 1, "Fully obscured copies do not inflate shape count")
-	t.assert_false(Market.quote(hidden).can_sell, "Stacking identical shapes cannot manufacture sale income")
+	var uncovered: DrawingDocument = Model.new()
+	uncovered.add_sized_shape("square", Vector2.ZERO, Vector2(240, 240), Color.BLUE)
+	var layered_offer: Dictionary = Market.quote(hidden)
+	t.assert_eq(layered_offer.visible_shapes, 1, "Fully obscured copies do not inflate shape count")
+	t.assert_eq(layered_offer.price, Market.quote(uncovered).price, "Stacking identical shapes cannot increase the discounted sale price")
+	t.assert_true(layered_offer.price > 0 and layered_offer.price < layered_offer.full_price, "One visible shape is eligible for a discounted sale")
 	var transparent: DrawingDocument = sample_art()
 	for shape: Dictionary in transparent.shapes:
 		transparent.select_shape(int(shape.id))
 		transparent.set_color(Color(1, 0, 0, 0.3))
 	t.assert_false(Market.quote(transparent).can_sell, "Almost invisible polygons do not qualify for payment")
-	var tiny: DrawingDocument = Model.new()
-	for index: int in range(6): tiny.add_sized_shape("square", Vector2(index * 70 - 200, 0), Vector2(42, 42), Color.RED if index % 2 == 0 else Color.BLUE)
-	t.assert_false(Market.quote(tiny).can_sell, "Very small total coverage does not qualify for payment")
 	var one_color: DrawingDocument = sample_art()
 	for shape: Dictionary in one_color.shapes:
 		one_color.select_shape(int(shape.id))
 		one_color.set_color(Color.CORAL)
-	t.assert_false(Market.quote(one_color).can_sell, "Artwork needs two visible colors")
+	var monochrome_offer: Dictionary = Market.quote(one_color)
+	t.assert_true(monochrome_offer.can_sell, "One color is enough when the geometry requirements are met")
+	t.assert_eq(monochrome_offer.price, offer.price, "Recoloring a qualifying drawing does not change its price")
 	var relabeled: Dictionary = drawing.serialize()
 	for shape: Dictionary in relabeled.shapes: shape.kind = "trapezoid"
 	var inclusive: DrawingDocument = Model.new()
@@ -61,58 +65,64 @@ static func _test_quotes(t: Node) -> void:
 	t.assert_eq(Market.quote(inclusive).families, offer.families, "Relabeling family metadata cannot increase value")
 	t.assert_eq(Market.quote(inclusive).price, offer.price, "Price follows geometry rather than chosen family label")
 
-static func _test_quality_gates(t: Node) -> void:
-	var tiles: DrawingDocument = Model.new()
-	var colors: Array[Color] = [Color.CORAL, Color.DODGER_BLUE, Color.GOLD]
-	for index: int in range(6):
-		var kind: String = "square" if index % 2 == 0 else "rectangle"
-		tiles.add_sized_shape(kind, Vector2(-280 + (index % 3) * 250, -140 if index < 3 else 120), Vector2(150, 140), colors[index % 3])
-	_assert_rejected_without_payment(t, tiles, "The former six disconnected color tiles no longer count as a finished composition")
-	var row: DrawingDocument = Model.new()
-	for index: int in range(6):
-		row.add_sized_shape("rectangle", Vector2(-375 + index * 150, 0), Vector2(120, 140), colors[index % 3])
-	_assert_rejected_without_payment(t, row, "A uniform row cannot qualify merely by meeting shape, color and area totals")
-	var overlap: DrawingDocument = Model.new()
-	var positions: Array[Vector2] = [Vector2(-80, -30), Vector2(30, 45), Vector2(90, -15), Vector2(-40, 50), Vector2(45, -40), Vector2.ZERO]
-	for index: int in range(positions.size()):
-		overlap.add_sized_shape("rectangle", positions[index], Vector2(260, 180), colors[index % 3])
-		overlap.rotate_selected(13 + index * 17)
-	_assert_rejected_without_payment(t, overlap, "Unstructured overlapping quadrilaterals do not automatically become a sellable object")
-	var color_dot: DrawingDocument = sample_art()
-	for shape: Dictionary in color_dot.shapes:
-		color_dot.select_shape(int(shape.id))
-		color_dot.set_color(Color.CORAL)
-	color_dot.add_sized_shape("square", Vector2(0, 0), Vector2(40, 40), Color.DODGER_BLUE)
-	_assert_rejected_without_payment(t, color_dot, "A tiny contrasting color dot cannot satisfy the meaningful-color requirement")
-	var similar: DrawingDocument = sample_art()
-	for index: int in range(similar.shapes.size()):
-		similar.select_shape(int(similar.shapes[index].id))
-		similar.set_color(Color(0.5 if index % 2 == 0 else 0.6, 0.5, 0.5))
-	_assert_rejected_without_payment(t, similar, "Nearly indistinguishable colors do not count as meaningful visual contrast")
-	var concealed_openings: DrawingDocument = sample_art()
-	var wall_color: Color = concealed_openings.shapes[0].color
-	for index: int in [2, 3, 4]:
-		concealed_openings.select_shape(int(concealed_openings.shapes[index].id))
-		concealed_openings.set_color(wall_color)
-	_assert_rejected_without_payment(t, concealed_openings, "Doors and windows painted exactly like their supporting wall do not form visible house details")
+static func _abstract_drawing(count: int, kinds: Array[String], dimensions: Vector2) -> DrawingDocument:
+	var drawing: DrawingDocument = Model.new()
+	for index: int in range(count):
+		var position: Vector2 = Vector2(-260 + (index % 3) * 260, -120 if index < 3 else 120)
+		drawing.add_sized_shape(kinds[index % kinds.size()], position, dimensions, Color.CORAL)
+	return drawing
 
-static func _assert_rejected_without_payment(t: Node, drawing: DrawingDocument, message: String) -> void:
+
+static func _test_sale_requirements(t: Node) -> void:
+	var mixed: Array[String] = ["rectangle", "square", "trapezoid"]
+	var large: Vector2 = Vector2(160, 140)
+	var abstract_drawing: DrawingDocument = _abstract_drawing(6, mixed, large)
+	var offer: Dictionary = Market.quote(abstract_drawing)
+	t.assert_true(offer.can_sell, "A monochrome abstract arrangement with six separate shapes, three families and enough coverage can be sold")
+	t.assert_eq(offer.visible_shapes, 6, "The abstract drawing meets the exact minimum piece count")
+	t.assert_eq(offer.families, 3, "The abstract drawing meets the exact minimum family count")
+	t.assert_eq(offer.completion_ratio, 1.0, "Meeting all three goals reports full satisfaction")
+	t.assert_eq(offer.price, offer.full_price, "Meeting all three goals pays the full quote")
+	_assert_discounted_payment(t, _abstract_drawing(5, mixed, large), "pieces", 17.0 / 18.0)
+	_assert_discounted_payment(t, _abstract_drawing(6, ["rectangle", "square"], large), "families", 8.0 / 9.0)
+	var small: DrawingDocument = _abstract_drawing(6, mixed, Vector2(60, 52))
+	var coverage: float = float(Market.quote(small).coverage)
+	_assert_discounted_payment(t, small, "coverage", (2.0 + coverage / 0.12) / 3.0)
+	var exact_payment: DrawingDocument = Model.new()
+	for height: float in [-90.0, 90.0]:
+		exact_payment.add_sized_shape("rectangle", Vector2(10, height), Vector2(580, 60), Color.CORAL)
+	var exact_offer: Dictionary = Market.quote(exact_payment)
+	t.assert_eq(exact_offer.full_price, 3070800, "The two rectangles cover exactly 174 sampling cells")
+	t.assert_eq(exact_offer.price, 1706000, "An exact 100-won payment survives fractional-rounding noise")
+
+static func _assert_discounted_payment(t: Node, drawing: DrawingDocument, missing_goal: String, expected_ratio: float) -> void:
 	var offer: Dictionary = Market.quote(drawing)
-	t.assert_false(offer.can_sell, message)
+	t.assert_true(offer.can_sell, "A drawing with an unmet %s goal can still be sold" % missing_goal)
+	for check: Dictionary in offer.checks:
+		t.assert_eq(bool(check.met), check.id != missing_goal, "Only the %s goal is unmet in this fixture" % missing_goal)
+	t.assert_float_approx(float(offer.completion_ratio), expected_ratio, 0.000001, "The %s shortfall reduces satisfaction by its share" % missing_goal)
+	var expected_price: int = floori(float(offer.full_price) * expected_ratio / 100.0) * 100
+	t.assert_eq(offer.price, expected_price, "The %s shortfall discounts the full quote in 100 won steps" % missing_goal)
+	t.assert_true(offer.price > 0 and offer.price < offer.full_price, "A discounted offer has a positive payout below the full price")
 	var economy: ConstructionState = Economy.new()
-	var ledger: Dictionary = economy.serialize()
 	var original: Dictionary = drawing.serialize()
 	var history: int = drawing.command_manager.undo_stack.size()
-	t.assert_false(economy.sell_art(original, "새 작품 판매 시도").ok, "A rejected quality quote cannot be bypassed by directly requesting payment")
-	t.assert_eq(economy.serialize(), ledger, "Rejected quality leaves money, receipts and spaceship progress unchanged")
-	t.assert_eq(drawing.serialize(), original, "A rejected quality check preserves the player's editable composition")
-	t.assert_eq(drawing.command_manager.undo_stack.size(), history, "A rejected quality check preserves drawing Undo history")
+	var payment: Dictionary = economy.sell_art(original, "사각형 모임")
+	t.assert_true(payment.ok, "The ledger accepts a quoted partial sale")
+	t.assert_eq(payment.get("price", 0), expected_price, "The ledger pays the exact discounted amount")
+	t.assert_eq(economy.balance, Economy.INITIAL_BALANCE + expected_price, "Only the discounted amount is added to the balance")
+	t.assert_eq(drawing.serialize(), original, "Selling through the ledger preserves the player's editable composition")
+	t.assert_eq(drawing.command_manager.undo_stack.size(), history, "Selling through the ledger preserves the drawing Undo history")
 
 static func _test_receipts(t: Node) -> void:
 	var offer: Dictionary = Market.quote(sample_art())
 	var receipt: Dictionary = Market.receipt_from_quote(offer, "나의 우주 그림")
 	t.assert_true(Market.validate_receipt(receipt), "A quote produces a valid compact receipt")
+	t.assert_eq(receipt.version, 3, "New receipts record proportional pricing")
 	t.assert_eq(receipt.size(), 9, "Receipt keeps compact scalar fields rather than a document snapshot")
+	var previous: Dictionary = receipt.duplicate()
+	previous.version = 2
+	t.assert_true(Market.validate_receipt(previous), "The previous full-price receipts retain their original amount")
 	var roundtrip: Dictionary = JSON.parse_string(JSON.stringify(receipt))
 	t.assert_true(Market.validate_receipt(roundtrip), "Receipt validates after JSON numeric conversion")
 	var receipts: Array[Dictionary] = [roundtrip]
@@ -127,9 +137,9 @@ static func _test_receipts(t: Node) -> void:
 		var invalid: Dictionary = receipt.duplicate(true)
 		match key:
 			"price": invalid.price = int(receipt.price) + 100
-			"visible_shapes": invalid.visible_shapes = 129
-			"families": invalid.families = 6
-			"colors": invalid.colors = 1
+			"visible_shapes": invalid.visible_shapes = 0
+			"families": invalid.families = 0
+			"colors": invalid.colors = 0
 			"coverage": invalid.coverage = NAN
 			"fingerprint": invalid.fingerprint = "invalid"
 			"signature": invalid.signature = str(receipt.signature).left(30)
@@ -142,6 +152,17 @@ static func _test_receipts(t: Node) -> void:
 	receipts = [unknown]
 	t.assert_eq(Market.income(receipts), -1, "Invalid ledger income is never silently paid")
 	t.assert_true(Market.receipt_from_quote(Market.quote(Model.new())).is_empty(), "Unsellable artwork creates no receipt")
+	var abstract_drawing: DrawingDocument = _abstract_drawing(5, ["rectangle", "square", "trapezoid"], Vector2(160, 140))
+	var economy: ConstructionState = Economy.new()
+	var sale: Dictionary = economy.sell_art(abstract_drawing.serialize(), "한 색 사각형")
+	t.assert_true(sale.ok, "A monochrome abstract drawing earns payment through the state API")
+	if not sale.ok: return
+	var mono_receipt: Dictionary = sale.receipt
+	t.assert_eq(mono_receipt.colors, 1, "Monochrome receipts keep the original raster metadata")
+	var restored: ConstructionState = Economy.new()
+	t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(economy.serialize()))), "A state with a discounted monochrome receipt restores")
+	t.assert_eq(restored.art_income(), int(sale.price), "Restoring the monochrome sale keeps the credited amount")
+	t.assert_false(restored.sell_art(abstract_drawing.serialize()).ok, "The restored ledger still prevents a repeat sale")
 
 static func _test_duplicate_sales(t: Node) -> void:
 	var drawing: DrawingDocument = sample_art()
@@ -165,13 +186,13 @@ static func _test_duplicate_sales(t: Node) -> void:
 	for shape: Dictionary in shifted.shapes:
 		shifted.select_shape(int(shape.id))
 		shifted.move_selected(Vector2(shifted.get_selected().position) + Vector2(35, 30))
-	t.assert_true(Market.quote(shifted).can_sell, "Translating the connected house keeps its structural sale requirements satisfied")
+	t.assert_true(Market.quote(shifted).can_sell, "Translating the sample house keeps its geometry requirements satisfied")
 	t.assert_false(Market.quote(shifted, sold).can_sell, "Translating the whole artwork does not create a new sale")
 	var duplicate: DrawingDocument = sample_art()
 	var part: Dictionary = duplicate.shapes[0]
 	duplicate.add_sized_shape(str(part.kind), part.position, QuadrilateralMath.bounds(part.vertices).size, part.color)
 	for _layer: int in range(duplicate.shapes.size() - 1): duplicate.shift_selected_layer(-1)
-	t.assert_true(Market.quote(duplicate).can_sell, "A duplicate body hidden behind the house preserves all six visible structural pieces")
+	t.assert_true(Market.quote(duplicate).can_sell, "A duplicate body hidden behind the house preserves its six visible pieces")
 	t.assert_false(Market.quote(duplicate, sold).can_sell, "An exactly overlapping duplicate cannot create a sale")
 	var different: DrawingDocument = ArtSamples.house(true)
 	t.assert_true(Market.quote(different, sold).can_sell, "A visibly different composition remains sellable")
@@ -179,7 +200,7 @@ static func _test_duplicate_sales(t: Node) -> void:
 	var window: Dictionary = layered.shapes[3]
 	layered.add_sized_shape("square", window.position, QuadrilateralMath.bounds(window.vertices).size, Color.GREEN)
 	var layered_offer: Dictionary = Market.quote(layered)
-	t.assert_true(layered_offer.can_sell, "A differently colored overlapping window still forms a complete recognizable house")
+	t.assert_true(layered_offer.can_sell, "A differently colored overlapping window preserves the qualifying geometry")
 	var layered_sales: Array[Dictionary] = [Market.receipt_from_quote(layered_offer)]
 	for _layer: int in range(layered.shapes.size() - 1): layered.shift_selected_layer(-1)
 	t.assert_true(Market.quote(layered).can_sell, "Moving the overlapping window behind the house leaves a valid original house")
@@ -198,6 +219,9 @@ static func _test_sale_ui(t: Node) -> void:
 	t.assert_false(studio._sale_button.disabled, "Connected economy enables the art sale button")
 	studio._open_sale()
 	t.assert_true(studio._sale_dialog.visible, "Sale opens a reviewable price confirmation")
+	t.assert_false(studio._sale_details.text.contains("나무"), "The sale dialog has no tree requirement")
+	for check: Dictionary in studio._sale_offer.checks:
+		t.assert_true(studio._sale_details.text.contains(str(check.label)), "The sale dialog shows " + str(check.id))
 	studio._sale_title.text = "   "
 	studio._sale_title.text_changed.emit(studio._sale_title.text)
 	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "Blank titles cannot authorize a sale")

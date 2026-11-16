@@ -30,8 +30,9 @@ static func inspect(parts: Array[Dictionary]) -> Dictionary:
 	var gaps: Array[Rect2] = []
 	var issues: Array[Dictionary] = []
 	if not has_footprint or wall_count == 0:
-		return {"complete": false, "message": "문과 창문 둘레에 벽을 쌓아 집의 앞면을 만들어 주세요.", "gaps": gaps, "issues": issues, "body_bounds": footprint}
+		return {"complete": false, "roof_supported": false, "message": "문과 창문 둘레에 벽을 쌓아 집의 앞면을 만들어 주세요.", "gaps": gaps, "issues": issues, "body_bounds": footprint}
 	var cuts: Array[float] = _critical_x(polygons, footprint.position.x, footprint.end.x)
+	var roof_supported: bool = false
 	for index: int in range(cuts.size() - 1):
 		var left: float = cuts[index]
 		var right: float = cuts[index + 1]
@@ -63,6 +64,7 @@ static func inspect(parts: Array[Dictionary]) -> Dictionary:
 		if not is_finite(roof_top) or roof_top > body_top + TOLERANCE:
 			_add_gap(gaps, issues, Rect2(left, maxf(Document.BUILD_AREA.position.y, body_top - 20.0), right - left, 20.0), "roof_missing")
 			continue
+		roof_supported = true
 		spans.sort_custom(func(first: Vector2, second: Vector2) -> bool: return first.x < second.x)
 		var reached: float = roof_top
 		for interval: Vector2 in spans:
@@ -76,7 +78,7 @@ static func inspect(parts: Array[Dictionary]) -> Dictionary:
 			_add_gap(gaps, issues, Rect2(left, reached, right - left, GROUND_Y - reached), "foundation_gap")
 	var complete: bool = gaps.is_empty()
 	var message: String = "벽·문·창문이 바닥부터 지붕까지 빈틈없이 이어져 있어요." if complete else "집 앞면에 빈틈이 있어요. 벽을 바닥부터 지붕까지 잇고, 앞면 전체를 지붕으로 덮어 주세요."
-	return {"complete": complete, "message": message, "gaps": gaps, "issues": issues, "body_bounds": footprint}
+	return {"complete": complete, "roof_supported": roof_supported, "message": message, "gaps": gaps, "issues": issues, "body_bounds": footprint}
 
 ## Vertex and segment-intersection abscissae partition the elevation into
 ## slabs with invariant edge ordering. One exact slice per slab detects even

@@ -8,7 +8,7 @@ const State = preload("res://scripts/construction/construction_state.gd")
 const Market = preload("res://scripts/economy/art_market.gd")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
 const Transactions = preload("res://scripts/economy/progression_transactions.gd")
-const ArtSamples = preload("res://tests/test_art_composition.gd")
+const ArtSamples = preload("res://tests/art_sale_samples.gd")
 
 class SaleRenderer:
 	extends RefCounted
@@ -61,19 +61,22 @@ static func _test_success_and_undo(t: Node) -> void:
 	var studio: Studio = app._drawing_screen
 	var ledger: State = app._construction_screen.state
 	_fill_art(studio.document)
+	studio.document.select_shape(int(studio.document.shapes.back().id))
+	studio.document.delete_selected()
 	studio.document.set_background("space_planets")
 	studio.document.set_masterpiece("starry_night")
 	studio.canvas.select_kind("trapezoid")
 	studio.canvas.selected_trapezoid_variant = "right_left"
 	var artwork: Dictionary = studio.document.serialize()
 	var quote: Dictionary = Market.quote(studio.document)
-	t.assert_true(quote.can_sell, "The full sale flow uses a complete six-piece house painting")
+	t.assert_true(quote.can_sell and quote.price < quote.full_price, "A five-piece painting can be sold at a discount")
 	t.assert_true(studio.save_drawing(false), "The original drawing draft exists before selling")
 	var renderer: SaleRenderer = _renderer()
 	studio.sale_png_renderer = renderer.render
 	studio.testing = false
 	studio._sale_button.pressed.emit()
 	t.assert_true(studio._sale_dialog.visible, "The actual sale button opens the title and price dialog")
+	t.assert_true(studio._sale_price.text.contains("화랑 만족도 94.4%") and studio._sale_price.text.contains("줄어든 금액"), "The actual dialog shows the partial achievement and its deduction")
 	_set_title(studio, "")
 	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "An empty title disables sale confirmation")
 	studio._sale_dialog.confirmed.emit()

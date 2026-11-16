@@ -220,7 +220,6 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 		"삭제": "delete", "회전": "rotate", "확대": "zoom", "축소": "zoom",
 		"집에 맞추기": "fit", "시공 검사": "inspect", "집 보여 주기": "receipt",
 		"의뢰인에게 보여주기": "receipt", "설계 보기": "draw", "재료 보기": "book",
-		"재료 가격의 근거": "receipt",
 		"나만의 집 짓기": "home", "첫 집 안내": "help", "안내 접기": "help",
 		"안내대로 놓기": "fit"
 	}
@@ -496,7 +495,6 @@ func _build_ui() -> void:
 	_sync_material_library()
 	_materials_empty = _label("이 조합의 자재가 없어요.\n전체 용도나 모양으로 바꿔 보세요.", 14, MUTED)
 	_materials.add_child(_materials_empty)
-	palette_box.add_child(_button("재료 가격의 근거", _show_prices))
 	var center_panel: PanelContainer = PanelContainer.new()
 	center_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1218,7 +1216,7 @@ func _refresh() -> void:
 			var mandatory: bool = bool(row.get("mandatory", true))
 			if not is_met and mandatory and next_needs.size() < 2: next_needs.append(_short_req_label(raw_label))
 			if not mandatory and is_met: continue
-			var short_lbl: String = ("필수 · " if mandatory else "더하기 · ") + _short_req_label(raw_label)
+			var short_lbl: String = ("기본 · " if mandatory else "더하기 · ") + _short_req_label(raw_label)
 			var mark: String = "●" if is_met else "○"
 			if raw_label.contains("예산") or int(row.target) <= 1 and raw_label.begins_with("중력"):
 				requirement_lines.append("%s %s" % [mark, short_lbl])
@@ -1230,7 +1228,7 @@ func _refresh() -> void:
 			_req_summary_label.text = "%d/%d" % [met_count, total_rows]
 		if is_instance_valid(_satisfaction_label):
 			var display_score: int = int(state.last_result.get("score", evaluation.score)) if state.phase == "settled" else int(evaluation.score)
-			_satisfaction_label.text = "만족도 %d점 · 조건 %d/%d" % [display_score, met_count, total_rows]
+			_satisfaction_label.text = "만족도 %d%% · 조건 %d/%d" % [display_score, met_count, total_rows]
 			if _portrait_holder.get_child_count() > 0:
 				var portrait_ctrl: Node = _portrait_holder.get_child(0)
 				if portrait_ctrl is Art.ClientPortrait:
@@ -1266,7 +1264,7 @@ func _refresh() -> void:
 	_lower_toolbar.visible = not settled
 	_completed_actions.visible = settled
 	if settled:
-		_completed_summary.text = "만족도 %d점 · 이익 %s" % [int(state.last_result.get("score", 0)), Catalog.format_won(int(state.last_result.get("profit", 0)))]
+		_completed_summary.text = "만족도 %d%% · 이익 %s" % [int(state.last_result.get("score", 0)), Catalog.format_won(int(state.last_result.get("profit", 0)))]
 	_guide_toggle.visible = not my_mode and state.contract_index == 0 and state.phase == "building"
 	_guide_toggle.text = "안내 접기" if _guide_enabled else "첫 집 안내"
 	_guide_toggle.set_pressed_no_signal(_guide_enabled)
@@ -1552,7 +1550,7 @@ func _show_client_offer_modal(choice: int) -> void:
 	var asset_box: VBoxContainer = _card_box(_modal_body, 10, Color("dff3e7") if unlocked else Color("fbe4df"))
 	asset_box.add_child(_label("보유 자산 %s · %s\n건축 실적 기준 %s / 필요 %s" % [Catalog.format_won(held_assets), "수락 가능" if unlocked else "수락 불가", Catalog.format_won(int(status.saved_balance)), Catalog.format_won(required_assets)], 15, GOOD if unlocked else BAD))
 	for requirement: Dictionary in offer.requirements:
-		_check_line(_modal_body, _short_req_label(str(requirement.label)), "필수" if bool(requirement.mandatory) else "선호", false, "조건")
+		_check_line(_modal_body, _short_req_label(str(requirement.label)), "기본" if bool(requirement.mandatory) else "추가", false, "조건")
 	_modal_body.add_child(HSeparator.new())
 	_money_line(_modal_body, "계약금액", int(offer.total), true, false)
 	_money_line(_modal_body, "자재 예산", int(offer.material_budget))
@@ -1619,10 +1617,11 @@ func _show_brief() -> void:
 	words.add_child(_label(str(contract.brief), 17))
 	var asset_info: VBoxContainer = _card_box(_modal_body, 8, Color("dff3e7") if unlocked else Color("fbe4df"))
 	asset_info.add_child(_label("보유 자산 %s · %s\n건축 실적 기준 %s / 필요 %s" % [Catalog.format_won(held_assets), "수락 가능" if unlocked else "건축 실적 부족", Catalog.format_won(int(status.saved_balance)), Catalog.format_won(required_assets)], 15, GOOD if unlocked else BAD))
-	_modal_body.add_child(_label("꼭 필요한 것", 19, BLUE))
+	_modal_body.add_child(_label("기본 부탁", 19, BLUE))
 	for requirement: Dictionary in contract.requirements:
-		if bool(requirement.mandatory): _check_line(_modal_body, _short_req_label(str(requirement.label)), "필수", false, "조건")
+		if bool(requirement.mandatory): _check_line(_modal_body, _short_req_label(str(requirement.label)), "기본", false, "조건")
 	_modal_body.add_child(_button("더 해 보면 좋은 것 보기", _show_optional_wishes))
+	_modal_body.add_child(_label("집이 튼튼하면 부탁을 일부만 채워도 보여 줄 수 있어요. 만족도가 낮으면 받는 보상도 줄어요.", 16, MUTED))
 	_modal_body.add_child(HSeparator.new())
 	_money_line(_modal_body, "계약금액", int(contract.total), true, false)
 	_money_line(_modal_body, "자재 예산", int(contract.material_budget))
@@ -1647,8 +1646,17 @@ func _accept_contract() -> void:
 func _show_report() -> void:
 	if state.phase != "building" or _last_report.is_empty(): return
 	var evaluation: Dictionary = state.evaluate(_last_report)
+	var score: int = int(evaluation.score)
+	var can_submit: bool = bool(evaluation.can_submit)
+	var discount: int = int(evaluation.discount)
 	_open_modal("지은 집을 함께 살펴봐요")
-	_modal_body.add_child(_label("의뢰인 만족도 %d점" % int(evaluation.score), 28, GOOD if bool(evaluation.can_submit) else BAD))
+	_modal_body.add_child(_label("의뢰인의 만족도 %d%%" % score, 28, GOOD if can_submit else BAD))
+	if can_submit:
+		_money_line(_modal_body, "100% 때 이익", int(evaluation.full_reward))
+		if discount > 0: _money_line(_modal_body, "만족도에 따라 줄어든 이익", -discount)
+		_money_line(_modal_body, "받을 이익", int(evaluation.profit), true)
+		_money_line(_modal_body, "마지막 지급액", int(evaluation.final_payment), true)
+		_modal_body.add_child(HSeparator.new())
 	for row: Dictionary in evaluation.rows:
 		var amount_text: String = "%d / %d" % [int(row.current), int(row.target)]
 		if str(row.label).contains("예산"): amount_text = Catalog.format_won(int(row.current)) + " / " + Catalog.format_won(int(row.target))
@@ -1664,12 +1672,8 @@ func _show_report() -> void:
 	var issues: Array[Dictionary] = _fresh_issues()
 	if not issues.is_empty():
 		_modal_body.add_child(_button("고칠 곳 %d개 보기" % issues.size(), _show_repairs, true))
-	_modal_body.add_child(HSeparator.new())
-	_money_line(_modal_body, "계약금액", int(evaluation.total))
-	_money_line(_modal_body, "만족 보너스", int(evaluation.bonus))
-	_money_line(_modal_body, "예상 이익", int(evaluation.profit), true)
-	if bool(evaluation.can_submit):
-		var submit: Button = _button("집 완성! 보상 받기", _submit, true)
+	if can_submit:
+		var submit: Button = _button("이 상태로 보여 주고 보상 받기" if discount > 0 else "집 완성! 보상 받기", _submit, true)
 		submit.name = "SettleConstruction"
 		_modal_actions.add_child(submit)
 	_modal_action("다시 손보기", func():
@@ -1678,10 +1682,11 @@ func _show_report() -> void:
 	)
 
 func _submit() -> void:
+	if state.phase != "building": return
 	var result: Dictionary = state.settle(_last_report)
 	if result.is_empty() or state.phase != "settled":
 		_close_modal()
-		_set_status("검사한 뒤 설계가 바뀌었거나 조건이 부족해요. 다시 검사해 주세요.")
+		_set_status(state.last_error)
 		return
 	if SoundManager.instance != null:
 		SoundManager.instance.play_fanfare()
@@ -1692,21 +1697,24 @@ func _submit() -> void:
 
 func _show_settlement(result: Dictionary) -> void:
 	var award: Dictionary = result.get("award", {})
-	_open_modal("명예의 전당에 선정됐어요!" if int(award.get("tier", 0)) > 0 else "집 완성! 보상을 받았어요")
+	var payment: Dictionary = State.record_payment(result)
+	_open_modal("명예의 전당에 선정됐어요!" if int(award.get("tier", 0)) > 0 else "집을 보여 주고 보상을 받았어요")
 	if int(award.get("tier", 0)) > 0:
 		_add_award(_modal_body, award)
 		_modal_body.add_child(_label("멋진 높은 단계의 집을 완성했어요! 이 배지는 집을 PNG로 저장할 때 왼쪽 위에 붙어요.", 18, BLUE))
 	_modal_body.add_child(_label("프로젝트 %03d · %s 님의 새집" % [state.contract_index + 1, str(state.current_contract().client)], 22, BLUE))
-	_modal_body.add_child(_button("패들릿에 올리기", _open_building_publication, true))
-	_money_line(_modal_body, "받기로 한 건축비", int(result.get("total", state.current_contract().total)))
-	_money_line(_modal_body, "만족 보너스", int(result.get("bonus", 0)))
+	_modal_body.add_child(_label("의뢰인의 만족도 %d%%" % int(result.score), 20, BLUE))
+	if int(payment.discount) > 0: _money_line(_modal_body, "만족도에 따라 줄어든 이익", -int(payment.discount))
+	_money_line(_modal_body, "받은 돈 합계", int(payment.gross_payment))
+	_money_line(_modal_body, "먼저 받은 돈", -int(result.advance))
+	_money_line(_modal_body, "마지막 지급액", int(result.final_payment), true)
 	_money_line(_modal_body, "기본 공사비", -int(result.get("base_cost", state.current_contract().base_cost)))
 	_money_line(_modal_body, "전면 재료비", -int(result.get("material_cost", state.material_cost())))
 	_modal_body.add_child(HSeparator.new())
 	_money_line(_modal_body, "이번 집의 이익", int(result.get("profit", 0)), true, true)
 	_money_line(_modal_body, "사무소에 남은 돈", state.balance, true, true)
-	_modal_body.add_child(_label("먼저 받은 계약금은 마지막 지급액에서 빼고 계산했어요. 같은 집의 보수는 한 번만 받아요.", 15, MUTED))
 	_modal_action("다음 부탁", _next_contract, true)
+	_modal_action("패들릿에 올리기", _open_building_publication)
 	_modal_action("단계별 부탁 고르기", _show_stages)
 	_modal_action("같은 단계로 돈 더 모으기", _repeat_contract)
 	_modal_action("배지와 함께 PNG 저장" if int(award.get("tier", 0)) > 0 else "집 PNG 저장", _export_current_house)
@@ -1730,30 +1738,19 @@ func _show_ledger() -> void:
 	_modal_body.add_child(HSeparator.new())
 	_add_ledger_row("집 전체 계약금액", int(contract.total))
 	_add_ledger_row("먼저 받는 계약금", int(contract.advance))
-	_add_ledger_row("완공 후 받을 나머지", int(contract.total) - int(contract.advance))
+	_add_ledger_row("100% 때 남은 기본 보상", int(contract.total) - int(contract.advance))
 	_add_ledger_row("기본 공사비", int(contract.base_cost))
 	_add_ledger_row("전면 재료비", state.material_cost())
 	_add_ledger_row("추가 만족 보너스 최대", int(contract.max_bonus))
-	_modal_body.add_child(_label("이익 = 계약금액 + 보너스 - 기본 공사비 - 전면 재료비", 18, BLUE))
-	_modal_body.add_child(_label(str(contract.source_note), 14, MUTED))
+	_modal_body.add_child(_label("100% 때 이익 = 계약금액 + 최대 보너스 - 기본 공사비 - 전면 재료비", 18, BLUE))
+	_modal_body.add_child(_label("만족도에 따라 이익이 달라져요. 먼저 받은 돈은 마지막 보상에서 빼요.", 16, MUTED))
+	if state.phase == "settled":
+		_add_ledger_row("마지막으로 받은 보상", int(state.last_result.final_payment))
 	_modal_body.add_child(_label("고른 재료의 값은 공사 중 예산에서 따로 잡아 두고, 정산 때 한 번 지불해요. 재료를 지우거나 되돌리면 그 예산도 돌아와요.", 15))
 	_modal_action("작업대로 돌아가기", _close_modal, true)
 
 func _add_ledger_row(label: String, amount: int) -> void:
 	_money_line(_modal_body, label, amount, false, true)
-
-func _show_prices() -> void:
-	_open_modal("재료 가격은 어디서 왔을까요?")
-	_modal_body.add_child(_label("한국 원화 / 토지 제외 / 가격 확인 2026년 10월 27일", 17, BLUE))
-	_modal_body.add_child(_label("특정 판매처의 공개 가격을 참고했어요. 실제 규격·배송·설치 조건에 따라 값은 달라져요. 화면 속 조각 크기는 배치하기 쉽게 단순화했어요.", 16))
-	for material: Dictionary in state.available_materials():
-		_modal_body.add_child(HSeparator.new())
-		_modal_body.add_child(_label("%s  %s" % [material.label, Catalog.format_won(int(material.price))], 19, BLUE))
-		_modal_body.add_child(_label("%s\n%s" % [material.unit, material.source_note], 15))
-		var url: String = str(material.source_url)
-		if url.begins_with("https://"):
-			_modal_body.add_child(_button("가격 자료 열기", func(): OS.shell_open(url)))
-	_modal_action("작업대로 돌아가기", _close_modal, true)
 
 func _show_history(page: int = 0, hall_only: bool = false) -> void:
 	_hall_only = hall_only
@@ -1785,7 +1782,7 @@ func _show_history(page: int = 0, hall_only: bool = false) -> void:
 			card.add_child(preview)
 			preview.call_deferred("fit_parts")
 			card.add_child(_label("%03d · %s 님의 집" % [index + 1, str(record.client)], 20))
-			card.add_child(_label("만족도 %d점   이익 %s" % [int(record.score), Catalog.format_won(int(record.profit))], 15, BLUE))
+			card.add_child(_label("만족도 %d%% · 이익 %s" % [int(record.score), Catalog.format_won(int(record.profit))], 15, BLUE))
 			if int(record.get("award", {}).get("tier", 0)) > 0: _add_award(card, record.award)
 			card.add_child(_button("완성한 집 보기", func(): _show_record(index)))
 		if page > 0: _modal_body.add_child(_button("최근 집", func(): _show_history(page - 1, hall_only)))
@@ -1808,7 +1805,7 @@ func _show_record(index: int) -> void:
 	preview.custom_minimum_size = Vector2(400, 300)
 	_modal_body.add_child(preview)
 	preview.call_deferred("fit_parts")
-	_modal_body.add_child(_label("만족도 %d점\n이익 %s\n%s" % [int(record.score), Catalog.format_won(int(record.profit)), Catalog.read_won(int(record.profit))], 20, BLUE))
+	_modal_body.add_child(_label("만족도 %d%%\n이익 %s\n%s" % [int(record.score), Catalog.format_won(int(record.profit)), Catalog.read_won(int(record.profit))], 20, BLUE))
 	var award: Dictionary = record.get("award", {})
 	if int(award.get("tier", 0)) > 0: _add_award(_modal_body, award)
 	_modal_action("배지와 함께 PNG 저장" if int(award.get("tier", 0)) > 0 else "집 PNG 저장", func(): _export_house(model, award))

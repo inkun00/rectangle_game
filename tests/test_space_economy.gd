@@ -11,7 +11,7 @@ const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
 const Style = preload("res://scripts/economy/spaceship_style.gd")
 const Transactions = preload("res://scripts/economy/progression_transactions.gd")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
-const ArtSamples = preload("res://tests/test_art_composition.gd")
+const ArtSamples = preload("res://tests/art_sale_samples.gd")
 
 static func run(t: Node) -> void:
 	_test_legacy_migration(t)
@@ -92,7 +92,7 @@ static func _test_legacy_migration(t: Node) -> void:
 	var previous_economy: Dictionary = State.new().serialize()
 	previous_economy.balance = State.INITIAL_BALANCE + int(historical_receipt.price)
 	previous_economy.space_economy = {"version": 1, "art_sales": [historical_receipt], "purchased_parts": [], "launched": false}
-	t.assert_true(restored.restore(_json_copy(previous_economy)), "Stricter new-sale composition rules do not reject historical nine-field receipts")
+	t.assert_true(restored.restore(_json_copy(previous_economy)), "New-sale geometry requirements preserve historical nine-field receipts")
 	t.assert_eq(restored.art_sales[0].price, 2000000, "Loading historical artwork does not reprice its already-paid sale")
 	t.assert_eq(restored.saved_balance(), State.INITIAL_BALANCE + 2000000, "Historical painting earnings remain part of the player's savings")
 

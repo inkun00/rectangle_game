@@ -12,6 +12,7 @@ static func run(t: Node) -> void:
 	_test_balanced_catalog(t)
 	_test_history_and_validation(t)
 	_test_contracts_and_money(t)
+	_test_partial_payment(t)
 	_test_persistence(t)
 	_test_save_recovery(t)
 	_test_roof_coverage_and_legacy_records(t)
@@ -29,8 +30,8 @@ static func _test_facade_grading_migration(t: Node) -> void:
 	historical.document.add_part("roof_wide", Vector2(420, 370))
 	var report: Dictionary = _stable_report(historical.document)
 	t.assert_true(historical.evaluate(report).can_submit, "A previously accepted v3 contract keeps its agreed rules")
-	var current: Dictionary = State._evaluate(historical.document, historical.current_contract(), report, true)
-	t.assert_false(current.can_submit, "New facade grading rejects the earlier guide's open eaves despite a stable physics report")
+	var current: Dictionary = State._evaluate(historical.document, historical.current_contract(), report, true, State.GRADING_VERSION, State.LEGACY_PAYMENT_VERSION)
+	t.assert_false(current.can_submit, "Original payment rules reject the earlier guide's open eaves despite a stable physics report")
 	t.assert_false(current.facade.complete, "Facade diagnosis is derived from real geometry instead of trusting the stable flag")
 	var draft: State = State.new()
 	t.assert_true(draft.restore(JSON.parse_string(JSON.stringify(historical.serialize()))), "Existing v3 drafts retain their parts and accepted contract")
@@ -230,9 +231,66 @@ static func _test_contracts_and_money(t: Node) -> void:
 	fewer_preferences.document.add_part("window_tall", Vector2(340, 500))
 	fewer_preferences.document.add_part("tile_square", Vector2(240, 480))
 	_finish_first_house(fewer_preferences)
-	var partial: Dictionary = fewer_preferences.evaluate(_stable_report(fewer_preferences.document))
+	var partial_report: Dictionary = _stable_report(fewer_preferences.document)
+	var partial: Dictionary = fewer_preferences.evaluate(partial_report)
 	t.assert_true(partial.can_submit, "Stable mandatory-complete house may be delivered without optional square preference")
 	t.assert_true(int(partial.score) < 100 and int(partial.bonus) < int(fewer_preferences.current_contract().max_bonus), "Optional preference affects visible satisfaction and payment")
+	var offer: Dictionary = fewer_preferences.current_contract()
+	var paid: Dictionary = fewer_preferences.settle(partial_report)
+	t.assert_false(paid.is_empty(), "The optional-preference fixture can be paid")
+	if paid.is_empty(): return
+	var historic: Dictionary = fewer_preferences.serialize()
+	var old_record: Dictionary = historic.records[0]
+	old_record.erase("payment_version")
+	old_record.score = 86
+	old_record.bonus = 430000
+	old_record.profit = int(offer.total) + int(old_record.bonus) - int(old_record.base_cost) - int(old_record.material_cost)
+	old_record.final_payment = int(offer.total) - int(offer.advance) + int(old_record.bonus)
+	historic.balance = State.INITIAL_BALANCE + int(old_record.profit)
+	var restored: State = State.new()
+	t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(historic))), "A paid v6 house keeps its old bonus-only discount")
+	t.assert_eq(restored.balance, historic.balance, "A prior payment below 100% preserves its original cash")
+	t.assert_eq(State.record_payment(old_record).discount, 70000, "The report reconstructs the original withheld bonus from a historical record")
+
+static func _test_partial_payment(t: Node) -> void:
+	var state: State = State.new()
+	t.assert_true(state.accept_contract(), "Partial-payment fixture accepts the first commission")
+	t.assert_false(state.evaluate(_stable_report(state.document)).can_submit, "Submitting an empty lot pays nothing")
+	t.assert_gt(state.document.add_part("wall", Vector2(240, 530)), 0, "Partial house has nine bricks")
+	t.assert_gt(state.document.add_part("roof_flat", Vector2(240, 480)), 0, "A supported roof sits on the wall")
+	t.assert_false(state.evaluate({}).can_submit, "A partial house still needs an actual inspection")
+	var report: Dictionary = _stable_report(state.document)
+	var offer: Dictionary = state.current_contract()
+	var evaluation: Dictionary = state.evaluate(report)
+	t.assert_true(evaluation.can_submit and not evaluation.can_award, "A stable wall and roof can be delivered without a door or window, with no award")
+	for row: Dictionary in evaluation.rows:
+		if str(row.label).begins_with("벽돌"):
+			t.assert_eq(row.current, 9, "The brief records half of the eighteen requested bricks")
+	t.assert_eq(evaluation.score, 63, "Satisfaction includes half the requested brick and family points, rounded down")
+	var cost: int = int(offer.base_cost) + state.material_cost()
+	var full_reward: int = int(offer.total) + int(offer.max_bonus) - cost
+	var earned: int = floori(float(full_reward * int(evaluation.score)) / 10000.0) * 100
+	t.assert_eq(evaluation.full_reward, full_reward, "Full reward excludes reimbursed costs")
+	t.assert_eq(evaluation.discount, full_reward - earned, "The unfulfilled percentage is deducted from the reward")
+	t.assert_eq(evaluation.final_payment, cost + earned - int(offer.advance), "The advance is deducted from cash due at handover")
+	var paid: Dictionary = state.settle(report)
+	t.assert_false(paid.is_empty(), "The partial house settles")
+	if paid.is_empty(): return
+	t.assert_eq(paid.payment_version, State.PAYMENT_VERSION, "Partial payment records the current formula separately from the accepted grading")
+	t.assert_eq(paid.profit, earned, "Partial handover earns the same amount as the report")
+	t.assert_eq(state.balance, State.INITIAL_BALANCE + earned, "The balance receives the earned portion and reimburses expenses once")
+	t.assert_true(state.settle(report).is_empty(), "A partial house can only be paid once")
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(state.serialize()))
+	var reopened: State = State.new()
+	t.assert_true(reopened.restore(saved), "An incomplete paid house and its reduced reward restore")
+	t.assert_eq(reopened.balance, state.balance, "The restored partial payment gives the same balance")
+	t.assert_eq(State.record_payment(paid).discount, evaluation.discount, "Paid records reconstruct the exact discount for the UI")
+	saved.records[0].final_payment = int(paid.final_payment) + 100
+	t.assert_false(reopened.restore(saved), "A tampered partial payment is rejected")
+	t.assert_eq(reopened.balance, state.balance, "A rejected restore preserves the loaded account")
+	saved.records[0].final_payment = paid.final_payment
+	saved.records[0].erase("payment_version")
+	t.assert_false(reopened.restore(saved), "An incomplete design cannot masquerade as a historical fully deliverable house")
 
 static func _test_persistence(t: Node) -> void:
 	var state: State = State.new()
@@ -358,9 +416,10 @@ static func _test_roof_coverage_and_legacy_records(t: Node) -> void:
 	old.document.add_part("brick", Vector2(420, 430))
 	old.document.add_part("roof", Vector2(420, 390))
 	var report: Dictionary = _stable_report(old.document)
-	t.assert_false(old.evaluate(report).can_submit, "New live grading requires coverage of the full window and door widths")
+	var modern: Dictionary = old.evaluate(report)
+	t.assert_true(modern.can_submit and int(modern.score) < 100, "A supported short roof permits reduced payment when it leaves opening edges uncovered")
 	var offer: Dictionary = Catalog.contract(0, 1)
-	var legacy_evaluation: Dictionary = State._evaluate(old.document, offer, report, true, 1)
+	var legacy_evaluation: Dictionary = State._evaluate(old.document, offer, report, true, 1, State.LEGACY_PAYMENT_VERSION)
 	t.assert_true(legacy_evaluation.can_submit, "Fixture accurately represents the previously valid center-coverage rule")
 	var record: Dictionary = {"index": 0, "id": offer.id, "client": offer.client, "title": offer.title, "total": offer.total, "advance": offer.advance, "base_cost": offer.base_cost, "material_cost": old.material_cost(), "score": legacy_evaluation.score, "bonus": legacy_evaluation.bonus, "final_payment": int(offer.total) - int(offer.advance) + int(legacy_evaluation.bonus), "profit": legacy_evaluation.profit, "document": old.document.serialize()}
 	var legacy: Dictionary = {"version": 1, "balance": State.INITIAL_BALANCE + int(record.profit), "contract_index": 0, "phase": "settled", "records": [record], "document": old.document.serialize()}

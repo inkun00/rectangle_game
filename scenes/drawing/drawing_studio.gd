@@ -360,7 +360,9 @@ func _build_ui() -> void:
 	_sale_button = _button("그림 판매", _open_sale, true)
 	_sale_button.name = "SellDrawingButton"
 	_sale_button.custom_minimum_size = Vector2(130, 48)
-	_sale_button.tooltip_text = "판매 기준: 도형 6개·구별되는 2색·종이의 12% 이상, 사물의 구조 또는 정렬된 기하 구성"
+	_sale_button.tooltip_text = "목표는 보이는 사각형 %d개, %d종류, 도화지 %d%%예요. 채운 만큼 판매금을 받아요." % [
+		Market.MIN_SALE_SHAPES, Market.MIN_SALE_FAMILIES, roundi(Market.MIN_SALE_COVERAGE * 100.0)
+	]
 	footer.add_child(_sale_button)
 	_status = QuadTheme.paragraph("도형을 골라 종이에 그려요. 자동으로 저장돼요.", 14, QuadTheme.INK)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -860,15 +862,22 @@ func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	var lines: PackedStringArray = PackedStringArray()
 	for check: Dictionary in _sale_offer.get("checks", []):
 		lines.append("%s %s · %s" % ["[완료]" if bool(check.met) else "[보완]", str(check.label), str(check.detail)])
-	var details: String = "판매 기준\n" + "\n".join(lines)
-	_sale_price.text = "판매 가격  " + Money.format_won(int(_sale_offer.price)) + " · 화랑에서 정한 가격" if bool(_sale_offer.can_sell) else "아직 판매할 수 없어요"
+	var details: String = "판매 목표\n" + "\n".join(lines)
+	var can_sell: bool = bool(_sale_offer.can_sell)
+	_sale_price.text = "아직 판매할 수 없어요"
+	if can_sell:
+		var price: int = int(_sale_offer.price)
+		var full_price: int = int(_sale_offer.full_price)
+		_sale_price.text = "화랑 만족도 %.1f%% · 판매금 %s" % [float(_sale_offer.completion_ratio) * 100.0, Money.format_won(price)]
+		if price < full_price:
+			_sale_price.text += "\n목표를 채웠을 때 %s · 줄어든 금액 %s" % [Money.format_won(full_price), Money.format_won(full_price - price)]
 	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
 	_sale_description_count.text = "그림 설명 · %d / %d자" % [_sale_description.text.strip_edges().length(), SubmissionMetadata.MAX_DESCRIPTION_LENGTH]
 	_sale_validation.text = metadata_error
 	_sale_validation.visible = not metadata_error.is_empty()
 	_sale_details.text = "%s\n\n%s\n\n판매하면 PNG로 저장한 뒤 패들릿에 등록해요.\n등록이 안 되면 저장한 그림으로 다시 시도할 수 있어요.\n같거나 아주 비슷한 작품은 한 번만 판매해요." % [details, str(_sale_offer.reason)]
-	_sale_dialog.get_ok_button().text = "PNG 저장하고 판매" if bool(_sale_offer.can_sell) else "판매 준비 중"
-	_sale_dialog.get_ok_button().disabled = not bool(_sale_offer.can_sell) or not metadata_error.is_empty() or _sale_pending
+	_sale_dialog.get_ok_button().text = "PNG 저장하고 판매" if can_sell else "판매 준비 중"
+	_sale_dialog.get_ok_button().disabled = not can_sell or not metadata_error.is_empty() or _sale_pending
 
 func _confirm_sale() -> void:
 	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return

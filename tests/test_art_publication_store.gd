@@ -3,7 +3,7 @@ extends RefCounted
 
 const Metadata = preload("res://scripts/export/art_submission_metadata.gd")
 const Store = preload("res://scripts/export/art_publication_store.gd")
-const Samples = preload("res://tests/test_art_composition.gd")
+const Samples = preload("res://tests/art_sale_samples.gd")
 const BOARD: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 
 static func run(t: Node) -> void:

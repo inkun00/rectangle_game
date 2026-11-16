@@ -2,7 +2,7 @@ class_name TestSpaceIntegration
 extends RefCounted
 
 const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
-const ArtSamples = preload("res://tests/test_art_composition.gd")
+const ArtSamples = preload("res://tests/art_sale_samples.gd")
 
 static func settle_commissions(ledger: ConstructionState, count: int) -> bool:
 	for index: int in range(count):
@@ -63,7 +63,11 @@ static func _test_story_branches(t: Node) -> void:
 	t.assert_false(app._home_screen._ending_choice.is_visible_in_tree(), "Nine completions keep the final choice button hidden")
 	await app._show_earth_house()
 	t.assert_false(app._construction_screen.visible, "Opening the Earth branch directly cannot bypass the activity requirement")
-	t.assert_true(ledger.sell_art(ArtSamples.house().serialize(), "나의 집 그림").ok, "A completed sale is the tenth activity")
+	var drawing: DrawingDocument = DrawingDocument.new()
+	drawing.add_sized_shape("square", Vector2.ZERO, Vector2(320, 320), Color.CORAL)
+	var quote: Dictionary = ArtMarket.quote(drawing)
+	t.assert_float_approx(float(quote.completion_ratio), 0.5, 0.001, "A single large square earns half of the full price")
+	t.assert_true(ledger.sell_art(drawing.serialize(), "큰 정사각형").ok, "A discounted artwork sale is the tenth activity")
 	t.assert_true(app._home_screen._ending_choice.is_visible_in_tree() and not app._home_screen._ending_choice.disabled, "The tenth combined completion reveals a usable final choice button")
 	t.assert_eq(app._home_screen._ending_choice.text, "최후의 선택", "The unlocked action shows the final choice label")
 	_choose(app, "KeepEarning")

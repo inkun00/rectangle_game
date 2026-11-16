@@ -112,10 +112,23 @@ static func _test_facade_repair_feedback(t: Node) -> void:
 		if not studio.canvas.inspection_running: break
 	await t.get_tree().process_frame
 	t.assert_true(bool(studio._last_report.get("stable", false)), "Bonded masonry can physically bridge a missing lower outer wall")
-	t.assert_false(bool(studio.state.evaluate(studio._last_report).can_submit), "A stable facade with a missing wall cannot be handed over")
-	t.assert_true(studio._status.text.contains("빈틈"), "The inspection status explains an incomplete facade even when gravity passes")
-	studio._show_report()
-	t.assert_true(_button_named(studio, "SettleConstruction") == null, "A facade gap never exposes settlement")
+	var partial: Dictionary = studio.state.evaluate(studio._last_report)
+	t.assert_true(bool(partial.can_submit), "A stable house with a facade gap can be handed over")
+	t.assert_lt(int(partial.score), 100, "A facade gap reduces customer satisfaction")
+	t.assert_gt(int(partial.discount), 0, "A facade gap reduces the customer's reward")
+	var review: Button = _button_named(studio, "ReviewConstruction")
+	if review != null: review.pressed.emit()
+	var settle: Button = _button_named(studio, "SettleConstruction")
+	t.assert_not_null(settle, "The partial report offers settlement alongside repairs")
+	if settle != null:
+		t.assert_true(settle.text.contains("이 상태로"), "The partial action explicitly offers the current design")
+	var report_lines: PackedStringArray = []
+	for label: Label in studio._modal_body.find_children("*", "Label", true, false):
+		report_lines.append(label.text)
+	var report_text: String = "\n".join(report_lines)
+	t.assert_true(report_text.contains("만족도 %d%%" % int(partial.score)), "The report shows the exact customer satisfaction")
+	t.assert_true(report_text.contains(Catalog.format_won(-int(partial.discount))), "The report shows the exact deduction")
+	t.assert_true(report_text.contains(Catalog.format_won(int(partial.final_payment))), "The report shows the current payment")
 	var locate: Button = _button(studio._modal, "외벽 빈틈 위치 보기")
 	t.assert_not_null(locate, "The report offers a visible way to locate facade gaps")
 	var before: Dictionary = studio.state.serialize()
@@ -130,7 +143,24 @@ static func _test_facade_repair_feedback(t: Node) -> void:
 		await t.get_tree().physics_frame
 		if not studio.canvas.inspection_running: break
 	await t.get_tree().process_frame
-	t.assert_true(bool(studio.state.evaluate(studio._last_report).can_submit), "The repaired closed facade passes a fresh actual gravity inspection")
+	var repaired: Dictionary = studio.state.evaluate(studio._last_report)
+	t.assert_true(bool(repaired.can_submit), "The repaired closed facade passes a fresh actual gravity inspection")
+	t.assert_gt(int(repaired.score), int(partial.score), "Repairing the facade raises customer satisfaction")
+	studio._return_to_design()
+	studio.state.document.undo()
+	studio._start_inspection()
+	for frame: int in range(240):
+		await t.get_tree().physics_frame
+		if not studio.canvas.inspection_running: break
+	await t.get_tree().process_frame
+	partial = studio.state.evaluate(studio._last_report)
+	if review != null: review.pressed.emit()
+	settle = _button_named(studio, "SettleConstruction")
+	var expected_balance: int = studio.state.balance + int(partial.final_payment) - int(partial.base_cost) - int(partial.material_cost)
+	if settle != null: settle.pressed.emit()
+	t.assert_eq(studio.state.phase, "settled", "The visible action settles a partially completed commission")
+	t.assert_eq(studio.state.balance, expected_balance, "Partial settlement credits the quoted payment and subtracts building costs")
+	t.assert_eq(int(studio.state.last_result.get("final_payment", -1)), int(partial.final_payment), "The paid invoice preserves the quoted partial amount")
 	studio.free()
 	await t.get_tree().process_frame
 
@@ -242,14 +272,15 @@ static func _test_dialog_resizing_and_focus(t: Node) -> void:
 	for frame: int in range(5): await t.get_tree().process_frame
 	t.assert_gt(material_scroll.scroll_vertical, 0, "Keyboard focus scrolls the material library to its offscreen last sample")
 	t.assert_true(material_scroll.get_global_rect().encloses(last_material.get_global_rect()), "The focused material sample is visible without using the mouse wheel")
-	studio._show_prices()
+	t.assert_true(_button(studio, "재료 가격의 근거") == null, "The material shelf offers only game controls")
+	studio._show_ledger()
 	for frame: int in range(5): await t.get_tree().process_frame
-	var price_buttons: Array[Node] = studio._modal_body.find_children("*", "Button", true, false)
-	var last_price: Button = price_buttons.back() as Button
-	last_price.grab_focus()
-	for frame: int in range(5): await t.get_tree().process_frame
-	t.assert_gt(studio._modal_scroll.scroll_vertical, 0, "Keyboard focus scrolls the long price document to its last source action")
-	t.assert_true(studio._modal_scroll.get_global_rect().encloses(last_price.get_global_rect()), "The focused source action is visible inside the document body")
+	var contract: Dictionary = studio.state.current_contract()
+	var ledger_lines: PackedStringArray = []
+	for label: Label in studio._modal_body.find_children("*", "Label", true, false):
+		ledger_lines.append(label.text)
+	t.assert_true(ledger_lines.has(Catalog.format_won(int(contract.total))), "The ledger still displays the game's contract total")
+	t.assert_false(ledger_lines.has(Language.simplify(str(contract.source_note))), "Price provenance stays off the ledger")
 	studio._show_help()
 	for frame: int in range(5): await t.get_tree().process_frame
 	window.size = Vector2i(846, 886)
@@ -546,7 +577,7 @@ static func _test_save_and_complete_contract(t: Node) -> void:
 	t.assert_true(bool(evaluation.can_submit), "A supported house meeting the first client's conditions can be delivered")
 	if bool(evaluation.can_submit):
 		var offer: Dictionary = studio.state.current_contract()
-		var expected_balance: int = studio.state.balance + int(offer.total) - int(offer.advance) + int(evaluation.bonus) - int(offer.base_cost) - studio.state.material_cost()
+		var expected_balance: int = studio.state.balance + int(evaluation.final_payment) - int(offer.base_cost) - studio.state.material_cost()
 		var review: Button = _button_named(studio, "ReviewConstruction")
 		if review != null: review.pressed.emit()
 		t.assert_true(is_instance_valid(studio._modal), "Showing the house opens the client satisfaction report")

@@ -75,7 +75,8 @@ static func assess(parts: Array[Dictionary], evaluation: Dictionary, contract: D
 	var total: int = 0
 	for row: Dictionary in rows:
 		total += int(row.score)
-	var eligible: bool = Document._integer(contract.get("stage", 0), MINIMUM_STAGE, Catalog.stages().size()) and evaluation.get("can_submit", false) is bool and bool(evaluation.get("can_submit", false)) and bool(facade.complete)
+	var meets_delivery_standard: Variant = evaluation.get("can_award", evaluation.get("can_submit", false))
+	var eligible: bool = Document._integer(contract.get("stage", 0), MINIMUM_STAGE, Catalog.stages().size()) and meets_delivery_standard is bool and bool(meets_delivery_standard) and bool(facade.complete)
 	var tier: int = tier_for_score(total) if eligible else 0
 	result.eligible = eligible
 	result.score = total

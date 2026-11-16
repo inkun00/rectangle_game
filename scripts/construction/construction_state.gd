@@ -15,6 +15,8 @@ const INITIAL_BALANCE: int = 30000000
 const VILLAGE_WON_PER_REWARD_COIN: int = 3000000
 const MAX_CONTRACTS: int = 1000
 const GRADING_VERSION: int = 6
+const LEGACY_PAYMENT_VERSION: int = 1
+const PAYMENT_VERSION: int = 2
 
 static var _village_reward_amounts: Dictionary = {}
 
@@ -257,6 +259,17 @@ static func _offer(index: int, choice: int, grading: int) -> Dictionary:
 static func record_contract(record: Dictionary) -> Dictionary:
 	return _offer(int(record.index), int(record.get("contract_choice", 0)), int(record.get("grading_version", 1)))
 
+static func record_payment(record: Dictionary) -> Dictionary:
+	var offer: Dictionary = record_contract(record)
+	var full_reward: int = int(record.total) + int(offer.max_bonus) - int(record.base_cost) - int(record.material_cost)
+	var final_payment: int = int(record.final_payment)
+	return {
+		"full_reward": full_reward,
+		"discount": full_reward - int(record.profit),
+		"final_payment": final_payment,
+		"gross_payment": final_payment + int(record.advance)
+	}
+
 func earned_profit() -> int:
 	var total: int = 0
 	for record: Dictionary in records: total += int(record.profit)
@@ -383,9 +396,11 @@ static func count_parts(parts: Array[Dictionary]) -> Dictionary:
 
 func evaluate(inspection: Dictionary) -> Dictionary:
 	var offer: Dictionary = current_contract()
-	var result: Dictionary = _evaluate(document, offer, inspection, phase == "building", contract_grading_version)
+	var payment_version: int = int(last_result.get("payment_version", LEGACY_PAYMENT_VERSION)) if phase == "settled" else PAYMENT_VERSION
+	var result: Dictionary = _evaluate(document, offer, inspection, phase == "building", contract_grading_version, payment_version)
 	if not _custom_parts_registered(document.parts, custom_material_ids):
 		result.can_submit = false
+		result.can_award = false
 		result.feedback = "먼저 맞춤 재료를 등록해 주세요."
 	if contract_grading_version >= 5: result.award = Awards.assess(document.parts, result, offer)
 	return result
@@ -399,7 +414,7 @@ func settle(inspection: Dictionary) -> Dictionary:
 		last_error = str(evaluation.feedback)
 		return {}
 	var offer: Dictionary = current_contract()
-	var final_payment: int = int(offer.total) - int(offer.advance) + int(evaluation.bonus)
+	var final_payment: int = int(evaluation.final_payment)
 	var cost: int = material_cost() + int(offer.base_cost)
 	if balance + final_payment < cost:
 		last_error = "정산할 돈이 부족해요. 자재 예산을 다시 살펴보세요."
@@ -408,7 +423,8 @@ func settle(inspection: Dictionary) -> Dictionary:
 		"index": contract_index, "id": str(offer.id), "client": str(offer.client), "title": str(offer.title),
 		"total": int(offer.total), "advance": int(offer.advance), "base_cost": int(offer.base_cost),
 		"material_cost": material_cost(), "score": int(evaluation.score), "bonus": int(evaluation.bonus), "grading_version": contract_grading_version,
-		"final_payment": final_payment, "profit": int(evaluation.profit), "document": document.serialize()
+		"final_payment": final_payment, "profit": int(evaluation.profit), "document": document.serialize(),
+		"payment_version": PAYMENT_VERSION
 	}
 	if contract_grading_version >= 5:
 		record.contract_choice = contract_choice
@@ -589,26 +605,30 @@ func restore(data: Dictionary) -> bool:
 	changed.emit()
 	return true
 
-static func _evaluate(model: Document, offer: Dictionary, inspection: Dictionary, building: bool, grading_version: int = GRADING_VERSION) -> Dictionary:
+static func _evaluate(model: Document, offer: Dictionary, inspection: Dictionary, building: bool, grading_version: int = GRADING_VERSION, payment_version: int = PAYMENT_VERSION) -> Dictionary:
 	var rows: Array[Dictionary] = []
-	var all_required: bool = true
 	var met_optional: int = 0
 	var optional_count: int = 0
 	var met_required: int = 0
 	var required_count: int = 0
+	var required_completion: float = 0.0
+	var optional_completion: float = 0.0
 	var counts: Dictionary = count_parts(model.parts)
 	for requirement: Dictionary in offer.requirements:
 		if int(requirement.get("since", 1)) > grading_version: continue
 		var current: int = _requirement_count(model.parts, counts, requirement)
-		var met: bool = current >= int(requirement.amount)
+		var target: int = int(requirement.amount)
+		var met: bool = current >= target
+		var completion: float = clampf(float(current) / float(target), 0.0, 1.0)
 		var mandatory: bool = bool(requirement.mandatory)
-		rows.append({"label": str(requirement.label), "met": met, "current": current, "target": int(requirement.amount), "mandatory": mandatory})
+		rows.append({"label": str(requirement.label), "met": met, "current": current, "target": target, "mandatory": mandatory})
 		if mandatory:
 			required_count += 1
+			required_completion += completion
 			if met: met_required += 1
-			all_required = all_required and met
 		else:
 			optional_count += 1
+			optional_completion += completion
 			if met: met_optional += 1
 	var fresh: bool = Document._integer(inspection.get("revision", -1), 0, 1000000000) and int(inspection.get("revision", -1)) == model.revision
 	var stable: bool = fresh and inspection.get("stable", false) is bool and bool(inspection.get("stable", false))
@@ -625,27 +645,66 @@ static func _evaluate(model: Document, offer: Dictionary, inspection: Dictionary
 	var enclosed: bool = bool(facade.complete) or grading_version < 4
 	if grading_version >= 4:
 		rows.append({"label": "바닥부터 처마까지 외벽 빈틈 채우기", "met": enclosed, "current": 1 if enclosed else 0, "target": 1, "mandatory": true})
-	var within_budget: bool = model.material_cost() <= int(offer.material_budget)
-	rows.append({"label": "자재 예산 지키기", "met": within_budget, "current": model.material_cost(), "target": int(offer.material_budget), "mandatory": true})
+	var material_cost: int = model.material_cost()
+	var within_budget: bool = material_cost <= int(offer.material_budget)
+	rows.append({"label": "자재 예산 지키기", "met": within_budget, "current": material_cost, "target": int(offer.material_budget), "mandatory": true})
 	var approved: bool = true
 	if grading_version >= 5 and offer.has("allowed_kinds"):
 		for item: Dictionary in model.parts:
 			if not offer.allowed_kinds.has(str(item.kind)): approved = false
 			if str(Catalog.material(str(item.material_id)).role) == "roof" and not offer.roof_allowed_kinds.has(str(item.kind)): approved = false
 		rows.append({"label": "이번 단계에서 고를 수 있는 사각형 사용하기", "met": approved, "current": 1 if approved else 0, "target": 1, "mandatory": true})
-	var score: int = (30 if stable else 0) + (10 if sheltered and enclosed else 0) + (30 * met_required / maxi(required_count, 1)) + (20 * met_optional / maxi(optional_count, 1)) + (10 if within_budget else 0)
-	var bonus: int = (int(offer.max_bonus) * score / 10000) * 100
+	var proportional: bool = payment_version == PAYMENT_VERSION
+	var basic_house: bool = bool(facade.roof_supported)
+	var all_required: bool = met_required == required_count
+	var site_ready: bool = building and stable and within_budget and approved
+	var can_award: bool = site_ready and sheltered and enclosed and all_required
+	var can_submit: bool = site_ready and basic_house if proportional else can_award
+	var structure_score: int = (30 if stable else 0) + (10 if within_budget else 0)
+	var score: int
+	if proportional:
+		var roof_score: int = (5 if sheltered else 0) + (5 if enclosed else 0)
+		var required_score: float = 30.0 * required_completion / maxi(required_count, 1)
+		var optional_score: float = 20.0 * optional_completion / maxi(optional_count, 1)
+		# Cancel floating-point noise when the small integer targets give a whole percent.
+		score = floori(structure_score + roof_score + required_score + optional_score + 0.0000001)
+	else:
+		score = structure_score + (10 if sheltered and enclosed else 0)
+		score += floori(30.0 * met_required / maxi(required_count, 1)) + floori(20.0 * met_optional / maxi(optional_count, 1))
+	var bonus: int = _proportional_won(int(offer.max_bonus), score)
+	var base_cost: int = int(offer.base_cost)
+	var total: int = int(offer.total)
+	var cost: int = base_cost + material_cost
+	var full_reward: int = total + int(offer.max_bonus) - cost
+	var profit: int = _proportional_won(full_reward, score) if proportional else total + bonus - cost
+	var gross_payment: int = cost + profit
+	var final_payment: int = gross_payment - int(offer.advance)
 	var feedback: String = "의뢰인의 부탁을 모두 살폈어요. 집을 전달할 수 있어요."
 	if not building: feedback = "새 의뢰를 받아 건축을 시작해 주세요."
 	elif not fresh: feedback = "설계가 바뀌었어요. 시공 검사를 다시 해 주세요."
 	elif not stable: feedback = str(inspection.get("message", "문과 창 주변, 벽과 지붕의 받침을 확인해 주세요."))
+	elif proportional:
+		if not basic_house: feedback = "벽을 쌓고 그 위에 지붕을 올려 주세요."
+		elif not approved: feedback = "이번 단계에서 고를 수 있는 사각형 재료로 바꿔 주세요."
+		elif not within_budget: feedback = "자재 예산을 넘었어요. 견적을 다시 살펴보세요."
+		elif score < 100:
+			feedback = "지금 집을 전달하면 만족도 %d%%만큼 보상을 받아요. 남은 조건을 채우면 보상이 올라가요." % score
+			if not enclosed: feedback += "\n" + str(facade.message)
 	elif not sheltered: feedback = "문과 창문 위를 지붕으로 덮어 주세요. 땅에 놓은 지붕은 집을 덮지 못해요."
 	elif not enclosed: feedback = str(facade.message)
 	elif not approved: feedback = "이번 단계에서 고를 수 있는 사각형으로 바꿔 주세요. 다음 단계에서 새 도형을 사용할 수 있어요."
 	elif not all_required: feedback = "필수 부탁이 남았어요. 문·창문·벽·지붕을 확인해 주세요."
 	elif not within_budget: feedback = "자재 예산을 넘었어요. 견적을 다시 살펴보세요."
 	elif met_optional < optional_count: feedback = "안전한 집이에요. 추가 부탁을 채우면 만족도와 보너스가 더 올라가요. 지금 전달할 수도 있어요."
-	return {"can_submit": building and stable and sheltered and enclosed and all_required and within_budget and approved, "score": score, "bonus": bonus, "rows": rows, "feedback": feedback, "facade": facade, "material_cost": model.material_cost(), "base_cost": int(offer.base_cost), "total": int(offer.total), "profit": int(offer.total) + bonus - int(offer.base_cost) - model.material_cost(), "revision": model.revision}
+	return {
+		"can_submit": can_submit, "can_award": can_award, "score": score, "rows": rows, "feedback": feedback,
+		"facade": facade, "material_cost": material_cost, "base_cost": base_cost, "total": total, "bonus": bonus,
+		"full_reward": full_reward, "discount": full_reward - profit, "profit": profit, "gross_payment": gross_payment,
+		"final_payment": final_payment, "revision": model.revision
+	}
+
+static func _proportional_won(amount: int, score: int) -> int:
+	return floori(float(amount * score) / 10000.0) * 100
 
 static func _openings_have_roofs(parts: Array[Dictionary], full_width: bool = true) -> bool:
 	var found: bool = false
@@ -737,6 +796,8 @@ static func _valid_record(raw: Dictionary, index: int, registered: Array[String]
 	if not raw.has_all(["index", "id", "client", "title", "total", "advance", "base_cost", "material_cost", "score", "bonus", "final_payment", "profit", "document"]): return false
 	var grading: Variant = raw.get("grading_version", 1)
 	if not Document._integer(grading, 1, GRADING_VERSION): return false
+	if raw.has("payment_version") and not Document._integer(raw.payment_version, PAYMENT_VERSION, PAYMENT_VERSION): return false
+	var payment_version: int = int(raw.get("payment_version", LEGACY_PAYMENT_VERSION))
 	if not Document._integer(raw.index, index, index): return false
 	if int(grading) >= 5 and (not Document._integer(raw.get("contract_choice"), 0, Catalog.contract_count() - 1) or not raw.has("award")): return false
 	if int(grading) < 5 and raw.has("award"): return false
@@ -753,10 +814,10 @@ static func _valid_record(raw: Dictionary, index: int, registered: Array[String]
 	for item: Dictionary in model.parts: ids.append(int(item.id))
 	# v1 predates full-width roofs, v2 lengths, and v3 facade enclosure.
 	# Reconstruct each old offer before validating its already-paid ledger.
-	var evaluation: Dictionary = _evaluate(model, offer, {"stable": true, "stable_ids": ids, "unsupported_ids": [], "revision": model.revision}, true, int(grading))
+	var evaluation: Dictionary = _evaluate(model, offer, {"stable": true, "stable_ids": ids, "unsupported_ids": [], "revision": model.revision}, true, int(grading), payment_version)
 	if not bool(evaluation.can_submit): return false
 	if int(grading) >= 5 and not Awards.matches(raw.award, model.parts, evaluation, offer): return false
 	for field: String in ["material_cost", "score", "bonus", "profit"]:
 		if not Document._integer(raw[field], int(evaluation[field]), int(evaluation[field])): return false
-	var payment: int = int(offer.total) - int(offer.advance) + int(evaluation.bonus)
+	var payment: int = int(evaluation.final_payment)
 	return Document._integer(raw.final_payment, payment, payment)
