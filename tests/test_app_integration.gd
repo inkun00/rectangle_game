@@ -62,6 +62,16 @@ static func run(t: Node) -> void:
 	t.assert_true(app._active_quests.text.contains(app.journal.progress_text("rhombus_chocolates")), "Live quest HUD reflects completed collection progress")
 	app._talk_to_npc("baker")
 	t.assert_eq(app.journal.quest_state("rhombus_chocolates"), "ready", "Opening dialogue alone never completes a quest")
+	var measure: Button = app._modal_body.find_child("OpenLearningMeasureTools", true, false) as Button
+	var diagram: LearningCanvas
+	for child: Node in app._modal_body.get_children():
+		if child is LearningCanvas: diagram = child
+	t.assert_true(measure != null and diagram != null, "An NPC question provides the interactive measuring toolbar")
+	if measure != null and diagram != null:
+		measure.pressed.emit()
+		t.assert_eq(diagram.measure_tools.tool_kind, "ruler", "A rhombus quest opens a moveable ruler")
+		t.assert_false(_labels(app._modal_body).contains("변 ㄱㄴ /"), "The quest tool gives directions without automatically listing its side lengths")
+		t.assert_eq(app.journal.completed_count(), 0, "Measuring a quest illustration does not submit an answer")
 	var correct: int = int(quest.answer)
 	var wrong: int = (correct + 1) % quest.options.size()
 	var wrong_button: Button = _button(app._modal_body, str(quest.options[wrong]))

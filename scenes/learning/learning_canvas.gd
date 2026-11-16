@@ -3,9 +3,12 @@ extends Control
 
 const Catalog = preload("res://scripts/learning/learning_catalog.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
-const Art = preload("res://scripts/construction_art.gd")
+const MeasureTools = preload("res://scenes/learning/learning_measure_tools.gd")
 const LETTERS: Array[String] = ["가", "나", "다", "라"]
+const MODEL_UNITS_PER_CM: float = 20.0
+const CARD_FIGURE_SCALE: float = 0.63
 signal changed
+signal measure_tool_changed(kind: String)
 var lesson_id: String = "perpendicular"
 var value: float = 55.0
 var diagram_rotation: float = 0.0
@@ -15,6 +18,7 @@ var focus_index: int = 0
 var question_mode: bool = false
 var question_angle: float = 65.0
 var question_size: Vector2 = Vector2(150, 100)
+var measure_tools: MeasureTools
 var _activity_figures: Array[PackedVector2Array] = []
 var _activity_vertices: PackedVector2Array
 var _distance_span: float = 80.0
@@ -25,8 +29,12 @@ func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	clip_contents = true
-	resized.connect(queue_redraw)
+	measure_tools = MeasureTools.new()
+	measure_tools.name = "LearningMeasureTools"
+	add_child(measure_tools)
+	resized.connect(_update_measurement_scale)
 	visibility_changed.connect(func(): _dragging = false)
+	_update_measurement_scale()
 
 func configure(id: String) -> void:
 	question_mode = false
@@ -34,6 +42,8 @@ func configure(id: String) -> void:
 	value = 60.0 if id == "distance" else (20.0 if id == "parallel" else 55.0)
 	diagram_rotation = 0.0
 	measured = false
+	if is_instance_valid(measure_tools): measure_tools.clear_tool()
+	measure_tool_changed.emit("")
 	_activity_figures.clear()
 	_activity_vertices = PackedVector2Array()
 	_distance_span = 80.0
@@ -50,6 +60,7 @@ func configure_activity(activity: Dictionary) -> void:
 	if figures.size() == 4: _activity_figures.assign(figures)
 	_activity_vertices = activity.get("vertices", PackedVector2Array())
 	diagram_rotation = float(activity.get("rotation", 0.0))
+	_update_measurement_scale()
 	set_value(float(activity.get("start_value", value)))
 
 func configure_question(quest_id: String) -> void:
@@ -60,6 +71,7 @@ func configure_question(quest_id: String) -> void:
 	value = 0.0 if lesson_id == "parallel" else (60.0 if lesson_id == "distance" else 90.0)
 	diagram_rotation = 24.0 if quest_id in ["snow_windows", "right_angle_sign"] else 0.0
 	custom_minimum_size.y = 170
+	_update_measurement_scale()
 
 func is_line_activity() -> bool:
 	return lesson_id in ["perpendicular", "parallel", "distance"]
@@ -71,13 +83,56 @@ func set_value(next: float) -> void:
 
 func turn() -> void:
 	diagram_rotation = fmod(diagram_rotation + 30.0, 360.0)
+	_update_measurement_scale()
+	changed.emit()
+
+func measure() -> void:
+	if _measure_tool_kind().is_empty():
+		select_measure_tool("ruler" if lesson_id in ["rhombus", "distance"] else "protractor")
+	elif is_inside_tree():
+		grab_focus()
+
+func select_measure_tool(kind: String) -> void:
+	if kind not in ["ruler", "protractor"]: return
+	measured = true
+	if is_instance_valid(measure_tools):
+		_update_measurement_scale()
+		measure_tools.select_tool(kind)
+		if is_inside_tree(): grab_focus()
+		measure_tool_changed.emit(kind)
 	changed.emit()
 	queue_redraw()
 
-func measure() -> void:
-	measured = true
+func close_measure_tools() -> void:
+	if _measure_tool_kind().is_empty(): return
+	measure_tools.select_tool("")
+	if is_visible_in_tree(): grab_focus()
+	measure_tool_changed.emit("")
 	changed.emit()
 	queue_redraw()
+
+func _measure_tool_kind() -> String:
+	return measure_tools.tool_kind if is_instance_valid(measure_tools) else ""
+
+func add_measure_buttons(parent: Container, primary: bool = false) -> Array[Button]:
+	var open: Button = QuadTheme.button("재어 보기", measure, primary)
+	open.name = "OpenLearningMeasureTools"
+	var ruler: Button = QuadTheme.button("투명 자", select_measure_tool.bind("ruler"))
+	ruler.name = "SelectLearningRuler"
+	var protractor: Button = QuadTheme.button("투명 각도기", select_measure_tool.bind("protractor"))
+	protractor.name = "SelectLearningProtractor"
+	var close: Button = QuadTheme.button("도구 넣기", close_measure_tools)
+	close.name = "CloseLearningMeasureTools"
+	var buttons: Array[Button] = [open, ruler, protractor, close]
+	for button: Button in buttons: parent.add_child(button)
+	ruler.hide()
+	protractor.hide()
+	close.hide()
+	measure_tool_changed.connect(func(kind: String):
+		for button: Button in [ruler, protractor, close]: button.visible = not kind.is_empty()
+		ButtonArt.apply(ruler, kind == "ruler")
+		ButtonArt.apply(protractor, kind == "protractor"))
+	return buttons
 
 func toggle_choice(index: int) -> void:
 	if index < 0 or index >= 4 or question_mode: return
@@ -105,16 +160,12 @@ func _figures() -> Array[PackedVector2Array]:
 	return Catalog.figures(lesson_id) if _activity_figures.is_empty() else _activity_figures
 
 func measurement_text() -> String:
-	if not measured: return "‘재어 보기’를 눌러 변과 각을 확인해요. 길이는 cm 단위로 표시해요."
-	match lesson_id:
-		"perpendicular": return "만나는 각: %s° · 두 선이 수직이면 한 선은 다른 선에 대한 수선이에요." % Math.measurement_label(value)
-		"parallel": return "공통 수선과 만나는 각: 90° / %s°" % Math.measurement_label(absf(90.0 - value))
-		"distance": return "수직인 선분: %s cm · 움직인 선분: %s cm" % [Math.measurement_label(_distance_span / 20.0), Math.measurement_label(Vector2(value, _distance_span).length() / 20.0)]
-		_:
-			var vertices: PackedVector2Array = question_vertices() if question_mode else _figures()[focus_index]
-			var sides: PackedStringArray = PackedStringArray()
-			for side: float in Math.side_lengths(vertices): sides.append(Math.measurement_label(side / 20.0))
-			return "%s · 변 ㄱㄴ / ㄴㄷ / ㄷㄹ / ㄹㄱ: %s cm\n%s" % ["관찰 도형" if question_mode else LETTERS[focus_index], " / ".join(sides), Math.property_summary(vertices)]
+	var guidance: String
+	match _measure_tool_kind():
+		"ruler": guidance = "자의 0을 한쪽 끝에 맞추고 다른 끝의 눈금을 읽어요."
+		"protractor": guidance = "각도기의 중심을 꼭짓점에 놓고, 0° 선을 한쪽 변에 맞춰요."
+		_: return "‘재어 보기’를 누르면 투명 자와 각도기를 꺼낼 수 있어요."
+	return guidance + "\n몸체를 끌어 옮기고, 둥근 손잡이로 돌려요. 방향키로 이동하고 Shift+왼쪽·오른쪽 방향키로 돌려요."
 
 func question_vertices() -> PackedVector2Array:
 	if not _activity_vertices.is_empty(): return _activity_vertices
@@ -126,6 +177,22 @@ func question_vertices() -> PackedVector2Array:
 func _model_scale() -> float:
 	return maxf(0.01, minf(size.x / 600.0, size.y / 300.0))
 
+func _single_figure_bounds() -> Rect2:
+	return Math.bounds(Math.rotate_vertices(question_vertices(), diagram_rotation))
+
+func _single_figure_fit(bounds: Rect2) -> float:
+	return minf(400.0 / bounds.size.x, 210.0 / bounds.size.y)
+
+func measurement_pixels_per_cm() -> float:
+	var diagram_scale: float = 1.0
+	if not is_line_activity():
+		diagram_scale = _single_figure_fit(_single_figure_bounds()) if question_mode else CARD_FIGURE_SCALE
+	return MODEL_UNITS_PER_CM * _model_scale() * diagram_scale
+
+func _update_measurement_scale() -> void:
+	if is_instance_valid(measure_tools): measure_tools.set_pixels_per_cm(measurement_pixels_per_cm())
+	queue_redraw()
+
 func _to_model(point: Vector2) -> Vector2:
 	return (point - size * 0.5) / _model_scale() + Vector2(300, 150)
 
@@ -133,6 +200,11 @@ func _card(index: int) -> Rect2:
 	return Rect2(Vector2(12 + (index % 2) * 294, 10 + int(index / 2) * 144), Vector2(282, 134))
 
 func _gui_input(event: InputEvent) -> void:
+	if is_instance_valid(measure_tools) and measure_tools.handle_input(event):
+		_dragging = false
+		if event is InputEventMouseButton or event is InputEventScreenTouch: grab_focus()
+		accept_event()
+		return
 	if question_mode: return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
@@ -174,8 +246,8 @@ func _draw() -> void:
 	if is_line_activity(): _draw_lines()
 	elif question_mode:
 		var vertices: PackedVector2Array = question_vertices()
-		var bounds: Rect2 = Math.bounds(Math.rotate_vertices(vertices, diagram_rotation))
-		var fit: float = minf(400.0 / bounds.size.x, 210.0 / bounds.size.y)
+		var bounds: Rect2 = _single_figure_bounds()
+		var fit: float = _single_figure_fit(bounds)
 		_draw_quad(vertices, Vector2(300, 150) - bounds.get_center() * fit, fit, true, diagram_rotation)
 	else:
 		var examples: Array[PackedVector2Array] = _figures()
@@ -183,7 +255,7 @@ func _draw() -> void:
 			var card: Rect2 = _card(index)
 			draw_rect(card, Color("d9eee4") if selected_choices.has(index) else Color("f9fbf7"))
 			draw_rect(card, Color("0c6658") if selected_choices.has(index) else Color("bdcec5"), false, 2.0 if selected_choices.has(index) else 1.0)
-			_draw_quad(examples[index], card.get_center() - Vector2(0, 8), 0.63, measured and focus_index == index, diagram_rotation)
+			_draw_quad(examples[index], card.get_center() - Vector2(0, 8), CARD_FIGURE_SCALE, not _measure_tool_kind().is_empty() and focus_index == index, diagram_rotation)
 			_text(card.position + Vector2(12, 24), LETTERS[index] + (" · 선택" if selected_choices.has(index) else ""), 18)
 			if has_focus() and focus_index == index: draw_rect(card.grow(-4), Color("0c6658"), false, 2)
 	draw_set_transform(Vector2.ZERO)
@@ -193,33 +265,18 @@ func _text(at: Vector2, text: String, font_size: int = 18, ink: Color = Color("2
 	var readable_size: int = ceili(float(font_size) / _model_scale()) if question_mode else font_size
 	draw_string(QuadTheme.FONT, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, readable_size, ink)
 
-func _draw_quad(vertices: PackedVector2Array, center: Vector2, zoom: float, details: bool, turn_degrees: float) -> void:
+func _draw_quad(vertices: PackedVector2Array, center: Vector2, zoom: float, label_vertices: bool, turn_degrees: float) -> void:
 	var points: PackedVector2Array = PackedVector2Array()
 	for vertex: Vector2 in vertices: points.append(center + vertex.rotated(deg_to_rad(turn_degrees)) * zoom)
 	draw_colored_polygon(points, Color("c7ded4"))
 	var outline: PackedVector2Array = points.duplicate()
 	outline.append(points[0])
 	draw_polyline(outline, Color("0c6658"), 2.5, true)
-	if not details: return
-	var angles: PackedFloat32Array = Math.angles(vertices)
+	if not label_vertices: return
 	var labels: Array[String] = ["ㄱ", "ㄴ", "ㄷ", "ㄹ"]
 	for index: int in range(4):
 		var first: Vector2 = points[index]
-		var next: Vector2 = points[(index + 1) % 4]
-		var previous: Vector2 = points[(index + 3) % 4]
-		var a: Vector2 = (next - first).normalized()
-		var b: Vector2 = (previous - first).normalized()
 		_text(first + (first - center).normalized() * 13 + Vector2(-5, 5), labels[index], 16)
-		if absf(angles[index] - 90.0) < 0.1:
-			draw_polyline(PackedVector2Array([first + a * 10, first + (a + b) * 10, first + b * 10]), Color("0c6658"), 1.8, true)
-		elif question_mode and lesson_id == "parallelogram" and measured:
-			_text(first + (a + b).normalized() * 28 + Vector2(-12, 5), Math.measurement_label(angles[index]) + "°", 17)
-		var opposite: Vector2 = points[(index + 3) % 4] - points[(index + 2) % 4]
-		if absf((next - first).normalized().cross(opposite.normalized())) <= Math.TOLERANCE:
-			var midpoint: Vector2 = (first + next) * 0.5
-			var normal: Vector2 = a.orthogonal()
-			draw_line(midpoint - a * 5 + normal * 4, midpoint + a * 4, Color("b46b27"), 2, true)
-			draw_line(midpoint + a * 4, midpoint - a * 5 - normal * 4, Color("b46b27"), 2, true)
 
 func _diagram_point(point: Vector2) -> Vector2:
 	return Vector2(300, 150) + (point - Vector2(300, 150)).rotated(deg_to_rad(diagram_rotation))
@@ -242,33 +299,18 @@ func _draw_lines() -> void:
 		var direction: Vector2 = Vector2.from_angle(deg_to_rad(value)) * 115
 		_straight_line(Vector2(300, 150) - direction, Vector2(300, 150) + direction, Color("0c6658"))
 		handle = Vector2(300, 150) + direction
-		if measured:
-			_text(Vector2(325, 138), Math.measurement_label(value) + "°", 20)
-			if absf(value - 90.0) < 0.1:
-				_line(Vector2(316, 150), Vector2(316, 166), Color("b46b27"), 2)
-				_line(Vector2(316, 166), Vector2(300, 166), Color("b46b27"), 2)
 	elif lesson_id == "parallel":
 		_straight_line(Vector2(55, 95), Vector2(510, 95), Color("213b42"))
 		var direction: Vector2 = Vector2.from_angle(deg_to_rad(value)) * 90
 		_straight_line(Vector2(320, 180) - direction, Vector2(320, 180) + direction, Color("0c6658"))
 		handle = Vector2(320, 180) + direction
-		if measured:
-			_line(Vector2(300, 55), Vector2(300, 245), Color("b46b27"), 2)
-			_text(Vector2(310, 87), "90°", 18)
-			_text(Vector2(310, 170), Math.measurement_label(absf(90.0 - value)) + "°", 18)
 	else:
 		var top: float = 150.0 - _distance_span * 0.5
 		var bottom: float = 150.0 + _distance_span * 0.5
 		_straight_line(Vector2(65, top), Vector2(535, top), Color("213b42"))
 		_straight_line(Vector2(100, bottom), Vector2(565, bottom), Color("213b42"))
-		_line(Vector2(180, top), Vector2(180, bottom), Color("b46b27"), 2)
 		_line(Vector2(300, top), Vector2(300 + value, bottom), Color("0c6658"), 4)
 		handle = Vector2(300 + value, bottom)
-		if measured:
-			_text(Vector2(112, 157), Math.measurement_label(_distance_span / 20.0) + " cm", 20)
-			_text(Vector2(320 + value * 0.5, 156), Math.measurement_label(Vector2(value, _distance_span).length() / 20.0) + " cm", 20)
-			_line(Vector2(180, bottom - 16), Vector2(196, bottom - 16), Color("b46b27"), 2)
-			_line(Vector2(196, bottom - 16), Vector2(196, bottom), Color("b46b27"), 2)
 	if not question_mode:
 		draw_circle(_diagram_point(handle), 12, Color("2c7dba"))
 		draw_circle(_diagram_point(handle), 6, Color.WHITE)

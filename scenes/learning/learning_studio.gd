@@ -82,7 +82,7 @@ func _ready() -> void:
 	tools.add_theme_constant_override("h_separation", 8)
 	tools.add_theme_constant_override("v_separation", 6)
 	body.add_child(tools)
-	tools.add_child(QuadTheme.button("재어 보기", func(): canvas.measure(), true))
+	canvas.add_measure_buttons(tools, true)
 	tools.add_child(QuadTheme.button("돌려 보기", func(): canvas.turn()))
 	tools.add_child(QuadTheme.button("처음부터", func(): open_lesson(lesson_id)))
 	_adjustments = HBoxContainer.new()
@@ -191,12 +191,13 @@ func check_activity() -> void:
 		open_lesson(Catalog.IDS[next])
 		return
 	if not canvas.measured:
-		_feedback.text = "‘재어 보기’로 변과 각을 먼저 확인해요."
+		_feedback.text = "‘재어 보기’에서 자나 각도기를 꺼내 확인해요."
 		return
 	progress.record_attempt(lesson_id, false)
 	if not canvas.construction_correct():
 		_feedback.text = str(Catalog.lesson(lesson_id).hint)
 		return
+	canvas.close_measure_tools()
 	phase = 1
 	_reasons.show()
 	_display_phase()

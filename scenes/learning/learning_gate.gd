@@ -21,6 +21,7 @@ var _metrics: Label
 var _feedback: Label
 var _tools: HFlowContainer
 var _measure: Button
+var _measure_buttons: Array[Button] = []
 var _turn: Button
 var _undo: Button
 var _reset: Button
@@ -98,11 +99,12 @@ func _build_tools(body: VBoxContainer) -> void:
 	_tools.add_theme_constant_override("h_separation", 8)
 	_tools.add_theme_constant_override("v_separation", 6)
 	body.add_child(_tools)
-	_measure = QuadTheme.button("재어 보기", canvas.measure)
+	_measure_buttons = canvas.add_measure_buttons(_tools)
+	_measure = _measure_buttons[0]
 	_turn = QuadTheme.button("돌려 보기", canvas.turn)
 	_undo = QuadTheme.button("되돌리기", grid_canvas.undo_last)
 	_reset = QuadTheme.button("처음부터", grid_canvas.reset)
-	for button: Button in [_measure, _turn, _undo, _reset]: _tools.add_child(button)
+	for button: Button in [_turn, _undo, _reset]: _tools.add_child(button)
 	_adjustments = HBoxContainer.new()
 	_adjustments.add_theme_constant_override("separation", 8)
 	body.add_child(_adjustments)
@@ -136,6 +138,7 @@ func present(value: Dictionary, step: int, total: int, feedback: String = "") ->
 	_show_feedback(feedback)
 	var drawing: bool = _mode == "draw"
 	canvas.visible = not drawing
+	if drawing: canvas.close_measure_tools()
 	grid_canvas.visible = drawing
 	_measure.visible = not drawing
 	_turn.visible = not drawing
@@ -204,7 +207,10 @@ func _set_focus_order() -> void:
 		controls.append(grid_canvas)
 		if not _undo.disabled: controls.append_array([_undo, _reset])
 	else:
-		controls.append_array([canvas, _measure, _turn])
+		controls.append(canvas)
+		for button: Button in _measure_buttons:
+			if button.visible: controls.append(button)
+		controls.append(_turn)
 		if _adjustments.visible: controls.append_array([_minus, _slider, _plus])
 		controls.append_array(_choice_buttons)
 	controls.append(_check)
@@ -228,7 +234,7 @@ func submit_answer() -> void:
 		_show_feedback("격자에서 꼭짓점 네 개를 이어 사각형을 완성해 주세요.", true)
 		return
 	if _mode != "draw" and not canvas.measured:
-		_show_feedback("‘재어 보기’를 눌러 길이나 각을 확인해 주세요.", true)
+		_show_feedback("‘재어 보기’에서 자나 각도기를 꺼내 확인해 주세요.", true)
 		return
 	if _mode == "select" and canvas.selected_choices.is_empty():
 		_show_feedback("조건에 맞는 도형을 모두 골라 주세요.", true)

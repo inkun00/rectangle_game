@@ -12,6 +12,7 @@ const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
 
 static func run(t: Node) -> void:
 	_test_examples_and_measurements(t)
+	await _test_manual_measurement(t)
 	_test_progress_files(t)
 	await _test_activity_flow(t)
 	_test_startup_question_bank(t)
@@ -43,7 +44,8 @@ static func _test_examples_and_measurements(t: Node) -> void:
 	t.assert_true(canvas.construction_correct(), "Reversed direction still represents parallel lines")
 	canvas.configure("distance")
 	canvas.measure()
-	t.assert_true(canvas.measurement_text().contains("5 cm"), "The original oblique 3-4-5 example has the measured five-centimeter length")
+	var directions: String = canvas.measurement_text()
+	t.assert_false(directions.contains("4 cm") or directions.contains("5 cm"), "The ruler leaves both lengths for the learner to read")
 	t.assert_false(canvas.construction_correct(), "An oblique segment does not measure the distance")
 	canvas.set_value(0)
 	t.assert_true(canvas.construction_correct(), "A perpendicular segment measures the four-unit distance")
@@ -54,6 +56,8 @@ static func _test_examples_and_measurements(t: Node) -> void:
 	canvas.configure_question("snow_lanterns")
 	for length: float in Math.side_lengths(canvas.question_vertices()):
 		t.assert_float_approx(length / 20.0, 6.0, 0.001, "The lantern illustration matches the six-unit side in its question")
+	canvas.measure()
+	t.assert_false(canvas.measurement_text().contains("6 cm"), "Opening the quest's measurement tool does not reveal its answer")
 	for id: String in ["parallelogram_bridge", "citadel_banners"]:
 		canvas.configure_question(id)
 		var angle: float = 65.0 if id == "parallelogram_bridge" else 70.0
@@ -61,6 +65,64 @@ static func _test_examples_and_measurements(t: Node) -> void:
 	t.assert_eq(Math.measurement_label(4.0), "4", "Whole lengths are displayed exactly")
 	t.assert_eq(Math.measurement_label(4.123), "약 4.1", "Rounded lengths explicitly state approximation")
 	canvas.free()
+
+static func _test_manual_measurement(t: Node) -> void:
+	var canvas: Canvas = Canvas.new()
+	t.add_child(canvas)
+	await t.get_tree().process_frame
+	canvas.size = Vector2(640, 340)
+	var line_question: Dictionary = Bank.question("distance", 12)
+	canvas.configure_activity(line_question)
+	canvas.measure()
+	t.assert_eq(canvas.measure_tools.tool_kind, "ruler", "The measurement action opens the ruler for a distance problem")
+	t.assert_float_approx(canvas.measure_tools.pixels_per_cm, 20.0 * canvas._model_scale(), 0.001, "Ruler marks and rotated lines share the same scale")
+	var start: Vector2 = canvas.measure_tools.tool_origin
+	var value_before: float = canvas.value
+	var drag_start: Vector2 = start + Vector2(25, 14).rotated(canvas.measure_tools.tool_angle)
+	_drag_tool(canvas, drag_start, drag_start + Vector2(36, 18))
+	t.assert_gt(canvas.measure_tools.tool_origin.distance_to(start), 20.0, "Dragging on the ruler moves it across the diagram")
+	t.assert_eq(canvas.value, value_before, "Grabbing a ruler on the line diagram leaves the geometry alone")
+	canvas.select_measure_tool("protractor")
+	t.assert_eq(canvas.measure_tools.tool_kind, "protractor", "The alternate measuring tool can be selected on the same diagram")
+	var handle: Vector2 = canvas.measure_tools.rotation_handle_position()
+	var origin: Vector2 = canvas.measure_tools.tool_origin
+	var initial_angle: float = canvas.measure_tools.tool_angle
+	_drag_tool(canvas, handle, origin + (handle - origin).rotated(deg_to_rad(30.0)))
+	t.assert_float_approx(angle_difference(initial_angle, canvas.measure_tools.tool_angle), deg_to_rad(30.0), 0.015, "Dragging the angle handle rotates the measuring tool independently of the diagram")
+	t.assert_eq(canvas.diagram_rotation, line_question.rotation, "Rotating the protractor does not rotate the diagram")
+	canvas.close_measure_tools()
+	t.assert_true(canvas.measure_tools.tool_kind.is_empty() and canvas.measured, "Closing the tool leaves the completed observation available for checking")
+	var rotated_shape: Dictionary = Bank.question("equal_sides", 9)
+	canvas.configure_activity(rotated_shape)
+	t.assert_false(canvas.measured, "A new question starts with its own observation and measurement state")
+	canvas.measure()
+	var vertices: PackedVector2Array = rotated_shape.vertices
+	for dimensions: Vector2 in [Vector2(440, 265), Vector2(840, 390)]:
+		canvas.size = dimensions
+		canvas.turn()
+		await t.get_tree().process_frame
+		var bounds: Rect2 = Math.bounds(Math.rotate_vertices(vertices, canvas.diagram_rotation))
+		var diagram_fit: float = minf(400.0 / bounds.size.x, 210.0 / bounds.size.y)
+		var rendered_side: float = Math.side_lengths(vertices)[0] * diagram_fit * minf(dimensions.x / 600.0, dimensions.y / 300.0)
+		t.assert_float_approx(canvas.measure_tools.pixels_per_cm * 7.0, rendered_side, 0.01, "Seven ruler centimeters cover one visible side after rotating and resizing the rhombus")
+	var shape_directions: String = canvas.measurement_text()
+	t.assert_false(shape_directions.contains("7 cm") or shape_directions.contains("28 cm"), "Measuring a rhombus leaves its side length and perimeter for the learner")
+	canvas.free()
+
+static func _drag_tool(canvas: Canvas, start: Vector2, end: Vector2) -> void:
+	var pointer: InputEventMouseButton = InputEventMouseButton.new()
+	pointer.button_index = MOUSE_BUTTON_LEFT
+	pointer.position = start
+	pointer.pressed = true
+	canvas._gui_input(pointer)
+	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
+	motion.position = end
+	motion.relative = end - start
+	motion.button_mask = MOUSE_BUTTON_MASK_LEFT
+	canvas._gui_input(motion)
+	pointer.position = end
+	pointer.pressed = false
+	canvas._gui_input(pointer)
 
 static func _test_progress_files(t: Node) -> void:
 	var progress: Progress = Progress.new()
@@ -150,6 +212,13 @@ static func _test_startup_question_bank(t: Node) -> void:
 				t.assert_true(not expected.is_empty() and expected.size() < question.figures.size(), "Each figure set has examples and nonexamples")
 			elif question.mode == "measure":
 				t.assert_true(question.answer_index >= 0 and question.answer_index < question.choices.size(), "Measurement questions have a selectable answer")
+				var centimeters: float
+				if question.lesson_id == "distance":
+					centimeters = float(question.gap) / 20.0
+				else:
+					var perimeter: bool = str(question.prompt).contains("네 변")
+					centimeters = Math.side_lengths(question.vertices)[0] * (4.0 if perimeter else 1.0) / 20.0
+				t.assert_eq(question.choices[int(question.answer_index)], "%d cm" % roundi(centimeters), "The answer agrees with the distance or side the learner can measure in the diagram")
 	t.assert_eq(Bank.TYPES.size(), 5, "A launch covers five distinct curriculum types")
 	t.assert_eq(ids.size(), 100, "The question bank contains exactly 100 variants")
 	t.assert_eq(drawing_kinds.size(), 5, "Grid construction covers all five quadrilateral families")
@@ -195,6 +264,13 @@ static func _test_startup_learning_gate(t: Node) -> void:
 		t.assert_eq(gate.question.type_id, Bank.TYPES[step], "A correct answer advances to the next distinct curriculum type")
 		t.assert_true(gate.visible and not app._home_screen.visible, "The home screen stays locked while any type remains")
 		var question: Dictionary = gate.question
+		if question.mode != "draw":
+			gate._measure.pressed.emit()
+			t.assert_true(gate.canvas.measure_tools.tool_kind in ["ruler", "protractor"], "Every applicable startup problem has manual measuring tools")
+			t.assert_true(gate._measure_buttons[1].visible and gate._measure_buttons[2].visible, "The measuring toolbar lets the learner switch between both tools")
+			if question.mode == "measure":
+				var correct_text: String = str(question.choices[question.answer_index])
+				t.assert_false(gate._metrics.text.contains(correct_text), "The measurement panel does not disclose the selected numeric answer")
 		match str(question.mode):
 			"line": gate.canvas.set_value(90.0 if question.lesson_id == "perpendicular" else 0.0)
 			"measure": gate._choice_buttons[int(question.answer_index)].pressed.emit()
@@ -203,7 +279,9 @@ static func _test_startup_learning_gate(t: Node) -> void:
 			"draw":
 				for point_index: int in range(question.given.size(), question.draw_solution.size()):
 					gate.grid_canvas.place_vertex(question.draw_solution[point_index])
-		if question.mode != "draw": gate._measure.pressed.emit()
+		if question.mode != "draw":
+			gate._measure_buttons[3].pressed.emit()
+			t.assert_true(gate.canvas.measure_tools.tool_kind.is_empty(), "The learner can put away the tool before checking")
 		gate._check.pressed.emit()
 	await t.get_tree().process_frame
 	t.assert_true(app._startup_learning == null and app._home_screen.visible, "The fifth correct type opens the game")
