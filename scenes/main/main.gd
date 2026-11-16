@@ -319,7 +319,7 @@ func _show_ending_choices() -> void:
 	if not unlocked and earth.is_empty() and space.is_empty() and not _economy_state.launched:
 		_show_toast(_ending_locked_message())
 		return
-	var body: VBoxContainer = _open_modal("사각이의 다음 이야기")
+	var body: VBoxContainer = _open_modal(HomePage.ENDING_CHOICE_TITLE)
 	var guidance: String = "지금 골라도 좋아요. 돈을 더 모으면 집에 더 많은 재료를 쓰거나 더 좋은 우주선 부품을 살 수 있어요." if unlocked else _ending_locked_message()
 	body.add_child(QuadTheme.paragraph(guidance, 18, QuadTheme.INK))
 	var home_card: VBoxContainer = QuadTheme.card(body, Color("edf5ef"), 14)

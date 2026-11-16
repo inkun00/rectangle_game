@@ -11,6 +11,7 @@ signal opening_requested
 signal ending_choice_requested
 
 const Art = preload("res://scripts/construction_art.gd")
+const ENDING_CHOICE_TITLE: String = "최후의 선택"
 
 var _cards: GridContainer
 var _heading: Label
@@ -71,8 +72,8 @@ func _ready() -> void:
 	_build_mode("Drawing", "그림을 팔아 자금 모으기", "나만의 그림", "사각형으로 작품을 만들고 판매해 집이나 우주선을 만들 자금을 모아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
 	_build_mode("Construction", "집 짓기 놀이", "뚝딱! 사각형 집 짓기", "의뢰인의 집을 짓고 수익으로 나만의 집도 완성해요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
 	_build_mode("Adventure", "마을을 도와 자금 모으기", "마을 주민 심부름하기", "사각이와 여섯 지역을 돌아다니며 주민의 부탁을 해결하고 돈을 벌어요.", GameArt.sheet("world_backdrop"), "마을 주민 심부름하기", func(): adventure_requested.emit())
-	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", "엔딩 선택", "그림 판매와 건축 의뢰 완료를 합쳐 10회 달성하면 두 길이 열려요.", StarfrontArt.scene(8), "엔딩 선택", func(): ending_choice_requested.emit())
-	_ending_choice.disabled = true
+	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", ENDING_CHOICE_TITLE, "그림 판매와 건축 의뢰 완료를 합쳐 10회 달성하면 두 길이 열려요.", StarfrontArt.scene(8), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
+	_ending_choice.hide()
 	_ending_progress = _label("", 15, Art.ACCENT)
 	var ending_card: Node = _ending_choice.get_parent()
 	ending_card.add_child(_ending_progress)
@@ -116,9 +117,8 @@ func set_learning_progress(count: int) -> void:
 		_learning_record.text = "수직부터 사각형까지 · 활동 기록 %d / 8" % count
 
 func set_ending_progress(sales: int, houses: int, required: int, has_saved_ending: bool) -> void:
-	_ending_choice.disabled = sales + houses < required and not has_saved_ending
+	_ending_choice.visible = sales + houses >= required or has_saved_ending
 	_ending_progress.text = "그림 %d회 + 집 %d회 · %d/%d회" % [sales, houses, mini(sales + houses, required), required]
-	_ending_choice.text = "엔딩 선택" if not _ending_choice.disabled else "%d회 더 완성하기" % (required - sales - houses)
 
 func _build_mode(mode: String, badge_text: String, title: String, description: String, texture: Texture2D, action_text: String, action: Callable) -> Button:
 	var panel: PanelContainer = PanelContainer.new()
