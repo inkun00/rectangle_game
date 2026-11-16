@@ -8,6 +8,7 @@ const Facade = preload("res://scripts/construction/construction_facade.gd")
 const Awards = preload("res://scripts/construction/construction_awards.gd")
 const Custom = preload("res://scripts/construction/custom_material_catalog.gd")
 const Market = preload("res://scripts/economy/art_market.gd")
+const ArtCommissions = preload("res://scripts/economy/art_commission_catalog.gd")
 const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
 const ShipStyle = preload("res://scripts/economy/spaceship_style.gd")
 const VillageQuests = preload("res://scripts/world/quest_catalog.gd")
@@ -17,6 +18,7 @@ const MAX_CONTRACTS: int = 1000
 const GRADING_VERSION: int = 6
 const LEGACY_PAYMENT_VERSION: int = 1
 const PAYMENT_VERSION: int = 2
+const MAX_ART_COMMISSION_REVISION: int = 2147483647
 
 static var _village_reward_amounts: Dictionary = {}
 
@@ -36,6 +38,8 @@ var last_error: String = ""
 var custom_material_ids: Array[String] = []
 ## Completed income and purchases share one save and one authoritative won balance.
 var art_sales: Array[Dictionary] = []
+var art_commission_id: String = ""
+var art_commission_revision: int = 0
 var village_rewards: Array[String] = []
 var purchased_ship_parts: Array[String] = []
 var ship_design: Dictionary = {}
@@ -151,24 +155,47 @@ func ship_performance() -> int:
 		performance += int(Ship.part(id).get("performance", 0))
 	return performance
 
-func sell_art(document_data: Dictionary, title: String = "") -> Dictionary:
+func accept_art_commission(id: String) -> Dictionary:
+	if art_sales.size() >= Market.MAX_SALES:
+		return _economy_error("그림 의뢰 장부가 가득 찼어요. 건축 의뢰를 받아 자금을 더 모을 수 있어요.")
+	if ArtCommissions.get_commission(id).is_empty():
+		return _economy_error("그림 의뢰를 다시 골라 주세요.")
+	if id == art_commission_id:
+		return _economy_error("이미 맡고 있는 그림 의뢰예요.")
+	if art_commission_revision >= MAX_ART_COMMISSION_REVISION:
+		return _economy_error("그림 의뢰 기록이 가득 찼어요.")
+	art_commission_id = id
+	art_commission_revision += 1
+	last_error = ""
+	changed.emit()
+	return {"ok": true, "error": "", "commission_id": id}
+
+func quote_art_commission(artwork: DrawingDocument) -> Dictionary:
+	if art_commission_id.is_empty():
+		return {"can_sell": false, "price": 0, "score": 0, "reason": "먼저 그림 의뢰를 받아 주세요."}
+	return Market.quote(artwork, art_sales, art_commission_id)
+
+func sell_art(document_data: Dictionary, title: String = "", commission_revision: int = -1) -> Dictionary:
+	if art_commission_id.is_empty():
+		return _economy_error("먼저 그림 의뢰를 받아 주세요.")
+	if commission_revision != -1 and commission_revision != art_commission_revision:
+		return _economy_error("의뢰가 바뀌었어요. 지금 맡은 의뢰를 확인하고 다시 제출해 주세요.")
 	if not title.is_empty() and not Market.valid_title(title):
 		return _economy_error("작품 제목을 줄바꿈 없이 1~%d자로 입력해 주세요." % Market.MAX_TITLE_LENGTH)
-	if art_sales.size() >= Market.MAX_SALES:
-		return _economy_error("그림 판매 장부가 가득 찼어요. 집 짓기로 수익을 더 모을 수 있어요.")
 	var artwork: DrawingDocument = DrawingDocument.new()
 	if not artwork.restore(document_data): return _economy_error("그림을 확인하지 못했어요. 현재 작품을 다시 확인해 주세요.")
-	var quote: Dictionary = Market.quote(artwork, art_sales)
-	if not bool(quote.get("can_sell", false)): return _economy_error(str(quote.get("reason", "판매할 수 없는 작품이에요.")))
+	var quote: Dictionary = quote_art_commission(artwork)
+	if not bool(quote.can_sell): return _economy_error(str(quote.reason))
 	var sale_title: String = "나의 작품 %d" % (art_sales.size() + 1) if title.is_empty() else title.strip_edges()
 	var receipt: Dictionary = Market.receipt_from_quote(quote, sale_title)
-	if receipt.is_empty() or not Market.validate_receipt(receipt): return _economy_error("판매 가격을 확인하지 못했어요.")
+	if receipt.is_empty(): return _economy_error("그림 의뢰의 보상을 확인하지 못했어요.")
 	art_sales.append(receipt)
 	balance += int(receipt.price)
+	art_commission_id = ""
 	my_house_document.budget_limit = my_house_budget()
 	last_error = ""
 	changed.emit()
-	return {"ok": true, "error": "", "price": int(receipt.price), "receipt": receipt.duplicate(true)}
+	return {"ok": true, "error": "", "price": int(receipt.price), "score": int(receipt.score), "receipt": receipt.duplicate(true)}
 
 func purchase_ship_part(id: String) -> Dictionary:
 	var part: Dictionary = Ship.part(id)
@@ -218,6 +245,8 @@ func apply_economy_from(candidate: ConstructionState) -> void:
 	# Called after a validated transaction has been saved. Keep live documents
 	# and their undo stacks intact; only the financial fields are committed.
 	art_sales.assign(candidate.art_sales.duplicate(true))
+	art_commission_id = candidate.art_commission_id
+	art_commission_revision = candidate.art_commission_revision
 	village_rewards.assign(candidate.village_rewards)
 	purchased_ship_parts.assign(candidate.purchased_ship_parts)
 	ship_design = candidate.ship_design.duplicate(true)
@@ -450,6 +479,8 @@ func next_contract() -> bool:
 func serialize() -> Dictionary:
 	var result: Dictionary = {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
 	if not village_rewards.is_empty(): result["village_rewards"] = village_rewards.duplicate()
+	if art_commission_revision > 0:
+		result["art_commission"] = {"id": art_commission_id, "revision": art_commission_revision}
 	var customized_ship: bool = ship_appearance != ShipStyle.defaults()
 	if not art_sales.is_empty() or not purchased_ship_parts.is_empty() or launched or customized_ship:
 		result["space_economy"] = {"version": 1, "art_sales": art_sales.duplicate(true), "purchased_parts": purchased_ship_parts.duplicate(), "launched": launched}
@@ -506,6 +537,7 @@ func restore(data: Dictionary) -> bool:
 			checked_rewards.append(id)
 			expected_balance += reward
 	var checked_sales: Array[Dictionary] = []
+	var completed_art_commissions: int = 0
 	var checked_parts: Array[String] = []
 	var checked_ship_design: Dictionary = {}
 	var checked_ship_appearance: Dictionary = ShipStyle.defaults()
@@ -527,6 +559,7 @@ func restore(data: Dictionary) -> bool:
 			sold_fingerprints[fingerprint] = true
 			sold_signatures[signature] = true
 			checked_sales.append(raw_sale.duplicate(true))
+			if raw_sale.has("commission_id"): completed_art_commissions += 1
 			expected_balance += int(raw_sale.price)
 		var checked_slots: Dictionary = {}
 		for raw_part: Variant in economy.purchased_parts:
@@ -547,6 +580,19 @@ func restore(data: Dictionary) -> bool:
 		checked_launched = bool(economy.launched)
 		if checked_launched and checked_parts.size() != Ship.all_parts().size(): return false
 		if expected_balance < INITIAL_BALANCE: return false
+	var checked_art_commission: String = ""
+	var checked_art_revision: int = 0
+	if data.has("art_commission"):
+		var saved_commission: Variant = data.art_commission
+		if not saved_commission is Dictionary or saved_commission.size() != 2 or not saved_commission.get("id") is String:
+			return false
+		if not Document._integer(saved_commission.get("revision"), 1, MAX_ART_COMMISSION_REVISION): return false
+		checked_art_commission = str(saved_commission.id)
+		checked_art_revision = int(saved_commission.revision)
+		if not checked_art_commission.is_empty() and ArtCommissions.get_commission(checked_art_commission).is_empty(): return false
+	var active_art_commissions: int = 0 if checked_art_commission.is_empty() else 1
+	if checked_art_revision < completed_art_commissions + active_art_commissions: return false
+	if checked_sales.size() >= Market.MAX_SALES and active_art_commissions > 0: return false
 	var expected_saved_balance: int = expected_balance
 	if str(data.phase) == "settled":
 		var settled_grading: int = int(checked_records.back().get("grading_version", 1))
@@ -588,6 +634,8 @@ func restore(data: Dictionary) -> bool:
 	my_house_mode = checked_my_house_mode
 	custom_material_ids = checked_custom_ids
 	art_sales = checked_sales
+	art_commission_id = checked_art_commission
+	art_commission_revision = checked_art_revision
 	village_rewards = checked_rewards
 	purchased_ship_parts = checked_parts
 	ship_design = checked_ship_design

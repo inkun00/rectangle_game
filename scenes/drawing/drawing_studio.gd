@@ -7,7 +7,7 @@ const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 const DrawingExport = preload("res://scripts/export/drawing_exporter.gd")
 const SubmissionMetadata = preload("res://scripts/export/art_submission_metadata.gd")
 const Buttons = preload("res://scripts/ui/button_art.gd")
-const Market = preload("res://scripts/economy/art_market.gd")
+const Commissions = preload("res://scripts/economy/art_commission_catalog.gd")
 const Money = preload("res://scripts/construction/construction_catalog.gd")
 const SAVE_PATH: String = "user://quadrilateral_drawing_v1.json"
 const PADLET_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
@@ -40,6 +40,7 @@ signal tutorial_requested
 signal mode_selected(mode: String)
 signal interaction_context_changed
 signal guide_changed
+signal art_commission_requested(commission_id: String)
 signal art_sale_requested(document_data: Dictionary)
 signal art_upload_retry_requested
 
@@ -88,6 +89,11 @@ var _shape_context_menu: PopupMenu
 var _context_shape_id: int = -1
 var _main_colors: Array[Button] = []
 var economy: ConstructionState
+var _commission_dialog: AcceptDialog
+var _commission_body: VBoxContainer
+var _commission_brief: Button
+var _commission_summary: Label
+var _work_commission_revision: int = 0
 var _sale_button: Button
 var _sale_dialog: ConfirmationDialog
 var _sale_offer: Dictionary = {}
@@ -129,8 +135,7 @@ func _ready() -> void:
 	visibility_changed.connect(func():
 		if not is_visible_in_tree():
 			_stop_drawing_work()
-			cancel_gesture()
-			if is_instance_valid(_sale_dialog): _sale_dialog.hide())
+			cancel_gesture())
 	if not testing:
 		load_drawing(false)
 	_refresh()
@@ -365,14 +370,25 @@ func _build_ui() -> void:
 	var footer: HBoxContainer = HBoxContainer.new()
 	footer.name = "DrawingSaleFooter"
 	footer.add_theme_constant_override("separation", 14)
-	_sale_button = _button("그림 판매", _open_sale, true)
+	_sale_button = _button("그림 의뢰 받기", _open_commission_action, true)
 	_sale_button.name = "SellDrawingButton"
-	_sale_button.custom_minimum_size = Vector2(130, 48)
-	_sale_button.tooltip_text = "도화지의 40% 이상을 채우고 직접 그리거나 편집한 시간이 5분 이상이면 판매할 수 있어요."
+	_sale_button.custom_minimum_size = Vector2(156, 48)
 	footer.add_child(_sale_button)
-	_status = QuadTheme.paragraph("도형을 골라 종이에 그려요. 자동으로 저장돼요.", 14, QuadTheme.INK)
-	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	footer.add_child(_status)
+	_commission_brief = _button("의뢰서 보기", _open_commissions)
+	_commission_brief.name = "OpenArtCommissionBrief"
+	footer.add_child(_commission_brief)
+	var status_panel: PanelContainer = PanelContainer.new()
+	status_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_panel.add_theme_stylebox_override("panel", GameArt.panel(0, 6))
+	footer.add_child(status_panel)
+	var footer_text: VBoxContainer = VBoxContainer.new()
+	footer_text.alignment = BoxContainer.ALIGNMENT_CENTER
+	status_panel.add_child(footer_text)
+	_commission_summary = QuadTheme.label("", 15, QuadTheme.TEAL)
+	_commission_summary.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	footer_text.add_child(_commission_summary)
+	_status = QuadTheme.paragraph("의뢰를 고르거나 도형을 골라 자유롭게 그려 보세요.", 14, QuadTheme.INK)
+	footer_text.add_child(_status)
 	column.add_child(footer)
 	_upload_row = HFlowContainer.new()
 	_upload_row.name = "ArtUploadStatus"
@@ -594,6 +610,7 @@ func _choose_mode(mode: String) -> void:
 	_set_status("밑그림 위에 여러 사각형을 겹쳐 명화를 완성해 보세요." if mode == "masterpiece" else "자유 그림 모드예요. 배경과 도형으로 나만의 작품을 만들어요.")
 
 func _open_gallery(masterpieces: bool) -> void:
+	if is_instance_valid(_commission_dialog) and _commission_dialog.visible: return
 	cancel_gesture()
 	if _gallery != null:
 		remove_child(_gallery)
@@ -725,7 +742,7 @@ func _document_changed() -> void:
 		_autosave.start()
 
 func _begin_drawing_work(now: int) -> void:
-	if _restoring or tutorial_blocked or not is_visible_in_tree():
+	if _restoring or tutorial_blocked or not is_visible_in_tree() or economy == null or economy.art_commission_id.is_empty():
 		return
 	_record_drawing_work(now)
 	if document.work_msec < Model.REQUIRED_WORK_MSEC:
@@ -744,6 +761,8 @@ func _record_drawing_work(now: int) -> void:
 	if _drawing_work_until == 0:
 		return
 	if _restoring or tutorial_blocked or not is_visible_in_tree() or _exporting or _sale_pending \
+		or economy == null or economy.art_commission_id.is_empty() \
+		or (is_instance_valid(_commission_dialog) and _commission_dialog.visible) \
 		or (is_instance_valid(_sale_dialog) and _sale_dialog.visible) \
 		or (is_instance_valid(_gallery) and _gallery.visible) \
 		or (is_instance_valid(_color_dialog) and _color_dialog.visible):
@@ -773,14 +792,150 @@ func configure_economy(value: ConstructionState) -> void:
 	_economy_changed()
 
 func _economy_changed() -> void:
+	_sync_work_commission()
 	_refresh_sale_button()
 	if is_instance_valid(_sale_dialog) and _sale_dialog.visible: _refresh_sale_dialog()
 
+func _sync_work_commission() -> void:
+	if economy == null or _work_commission_revision == economy.art_commission_revision: return
+	_work_commission_revision = economy.art_commission_revision
+	_stop_drawing_work()
+	document.work_msec = 0
+	# Old snapshots can hold elapsed work for the previous commission.
+	document.command_manager.clear()
+
 func _refresh_sale_button() -> void:
 	if not is_instance_valid(_sale_button): return
+	var commission: Dictionary = _active_commission()
+	var active: bool = not commission.is_empty()
 	_sale_button.disabled = economy == null or _sale_pending
+	_sale_button.text = "완성작 제출" if active else "그림 의뢰 받기"
+	_sale_button.tooltip_text = "제출 조건과 의뢰인의 만족도를 확인해요." if active else "그림을 부탁한 의뢰인을 골라요."
+	_commission_brief.visible = active
+	_commission_brief.disabled = _sale_pending
+	_commission_summary.visible = active
+	_commission_summary.text = "진행 중 · %s" % str(commission.title) if active else ""
+	_commission_summary.tooltip_text = _commission_summary.text
 	_refresh_upload_status()
 
+func _active_commission() -> Dictionary:
+	return {} if economy == null else Commissions.get_commission(economy.art_commission_id)
+
+func _open_commission_action() -> void:
+	if _active_commission().is_empty():
+		_open_commissions()
+	else:
+		_open_sale()
+
+func _can_open_submission_dialog() -> bool:
+	return economy != null and not _sale_pending and not tutorial_blocked and not _exporting and is_visible_in_tree() \
+		and not (is_instance_valid(_gallery) and _gallery.visible) \
+		and not (is_instance_valid(_color_dialog) and _color_dialog.visible) and not _color_picker.get_popup().visible
+
+func _open_commissions() -> void:
+	if not _can_open_submission_dialog(): return
+	_record_drawing_work(Time.get_ticks_msec())
+	_stop_drawing_work()
+	cancel_gesture()
+	var commission: Dictionary = _active_commission()
+	if commission.is_empty():
+		_show_commissions()
+	else:
+		_show_commission_brief(commission)
+
+func _prepare_commission_dialog(title: String) -> void:
+	if not is_instance_valid(_commission_dialog):
+		_commission_dialog = AcceptDialog.new()
+		_commission_dialog.name = "ArtCommissionDialog"
+		_commission_dialog.exclusive = true
+		_commission_dialog.get_label().hide()
+		_commission_dialog.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
+		var close: Button = _commission_dialog.get_ok_button()
+		close.text = "닫기"
+		close.custom_minimum_size.y = 48
+		Buttons.apply(close)
+		var scroll: ScrollContainer = ScrollContainer.new()
+		scroll.custom_minimum_size = Vector2(340, 210)
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.follow_focus = true
+		_commission_dialog.add_child(scroll)
+		_commission_body = VBoxContainer.new()
+		_commission_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_commission_body.add_theme_constant_override("separation", 10)
+		scroll.add_child(_commission_body)
+		_commission_dialog.visibility_changed.connect(func(): interaction_context_changed.emit())
+		add_child(_commission_dialog)
+	_commission_dialog.title = title
+	for child: Node in _commission_body.get_children():
+		_commission_body.remove_child(child)
+		child.queue_free()
+	(_commission_body.get_parent() as ScrollContainer).scroll_vertical = 0
+
+func _show_commissions() -> void:
+	if is_instance_valid(_commission_dialog) and _commission_dialog.visible: _commission_dialog.hide()
+	_prepare_commission_dialog("그림 의뢰 고르기")
+	var active: Dictionary = _active_commission()
+	var has_active: bool = not active.is_empty()
+	var detail: String = "다른 의뢰를 받으면 그린 그림은 이어서 그릴 수 있어요. 작업 시간은 다시 시작해요." if has_active else "그리고 싶은 그림을 골라요. 도화지의 40% 이상을 채우고 5분 이상 작업하면 작품을 보여 줄 수 있어요."
+	_commission_body.add_child(QuadTheme.paragraph(detail, 16, QuadTheme.INK))
+	var first_action: Button
+	for commission: Dictionary in Commissions.all():
+		var id: String = str(commission.id)
+		var card: VBoxContainer = QuadTheme.card(_commission_body, QuadTheme.PAPER, 10)
+		card.add_theme_constant_override("separation", 6)
+		var current: bool = has_active and str(active.id) == id
+		var action_text: String = "진행 중" if current else ("이 의뢰로 바꾸기" if has_active else "이 의뢰 받기")
+		var accept: Button = _button(action_text, _accept_commission.bind(id), not current)
+		accept.name = "AcceptArtCommission_" + id
+		accept.disabled = current
+		_add_commission_brief(card, commission, accept)
+		if first_action == null and not current: first_action = accept
+	_commission_dialog.popup_centered_clamped(Vector2i(660, 650), 0.9)
+	if first_action != null: first_action.grab_focus()
+
+func _show_commission_brief(commission: Dictionary) -> void:
+	_prepare_commission_dialog("진행 중인 그림 의뢰")
+	var card: VBoxContainer = QuadTheme.card(_commission_body, QuadTheme.PAPER, 12)
+	_add_commission_brief(card, commission)
+	_commission_body.add_child(QuadTheme.paragraph("도화지를 40% 이상 채우고 5분 이상 작업하면 그림을 보여 줄 수 있어요. 부탁을 더 많이 채울수록 만족도와 보상이 높아져요.", 16, QuadTheme.INK))
+	var others: Button = _button("다른 의뢰 보기", _show_commissions)
+	others.name = "ShowOtherArtCommissions"
+	others.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_commission_body.add_child(others)
+	_commission_dialog.popup_centered_clamped(Vector2i(610, 410), 0.9)
+	_commission_dialog.get_ok_button().grab_focus()
+
+func _add_commission_brief(parent: VBoxContainer, commission: Dictionary, action: Button = null) -> void:
+	var heading: Label = QuadTheme.paragraph("%s · %s 님" % [commission.title, commission.client], 20, QuadTheme.TEAL)
+	if action == null:
+		parent.add_child(heading)
+	else:
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		parent.add_child(row)
+		heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		row.add_child(heading)
+		row.add_child(action)
+	parent.add_child(QuadTheme.paragraph(str(commission.brief), 16, QuadTheme.INK))
+	var labels: PackedStringArray = []
+	for requirement: Dictionary in Commissions.requirements(str(commission.id)):
+		labels.append(str(requirement.label))
+	parent.add_child(QuadTheme.paragraph(" · ".join(labels), 15, QuadTheme.MUTED))
+
+func _accept_commission(commission_id: String) -> void:
+	if not _can_open_submission_dialog() or Commissions.get_commission(commission_id).is_empty(): return
+	if commission_id == economy.art_commission_id: return
+	art_commission_requested.emit(commission_id)
+
+func show_art_commission_result(result: Dictionary) -> void:
+	if is_instance_valid(_commission_dialog): _commission_dialog.hide()
+	if not bool(result.get("ok", false)):
+		_set_status(str(result.get("error", "의뢰를 받지 못했어요. 다시 시도해 주세요.")))
+		_sale_button.grab_focus()
+		return
+	canvas.grab_focus()
+	if not testing and not save_drawing(false): return
+	_set_status("의뢰를 받았어요. 부탁을 살피며 그림을 그려 보세요.")
 func set_upload_status(message: String, pending_count: int = 0, post_url: String = "", busy: bool = false) -> void:
 	_upload_message = message
 	_upload_pending_count = maxi(0, pending_count)
@@ -817,15 +972,15 @@ static func _safe_padlet_url(value: String) -> String:
 	return value
 
 func _open_sale() -> void:
-	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
-	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or _color_picker.get_popup().visible: return
+	if not _can_open_submission_dialog() or _active_commission().is_empty(): return
+	if is_instance_valid(_commission_dialog) and _commission_dialog.visible: return
 	_record_drawing_work(Time.get_ticks_msec())
 	_stop_drawing_work()
 	cancel_gesture()
 	if _sale_dialog == null:
 		_sale_dialog = ConfirmationDialog.new()
 		_sale_dialog.name = "ArtSaleDialog"
-		_sale_dialog.title = "그림 판매 · 패들릿에 작품 소개"
+		_sale_dialog.title = "그림 의뢰 · 완성작 제출"
 		_sale_dialog.dialog_hide_on_ok = false
 		_sale_dialog.exclusive = true
 		_sale_dialog.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
@@ -844,7 +999,7 @@ func _open_sale() -> void:
 		column.add_child(_sale_price)
 		_sale_details = QuadTheme.paragraph("", 17, QuadTheme.INK)
 		column.add_child(_sale_details)
-		column.add_child(QuadTheme.paragraph("이름, 제목, 설명, 그림 가격과 PNG 그림이 우리 패들릿에 함께 올라가요.", 16, QuadTheme.INK))
+		column.add_child(QuadTheme.paragraph("이름, 제목, 설명, 받은 보상과 그림 이미지가 패들릿에 함께 올라가요.", 16, QuadTheme.INK))
 		column.add_child(QuadTheme.paragraph("작성자 이름 · 최대 40자", 18, QuadTheme.INK))
 		_sale_author = LineEdit.new()
 		_sale_author.name = "SoldArtAuthor"
@@ -884,7 +1039,7 @@ func _open_sale() -> void:
 		_sale_validation = QuadTheme.paragraph("", 16, QuadTheme.TEAL)
 		_sale_validation.name = "SoldArtMetadataFeedback"
 		column.add_child(_sale_validation)
-		column.add_child(QuadTheme.paragraph("판매하면 PNG로 저장한 뒤 패들릿에 등록해요.\n등록이 안 되면 저장한 그림으로 다시 시도할 수 있어요.\n같거나 아주 비슷한 작품은 한 번만 판매해요.", 16, QuadTheme.INK))
+		column.add_child(QuadTheme.paragraph("제출하면 그림을 PNG로 저장한 뒤 패들릿에 등록해요. 등록이 안 되면 저장한 그림으로 다시 시도할 수 있어요.", 16, QuadTheme.INK))
 		_sale_dialog.get_cancel_button().text = "계속 그리기"
 		for button: Button in [_sale_dialog.get_ok_button(), _sale_dialog.get_cancel_button()]:
 			Buttons.apply(button)
@@ -903,31 +1058,34 @@ func _open_sale() -> void:
 
 func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	if economy == null or not is_instance_valid(_sale_dialog): return
-	if refresh_offer or _sale_offer.is_empty(): _sale_offer = Market.quote(document, economy.art_sales)
-	var lines: PackedStringArray = PackedStringArray()
+	if refresh_offer or _sale_offer.is_empty(): _sale_offer = economy.quote_art_commission(document)
+	var commission: Dictionary = _active_commission()
+	var lines: PackedStringArray = ["제출 조건"]
 	for check: Dictionary in _sale_offer.get("checks", []):
 		lines.append("%s %s · %s" % ["[완료]" if bool(check.met) else "[보완]", str(check.label), str(check.detail)])
-	var details: String = "판매 조건\n" + "\n".join(lines)
-	var can_sell: bool = bool(_sale_offer.can_sell)
-	_sale_price.text = "판매금 " + Money.format_won(int(_sale_offer.price)) if can_sell else "아직 판매할 수 없어요"
+	if not commission.is_empty():
+		lines.append("\n%s · 의뢰인의 만족도 %d%%" % [commission.title, int(_sale_offer.get("score", 0))])
+		for requirement: Dictionary in _sale_offer.get("requirements", []):
+			lines.append("%s %s · %s" % ["[완료]" if bool(requirement.met) else "[보완]", str(requirement.label), str(requirement.detail)])
+	var can_submit: bool = bool(_sale_offer.get("can_sell", false))
+	_sale_price.text = "받을 보상 " + Money.format_won(int(_sale_offer.price)) if can_submit else "아직 제출할 수 없어요"
 	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
 	_sale_description_count.text = "그림 설명 · %d / %d자" % [_sale_description.text.strip_edges().length(), SubmissionMetadata.MAX_DESCRIPTION_LENGTH]
 	_sale_validation.text = metadata_error
 	_sale_validation.visible = not metadata_error.is_empty()
-	var reason: String = str(_sale_offer.reason)
-	if not reason.is_empty():
-		details += "\n\n" + reason
-	_sale_details.text = details
-	_sale_dialog.get_ok_button().text = "PNG 저장하고 판매" if can_sell else "판매 조건 채우기"
-	_sale_dialog.get_ok_button().disabled = not can_sell or not metadata_error.is_empty() or _sale_pending
+	var reason: String = str(_sale_offer.get("reason", ""))
+	if not reason.is_empty(): lines.append("\n" + reason)
+	_sale_details.text = "\n".join(lines)
+	_sale_dialog.get_ok_button().text = "PNG 저장하고 제출" if can_submit else "제출 조건 채우기"
+	_sale_dialog.get_ok_button().disabled = not can_submit or not metadata_error.is_empty() or _sale_pending
 
 func _confirm_sale() -> void:
 	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
 	if not is_instance_valid(_sale_dialog) or not _sale_dialog.visible: return
-	# Recheck at confirmation: the displayed offer can never authorize a stale sale.
-	var current: Dictionary = Market.quote(document, economy.art_sales)
+	# Recheck the current commission and picture at confirmation.
+	var current: Dictionary = economy.quote_art_commission(document)
 	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
-	if not bool(current.can_sell) or current != _sale_offer or not metadata_error.is_empty():
+	if not bool(current.get("can_sell", false)) or current != _sale_offer or not metadata_error.is_empty():
 		_refresh_sale_dialog()
 		return
 	_sale_pending = true
@@ -957,7 +1115,10 @@ func _confirm_sale() -> void:
 	_sale_busy.show()
 	# The exclusive dialog keeps edits and navigation blocked while rendering.
 	sale_author_name = _sale_author.text.strip_edges()
-	art_sale_requested.emit({"document": document.serialize(), "author": _sale_author.text.strip_edges(), "title": _sale_title.text.strip_edges(), "description": _sale_description.text.strip_edges()})
+	art_sale_requested.emit({
+		"document": document.serialize(), "commission_revision": economy.art_commission_revision,
+		"author": sale_author_name, "title": _sale_title.text.strip_edges(), "description": _sale_description.text.strip_edges(),
+	})
 
 func render_sale_png(data: Dictionary) -> PackedByteArray:
 	var snapshot: Model = Model.new()
@@ -979,11 +1140,14 @@ func show_sale_result(result: Dictionary) -> void:
 		if is_instance_valid(_sale_title): _sale_title.text = ""
 		if is_instance_valid(_sale_description): _sale_description.text = ""
 		if is_instance_valid(_sale_author): _sale_author.text = _sale_author.text.strip_edges()
+		var receipt: Dictionary = result.get("receipt", {})
+		var score: int = int(receipt.get("score", result.get("score", 0)))
+		var reward: String = Money.format_won(int(result.get("price", 0)))
 		var path: String = str(result.get("png_path", ""))
 		if not path.is_empty():
 			var blank: Dictionary = Model.new().serialize()
 			if not testing and not _write_drawing_snapshot(blank):
-				_set_status("판매와 PNG 저장은 완료했어요. 도화지 저장이 어려워 그림을 그대로 두었어요. PNG: " + path)
+				_set_status("의뢰를 마치고 %s을 받았어요. 도화지 저장이 어려워 그림은 그대로 두었어요." % reward)
 				_autosave.start()
 				return
 			cancel_gesture()
@@ -995,14 +1159,14 @@ func show_sale_result(result: Dictionary) -> void:
 			canvas.select_kind("square")
 			canvas.selected_trapezoid_variant = "symmetric"
 			canvas.queue_redraw()
-			var title: String = str(result.get("receipt", {}).get("title", "내 그림"))
+			var title: String = str(receipt.get("title", "내 그림"))
 			if title.length() > 28: title = title.left(28) + "…"
-			_set_status("‘%s’을(를) %s에 판매했어요. PNG 저장 완료 · 새 그림을 시작해요." % [title, Money.format_won(int(result.get("price", 0)))])
+			_set_status("‘%s’ 의뢰 완료 · 만족도 %d%% · 받은 보상 %s · PNG 저장 완료" % [title, score, reward])
 			_sale_button.tooltip_text = "저장한 그림: " + ProjectSettings.globalize_path(path)
 		else:
-			_set_status("작품을 %s에 판매했어요!" % Money.format_won(int(result.get("price", 0))))
+			_set_status("그림 의뢰 완료 · 만족도 %d%% · 받은 보상 %s" % [score, reward])
 	else:
-		_set_status(str(result.get("error", "판매를 마치지 못했어요. 그림을 그대로 두었어요.")))
+		_set_status(str(result.get("error", "그림 의뢰를 마치지 못했어요. 다시 시도해 주세요.")))
 		if not testing: _autosave.start()
 
 func cancel_gesture() -> void:
@@ -1010,6 +1174,7 @@ func cancel_gesture() -> void:
 		canvas.cancel_gesture()
 	_hide_shape_context_menu()
 	if is_instance_valid(_sale_dialog): _sale_dialog.hide()
+	if is_instance_valid(_commission_dialog): _commission_dialog.hide()
 
 func _hide_shape_context_menu() -> void:
 	_context_shape_id = -1
@@ -1041,6 +1206,7 @@ func save_drawing(show_feedback: bool = true) -> bool:
 
 func _write_drawing_snapshot(snapshot: Dictionary) -> bool:
 	var data: Dictionary = {"format": "quadrilateral-drawing", "version": 1, "document": snapshot}
+	if _work_commission_revision > 0: data["commission_revision"] = _work_commission_revision
 	var temporary: String = save_path + ".tmp"
 	var file: FileAccess = FileAccess.open(temporary, FileAccess.WRITE)
 	if file == null:
@@ -1086,10 +1252,17 @@ func load_drawing(show_feedback: bool = true) -> bool:
 	if not parsed is Dictionary or parsed.get("format") != "quadrilateral-drawing" or parsed.get("version") != 1 or not parsed.get("document") is Dictionary:
 		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
 		return false
+	var work_revision: Variant = parsed.get("commission_revision", 0)
+	if not Model._integer(work_revision) or float(work_revision) < 0.0 or float(work_revision) > ConstructionState.MAX_ART_COMMISSION_REVISION:
+		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
+		return false
 	cancel_gesture()
 	_stop_drawing_work()
 	_restoring = true
 	var restored: bool = document.restore(parsed.document)
+	if restored:
+		_work_commission_revision = int(work_revision)
+		_sync_work_commission()
 	_restoring = false
 	if not restored:
 		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
@@ -1143,7 +1316,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if tutorial_blocked or _sale_pending: return
 	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed or event.echo:
 		return
-	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or (_sale_dialog != null and _sale_dialog.visible) or _color_picker.get_popup().visible or _shape_context_menu.visible:
+	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or (_sale_dialog != null and _sale_dialog.visible) or (_commission_dialog != null and _commission_dialog.visible) or _color_picker.get_popup().visible or _shape_context_menu.visible:
 		return
 	var handled: bool = true
 	if event.ctrl_pressed and event.keycode == KEY_S:

@@ -6,10 +6,12 @@ const Model = preload("res://scripts/core/drawing_document.gd")
 const Studio = preload("res://scenes/drawing/drawing_studio.gd")
 const Economy = preload("res://scripts/construction/construction_state.gd")
 const ArtSamples = preload("res://tests/art_sale_samples.gd")
+const CommissionCatalog = preload("res://scripts/economy/art_commission_catalog.gd")
 
 static func run(t: Node) -> void:
 	_test_quotes(t)
 	_test_sale_requirements(t)
+	_test_commission_quotes(t)
 	_test_receipts(t)
 	_test_duplicate_sales(t)
 	await _test_sale_ui(t)
@@ -107,6 +109,7 @@ static func _assert_blocked_payment(t: Node, drawing: DrawingDocument, missing_g
 		t.assert_eq(bool(check.met), check.id != missing_goal, "Only the %s goal is unmet in this fixture" % missing_goal)
 	t.assert_eq(offer.price, 0, "A blocked quote supplies no sale price")
 	var economy: ConstructionState = Economy.new()
+	economy.accept_art_commission(ArtSamples.COMMISSION_ID)
 	var original: Dictionary = drawing.serialize()
 	var history: int = drawing.command_manager.undo_stack.size()
 	var payment: Dictionary = economy.sell_art(original, "사각형 모임")
@@ -114,6 +117,58 @@ static func _assert_blocked_payment(t: Node, drawing: DrawingDocument, missing_g
 	t.assert_eq(economy.balance, Economy.INITIAL_BALANCE, "A blocked sale keeps the starting balance")
 	t.assert_eq(drawing.serialize(), original, "Selling through the ledger preserves the player's editable composition")
 	t.assert_eq(drawing.command_manager.undo_stack.size(), history, "Selling through the ledger preserves the drawing Undo history")
+
+static func _test_commission_quotes(t: Node) -> void:
+	var catalog: Array[Dictionary] = CommissionCatalog.all()
+	var commission_id: String = ArtSamples.COMMISSION_ID
+	t.assert_eq(catalog.size(), 9, "The drawing studio has nine independent commission briefs")
+	var drawing: DrawingDocument = ArtSamples.poster()
+	var original: Dictionary = drawing.serialize()
+	var full: Dictionary = Market.quote(drawing, [], commission_id)
+	var partial: Dictionary = Market.quote(ArtSamples.poster(false), [], commission_id)
+	t.assert_true(full.can_sell and partial.can_sell, "A drawing can be submitted while some client requirements are incomplete")
+	t.assert_eq(full.score, 100, "Fulfilling the selected brief gives full client satisfaction")
+	t.assert_lt(partial.score, full.score, "Missing a requested shape family lowers client satisfaction")
+	t.assert_gt(partial.score, 0, "A qualifying partial drawing earns positive satisfaction")
+	t.assert_gt(full.price, partial.price, "Higher satisfaction earns a higher reward")
+	t.assert_eq(full.visible_shapes, partial.visible_shapes, "Changing the brief's family requirement keeps piece counts comparable")
+	t.assert_eq(full.coverage, partial.coverage, "The family comparison covers the same amount of paper")
+	t.assert_eq(full.commission_id, commission_id, "A quote identifies the specific brief the player accepted")
+	var other: Dictionary = Market.quote(drawing, [], "space_mural")
+	t.assert_lt(other.score, full.score, "The same painting is reviewed against the selected brief")
+	t.assert_true(other.can_sell and other.price > 0, "Missing a space mural goal never rejects an eligible submission")
+	t.assert_false(Market.quote(drawing, [], "unknown").can_sell, "An unknown brief never authorizes payment")
+	var requirement_ids: Array[String] = []
+	for requirement: Dictionary in full.requirements:
+		requirement_ids.append(str(requirement.id))
+		t.assert_true(bool(requirement.met), "The review marks each fulfilled client requirement complete")
+	t.assert_eq(requirement_ids, ["coverage", "pieces", "families"], "Client review identifies each concrete requirement")
+	t.assert_eq(drawing.serialize(), original, "Reviewing different briefs leaves the artist's work unchanged")
+	var expanded: DrawingDocument = ArtSamples.poster()
+	expanded.add_sized_shape("square", Vector2(0, 120), Vector2(80, 80), Color.GOLD)
+	var detailed: Dictionary = Market.quote(expanded, [], commission_id)
+	t.assert_eq(detailed.score, full.score, "A full brief stays at 100 percent when an artist adds a visible detail")
+	t.assert_gt(detailed.price, full.price, "An additional visible shape still increases a qualifying commission reward")
+	drawing.work_msec = Model.REQUIRED_WORK_MSEC - 1
+	t.assert_false(Market.quote(drawing, [], commission_id).can_sell, "Even a full client composition requires five minutes of editing")
+	var too_small: DrawingDocument = Model.new()
+	too_small.add_sized_shape("square", Vector2.ZERO, Vector2(400, 400), Color.CORAL)
+	too_small.work_msec = Model.REQUIRED_WORK_MSEC
+	t.assert_false(Market.quote(too_small, [], commission_id).can_sell, "Client satisfaction never overrides the basic paper area threshold")
+	var receipt: Dictionary = Market.receipt_from_quote(partial, "공원 안내 그림")
+	t.assert_true(Market.validate_receipt(receipt), "A partial commission earns a receipt with independently verified satisfaction")
+	t.assert_eq(receipt.version, Market.RECEIPT_VERSION, "The current receipt records commission terms")
+	t.assert_eq(receipt.score, partial.score, "The receipt records the satisfaction at payment")
+	t.assert_eq(receipt.size(), 11, "The commission receipt stores metadata without a document snapshot")
+	var restored: Dictionary = JSON.parse_string(JSON.stringify(receipt))
+	t.assert_true(Market.validate_receipt(restored), "A commission receipt validates after JSON round-tripping")
+	for key: String in ["price", "score", "commission_id"]:
+		var invalid: Dictionary = restored.duplicate()
+		match key:
+			"price": invalid.price += 100
+			"score": invalid.score = 100
+			"commission_id": invalid.commission_id = "unknown"
+		t.assert_false(Market.validate_receipt(invalid), "Changing a stored commission's %s invalidates the receipt" % key)
 
 static func _test_receipts(t: Node) -> void:
 	var offer: Dictionary = Market.quote(sample_art())
@@ -153,6 +208,7 @@ static func _test_receipts(t: Node) -> void:
 	t.assert_true(Market.receipt_from_quote(Market.quote(Model.new())).is_empty(), "Unsellable artwork creates no receipt")
 	var abstract_drawing: DrawingDocument = _tiled_drawing(5)
 	var economy: ConstructionState = Economy.new()
+	economy.accept_art_commission(ArtSamples.COMMISSION_ID)
 	var sale: Dictionary = economy.sell_art(abstract_drawing.serialize(), "한 색 사각형")
 	t.assert_true(sale.ok, "A monochrome abstract drawing earns payment through the state API")
 	if not sale.ok: return
@@ -161,6 +217,7 @@ static func _test_receipts(t: Node) -> void:
 	var restored: ConstructionState = Economy.new()
 	t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(economy.serialize()))), "A state with a monochrome receipt restores")
 	t.assert_eq(restored.art_income(), int(sale.price), "Restoring the monochrome sale keeps the credited amount")
+	restored.accept_art_commission(ArtSamples.COMMISSION_ID)
 	t.assert_false(restored.sell_art(abstract_drawing.serialize()).ok, "The restored ledger still prevents a repeat sale")
 
 static func _test_legacy_receipts(t: Node) -> void:
@@ -240,6 +297,7 @@ static func _test_sale_ui(t: Node) -> void:
 	await t.get_tree().process_frame
 	var economy: ConstructionState = Economy.new()
 	studio.configure_economy(economy)
+	economy.accept_art_commission(ArtSamples.COMMISSION_ID)
 	studio.document.restore(sample_art().serialize())
 	var requests: Array[Dictionary] = []
 	studio.art_sale_requested.connect(func(data: Dictionary): requests.append(data))
@@ -249,8 +307,9 @@ static func _test_sale_ui(t: Node) -> void:
 	t.assert_false(studio._sale_details.text.contains("나무"), "The sale dialog has no tree requirement")
 	for check: Dictionary in studio._sale_offer.checks:
 		t.assert_true(studio._sale_details.text.contains(str(check.label)), "The sale dialog shows " + str(check.id))
-	t.assert_eq(studio._sale_price.text, "판매금 " + ConstructionCatalog.format_won(int(studio._sale_offer.price)), "The confirmation shows only the final price")
-	for price_term: String in ["만족도", "줄어든 금액", "사각형 종류"]:
+	t.assert_eq(studio._sale_price.text, "받을 보상 " + ConstructionCatalog.format_won(int(studio._sale_offer.price)), "The confirmation shows only the final reward")
+	t.assert_true(studio._sale_details.text.contains("의뢰인의 만족도"), "The confirmation includes client satisfaction")
+	for price_term: String in ["계산식", "줄어든 금액", "기준 금액"]:
 		t.assert_false(studio._sale_details.text.contains(price_term), "Pricing inputs stay out of the confirmation breakdown")
 	studio._sale_title.text = "   "
 	studio._sale_title.text_changed.emit(studio._sale_title.text)
@@ -279,6 +338,7 @@ static func _test_sale_ui(t: Node) -> void:
 	t.assert_eq(requests[0].author, "네모 작가", "Sale intent includes the artist's display name")
 	t.assert_eq(requests[0].description, "사각형으로 만든 색깔 우주선이에요.", "Sale intent includes the actual artwork description")
 	t.assert_eq(requests[0].document, drawing_before, "Sale intent captures the exact quoted drawing")
+	t.assert_eq(requests[0].commission_revision, economy.art_commission_revision, "Submission captures the accepted commission's revision")
 	t.assert_true(studio._sale_button.disabled, "Sale button is blocked while persistence is pending")
 	studio.show_sale_result({"ok": false, "error": "테스트 저장 실패"})
 	t.assert_false(studio._sale_button.disabled, "Persistence failure returns control to the artist")
@@ -287,16 +347,17 @@ static func _test_sale_ui(t: Node) -> void:
 	var result: Dictionary = economy.sell_art(studio.document.serialize())
 	studio._confirm_sale()
 	t.assert_eq(requests.size(), 1, "An economy change invalidates a previously displayed sale offer")
-	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "Duplicate sale confirmation is visibly disabled")
+	t.assert_true(not studio._sale_dialog.visible or studio._sale_dialog.get_ok_button().disabled, "Duplicate sale confirmation is unavailable")
 	studio._sale_dialog.hide()
 	studio.show_sale_result(result)
-	t.assert_true(studio._status.text.contains("판매했어요"), "Successful sale gives clear Korean feedback")
+	t.assert_true(studio._status.text.contains("의뢰"), "Successful commission gives clear Korean feedback")
 	studio.document.undo()
 	t.assert_eq(economy.art_sales.size(), 1, "Undoing artwork edits never undoes an economy payment")
 	studio.tutorial_blocked = true
 	studio._open_sale()
 	t.assert_false(studio._sale_dialog.visible, "Tutorial input ownership prevents a new sale dialog")
 	studio.tutorial_blocked = false
+	economy.accept_art_commission(ArtSamples.COMMISSION_ID)
 	studio._open_sale()
 	studio.hide()
 	t.assert_false(studio._sale_dialog.visible, "Leaving the studio closes its sale confirmation")

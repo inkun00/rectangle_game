@@ -15,6 +15,9 @@ var focus_index: int = 0
 var question_mode: bool = false
 var question_angle: float = 65.0
 var question_size: Vector2 = Vector2(150, 100)
+var _activity_figures: Array[PackedVector2Array] = []
+var _activity_vertices: PackedVector2Array
+var _distance_span: float = 80.0
 var _dragging: bool = false
 
 func _ready() -> void:
@@ -31,9 +34,23 @@ func configure(id: String) -> void:
 	value = 60.0 if id == "distance" else (20.0 if id == "parallel" else 55.0)
 	diagram_rotation = 0.0
 	measured = false
+	_activity_figures.clear()
+	_activity_vertices = PackedVector2Array()
+	_distance_span = 80.0
+	_dragging = false
 	selected_choices.clear()
 	focus_index = 0
 	queue_redraw()
+
+func configure_activity(activity: Dictionary) -> void:
+	configure(str(activity.lesson_id))
+	question_mode = str(activity.mode) == "measure"
+	_distance_span = float(activity.get("gap", 80.0))
+	var figures: Array = activity.get("figures", [])
+	if figures.size() == 4: _activity_figures.assign(figures)
+	_activity_vertices = activity.get("vertices", PackedVector2Array())
+	diagram_rotation = float(activity.get("rotation", 0.0))
+	set_value(float(activity.get("start_value", value)))
 
 func configure_question(quest_id: String) -> void:
 	configure(Catalog.quest_topic(quest_id))
@@ -77,21 +94,30 @@ func construction_correct() -> bool:
 		"perpendicular": return absf(value - 90.0) < 0.1
 		"parallel": return absf(sin(deg_to_rad(value))) < 0.001
 		"distance": return absf(value) < 0.1
-		_: return selected_choices == Catalog.correct_choices(lesson_id)
+		_:
+			var answers: Array[int] = []
+			var figures: Array[PackedVector2Array] = _figures()
+			for index: int in range(figures.size()):
+				if Math.matches_kind(figures[index], lesson_id): answers.append(index)
+			return selected_choices == answers
+
+func _figures() -> Array[PackedVector2Array]:
+	return Catalog.figures(lesson_id) if _activity_figures.is_empty() else _activity_figures
 
 func measurement_text() -> String:
 	if not measured: return "‘재어 보기’를 눌러 변과 각을 확인해요. 길이는 cm 단위로 표시해요."
 	match lesson_id:
 		"perpendicular": return "만나는 각: %s° · 두 선이 수직이면 한 선은 다른 선에 대한 수선이에요." % Math.measurement_label(value)
 		"parallel": return "공통 수선과 만나는 각: 90° / %s°" % Math.measurement_label(absf(90.0 - value))
-		"distance": return "수직인 선분: 4 cm · 움직인 선분: %s cm" % Math.measurement_label(Vector2(value, 80).length() / 20.0)
+		"distance": return "수직인 선분: %s cm · 움직인 선분: %s cm" % [Math.measurement_label(_distance_span / 20.0), Math.measurement_label(Vector2(value, _distance_span).length() / 20.0)]
 		_:
-			var vertices: PackedVector2Array = question_vertices() if question_mode else Catalog.figures(lesson_id)[focus_index]
+			var vertices: PackedVector2Array = question_vertices() if question_mode else _figures()[focus_index]
 			var sides: PackedStringArray = PackedStringArray()
 			for side: float in Math.side_lengths(vertices): sides.append(Math.measurement_label(side / 20.0))
 			return "%s · 변 ㄱㄴ / ㄴㄷ / ㄷㄹ / ㄹㄱ: %s cm\n%s" % ["관찰 도형" if question_mode else LETTERS[focus_index], " / ".join(sides), Math.property_summary(vertices)]
 
 func question_vertices() -> PackedVector2Array:
+	if not _activity_vertices.is_empty(): return _activity_vertices
 	if lesson_id == "parallelogram":
 		var side: Vector2 = Vector2.from_angle(deg_to_rad(-question_angle)) * 110.0
 		return PackedVector2Array([Vector2(-80, 35), Vector2(80, 35), Vector2(80, 35) + side, Vector2(-80, 35) + side])
@@ -152,7 +178,7 @@ func _draw() -> void:
 		var fit: float = minf(400.0 / bounds.size.x, 210.0 / bounds.size.y)
 		_draw_quad(vertices, Vector2(300, 150) - bounds.get_center() * fit, fit, true, diagram_rotation)
 	else:
-		var examples: Array[PackedVector2Array] = Catalog.figures(lesson_id)
+		var examples: Array[PackedVector2Array] = _figures()
 		for index: int in range(4):
 			var card: Rect2 = _card(index)
 			draw_rect(card, Color("d9eee4") if selected_choices.has(index) else Color("f9fbf7"))
@@ -231,16 +257,18 @@ func _draw_lines() -> void:
 			_text(Vector2(310, 87), "90°", 18)
 			_text(Vector2(310, 170), Math.measurement_label(absf(90.0 - value)) + "°", 18)
 	else:
-		_straight_line(Vector2(65, 110), Vector2(535, 110), Color("213b42"))
-		_straight_line(Vector2(100, 190), Vector2(565, 190), Color("213b42"))
-		_line(Vector2(180, 110), Vector2(180, 190), Color("b46b27"), 2)
-		_line(Vector2(300, 110), Vector2(300 + value, 190), Color("0c6658"), 4)
-		handle = Vector2(300 + value, 190)
+		var top: float = 150.0 - _distance_span * 0.5
+		var bottom: float = 150.0 + _distance_span * 0.5
+		_straight_line(Vector2(65, top), Vector2(535, top), Color("213b42"))
+		_straight_line(Vector2(100, bottom), Vector2(565, bottom), Color("213b42"))
+		_line(Vector2(180, top), Vector2(180, bottom), Color("b46b27"), 2)
+		_line(Vector2(300, top), Vector2(300 + value, bottom), Color("0c6658"), 4)
+		handle = Vector2(300 + value, bottom)
 		if measured:
-			_text(Vector2(112, 157), "4 cm", 20)
-			_text(Vector2(320 + value * 0.5, 156), Math.measurement_label(Vector2(value, 80).length() / 20.0) + " cm", 20)
-			_line(Vector2(180, 174), Vector2(196, 174), Color("b46b27"), 2)
-			_line(Vector2(196, 174), Vector2(196, 190), Color("b46b27"), 2)
+			_text(Vector2(112, 157), Math.measurement_label(_distance_span / 20.0) + " cm", 20)
+			_text(Vector2(320 + value * 0.5, 156), Math.measurement_label(Vector2(value, _distance_span).length() / 20.0) + " cm", 20)
+			_line(Vector2(180, bottom - 16), Vector2(196, bottom - 16), Color("b46b27"), 2)
+			_line(Vector2(196, bottom - 16), Vector2(196, bottom), Color("b46b27"), 2)
 	if not question_mode:
 		draw_circle(_diagram_point(handle), 12, Color("2c7dba"))
 		draw_circle(_diagram_point(handle), 6, Color.WHITE)

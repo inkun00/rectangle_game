@@ -94,7 +94,7 @@ test('100% download does not start play until the engine is ready', async () => 
   const run = shell();
   run.state.progress(100, 100);
   assert.equal(run.elements.get('loading').removed, false);
-  assert.match(run.elements.get('stage').textContent, /메인페이지를 여는 중/);
+  assert.match(run.elements.get('stage').textContent, /수학 문제를 여는 중/);
   assert.equal(run.document.activeElement, null);
   run.resolve();
   await flush();

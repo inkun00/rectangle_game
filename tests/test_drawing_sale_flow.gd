@@ -61,6 +61,12 @@ static func _test_drawing_work(t: Node) -> void:
 	studio.testing = true
 	t.add_child(studio)
 	await t.get_tree().process_frame
+	var economy: State = State.new()
+	studio.configure_economy(economy)
+	studio._begin_drawing_work(1000)
+	studio._record_drawing_work(5000)
+	t.assert_eq(studio.document.work_msec, 0, "Time on a free drawing cannot count towards a future commission")
+	economy.accept_art_commission(ArtSamples.COMMISSION_ID)
 	var edits: Array[bool] = []
 	studio.document.artwork_edited.connect(func(): edits.append(true))
 	studio.document.add_sized_shape("square", Vector2.ZERO, Vector2(500, 500), Color.BLUE)
@@ -80,6 +86,10 @@ static func _test_drawing_work(t: Node) -> void:
 	t.assert_eq(restored.work_msec, studio.document.work_msec, "Work time continues after saving and loading")
 	saved.work_msec = Drawing.REQUIRED_WORK_MSEC + 1
 	t.assert_false(restored.restore(saved), "Out-of-range work time cannot replace the current draft")
+	var changed_brief: Dictionary = economy.accept_art_commission("space_mural")
+	t.assert_true(changed_brief.ok, "The artist can choose a different brief while reusing the canvas")
+	t.assert_eq(studio.document.shapes.size(), 2, "Switching to a different brief preserves the already drawn shapes")
+	t.assert_eq(studio.document.work_msec, 0, "Switching a brief resets the prior client's work time")
 	var now: int = 66000
 	for _interval: int in range(30):
 		studio._begin_drawing_work(now)
@@ -92,9 +102,27 @@ static func _test_drawing_work(t: Node) -> void:
 
 static func _test_success_and_undo(t: Node) -> void:
 	var directory: String = _directory()
-	var app: QuadrilateralApp = await _app(t, directory)
+	var app: QuadrilateralApp = await _app(t, directory, false)
 	var studio: Studio = app._drawing_screen
 	var ledger: State = app._construction_screen.state
+	var renderer: SaleRenderer = _renderer()
+	studio.sale_png_renderer = renderer.render
+	_fill_art(studio.document)
+	studio.art_sale_requested.emit({"document": studio.document.serialize(), "author": "네모별", "title": "의뢰 전 그림", "description": "의뢰 선택 전에 만든 그림이에요.", "commission_revision": ledger.art_commission_revision})
+	t.assert_eq(renderer.calls, 0, "The payment entry point requires an accepted commission before rendering")
+	t.assert_eq(ledger.balance, State.INITIAL_BALANCE, "Trying to submit before accepting a commission cannot earn money")
+	studio._sale_button.pressed.emit()
+	t.assert_true(studio._commission_dialog.visible, "The drawing footer opens the list of available commissions")
+	var accept: Button = studio._commission_dialog.find_child("AcceptArtCommission_" + ArtSamples.COMMISSION_ID, true, false) as Button
+	t.assert_not_null(accept, "The commission list offers a named action to accept the park brief")
+	if accept == null:
+		app.free()
+		_cleanup(directory)
+		return
+	accept.pressed.emit()
+	t.assert_eq(ledger.art_commission_id, ArtSamples.COMMISSION_ID, "Accepting the visible job selects that exact commission")
+	t.assert_eq(studio.document.work_msec, 0, "Time spent drawing before acceptance does not carry over to the new commission")
+	t.assert_eq(ledger.balance, State.INITIAL_BALANCE, "Accepting a picture commission does not pay before the artist submits")
 	_fill_art(studio.document)
 	studio.document.select_shape(int(studio.document.shapes.back().id))
 	studio.document.delete_selected()
@@ -103,15 +131,32 @@ static func _test_success_and_undo(t: Node) -> void:
 	studio.canvas.select_kind("trapezoid")
 	studio.canvas.selected_trapezoid_variant = "right_left"
 	var artwork: Dictionary = studio.document.serialize()
-	var quote: Dictionary = Market.quote(studio.document)
+	var quote: Dictionary = ledger.quote_art_commission(studio.document)
 	t.assert_true(quote.can_sell, "A timed five-piece painting with enough paper coverage can be sold")
+	t.assert_lt(quote.score, 100, "This work qualifies for submission even though it falls short of the client's goals")
 	t.assert_true(studio.save_drawing(false), "The original drawing draft exists before selling")
-	var renderer: SaleRenderer = _renderer()
-	studio.sale_png_renderer = renderer.render
+	var stored_draft: Studio = Studio.new()
+	stored_draft.testing = true
+	stored_draft.save_path = studio.save_path
+	stored_draft.hide()
+	t.add_child(stored_draft)
+	await t.get_tree().process_frame
+	stored_draft.configure_economy(ledger)
+	t.assert_true(stored_draft.load_drawing(false), "The accepted commission's saved drawing reloads through the studio")
+	t.assert_eq(stored_draft.document.work_msec, Drawing.REQUIRED_WORK_MSEC, "Reloading the same accepted commission keeps its active work time")
+	var newer_ledger: State = State.new()
+	t.assert_true(newer_ledger.restore(ledger.serialize()), "The accepted brief can be restored into an independent ledger")
+	newer_ledger.accept_art_commission("space_mural")
+	stored_draft.configure_economy(newer_ledger)
+	t.assert_true(stored_draft.load_drawing(false), "An earlier drawing still opens after changing the commission")
+	t.assert_eq(stored_draft.document.shapes.size(), studio.document.shapes.size(), "Loading an old commission draft preserves the artwork")
+	t.assert_eq(stored_draft.document.work_msec, 0, "Loading a previous commission's draft cannot credit its work time to a new client")
+	stored_draft.free()
 	studio.testing = false
 	studio._sale_button.pressed.emit()
 	t.assert_true(studio._sale_dialog.visible, "The actual sale button opens the title and price dialog")
-	t.assert_eq(studio._sale_price.text, "판매금 " + ConstructionCatalog.format_won(int(quote.price)), "The actual dialog shows only the final price")
+	t.assert_true(studio._sale_price.text.contains(ConstructionCatalog.format_won(int(quote.price))), "The actual dialog shows the final quoted reward")
+	t.assert_true(studio._sale_details.text.contains(str(quote.score) + "%"), "The final review reports how satisfied the client is")
 	_set_title(studio, "")
 	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "An empty title disables sale confirmation")
 	studio._sale_dialog.confirmed.emit()
@@ -125,6 +170,9 @@ static func _test_success_and_undo(t: Node) -> void:
 	t.assert_eq(renderer.snapshots[0], artwork, "PNG rendering receives the exact painting that the player confirmed")
 	t.assert_eq(ledger.art_sales.size(), 1, "The successful UI flow creates exactly one sale receipt")
 	t.assert_eq(ledger.art_sales[0].title, "네모별의 첫 그림", "The receipt uses the player's trimmed title")
+	t.assert_eq(ledger.art_sales[0].commission_id, ArtSamples.COMMISSION_ID, "The paid receipt records the accepted commission")
+	t.assert_eq(ledger.art_sales[0].score, quote.score, "The durable receipt keeps the reviewed satisfaction score")
+	t.assert_eq(ledger.art_commission_id, "", "A paid submission completes the current commission")
 	t.assert_eq(ledger.balance, State.INITIAL_BALANCE + int(quote.price), "Payment matches the confirmed composition-based quote")
 	var images: PackedStringArray = _images(studio.sold_art_directory)
 	t.assert_eq(images.size(), 1, "Successful sale automatically creates one PNG in the designated folder")
@@ -159,8 +207,7 @@ static func _test_success_and_undo(t: Node) -> void:
 	artwork.erase("work_msec")
 	t.assert_eq(studio.document.serialize(), artwork, "Undo restores the sold picture without crediting its work time to a new sale")
 	studio._sale_button.pressed.emit()
-	_set_title(studio, "다른 이름으로 다시 판매")
-	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "Restoring and renaming the sold drawing cannot enable another sale")
+	t.assert_true(studio._commission_dialog.visible, "The completed commission returns the artist to the commission list")
 	studio._sale_dialog.confirmed.emit()
 	t.assert_eq(renderer.calls, 1, "A duplicate sale attempt does not export another PNG")
 	t.assert_eq(ledger.art_sales.size(), 1, "Undo and rename cannot create another paid receipt")
@@ -320,7 +367,7 @@ static func _test_stale_render(t: Node, hide_screen: bool) -> void:
 	t.assert_false(DirAccess.dir_exists_absolute(studio.sold_art_directory), "Stale render output is discarded before any PNG is published")
 	t.assert_false(studio._sale_pending, "Cancelling an in-flight sale releases the pending state")
 	t.assert_false(studio._sale_busy.visible, "Cancelling an in-flight sale removes its busy overlay")
-	t.assert_true(studio._status.text.contains("취소"), "A stale render receives an understandable cancellation message")
+	t.assert_true(studio._status.text.contains("다시 확인"), "A stale render receives an understandable cancellation message")
 	app.free()
 	await t.get_tree().process_frame
 	_cleanup(directory)
@@ -331,7 +378,7 @@ static func _test_upload_retry_and_reload(t: Node) -> void:
 	var studio: Studio = app._drawing_screen
 	var ledger: State = app._construction_screen.state
 	_fill_art(studio.document)
-	var offer: Dictionary = Market.quote(studio.document)
+	var offer: Dictionary = ledger.quote_art_commission(studio.document)
 	var renderer: SaleRenderer = _renderer()
 	var uploader: UploadTransport = UploadTransport.new()
 	studio.sale_png_renderer = renderer.render
@@ -430,6 +477,7 @@ static func _test_sale_during_upload(t: Node, first_item_error: bool = false) ->
 	await t.get_tree().process_frame
 	t.assert_eq(uploader.calls, 1, "The first painting's upload can remain in flight while the artist continues drawing")
 	t.assert_true(app._art_upload_busy, "The first in-flight upload holds the network queue lock")
+	studio.art_commission_requested.emit(ArtSamples.COMMISSION_ID)
 	studio.document.restore(ArtSamples.house(true).serialize())
 	_confirm(studio, "다음에 그린 집")
 	await t.get_tree().process_frame
@@ -463,7 +511,7 @@ static func _test_sale_during_upload(t: Node, first_item_error: bool = false) ->
 	await t.get_tree().process_frame
 	_cleanup(directory)
 
-static func _app(t: Node, directory: String) -> QuadrilateralApp:
+static func _app(t: Node, directory: String, accept_commission: bool = true) -> QuadrilateralApp:
 	DirAccess.make_dir_recursive_absolute(directory)
 	var app: QuadrilateralApp = AppScene.instantiate()
 	app.testing = true
@@ -475,6 +523,7 @@ static func _app(t: Node, directory: String) -> QuadrilateralApp:
 	app._drawing_screen.save_path = directory.path_join("draft.json")
 	app._drawing_screen.sold_art_directory = directory.path_join("art")
 	app._construction_screen.save_path = directory.path_join("ledger.json")
+	if accept_commission: app._drawing_screen.art_commission_requested.emit(ArtSamples.COMMISSION_ID)
 	return app
 
 static func _renderer() -> SaleRenderer:

@@ -66,7 +66,9 @@ static func _test_story_branches(t: Node) -> void:
 	var drawing: DrawingDocument = DrawingDocument.new()
 	drawing.add_sized_shape("square", Vector2.ZERO, Vector2(500, 500), Color.CORAL)
 	drawing.work_msec = DrawingDocument.REQUIRED_WORK_MSEC
-	t.assert_true(ledger.sell_art(drawing.serialize(), "큰 정사각형").ok, "A qualifying artwork sale is the tenth activity")
+	t.assert_true(ledger.accept_art_commission(ArtSamples.COMMISSION_ID).ok, "The drawing commission can be accepted alongside construction history")
+	t.assert_false(app._home_screen._ending_card.is_visible_in_tree(), "An accepted drawing commission still needs a paid submission to count")
+	t.assert_true(ledger.sell_art(drawing.serialize(), "큰 정사각형").ok, "A completed drawing commission is the tenth activity")
 	t.assert_true(app._home_screen._ending_card.is_visible_in_tree(), "The tenth combined completion shows the entire final choice card")
 	t.assert_eq(str(app._home_screen._cards.get_child(3).name), "EndingChoice", "The unlocked ending card follows the first three activities")
 	t.assert_true(app._home_screen._ending_choice.is_visible_in_tree() and not app._home_screen._ending_choice.disabled, "The tenth combined completion reveals a usable final choice button")
@@ -190,8 +192,12 @@ static func _test_story_branches(t: Node) -> void:
 	await t.get_tree().process_frame
 
 static func _test_shared_ledger(t: Node) -> void:
+	var save_directory: String = "user://test_space_integration_sold_art_%s" % Crypto.new().generate_random_bytes(8).hex_encode()
 	var app: QuadrilateralApp = AppScene.instantiate()
 	app.testing = true
+	app._art_publications.path = save_directory.path_join("publications.json")
+	app._art_upload_transport = func(_entry: Dictionary, _bytes: PackedByteArray) -> Dictionary:
+		return {"ok": true, "post_url": PadletUploader.BOARD_URL}
 	t.add_child(app)
 	await t.get_tree().process_frame
 	var ledger: ConstructionState = app._construction_screen.state
@@ -203,14 +209,15 @@ static func _test_shared_ledger(t: Node) -> void:
 	app._home_screen.drawing_requested.emit()
 	t.assert_true(app._drawing_screen.visible, "The home drawing activity is available before the ending choices")
 	app._tutorial.cancel()
-	app._drawing_screen.sold_art_directory = "user://test_space_integration_sold_art"
-	app._art_publications.path = "user://test_space_integration_sold_art/publications.json"
+	app._drawing_screen.sold_art_directory = save_directory
 	app._drawing_screen.sale_png_renderer = func(_tree: SceneTree, _drawing: DrawingDocument) -> PackedByteArray:
 		return Image.create(960, 600, false, Image.FORMAT_RGBA8).save_png_to_buffer()
+	app._drawing_screen.art_commission_requested.emit(ArtSamples.COMMISSION_ID)
+	t.assert_eq(ledger.art_commission_id, ArtSamples.COMMISSION_ID, "The studio's request accepts a commission in the shared ledger")
 	var art: DrawingDocument = app._drawing_screen.document
 	art.restore(ArtSamples.house().serialize())
 	var picture: Dictionary = art.serialize()
-	var quote: Dictionary = ArtMarket.quote(art)
+	var quote: Dictionary = ledger.quote_art_commission(art)
 	t.assert_true(bool(quote.can_sell), "The integration fixture is a real saleable drawing")
 	app._drawing_screen._sale_button.pressed.emit()
 	app._drawing_screen._sale_author.text = "별빛 작가"
@@ -229,12 +236,12 @@ static func _test_shared_ledger(t: Node) -> void:
 	recovered_picture.erase("work_msec")
 	t.assert_eq(art.serialize(), recovered_picture, "Undo recovers the artwork while a new sale requires fresh drawing time")
 	t.assert_false(app._drawing_screen._sale_pending, "The transaction resolves the pending UI state")
-	t.assert_true(app._home_screen._ending_progress.text.contains("그림 1회"), "The fourth home activity reflects the paid drawing sale")
+	t.assert_true(app._home_screen._ending_progress.text.contains("1/10"), "The fourth home activity reflects the paid drawing commission")
 	app._drawing_screen._sale_button.pressed.emit()
-	t.assert_true(app._drawing_screen._sale_dialog.get_ok_button().disabled, "A sold picture cannot be sold again")
+	t.assert_true(app._drawing_screen._commission_dialog.visible and not app._drawing_screen._sale_dialog.visible, "A finished commission returns to the commission list")
 	app._drawing_screen.home_requested.emit()
 	t.assert_true(app._home_screen.visible, "The drawing home action still works after sale")
-	t.assert_false(app._drawing_screen._sale_dialog.visible, "Navigation dismisses the native sale popup")
+	t.assert_false(app._drawing_screen._commission_dialog.visible, "Navigation dismisses the native commission popup")
 	var balance: int = ledger.balance
 	app._drawing_screen.art_sale_requested.emit(picture)
 	t.assert_eq(ledger.balance, balance, "A hidden drawing screen cannot submit transactions")
@@ -255,8 +262,8 @@ static func _test_shared_ledger(t: Node) -> void:
 	t.assert_true(app._home_screen.visible, "Hangar home action returns to the main page")
 	t.assert_false(app._space_screen.is_processing(), "Leaving the hangar releases animation processing")
 	app.free()
-	var directory: DirAccess = DirAccess.open("user://test_space_integration_sold_art")
+	var directory: DirAccess = DirAccess.open(save_directory)
 	if directory != null:
 		for filename: String in directory.get_files(): directory.remove(filename)
-		DirAccess.remove_absolute("user://test_space_integration_sold_art")
+		DirAccess.remove_absolute(save_directory)
 	await t.get_tree().process_frame

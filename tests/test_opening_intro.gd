@@ -87,7 +87,7 @@ static func _test_navigation(t: Node) -> void:
 	app._opening_screen._skip_button.pressed.emit()
 	t.assert_true(app._home_screen.visible, "Skipping the opening returns to home")
 	t.assert_false(is_instance_valid(app._opening_screen), "Skipping releases the opening player")
-	t.assert_true(app._home_screen._learning_button.has_focus(), "Home focus is restored after the opening")
+	t.assert_true(app._home_screen._drawing_button.has_focus(), "Home focus is restored after the opening")
 	t.assert_true(app._opening_preferences.seen, "Explicit skipping counts as dismissing the first-use offer")
 	t.assert_eq(_preference_contents(), saved_preference, "Testing never modifies the real viewing preference")
 	t.assert_eq(app.document.serialize(), character, "Skipping does not change assembled character data")

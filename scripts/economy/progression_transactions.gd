@@ -17,13 +17,19 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 			if not payload is Array: return {"ok": false, "error": "주민의 부탁 기록을 확인해 주세요."}
 			result = candidate.claim_village_rewards(payload)
 			if bool(result.ok) and int(result.price) == 0: return result
+		"accept_art_commission":
+			if not payload is String: return {"ok": false, "error": "그림 의뢰를 다시 골라 주세요."}
+			result = candidate.accept_art_commission(payload)
 		"sell_art":
-			if not payload is Dictionary: return {"ok": false, "error": "판매할 그림을 확인해 주세요."}
+			if not payload is Dictionary: return {"ok": false, "error": "제출할 그림을 확인해 주세요."}
 			if payload.has("document") or payload.has("title"):
-				if not payload.get("document") is Dictionary: return {"ok": false, "error": "판매할 그림을 확인해 주세요."}
+				if not payload.get("document") is Dictionary: return {"ok": false, "error": "제출할 그림을 확인해 주세요."}
 				if not Market.valid_title(payload.get("title")):
 					return {"ok": false, "error": "작품 제목을 줄바꿈 없이 1~%d자로 입력해 주세요." % Market.MAX_TITLE_LENGTH}
-				result = candidate.sell_art(payload.document, str(payload.title))
+				var revision: Variant = payload.get("commission_revision", -1)
+				if not revision is int or (payload.has("commission_revision") and revision <= 0):
+					return {"ok": false, "error": "지금 맡은 그림 의뢰를 확인해 주세요."}
+				result = candidate.sell_art(payload.document, str(payload.title), int(revision))
 			else:
 				# Existing callers pass the drawing document directly and keep
 				# their automatically numbered title.
@@ -45,6 +51,10 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 		if not bool(saved.ok):
 			if action == "set_ship_appearance":
 				return {"ok": false, "error": "우주선 외형을 저장하지 못했어요. 다시 골라 주세요."}
+			if action == "accept_art_commission":
+				return {"ok": false, "error": "그림 의뢰를 저장하지 못했어요. 다시 골라 주세요."}
+			if action == "sell_art":
+				return {"ok": false, "error": "의뢰 완료를 저장하지 못했어요. 그림이 남아 있으니 다시 제출해 주세요."}
 			return {"ok": false, "error": "저장하지 못해 거래를 취소했어요. 돈과 부품은 그대로예요. " + str(saved.error)}
 	state.apply_economy_from(candidate)
 	return result

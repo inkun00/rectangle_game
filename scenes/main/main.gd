@@ -2,6 +2,8 @@ class_name QuadrilateralApp
 extends Node
 
 const SHAPES: Array[String] = ["trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
+const StartupQuestions = preload("res://scripts/learning/learning_question_bank.gd")
+const StartupLearning = preload("res://scenes/learning/learning_gate.gd")
 const SHAPE_NOTES: Dictionary = {
 	"trapezoid": "평행한 변이 있는 사각형이에요.\n마주 보는 변을 확인해요.",
 	"parallelogram": "마주 보는 두 쌍의 변이 평행해요.\n마주 보는 변의 길이와 각이 같아요.",
@@ -13,6 +15,7 @@ const SHAPE_NOTES: Dictionary = {
 var document: CharacterDocument
 var testing: bool = false
 var _art_sale_transaction: Callable = ProgressionTransactions.commit
+var _art_submission_busy: bool = false
 var _art_publications: ArtPublicationStore = ArtPublicationStore.new()
 var _art_upload_transport: Callable = Callable()
 var _art_upload_busy: bool = false
@@ -33,6 +36,10 @@ var _ending_png_directory: String = ENDING_PNG_DIRECTORY
 var _ending_png_renderer: Callable = Callable()
 var learning_progress: LearningProgress = LearningProgress.new()
 var _learning_screen: LearningStudio
+var _startup_learning: StartupLearning
+var _startup_question: Dictionary = {}
+var _startup_variants: Array[int] = []
+var _startup_type_index: int = 0
 var journal: QuestJournal
 var adventure: AdventureState
 var workshop: CharacterWorkshop
@@ -116,6 +123,7 @@ var _opening_preferences: OpeningPreferences = OpeningPreferences.new()
 var _space_screen: SpaceHangar
 ## Production web builds mount each feature before its first screen is built.
 var defer_feature_screens_for_testing: bool = false
+var show_startup_learning_for_testing: bool = false
 var _resource_pack_loader: Callable = Callable()
 var _defer_features: bool = false
 var _economy_state: ConstructionState
@@ -154,8 +162,9 @@ func _ready() -> void:
 	_build_workshop()
 	_build_home()
 	if not _defer_features:
-		_build_drawing()
+		# Restore the ledger before the drawing screen checks its saved commission time.
 		_build_construction()
+		_build_drawing()
 		_build_space()
 	_build_learning()
 	_build_world_hud()
@@ -177,9 +186,49 @@ func _ready() -> void:
 	_document_changed()
 	_journal_changed()
 	_adventure_changed()
-	_responsive()
-	_show_home()
 	learning_progress.changed.connect(_learning_changed)
+	if not testing or show_startup_learning_for_testing:
+		_start_learning_gate()
+	else:
+		_start_game_session()
+
+func _start_learning_gate() -> void:
+	_leave_activity()
+	_startup_type_index = 0
+	_startup_variants.clear()
+	var random: RandomNumberGenerator = RandomNumberGenerator.new()
+	random.randomize()
+	for _type: String in StartupQuestions.TYPES:
+		_startup_variants.append(random.randi_range(0, StartupQuestions.PER_TYPE - 1))
+	_startup_learning = StartupLearning.new()
+	_startup_learning.answer_submitted.connect(_answer_startup_question)
+	_ui.add_child(_startup_learning)
+	_responsive()
+	_present_startup_question()
+
+func _present_startup_question(feedback: String = "") -> void:
+	var type_id: String = StartupQuestions.TYPES[_startup_type_index]
+	_startup_question = StartupQuestions.question(type_id, _startup_variants[_startup_type_index])
+	_startup_learning.present(_startup_question, _startup_type_index + 1, StartupQuestions.TYPES.size(), feedback)
+
+func _answer_startup_question(correct: bool) -> void:
+	if not is_instance_valid(_startup_learning): return
+	if not correct:
+		var hint: String = str(_startup_question.hint)
+		_startup_variants[_startup_type_index] = StartupQuestions.next_index(_startup_variants[_startup_type_index])
+		_present_startup_question("같은 유형의 새 문제로 다시 해 봐요. 이전 문제의 힌트 · " + hint)
+		return
+	_startup_type_index += 1
+	if _startup_type_index < StartupQuestions.TYPES.size():
+		_present_startup_question("맞았어요! 다음 유형을 풀어 보세요.")
+		return
+	_startup_learning.hide()
+	_startup_learning.queue_free()
+	_startup_learning = null
+	_start_game_session()
+
+func _start_game_session() -> void:
+	_show_home()
 	# Rendering smoke tests use command-line flags, never bypass player-facing validation.
 	if "--quad-preview-world" in OS.get_cmdline_user_args():
 		_enter_world()
@@ -198,12 +247,10 @@ func _build_home() -> void:
 	_home_screen.adventure_requested.connect(_enter_world)
 	_home_screen.construction_requested.connect(_show_construction)
 	_home_screen.notebook_requested.connect(_show_notebook)
-	_home_screen.learning_requested.connect(_show_learning)
 	_home_screen.tutorials_requested.connect(_show_tutorials)
 	_home_screen.opening_requested.connect(_show_opening)
 	_home_screen.ending_choice_requested.connect(_show_ending_choices)
 	_ui.add_child(_home_screen)
-	_home_screen.set_learning_progress(learning_progress.completed.size())
 
 func _build_learning() -> void:
 	_learning_screen = LearningStudio.new()
@@ -214,6 +261,7 @@ func _build_learning() -> void:
 	_ui.add_child(_learning_screen)
 
 func _show_learning(id: String = "") -> void:
+	if is_instance_valid(_startup_learning): return
 	_leave_activity()
 	_learning_screen.show()
 	_learning_screen.open_lesson(learning_progress.next_lesson() if id.is_empty() else id)
@@ -221,7 +269,6 @@ func _show_learning(id: String = "") -> void:
 	_tutorial.visit("learning")
 
 func _learning_changed() -> void:
-	_home_screen.set_learning_progress(learning_progress.completed.size())
 	if world != null:
 		world.peaceful = learning_progress.peaceful or (_tutorial.active and _tutorial.mode == "world")
 		if not learning_progress.touch_controls: _clear_touch_inputs()
@@ -239,6 +286,7 @@ func _build_drawing() -> void:
 	_drawing_screen.hide()
 	_ui.add_child(_drawing_screen)
 	_drawing_screen.configure_economy(_economy_state)
+	_drawing_screen.art_commission_requested.connect(_accept_art_commission)
 	_drawing_screen.art_sale_requested.connect(_sell_art)
 	_drawing_screen.art_upload_retry_requested.connect(_retry_art_uploads)
 	if not testing:
@@ -310,9 +358,10 @@ func _ending_unlocked() -> bool:
 	return _economy_state.art_sales.size() + _economy_state.records.size() >= ENDING_ACTIVITY_TARGET
 
 func _ending_locked_message() -> String:
-	return "그림 판매와 건축 의뢰 완료를 합쳐 %d회 달성하면 엔딩을 선택할 수 있어요." % ENDING_ACTIVITY_TARGET
+	return "그림과 건축 의뢰 완료를 합쳐 %d회 달성하면 엔딩을 선택할 수 있어요." % ENDING_ACTIVITY_TARGET
 
 func _show_ending_choices() -> void:
+	if is_instance_valid(_startup_learning): return
 	var earth: Dictionary = _art_publications.ending_entry("earth")
 	var space: Dictionary = _art_publications.ending_entry("space")
 	var unlocked: bool = _ending_unlocked()
@@ -350,6 +399,7 @@ func _ending_branch_note(entry: Dictionary, description: String) -> String:
 	return "완성한 작품이 나오는 엔딩을 다시 봐요." if entry.status == "published" else "저장한 작품으로 패들릿 등록을 이어서 해요."
 
 func _choose_ending_branch(branch: String) -> void:
+	if is_instance_valid(_startup_learning): return
 	_close_modal()
 	if not _art_publications.ending_entry(branch).is_empty():
 		_resume_ending(branch)
@@ -365,10 +415,21 @@ func _open_ship_workshop() -> void:
 func _economy_save_path() -> String:
 	return _construction_screen.save_path if is_instance_valid(_construction_screen) else ConstructionStudio.SAVE_PATH
 
+func _accept_art_commission(id: String) -> void:
+	if not is_instance_valid(_drawing_screen) or not _drawing_screen.is_visible_in_tree(): return
+	if _drawing_screen.tutorial_blocked or _drawing_screen._sale_pending or _art_submission_busy: return
+	var result: Dictionary = ProgressionTransactions.commit(_economy_state, "accept_art_commission", id, _economy_save_path(), not testing)
+	_drawing_screen.show_art_commission_result(result)
+
 func _sell_art(data: Dictionary) -> void:
-	if not is_instance_valid(_drawing_screen): return
+	if not is_instance_valid(_drawing_screen) or _art_submission_busy: return
 	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.tutorial_blocked:
-		_drawing_screen.show_sale_result({"ok": false, "error": "그림 화면에서 판매해 주세요."})
+		_drawing_screen.show_sale_result({"ok": false, "error": "사각형 그림 화면에서 의뢰를 제출해 주세요."})
+		return
+	var commission: String = _economy_state.art_commission_id
+	var revision: Variant = data.get("commission_revision")
+	if commission.is_empty() or not revision is int or revision != _economy_state.art_commission_revision:
+		_drawing_screen.show_sale_result({"ok": false, "error": "지금 맡은 그림 의뢰를 확인하고 다시 제출해 주세요."})
 		return
 	var metadata_error: String = ArtSubmissionMetadata.validation_error(data.get("author"), data.get("title"), data.get("description"))
 	if not data.get("document") is Dictionary or not metadata_error.is_empty():
@@ -376,16 +437,21 @@ func _sell_art(data: Dictionary) -> void:
 		return
 	var artwork: DrawingDocument = DrawingDocument.new()
 	if not artwork.restore(data.document):
-		_drawing_screen.show_sale_result({"ok": false, "error": "판매할 그림을 확인하지 못했어요."})
+		_drawing_screen.show_sale_result({"ok": false, "error": "제출할 그림을 확인하지 못했어요."})
 		return
-	var offer: Dictionary = ArtMarket.quote(artwork, _economy_state.art_sales)
+	var offer: Dictionary = _economy_state.quote_art_commission(artwork)
 	if not bool(offer.can_sell):
 		_drawing_screen.show_sale_result({"ok": false, "error": str(offer.reason)})
 		return
+	_art_submission_busy = true
 	var bytes: PackedByteArray = await _drawing_screen.render_sale_png(data.document)
+	_art_submission_busy = false
 	if not is_instance_valid(_drawing_screen): return
+	if commission != _economy_state.art_commission_id or revision != _economy_state.art_commission_revision:
+		_drawing_screen.show_sale_result({"ok": false, "error": "의뢰가 바뀌었어요. 지금 맡은 의뢰에 그림을 다시 제출해 주세요."})
+		return
 	if not _drawing_screen.is_visible_in_tree() or _drawing_screen.document.serialize() != data.document:
-		_drawing_screen.show_sale_result({"ok": false, "error": "그림이 바뀌어 판매를 취소했어요. 지금 그림은 그대로예요."})
+		_drawing_screen.show_sale_result({"ok": false, "error": "제출할 그림을 다시 확인해 주세요. 지금 그림은 그대로예요."})
 		return
 	var image_saved: Dictionary = SoldArtStore.save_png(bytes, str(data.title), _drawing_screen.sold_art_directory)
 	if not bool(image_saved.ok):
@@ -511,7 +577,7 @@ func _retry_publications(buildings: bool) -> void:
 				break
 		if entry.is_empty(): break
 		attempted[entry.id] = true
-		var progress: String = "패들릿에 건물을 등록하고 있어요…" if buildings else "판매 완료 · 패들릿에 그림을 등록하고 있어요…"
+		var progress: String = "패들릿에 건물을 등록하고 있어요…" if buildings else "의뢰 완료 · 패들릿에 그림을 등록하고 있어요…"
 		_set_publication_status(buildings, progress, pending.size(), "", true)
 		var bytes: PackedByteArray = _art_publications.read_png(entry, directory)
 		if bytes.is_empty():
@@ -741,6 +807,7 @@ func _show_space(replay_legacy: bool = false) -> void:
 	if replay_legacy: _launch_ship()
 
 func _ensure_feature(feature: String) -> bool:
+	if is_instance_valid(_startup_learning): return false
 	if not _defer_features: return true
 	_feature_navigation += 1
 	var ticket: int = _feature_navigation
@@ -853,12 +920,14 @@ func _leave_activity() -> void:
 	if save_adventure: _save(false)
 
 func _show_home() -> void:
+	if is_instance_valid(_startup_learning): return
 	_leave_activity()
 	_home_screen.show()
 	_responsive()
 	_home_screen.focus_primary()
 
 func _show_opening() -> void:
+	if is_instance_valid(_startup_learning): return
 	_leave_activity()
 	_opening_screen = OpeningIntro.new()
 	_opening_screen.sound_enabled = _sound.sound_enabled
@@ -902,6 +971,7 @@ func _open_construction(earth: bool) -> void:
 	_tutorial.visit("my_house" if _construction_screen.state.my_house_mode else "construction")
 
 func _show_workshop() -> void:
+	if is_instance_valid(_startup_learning): return
 	_leave_activity()
 	_workshop_screen.show()
 	_responsive()
@@ -1811,6 +1881,7 @@ func _show_controls() -> void:
 	body.add_child(QuadTheme.button("모험 계속하기", _close_modal, true))
 
 func _show_tutorials() -> void:
+	if is_instance_valid(_startup_learning): return
 	_tutorial.cancel()
 	var body: VBoxContainer = _open_modal("함께 해 보는 모드 안내")
 	body.add_child(QuadTheme.paragraph("직각이와 이야기하며 직접 해 봐요. 언제든 건너뛸 수 있고, 지금 만든 작품과 모험은 그대로 이어져요.", 18))
@@ -1885,6 +1956,7 @@ func _show_journal(filter: String = "active") -> void:
 	body.add_child(QuadTheme.button("모험 계속하기", _close_modal))
 
 func _show_notebook() -> void:
+	if is_instance_valid(_startup_learning): return
 	var body: VBoxContainer = _open_modal("사각형 탐험 도감")
 	body.add_child(QuadTheme.paragraph("색과 방향보다 변과 각을 살펴봐요. 주제를 골라 직접 재고 확인할 수 있어요.", 18))
 	for id: String in LearningCatalog.IDS:
@@ -2105,7 +2177,7 @@ func _export_png() -> void:
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
 	var window: Window = get_window()
-	var creation_visible: bool = is_instance_valid(_home_screen) and (_home_screen.visible or (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen) or is_instance_valid(_ending_scene))
+	var creation_visible: bool = is_instance_valid(_startup_learning) or (is_instance_valid(_home_screen) and (_home_screen.visible or (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen) or is_instance_valid(_ending_scene)))
 	var desired_size: Vector2i = Vector2i(maxi(window.size.x, 800), maxi(window.size.y, 600)) if creation_visible else Vector2i(1600, 900)
 	if window.content_scale_size != desired_size:
 		window.content_scale_size = desired_size
@@ -2137,6 +2209,9 @@ func _ui_size() -> Vector2:
 	return _ui.size if _ui != null and _ui.size.x > 0.0 else get_viewport().get_visible_rect().size
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(_startup_learning):
+		if event is InputEventKey and event.keycode == KEY_ESCAPE: get_viewport().set_input_as_handled()
+		return
 	if is_instance_valid(_feature_loading_overlay):
 		if event is InputEventKey:
 			if event.pressed and not event.echo and event.keycode == KEY_ESCAPE: _cancel_feature_navigation()
@@ -2194,6 +2269,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: _clear_touch_inputs()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if is_instance_valid(_startup_learning): return
 	if is_instance_valid(_feature_loading_overlay): return
 	if is_instance_valid(_opening_screen): return
 	if is_instance_valid(_ending_scene) or (is_instance_valid(_ending_dialog) and _ending_dialog.visible): return

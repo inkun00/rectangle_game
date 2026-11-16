@@ -5,7 +5,6 @@ signal drawing_requested
 signal adventure_requested
 signal construction_requested
 signal notebook_requested
-signal learning_requested
 signal tutorials_requested
 signal opening_requested
 signal ending_choice_requested
@@ -17,8 +16,7 @@ var _cards: GridContainer
 var _heading: Label
 var _margin: MarginContainer
 var _column: VBoxContainer
-var _learning_record: Label
-var _learning_button: Button
+var _drawing_button: Button
 var _ending_card: PanelContainer
 var _ending_progress: Label
 var _ending_choice: Button
@@ -57,23 +55,15 @@ func _ready() -> void:
 	_heading = _label("별빛 너머, 나만의 사각형 월드", 30)
 	introduction.add_child(_heading)
 	introduction.add_child(_label("돈을 모아 지구에 살 집을 짓거나 사각성으로 돌아갈 우주선을 만들어요.", 17, Art.INK))
-	var learn_row: HBoxContainer = HBoxContainer.new()
-	learn_row.add_theme_constant_override("separation", 16)
-	introduction.add_child(learn_row)
-	_learning_button = _button("수학 먼저 해 보기", func(): learning_requested.emit(), true)
-	learn_row.add_child(_learning_button)
-	_learning_record = _label("수직부터 사각형까지 · 한 활동씩 직접 확인해요.", 16, Art.INK)
-	_learning_record.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	learn_row.add_child(_learning_record)
 	_cards = GridContainer.new()
 	_cards.name = "ActivityChoices"
 	_cards.add_theme_constant_override("h_separation", 18)
 	_cards.add_theme_constant_override("v_separation", 18)
 	_column.add_child(_cards)
-	_build_mode("Drawing", "그림을 팔아 자금 모으기", "나만의 그림", "사각형으로 작품을 만들고 판매해 집이나 우주선을 만들 자금을 모아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
+	_drawing_button = _build_mode("Drawing", "그림 의뢰로 자금 모으기", "나만의 그림", "의뢰인의 부탁을 듣고 사각형으로 작품을 그려 보상을 받아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
 	_build_mode("Construction", "집 짓기 놀이", "뚝딱! 사각형 집 짓기", "의뢰인의 집을 짓고 수익으로 나만의 집도 완성해요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
 	_build_mode("Adventure", "마을을 도와 자금 모으기", "마을 주민 심부름하기", "사각이와 여섯 지역을 돌아다니며 주민의 부탁을 해결하고 돈을 벌어요.", GameArt.sheet("world_backdrop"), "마을 주민 심부름하기", func(): adventure_requested.emit())
-	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", ENDING_CHOICE_TITLE, "그림 판매와 건축 의뢰 완료를 합쳐 10회 달성하면 두 길이 열려요.", StarfrontArt.scene(8), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
+	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", ENDING_CHOICE_TITLE, "그림과 건축 의뢰 완료를 합쳐 10회 달성하면 두 길이 열려요.", StarfrontArt.scene(8), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
 	var ending_content: VBoxContainer = _ending_choice.get_parent() as VBoxContainer
 	_ending_card = ending_content.get_parent() as PanelContainer
 	_ending_card.hide()
@@ -93,7 +83,7 @@ func _ready() -> void:
 	_responsive()
 
 func focus_primary() -> void:
-	_learning_button.grab_focus()
+	_drawing_button.grab_focus()
 
 func _build_header(parent: Node) -> void:
 	var header_panel: PanelContainer = PanelContainer.new()
@@ -114,10 +104,6 @@ func _build_header(parent: Node) -> void:
 	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header.add_child(brand)
 	header.add_child(_button("도형 도감", func(): notebook_requested.emit(), false))
-
-func set_learning_progress(count: int) -> void:
-	if _learning_record != null:
-		_learning_record.text = "수직부터 사각형까지 · 활동 기록 %d / 8" % count
 
 func set_ending_progress(sales: int, houses: int, required: int, has_saved_ending: bool) -> void:
 	var unlocked: bool = sales + houses >= required or has_saved_ending

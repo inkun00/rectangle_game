@@ -6,12 +6,16 @@ const Progress = preload("res://scripts/learning/learning_progress.gd")
 const Canvas = preload("res://scenes/learning/learning_canvas.gd")
 const Studio = preload("res://scenes/learning/learning_studio.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
+const Bank = preload("res://scripts/learning/learning_question_bank.gd")
+const Gate = preload("res://scenes/learning/learning_gate.gd")
 const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
 
 static func run(t: Node) -> void:
 	_test_examples_and_measurements(t)
 	_test_progress_files(t)
 	await _test_activity_flow(t)
+	_test_startup_question_bank(t)
+	await _test_startup_learning_gate(t)
 	await _test_touch_and_peaceful(t)
 
 static func _test_examples_and_measurements(t: Node) -> void:
@@ -115,12 +119,116 @@ static func _test_activity_flow(t: Node) -> void:
 	t.assert_eq(studio.progress.completed.size(), 8, "All eight grade-level topics are reachable without game gates")
 	studio.free()
 
+static func _test_startup_question_bank(t: Node) -> void:
+	var ids: Dictionary = {}
+	var drawing_kinds: Dictionary = {}
+	var blank_grids: int = 0
+	var partial_grids: int = 0
+	for type_id: String in Bank.TYPES:
+		for index: int in range(Bank.PER_TYPE):
+			var question: Dictionary = Bank.question(type_id, index)
+			t.assert_false(ids.has(question.id), "Every gate variant has a unique question ID")
+			ids[question.id] = true
+			t.assert_eq(question.type_id, type_id, "Every bank item belongs to its requested type")
+			t.assert_true(Bank.next_index(index) != index, "A retry changes the current variant")
+			if question.mode == "draw":
+				drawing_kinds[question.lesson_id] = true
+				var vertices: PackedVector2Array = PackedVector2Array()
+				for point: Vector2i in question.draw_solution:
+					t.assert_true(point.x >= 0 and point.x <= question.grid_size.x and point.y >= 0 and point.y <= question.grid_size.y, "All example vertices fit on the printed grid")
+					vertices.append(Vector2(point))
+				t.assert_true(Math.is_valid(vertices) and Math.matches_kind(vertices, str(question.lesson_id)), "Every grid challenge has a valid completion")
+				for given_index: int in range(question.given.size()):
+					t.assert_eq(question.given[given_index], question.draw_solution[given_index], "The fixed segments are part of a valid completion")
+				if question.given.is_empty(): blank_grids += 1
+				else: partial_grids += 1
+			elif question.mode == "select":
+				var expected: Array[int] = []
+				for slot: int in range(question.figures.size()):
+					if Math.matches_kind(question.figures[slot], str(question.lesson_id)): expected.append(slot)
+				t.assert_eq(question.correct_choices, expected, "Correct figure choices follow their geometric properties")
+				t.assert_true(not expected.is_empty() and expected.size() < question.figures.size(), "Each figure set has examples and nonexamples")
+			elif question.mode == "measure":
+				t.assert_true(question.answer_index >= 0 and question.answer_index < question.choices.size(), "Measurement questions have a selectable answer")
+	t.assert_eq(Bank.TYPES.size(), 5, "A launch covers five distinct curriculum types")
+	t.assert_eq(ids.size(), 100, "The question bank contains exactly 100 variants")
+	t.assert_eq(drawing_kinds.size(), 5, "Grid construction covers all five quadrilateral families")
+	t.assert_true(blank_grids > 0 and partial_grids > 0, "Grid construction includes blank diagrams and given segments")
+
+static func _test_startup_learning_gate(t: Node) -> void:
+	var app: QuadrilateralApp = AppScene.instantiate()
+	app.testing = true
+	app.show_startup_learning_for_testing = true
+	t.add_child(app)
+	await t.get_tree().process_frame
+	var gate: Gate = app._startup_learning
+	t.assert_not_null(gate, "The launch opens the required math dialog")
+	if gate == null:
+		app.free()
+		return
+	var escape: InputEventKey = InputEventKey.new()
+	escape.keycode = KEY_ESCAPE
+	escape.pressed = true
+	app._input(escape)
+	app._home_screen.drawing_requested.emit()
+	app._home_screen.construction_requested.emit()
+	app._home_screen.adventure_requested.emit()
+	app._home_screen.notebook_requested.emit()
+	app._show_home()
+	t.assert_true(gate.is_visible_in_tree() and not app._home_screen.visible, "Escape and mode navigation cannot close the launch dialog")
+	t.assert_true(not app._drawing_screen.visible and not app._construction_screen.visible and app.world == null, "Gameplay stays hidden before all answers are correct")
+	var starting: Dictionary = gate.question
+	gate._check.pressed.emit()
+	t.assert_eq(gate.question.id, starting.id, "Incomplete input prompts observation without using a retry")
+	gate.canvas.set_value(45.0)
+	gate._measure.pressed.emit()
+	gate._check.pressed.emit()
+	t.assert_eq(gate.question.type_id, starting.type_id, "A wrong answer stays in the same curriculum type")
+	t.assert_true(gate.question.id != starting.id, "A wrong answer shows a different problem")
+	t.assert_eq(app._startup_type_index, 0, "An incorrect answer cannot advance the launch progress")
+	# Cover all interaction modes without relying on the random choices made at launch.
+	app._startup_variants[1] = 12
+	app._startup_variants[2] = 0
+	app._startup_variants[3] = 12
+	app._startup_variants[4] = 13
+	for step: int in range(Bank.TYPES.size()):
+		t.assert_eq(gate.question.type_id, Bank.TYPES[step], "A correct answer advances to the next distinct curriculum type")
+		t.assert_true(gate.visible and not app._home_screen.visible, "The home screen stays locked while any type remains")
+		var question: Dictionary = gate.question
+		match str(question.mode):
+			"line": gate.canvas.set_value(90.0 if question.lesson_id == "perpendicular" else 0.0)
+			"measure": gate._choice_buttons[int(question.answer_index)].pressed.emit()
+			"select":
+				for option: int in question.correct_choices: gate.canvas.toggle_choice(option)
+			"draw":
+				for point_index: int in range(question.given.size(), question.draw_solution.size()):
+					gate.grid_canvas.place_vertex(question.draw_solution[point_index])
+		if question.mode != "draw": gate._measure.pressed.emit()
+		gate._check.pressed.emit()
+	await t.get_tree().process_frame
+	t.assert_true(app._startup_learning == null and app._home_screen.visible, "The fifth correct type opens the game")
+	t.assert_true(app._home_screen._drawing_button.has_focus(), "Keyboard focus returns to the first game activity")
+	app._home_screen.drawing_requested.emit()
+	t.assert_true(app._drawing_screen.visible, "A player can enter drawing after solving the launch tasks")
+	app._show_home()
+	t.assert_true(app._startup_learning == null, "Returning to the menu does not start another attempt")
+	app.free()
+	await t.get_tree().process_frame
+	var next_session: QuadrilateralApp = AppScene.instantiate()
+	next_session.testing = true
+	next_session.show_startup_learning_for_testing = true
+	t.add_child(next_session)
+	await t.get_tree().process_frame
+	t.assert_true(is_instance_valid(next_session._startup_learning) and next_session._startup_type_index == 0, "A new launch always starts a fresh five-type sequence")
+	next_session.free()
+	await t.get_tree().process_frame
+
 static func _test_touch_and_peaceful(t: Node) -> void:
 	var app: QuadrilateralApp = AppScene.instantiate()
 	app.testing = true
 	t.add_child(app)
 	app._sound.sound_enabled = false
-	t.assert_true(app._home_screen._learning_button.has_focus(), "Home seeds keyboard focus on its direct learning action")
+	t.assert_true(app._home_screen._drawing_button.has_focus(), "Home seeds keyboard focus on its drawing action")
 	app.learning_progress.touch_controls = true
 	app.learning_progress.peaceful = true
 	app._learning_changed()

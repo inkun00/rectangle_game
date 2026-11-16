@@ -1,9 +1,10 @@
 class_name ArtMarket
 extends RefCounted
 
-## The gallery checks paper coverage and drawing time before pricing visible shapes.
+## Artwork payments require minimum coverage and drawing time before assessing the commission.
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const Drawing = preload("res://scripts/core/drawing_document.gd")
+const Commissions = preload("res://scripts/economy/art_commission_catalog.gd")
 const MAX_SALES: int = 512
 const GRID: Vector2i = Vector2i(48, 30)
 const SAMPLE_COUNT: int = 1440
@@ -11,7 +12,9 @@ const EMPTY: String = "___"
 const MIN_VISIBLE_SAMPLES: int = 3
 const LEGACY_MIN_SHAPES: int = 5
 const LEGACY_MIN_COVERAGE: float = 0.08
-const RECEIPT_VERSION: int = 4
+const LEGACY_VISIBLE_PRICE_VERSION: int = 4
+const RECEIPT_VERSION: int = 5
+const RECEIPT_FIELDS: Array[String] = ["version", "title", "fingerprint", "signature", "price", "visible_shapes", "families", "colors", "coverage"]
 const PRIOR_SALE_SHAPES: int = 6
 const PRIOR_SALE_FAMILIES: int = 3
 const PRIOR_SALE_COVERAGE: float = 0.12
@@ -22,8 +25,7 @@ const MAX_PRICE: int = 8000000
 const MAX_TITLE_LENGTH: int = 80
 
 
-## New sale input is validated separately from historical receipt loading.
-## This preserves the existing nine-field receipt and earlier saved titles.
+## New titles are validated separately so historical titles can still be loaded.
 static func valid_title(value: Variant) -> bool:
 	if not value is String: return false
 	var title: String = str(value).strip_edges()
@@ -34,8 +36,13 @@ static func valid_title(value: Variant) -> bool:
 	return true
 
 
-static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Dictionary:
+## An empty ID supplies the legacy estimate. The economy requires an accepted commission for payment.
+static func quote(document: DrawingDocument, sold: Array[Dictionary] = [], commission_id: String = "") -> Dictionary:
 	var result: Dictionary = {"can_sell": false, "price": 0, "reason": "", "fingerprint": "", "signature": "", "visible_shapes": 0, "families": 0, "colors": 0, "coverage": 0.0, "checks": []}
+	var requirements: Array[Dictionary] = Commissions.requirements(commission_id)
+	if not commission_id.is_empty() and requirements.is_empty():
+		result.reason = "그림 의뢰를 확인하지 못했어요. 의뢰를 다시 골라 주세요."
+		return result
 	if document == null:
 		result.reason = "먼저 사각형으로 그림을 그려 주세요."
 		return result
@@ -70,40 +77,52 @@ static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Di
 		{"id": "time", "label": "직접 그리거나 편집한 시간 5분 이상", "met": enough_work, "detail": "%d분 %02d초" % [floori(float(work_seconds) / 60.0), work_seconds % 60]}
 	]
 	result.checks = checks
+	if not requirements.is_empty():
+		result["commission_id"] = commission_id
+		result["score"] = _measure_commission(requirements, visible_shapes, family_count, coverage)
+		result["requirements"] = requirements
 	if visible_shapes == 0:
 		result.reason = "도화지에 잘 보이는 사각형을 하나 이상 그려 주세요."
 	elif sold.size() >= MAX_SALES:
-		result.reason = "작품 판매 기록이 가득 찼어요. 집 짓기로 우주선 제작비를 더 모을 수 있어요."
+		result.reason = "그림 의뢰 기록이 가득 찼어요. 집 짓기로 우주선 제작비를 더 모을 수 있어요."
 	elif is_duplicate(result, sold):
-		result.reason = "이미 판매한 작품과 같거나 아주 비슷해요. 새 구도나 도형으로 다른 작품을 만들어 주세요."
+		result.reason = "이미 보상을 받은 작품과 같거나 아주 비슷해요. 새 구도나 도형으로 다른 작품을 그려 주세요."
 	elif not enough_coverage:
 		result.reason = "사각형으로 도화지의 %d%% 이상을 채워 주세요." % required_percent
 	elif not enough_work:
 		result.reason = "도형을 직접 그리고 다듬어 작업 시간 5분을 채워 주세요."
 	else:
 		result.can_sell = true
-		result.price = _current_price(visible_shapes, family_count)
+		var value: int = _visible_shape_price(visible_shapes, family_count)
+		result.price = value if requirements.is_empty() else _discounted_price(value, float(result.score) / 100.0)
 	return result
 
 
 static func receipt_from_quote(offer: Dictionary, title: String = "") -> Dictionary:
 	if not bool(offer.get("can_sell", false)): return {}
-	var result: Dictionary = {"version": RECEIPT_VERSION, "title": title.strip_edges().left(MAX_TITLE_LENGTH)}
+	var commission_id: String = str(offer.get("commission_id", ""))
+	var version: int = LEGACY_VISIBLE_PRICE_VERSION if commission_id.is_empty() else RECEIPT_VERSION
+	var result: Dictionary = {"version": version, "title": title.strip_edges().left(MAX_TITLE_LENGTH)}
 	if str(result.title).is_empty(): result.title = "나의 사각형 작품"
 	for key: String in ["fingerprint", "signature", "price", "visible_shapes", "families", "colors", "coverage"]:
 		if not offer.has(key): return {}
 		result[key] = offer[key]
+	if version == RECEIPT_VERSION:
+		result["commission_id"] = commission_id
+		result["score"] = offer.get("score")
 	return result if validate_receipt(result) else {}
 
 
 static func validate_receipt(receipt: Dictionary) -> bool:
-	if receipt.size() != 9 or not receipt.has_all(["version", "title", "fingerprint", "signature", "price", "visible_shapes", "families", "colors", "coverage"]): return false
-	# Nine fields are used; allow no unrecognized values or hidden nested payloads.
+	if not receipt.has_all(RECEIPT_FIELDS) or not _integer(receipt.version, 1, RECEIPT_VERSION): return false
+	if int(receipt.version) == RECEIPT_VERSION:
+		if receipt.size() != RECEIPT_FIELDS.size() + 2 or not receipt.get("commission_id") is String or not _integer(receipt.get("score"), 1, 100): return false
+	elif receipt.size() != RECEIPT_FIELDS.size(): return false
 	return _validate_receipt_fields(receipt)
 
 
 static func _validate_receipt_fields(receipt: Dictionary) -> bool:
-	if not _integer(receipt.version, 1, RECEIPT_VERSION) or not receipt.title is String or str(receipt.title).length() > MAX_TITLE_LENGTH or str(receipt.title).strip_edges().is_empty(): return false
+	if not receipt.title is String or str(receipt.title).length() > MAX_TITLE_LENGTH or str(receipt.title).strip_edges().is_empty(): return false
 	if not receipt.fingerprint is String or str(receipt.fingerprint).length() != 64 or not _is_hex(str(receipt.fingerprint)): return false
 	if not receipt.signature is String or str(receipt.signature).length() != SAMPLE_COUNT * 3: return false
 	var version: int = int(receipt.version)
@@ -118,7 +137,7 @@ static func _validate_receipt_fields(receipt: Dictionary) -> bool:
 		minimum_shapes = PRIOR_SALE_SHAPES
 		minimum_families = PRIOR_SALE_FAMILIES
 		minimum_coverage = PRIOR_SALE_COVERAGE
-	elif version == RECEIPT_VERSION:
+	elif version >= LEGACY_VISIBLE_PRICE_VERSION:
 		minimum_coverage = MIN_SALE_COVERAGE
 	if not _integer(receipt.visible_shapes, minimum_shapes, 128): return false
 	if not _integer(receipt.families, minimum_families, 5): return false
@@ -148,7 +167,13 @@ static func _validate_receipt_fields(receipt: Dictionary) -> bool:
 		expected_price = _discounted_price(_full_price(shapes, families, measured_coverage), _completion_ratio(shapes, families, measured_coverage))
 	else:
 		if measured_coverage < MIN_SALE_COVERAGE: return false
-		expected_price = _current_price(shapes, families)
+		expected_price = _visible_shape_price(shapes, families)
+		if version == RECEIPT_VERSION:
+			var requirements: Array[Dictionary] = Commissions.requirements(str(receipt.commission_id))
+			if requirements.is_empty(): return false
+			var score: int = _measure_commission(requirements, shapes, families, measured_coverage)
+			if score != int(receipt.score): return false
+			expected_price = _discounted_price(expected_price, float(score) / 100.0)
 	return _integer(receipt.price, 100, MAX_PRICE) and int(receipt.price) == expected_price
 
 
@@ -180,8 +205,24 @@ static func _price(shapes: int, families: int, coverage: float, base_price: int 
 	var amount: int = base_price + mini(shapes, 24) * 150000 + mini(families, 5) * 450000 + int(coverage * 1000000.0)
 	return mini(MAX_PRICE, int(float(amount) / 100.0) * 100)
 
-static func _current_price(shapes: int, families: int) -> int:
+static func _visible_shape_price(shapes: int, families: int) -> int:
 	return 200000 + mini(shapes, 12) * 200000 + maxi(shapes - 12, 0) * 42000 + (families - 1) * 2000
+
+static func _measure_commission(requirements: Array[Dictionary], shapes: int, families: int, coverage: float) -> int:
+	var amounts: Dictionary = {"coverage": coverage * 100.0, "pieces": float(shapes), "families": float(families)}
+	var details: Dictionary = {
+		"coverage": "현재 %.1f%%" % (floorf(coverage * 1000.0) / 10.0),
+		"pieces": "현재 %d개" % shapes,
+		"families": "현재 %d종류" % families,
+	}
+	var combined: float = 0.0
+	for requirement: Dictionary in requirements:
+		var amount: float = float(amounts[requirement.id])
+		var target: float = float(requirement.target)
+		requirement["met"] = amount >= target
+		requirement["detail"] = details[requirement.id]
+		combined += minf(amount / target, 1.0)
+	return floori(combined * 100.0 / float(requirements.size()) + 0.00000001)
 
 static func _completion_ratio(shapes: int, families: int, coverage: float) -> float:
 	var shape_ratio: float = minf(float(shapes) / PRIOR_SALE_SHAPES, 1.0)

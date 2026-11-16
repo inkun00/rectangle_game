@@ -29,7 +29,7 @@ static func _test_receipt_gating_and_roundtrip(t: Node) -> void:
 	DirAccess.make_dir_recursive_absolute(directory)
 	var store: ArtPublicationStore = Store.new()
 	store.path = directory.path_join("queue.json")
-	var offer: Dictionary = ArtMarket.quote(Samples.house())
+	var offer: Dictionary = ArtMarket.quote(Samples.house(), [], Samples.COMMISSION_ID)
 	var bytes: PackedByteArray = _png()
 	var saved: Dictionary = SoldArtStore.save_png(bytes, "새 집", directory.path_join("art"))
 	t.assert_true(saved.ok, "The publication fixture uses a real valid PNG")
