@@ -5,14 +5,18 @@ const { PNG } = require('pngjs');
 
 const BOARD_ID = 's025d52oqqhj786g8cry';
 const BOARD_URL = `https://padlet.com/inkun02/padlet-${BOARD_ID}`;
+const DRAWING_BOARD = { board_id: BOARD_ID, board_url: BOARD_URL };
+const BUILDING_BOARD_ID = 's025ilggr7czshhrgkv2';
+const BUILDING_BOARD = { board_id: BUILDING_BOARD_ID, board_url: `https://padlet.com/inkun02/padlet-${BUILDING_BOARD_ID}` };
 const PUBLIC_ORIGIN = 'https://rectangle-game-iota.vercel.app';
 const GAME_ORIGINS = [PUBLIC_ORIGIN, 'https://rectangle-game-snowy.vercel.app'];
-const PADLET_BOARD_API = `https://api.padlet.dev/v1/boards/${BOARD_ID}`;
 const MAX_BODY_BYTES = 3300000;
 const MAX_PNG_BYTES = 2400000;
 const REQUEST_TIMEOUT_MS = 15000;
 const POSTING_GRACE_MS = 45000;
 const ID_PATTERN = /^[a-f0-9]{32}$/;
+const BOARD_ID_PATTERN = /^[a-zA-Z0-9]{16,22}$/;
+const BUILDING_KINDS = new Set(['commission', 'my_house', 'earth_house']);
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const DRAWING_PRICE = { minimum: 100, maximum: 8_000_000, label: '게임 내 그림 가격' };
 const PROJECT_PRICES = new Map([
@@ -63,6 +67,38 @@ function publicOrigin(request, env) {
   if (GAME_ORIGINS.includes(productionOrigin)) return productionOrigin;
   const requestOrigin = `https://${header(request, 'host')}`;
   return GAME_ORIGINS.includes(requestOrigin) ? requestOrigin : PUBLIC_ORIGIN;
+}
+
+function padletUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.origin === 'https://padlet.com' && !url.username && !url.password) return url;
+  } catch { /* Missing and invalid Padlet URLs have no destination. */ }
+  return null;
+}
+
+function boardDestination(boardId, boardUrl) {
+  if (typeof boardId !== 'string' || !BOARD_ID_PATTERN.test(boardId)) return null;
+  const url = padletUrl(boardUrl);
+  const slug = url?.pathname.split('/').filter(Boolean).at(-1);
+  if (slug !== boardId && !slug?.endsWith(`-${boardId}`)) return null;
+  return { board_id: boardId, board_url: url.href };
+}
+
+function submissionBoard(deps, submission) {
+  if (!BUILDING_KINDS.has(submission.kind)) return DRAWING_BOARD;
+  const { PADLET_BUILDING_BOARD_ID: boardId, PADLET_BUILDING_BOARD_URL: boardUrl } = deps.env;
+  if (boardId === undefined && boardUrl === undefined) return BUILDING_BOARD;
+  const board = boardDestination(boardId?.trim(), boardUrl?.trim());
+  return board?.board_id === BOARD_ID ? null : board;
+}
+
+function padletBoardApi(boardId) {
+  return `https://api.padlet.dev/v1/boards/${boardId}`;
+}
+
+function missingBuildingBoard() {
+  return fail('건축물 전시관 연결을 준비 중이에요. 작품은 저장되어 있어요. 선생님께 알려 주세요.', true, 503);
 }
 
 function sendJson(response, status, data, origin = '') {
@@ -195,9 +231,9 @@ function validateSubmission(raw) {
   if (kind !== undefined && !projectPrice) throw new InputError('작품 종류를 확인해 주세요.');
   const work = kind === 'spaceship' ? '우주선' : projectPrice ? '건물' : '그림';
   if (typeof raw.id !== 'string' || !ID_PATTERN.test(raw.id)) {
-    throw new InputError(`작품 번호가 올바르지 않아요. ${work}을 다시 열어 주세요.`);
+    throw new InputError('작품을 확인할 수 없어요. 게임에서 작품을 다시 열어 주세요.');
   }
-  const author = textField(raw.author, 40, '사용자 이름');
+  const author = textField(raw.author, 40, '작성자 이름');
   const nameLabel = kind === 'earth_house' ? '집 이름' : kind === 'spaceship' ? '우주선 이름' : `${work} 제목`;
   const title = textField(raw.title, 80, nameLabel);
   const description = textField(raw.description, 1000, `${work} 설명`, true);
@@ -244,6 +280,9 @@ async function readManifest(deps, id) {
   if (value.version !== 1 || value.id !== id || typeof value.payload_hash !== 'string' || !stored.blob.etag) {
     throw new Error('Invalid submission record');
   }
+  if ((value.board_id !== undefined || value.board_url !== undefined) && !boardDestination(value.board_id, value.board_url)) {
+    throw new Error('Invalid submission board');
+  }
   return { value, etag: stored.blob.etag };
 }
 
@@ -289,8 +328,8 @@ function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
       type: 'post',
       attributes: {
         content: {
-          subject: submission.title,
-          body: `사용자 이름: ${escapeHtml(submission.author)}\n\n${descriptionLabel}: ${escapeHtml(submission.description)}\n\n${priceLabel}: ${submission.price.toLocaleString('en-US')}원\n작품 번호: ${submission.id}`,
+          subject: `${submission.title} · ${submission.author}`,
+          body: `작성자: ${escapeHtml(submission.author)}\n\n${descriptionLabel}: ${escapeHtml(submission.description)}\n\n${priceLabel}: ${submission.price.toLocaleString('en-US')}원`,
           attachment: { url: imageUrl(submission.id, origin), caption: submission.title },
         },
       },
@@ -306,25 +345,16 @@ function padletHeaders(deps) {
   };
 }
 
-function postUrl(post) {
-  const value = post?.attributes?.webUrl?.live;
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol === 'https:' && parsed.hostname === 'padlet.com') return parsed.href;
-  } catch { /* Fall back to the fixed board if Padlet omits a permalink. */ }
-  return BOARD_URL;
-}
-
 function published(record) {
   return {
     status: 200,
-    body: { ok: true, post_url: record.post_url || BOARD_URL, moderation_pending: record.post_status === 'pending_moderation' },
+    body: { ok: true, post_url: record.post_url || record.board_url || BOARD_URL, moderation_pending: record.post_status === 'pending_moderation' },
   };
 }
 
 async function recordSuccess(deps, current, post) {
   const value = {
-    ...current.value, state: 'published', post_id: post.id, post_url: postUrl(post),
+    ...current.value, state: 'published', post_id: post.id, post_url: padletUrl(post.attributes?.webUrl?.live)?.href || current.value.board_url || BOARD_URL,
     post_status: post.attributes?.status || 'approved', updated_at: deps.now(),
   };
   try { await writeManifest(deps, value, current.etag); } catch {
@@ -335,17 +365,20 @@ async function recordSuccess(deps, current, post) {
 
 async function reconcile(deps, current) {
   try {
-    const response = await deps.fetch(`${PADLET_BOARD_API}?include=posts`, {
+    // Legacy submissions with an uncertain outcome could only have reached the drawing board.
+    const response = await deps.fetch(`${padletBoardApi(current.value.board_id || BOARD_ID)}?include=posts`, {
       method: 'GET', headers: padletHeaders(deps), signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) return pending(deps, current.value);
     const board = await response.json();
     const posts = Array.isArray(board.included) ? board.included : [];
-    const marker = `작품 번호: ${current.value.id}`;
-    const attachmentUrls = GAME_ORIGINS.map((origin) => imageUrl(current.value.id, origin));
+    const attemptedUrl = current.value.attachment_url;
+    const attachmentUrls = attemptedUrl ? [attemptedUrl] : GAME_ORIGINS.map((origin) => imageUrl(current.value.id, origin));
+    const legacyMarker = `작품 번호: ${current.value.id}`;
     const match = posts.find((post) => post.type === 'post' && typeof post.id === 'string' && (
       attachmentUrls.includes(post.attributes?.content?.attachment?.url) ||
-      (typeof post.attributes?.content?.bodyHtml === 'string' && post.attributes.content.bodyHtml.includes(marker))
+      (!attemptedUrl && typeof post.attributes?.content?.bodyHtml === 'string' &&
+        post.attributes.content.bodyHtml.includes(legacyMarker))
     ));
     if (match) return await recordSuccess(deps, current, match);
   } catch { /* A failed lookup cannot prove that the original create failed. */ }
@@ -355,8 +388,10 @@ async function reconcile(deps, current) {
 async function processSubmission(deps, submission, origin) {
   let current = await readManifest(deps, submission.id);
   if (!current) {
+    const board = submissionBoard(deps, submission);
+    if (!board) return missingBuildingBoard();
     const value = {
-      version: 1, id: submission.id, payload_hash: submission.payloadHash,
+      version: 1, id: submission.id, payload_hash: submission.payloadHash, ...board,
       state: 'prepared', created_at: deps.now(), updated_at: deps.now(),
     };
     try { current = await writeManifest(deps, value); } catch (error) {
@@ -377,10 +412,15 @@ async function processSubmission(deps, submission, origin) {
     return fail('패들릿에 등록 요청이 많아요. 1분 뒤에 다시 시도해 주세요.', true, 429);
   }
 
+  // Prepared and definitely rejected legacy submissions have no remote post to reconcile.
+  const board = current.value.board_id ? { board_id: current.value.board_id, board_url: current.value.board_url }
+    : submissionBoard(deps, submission);
+  if (!board) return missingBuildingBoard();
   await ensureImage(deps, submission);
   try {
     current = await writeManifest(deps, {
-      ...current.value, state: 'posting', updated_at: deps.now(), retry_after: 0,
+      ...current.value, ...board, state: 'posting', updated_at: deps.now(), retry_after: 0,
+      attachment_url: imageUrl(submission.id, origin),
     }, current.etag);
   } catch {
     const winner = await readManifest(deps, submission.id);
@@ -389,7 +429,7 @@ async function processSubmission(deps, submission, origin) {
   }
 
   try {
-    const response = await deps.fetch(`${PADLET_BOARD_API}/posts`, {
+    const response = await deps.fetch(`${padletBoardApi(board.board_id)}/posts`, {
       method: 'POST', headers: padletHeaders(deps), body: JSON.stringify(createPadletBody(submission, origin)),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });

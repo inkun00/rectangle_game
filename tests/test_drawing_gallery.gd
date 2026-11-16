@@ -128,7 +128,15 @@ static func _test_gallery_workflow(t: Node) -> void:
 		masterpiece_button.pressed.emit()
 	t.assert_eq(studio.document.masterpiece_id, str(masterpiece.id), "Masterpiece gallery stores the selected study")
 	t.assert_eq(studio.document.drawing_mode, "masterpiece", "Selecting a study enters masterpiece fill mode")
-	t.assert_false(studio._masterpiece_tools.visible, "A short window keeps the drawing surface free of an extra outline-control row")
+	await _frames(t)
+	t.assert_true(studio._masterpiece_tools.visible, "A short window keeps outline controls in the shared drawing toolbar")
+	var row_y: float = studio._mode_masterpiece.get_global_rect().position.y
+	for control: Control in [studio._shape_picker, studio._multiple_selection_button, studio._group_button, studio._ungroup_button, studio._guide_toggle, studio._guide_opacity]:
+		t.assert_float_approx(control.get_global_rect().position.y, row_y, 0.1, "Drawing tools stay on the same row at 1024 by 720")
+	studio._guide_toggle.grab_focus()
+	await _frames(t)
+	t.assert_gt(studio._tool_scroll.scroll_horizontal, 0, "Keyboard focus scrolls the toolbar to outline controls on a narrow screen")
+	t.assert_true(studio._tool_scroll.get_global_rect().encloses(studio._guide_toggle.get_global_rect()), "The focused outline action scrolls fully into view")
 	t.assert_true(studio._more_edits.get_popup().get_item_text(10).contains("밑그림") and studio._more_edits.get_popup().get_item_text(11).contains("진하기"), "Compact editing keeps both outline controls in its labeled menu")
 	var guide_visible: bool = studio.canvas.show_masterpiece
 	var opacity: float = studio.canvas.masterpiece_opacity

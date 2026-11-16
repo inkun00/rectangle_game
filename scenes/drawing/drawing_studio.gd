@@ -11,6 +11,8 @@ const Market = preload("res://scripts/economy/art_market.gd")
 const Money = preload("res://scripts/construction/construction_catalog.gd")
 const SAVE_PATH: String = "user://quadrilateral_drawing_v1.json"
 const PADLET_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
+const DRAWING_IDLE_MSEC: int = 15000
+const TOOLBAR_FONT_SIZE: int = 16
 const SHAPE_ORDER: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
 const TRAPEZOID_VARIANT_LABELS: Array[String] = ["양옆이 기울어진 모양", "왼쪽 두 각이 직각", "오른쪽 두 각이 직각"]
 const SHAPE_ACTION_LABELS: Dictionary = {6: "뒤로 보내기", 7: "앞으로 보내기", 2: "왼쪽 15° 회전", 3: "오른쪽 15° 회전", 4: "축소", 5: "확대", 0: "복제", 1: "삭제"}
@@ -80,7 +82,7 @@ var _drawing_header: HBoxContainer
 var _drawing_title: Label
 var _drawing_tagline: Label
 var _drawing_load: Button
-var _shape_tools: HFlowContainer
+var _shape_tools: HBoxContainer
 var _tool_scroll: ScrollContainer
 var _shape_context_menu: PopupMenu
 var _context_shape_id: int = -1
@@ -109,8 +111,11 @@ var _upload_busy: bool = false
 var sold_art_directory: String = ""
 var sale_author_name: String = ""
 var sale_png_renderer: Callable = DrawingExport.export_png
+var _drawing_work_until: int = 0
+var _drawing_work_sample: int = 0
 
 func _ready() -> void:
+	set_process(false)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	_autosave = Timer.new()
@@ -119,8 +124,11 @@ func _ready() -> void:
 	_autosave.timeout.connect(func(): save_drawing(false))
 	add_child(_autosave)
 	document.changed.connect(_document_changed)
+	document.artwork_edited.connect(func():
+		if not testing: _begin_drawing_work(Time.get_ticks_msec()))
 	visibility_changed.connect(func():
 		if not is_visible_in_tree():
+			_stop_drawing_work()
 			cancel_gesture()
 			if is_instance_valid(_sale_dialog): _sale_dialog.hide())
 	if not testing:
@@ -167,6 +175,17 @@ func _build_ui() -> void:
 	_drawing_header.add_child(_button("튜토리얼", func(): tutorial_requested.emit()))
 	_drawing_header.add_child(_button("저장", func(): save_drawing(true)))
 	_drawing_header.add_child(_button("PNG 저장", _export_png, true))
+	_tool_scroll = ScrollContainer.new()
+	_tool_scroll.name = "DrawingToolbarScroll"
+	_tool_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_tool_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_tool_scroll.follow_focus = true
+	column.add_child(_tool_scroll)
+	var toolbar: HBoxContainer = HBoxContainer.new()
+	toolbar.name = "DrawingToolbar"
+	toolbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	toolbar.add_theme_constant_override("separation", 6)
+	_tool_scroll.add_child(toolbar)
 	var workspace: HBoxContainer = HBoxContainer.new()
 	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	workspace.add_theme_constant_override("separation", 12)
@@ -200,10 +219,9 @@ func _build_ui() -> void:
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.add_theme_constant_override("separation", 8)
 	workspace.add_child(center)
-	_shape_tools = HFlowContainer.new()
-	_shape_tools.add_theme_constant_override("h_separation", 8)
-	_shape_tools.add_theme_constant_override("v_separation", 6)
-	center.add_child(_shape_tools)
+	_shape_tools = HBoxContainer.new()
+	_shape_tools.add_theme_constant_override("separation", 6)
+	toolbar.add_child(_shape_tools)
 	_shape_picker = OptionButton.new()
 	Buttons.apply(_shape_picker)
 	_shape_picker.custom_minimum_size = Vector2(170, 44)
@@ -218,17 +236,6 @@ func _build_ui() -> void:
 	for label: String in TRAPEZOID_VARIANT_LABELS: _trapezoid_variant_picker.add_item(label)
 	_trapezoid_variant_picker.item_selected.connect(func(index: int): canvas.select_trapezoid_variant(QuadrilateralMath.TRAPEZOID_VARIANTS[index]))
 	_shape_tools.add_child(_trapezoid_variant_picker)
-	_tool_scroll = ScrollContainer.new()
-	_tool_scroll.name = "DrawingToolbarScroll"
-	_tool_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	_tool_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_tool_scroll.follow_focus = true
-	center.add_child(_tool_scroll)
-	var toolbar: HBoxContainer = HBoxContainer.new()
-	toolbar.name = "DrawingToolbar"
-	toolbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	toolbar.add_theme_constant_override("separation", 8)
-	_tool_scroll.add_child(toolbar)
 	_mode_free = _button("자유 그림", func(): _choose_mode("free"))
 	_mode_free.name = "FreeDrawingMode"
 	_mode_free.toggle_mode = true
@@ -249,6 +256,7 @@ func _build_ui() -> void:
 	toolbar.add_child(_redo)
 	_more_edits = MenuButton.new()
 	_more_edits.text = "편집 더 보기"
+	_more_edits.flat = false
 	Buttons.apply(_more_edits)
 	_more_edits.focus_mode = Control.FOCUS_ALL
 	_more_edits.custom_minimum_size.y = 44
@@ -256,29 +264,25 @@ func _build_ui() -> void:
 		_more_edits.get_popup().add_item(caption)
 	_more_edits.get_popup().id_pressed.connect(_more_edit_action)
 	toolbar.add_child(_more_edits)
-	var group_tools: HFlowContainer = HFlowContainer.new()
-	group_tools.name = "DrawingGroupTools"
-	group_tools.add_theme_constant_override("h_separation", 8)
-	group_tools.add_theme_constant_override("v_separation", 6)
-	center.add_child(group_tools)
 	_multiple_selection_button = _button("여러 선택", _toggle_multiple_selection)
 	_multiple_selection_button.name = "MultipleSelectionToggle"
 	_multiple_selection_button.toggle_mode = true
 	_multiple_selection_button.tooltip_text = "도형을 하나씩 누르거나 빈 곳에서 끌어 여러 도형을 골라요. Shift를 누르고 도형을 눌러도 돼요."
-	group_tools.add_child(_multiple_selection_button)
+	toolbar.add_child(_multiple_selection_button)
 	_group_button = _button("묶기", _change_shape_group.bind(true))
 	_group_button.name = "GroupSelectedShapes"
 	_group_button.tooltip_text = "선택한 도형을 묶어 함께 움직여요. (Ctrl+G)"
-	group_tools.add_child(_group_button)
+	toolbar.add_child(_group_button)
 	_ungroup_button = _button("묶음 풀기", _change_shape_group.bind(false))
 	_ungroup_button.name = "UngroupSelectedShapes"
 	_ungroup_button.tooltip_text = "선택한 묶음을 풀어 도형을 따로 움직여요. (Ctrl+Shift+G)"
-	group_tools.add_child(_ungroup_button)
+	toolbar.add_child(_ungroup_button)
 	_masterpiece_tools = HBoxContainer.new()
-	_masterpiece_tools.add_theme_constant_override("separation", 8)
-	center.add_child(_masterpiece_tools)
+	_masterpiece_tools.add_theme_constant_override("separation", 6)
+	toolbar.add_child(_masterpiece_tools)
 	var guide_toggle: CheckButton = _check("밑그림 보기", true)
 	_guide_toggle = guide_toggle
+	guide_toggle.focus_mode = Control.FOCUS_ALL
 	guide_toggle.toggled.connect(func(enabled: bool):
 		canvas.show_masterpiece = enabled
 		canvas.queue_redraw())
@@ -286,7 +290,8 @@ func _build_ui() -> void:
 	_masterpiece_tools.add_child(QuadTheme.label("진하기", 15))
 	var opacity: HSlider = HSlider.new()
 	_guide_opacity = opacity
-	opacity.custom_minimum_size = Vector2(120, 44)
+	opacity.custom_minimum_size = Vector2(96, 44)
+	opacity.focus_mode = Control.FOCUS_ALL
 	opacity.min_value = 0.15
 	opacity.max_value = 1.0
 	opacity.step = 0.05
@@ -296,7 +301,10 @@ func _build_ui() -> void:
 		canvas.masterpiece_opacity = value
 		canvas.queue_redraw())
 	_masterpiece_tools.add_child(opacity)
-	_masterpiece_tools.add_child(_button("다른 명화", func(): _open_gallery(true)))
+	var another_masterpiece: Button = _button("다른 명화", func(): _open_gallery(true))
+	_masterpiece_tools.add_child(another_masterpiece)
+	for button: Button in [_mode_free, _mode_masterpiece, _background_button, _select_button, _undo, _redo, _more_edits, _multiple_selection_button, _group_button, _ungroup_button, another_masterpiece]:
+		button.add_theme_font_size_override("font_size", TOOLBAR_FONT_SIZE)
 	canvas = Canvas.new()
 	canvas.name = "DrawingCanvas"
 	canvas.document = document
@@ -360,9 +368,7 @@ func _build_ui() -> void:
 	_sale_button = _button("그림 판매", _open_sale, true)
 	_sale_button.name = "SellDrawingButton"
 	_sale_button.custom_minimum_size = Vector2(130, 48)
-	_sale_button.tooltip_text = "목표는 보이는 사각형 %d개, %d종류, 도화지 %d%%예요. 채운 만큼 판매금을 받아요." % [
-		Market.MIN_SALE_SHAPES, Market.MIN_SALE_FAMILIES, roundi(Market.MIN_SALE_COVERAGE * 100.0)
-	]
+	_sale_button.tooltip_text = "도화지의 40% 이상을 채우고 직접 그리거나 편집한 시간이 5분 이상이면 판매할 수 있어요."
 	footer.add_child(_sale_button)
 	_status = QuadTheme.paragraph("도형을 골라 종이에 그려요. 자동으로 저장돼요.", 14, QuadTheme.INK)
 	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -394,13 +400,10 @@ func _responsive_drawing() -> void:
 	_palette_scroll.visible = spacious
 	_shape_picker.visible = not spacious
 	_shape_tools.visible = not spacious or canvas.selected_kind == "trapezoid"
-	for button: Button in [_mode_free, _mode_masterpiece, _background_button, _select_button, _undo, _redo, _more_edits, _multiple_selection_button, _group_button, _ungroup_button]:
-		button.add_theme_font_size_override("font_size", 16 if size.x < 1000 else 18)
 	_drawing_tagline.visible = size.y >= 760
 	_drawing_load.visible = size.x >= 1000
 	_drawing_title.add_theme_font_size_override("font_size", 22 if size.x < 1000 else 25)
 	for index: int in range(_main_colors.size()): _main_colors[index].visible = index < (9 if spacious else 6)
-	_masterpiece_tools.visible = document.drawing_mode == "masterpiece" and size.y >= 760
 	if _background_button != null: _background_button.text = "배경 고르기"
 
 func _more_edit_action(id: int) -> void:
@@ -672,11 +675,10 @@ func _refresh() -> void:
 		button.set_pressed_no_signal(active)
 		Buttons.apply(button, active)
 	var select_active: bool = not canvas.drawing_tool and not canvas.multiple_selection
-	var toolbar_font_size: int = 16 if size.x < 1000 else 18
 	_select_button.set_pressed_no_signal(select_active)
-	Buttons.apply(_select_button, select_active, toolbar_font_size)
+	Buttons.apply(_select_button, select_active, TOOLBAR_FONT_SIZE)
 	_multiple_selection_button.set_pressed_no_signal(canvas.multiple_selection)
-	Buttons.apply(_multiple_selection_button, canvas.multiple_selection, toolbar_font_size)
+	Buttons.apply(_multiple_selection_button, canvas.multiple_selection, TOOLBAR_FONT_SIZE)
 	_group_button.disabled = not document.can_group_selection()
 	_ungroup_button.disabled = not document.can_ungroup_selection()
 	_shape_hint.text = str(SHAPE_HELP[canvas.selected_kind])
@@ -685,9 +687,9 @@ func _refresh() -> void:
 	var selected: Dictionary = document.get_selected()
 	_mode_free.set_pressed_no_signal(document.drawing_mode == "free")
 	_mode_masterpiece.set_pressed_no_signal(document.drawing_mode == "masterpiece")
-	Buttons.apply(_mode_free, document.drawing_mode == "free")
-	Buttons.apply(_mode_masterpiece, document.drawing_mode == "masterpiece")
-	_masterpiece_tools.visible = document.drawing_mode == "masterpiece" and size.y >= 760
+	Buttons.apply(_mode_free, document.drawing_mode == "free", TOOLBAR_FONT_SIZE)
+	Buttons.apply(_mode_masterpiece, document.drawing_mode == "masterpiece", TOOLBAR_FONT_SIZE)
+	_masterpiece_tools.visible = document.drawing_mode == "masterpiece"
 	var backdrop: Dictionary = Catalog.background(document.background_id)
 	_background_button.text = "배경 고르기"
 	_background_button.tooltip_text = "현재 배경: " + str(backdrop.get("name", "빈 종이"))
@@ -714,11 +716,51 @@ func _refresh() -> void:
 		_selection.text += "%s · 길이 단위: cm · 손잡이로 크기·방향 조절" % QuadrilateralMath.kind_name(str(selected.kind))
 
 func _document_changed() -> void:
+	if document.shapes.is_empty():
+		_stop_drawing_work()
 	_hide_shape_context_menu()
 	_refresh()
 	if is_instance_valid(_sale_dialog) and _sale_dialog.visible: _refresh_sale_dialog()
 	if not testing and not _restoring:
 		_autosave.start()
+
+func _begin_drawing_work(now: int) -> void:
+	if _restoring or tutorial_blocked or not is_visible_in_tree():
+		return
+	_record_drawing_work(now)
+	if document.work_msec < Model.REQUIRED_WORK_MSEC:
+		_drawing_work_sample = now
+		_drawing_work_until = now + DRAWING_IDLE_MSEC
+		set_process(true)
+
+func _process(_delta: float) -> void:
+	_record_drawing_work(Time.get_ticks_msec())
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		_stop_drawing_work()
+
+func _record_drawing_work(now: int) -> void:
+	if _drawing_work_until == 0:
+		return
+	if _restoring or tutorial_blocked or not is_visible_in_tree() or _exporting or _sale_pending \
+		or (is_instance_valid(_sale_dialog) and _sale_dialog.visible) \
+		or (is_instance_valid(_gallery) and _gallery.visible) \
+		or (is_instance_valid(_color_dialog) and _color_dialog.visible):
+		_stop_drawing_work()
+		return
+	var elapsed: int = maxi(0, mini(now, _drawing_work_until) - _drawing_work_sample)
+	var previous_work: int = document.work_msec
+	document.work_msec = mini(previous_work + elapsed, Model.REQUIRED_WORK_MSEC)
+	_drawing_work_sample = now
+	if not testing and _autosave.is_stopped() and floori(float(document.work_msec) / 5000.0) > floori(float(previous_work) / 5000.0):
+		_autosave.start()
+	if now >= _drawing_work_until or document.work_msec >= Model.REQUIRED_WORK_MSEC:
+		_stop_drawing_work()
+
+func _stop_drawing_work() -> void:
+	_drawing_work_until = 0
+	set_process(false)
 
 func _set_status(message: String) -> void:
 	_status.text = message
@@ -777,6 +819,8 @@ static func _safe_padlet_url(value: String) -> String:
 func _open_sale() -> void:
 	if economy == null or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
 	if (_gallery != null and _gallery.visible) or (_color_dialog != null and _color_dialog.visible) or _color_picker.get_popup().visible: return
+	_record_drawing_work(Time.get_ticks_msec())
+	_stop_drawing_work()
 	cancel_gesture()
 	if _sale_dialog == null:
 		_sale_dialog = ConfirmationDialog.new()
@@ -798,8 +842,10 @@ func _open_sale() -> void:
 		_sale_price = QuadTheme.paragraph("", 22, QuadTheme.TEAL)
 		_sale_price.name = "SoldArtPrice"
 		column.add_child(_sale_price)
+		_sale_details = QuadTheme.paragraph("", 17, QuadTheme.INK)
+		column.add_child(_sale_details)
 		column.add_child(QuadTheme.paragraph("이름, 제목, 설명, 그림 가격과 PNG 그림이 우리 패들릿에 함께 올라가요.", 16, QuadTheme.INK))
-		column.add_child(QuadTheme.paragraph("사용자 이름 · 최대 40자", 18, QuadTheme.INK))
+		column.add_child(QuadTheme.paragraph("작성자 이름 · 최대 40자", 18, QuadTheme.INK))
 		_sale_author = LineEdit.new()
 		_sale_author.name = "SoldArtAuthor"
 		_sale_author.placeholder_text = "작가 이름이나 별명을 적어 주세요"
@@ -838,8 +884,7 @@ func _open_sale() -> void:
 		_sale_validation = QuadTheme.paragraph("", 16, QuadTheme.TEAL)
 		_sale_validation.name = "SoldArtMetadataFeedback"
 		column.add_child(_sale_validation)
-		_sale_details = QuadTheme.paragraph("", 17, QuadTheme.INK)
-		column.add_child(_sale_details)
+		column.add_child(QuadTheme.paragraph("판매하면 PNG로 저장한 뒤 패들릿에 등록해요.\n등록이 안 되면 저장한 그림으로 다시 시도할 수 있어요.\n같거나 아주 비슷한 작품은 한 번만 판매해요.", 16, QuadTheme.INK))
 		_sale_dialog.get_cancel_button().text = "계속 그리기"
 		for button: Button in [_sale_dialog.get_ok_button(), _sale_dialog.get_cancel_button()]:
 			Buttons.apply(button)
@@ -862,21 +907,18 @@ func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	var lines: PackedStringArray = PackedStringArray()
 	for check: Dictionary in _sale_offer.get("checks", []):
 		lines.append("%s %s · %s" % ["[완료]" if bool(check.met) else "[보완]", str(check.label), str(check.detail)])
-	var details: String = "판매 목표\n" + "\n".join(lines)
+	var details: String = "판매 조건\n" + "\n".join(lines)
 	var can_sell: bool = bool(_sale_offer.can_sell)
-	_sale_price.text = "아직 판매할 수 없어요"
-	if can_sell:
-		var price: int = int(_sale_offer.price)
-		var full_price: int = int(_sale_offer.full_price)
-		_sale_price.text = "화랑 만족도 %.1f%% · 판매금 %s" % [float(_sale_offer.completion_ratio) * 100.0, Money.format_won(price)]
-		if price < full_price:
-			_sale_price.text += "\n목표를 채웠을 때 %s · 줄어든 금액 %s" % [Money.format_won(full_price), Money.format_won(full_price - price)]
+	_sale_price.text = "판매금 " + Money.format_won(int(_sale_offer.price)) if can_sell else "아직 판매할 수 없어요"
 	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
 	_sale_description_count.text = "그림 설명 · %d / %d자" % [_sale_description.text.strip_edges().length(), SubmissionMetadata.MAX_DESCRIPTION_LENGTH]
 	_sale_validation.text = metadata_error
 	_sale_validation.visible = not metadata_error.is_empty()
-	_sale_details.text = "%s\n\n%s\n\n판매하면 PNG로 저장한 뒤 패들릿에 등록해요.\n등록이 안 되면 저장한 그림으로 다시 시도할 수 있어요.\n같거나 아주 비슷한 작품은 한 번만 판매해요." % [details, str(_sale_offer.reason)]
-	_sale_dialog.get_ok_button().text = "PNG 저장하고 판매" if can_sell else "판매 준비 중"
+	var reason: String = str(_sale_offer.reason)
+	if not reason.is_empty():
+		details += "\n\n" + reason
+	_sale_details.text = details
+	_sale_dialog.get_ok_button().text = "PNG 저장하고 판매" if can_sell else "판매 조건 채우기"
 	_sale_dialog.get_ok_button().disabled = not can_sell or not metadata_error.is_empty() or _sale_pending
 
 func _confirm_sale() -> void:
@@ -946,6 +988,7 @@ func show_sale_result(result: Dictionary) -> void:
 				return
 			cancel_gesture()
 			_restoring = true
+			document.work_msec = 0
 			document.restore(blank)
 			_restoring = false
 			_autosave.stop()
@@ -1044,6 +1087,7 @@ func load_drawing(show_feedback: bool = true) -> bool:
 		_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
 		return false
 	cancel_gesture()
+	_stop_drawing_work()
 	_restoring = true
 	var restored: bool = document.restore(parsed.document)
 	_restoring = false

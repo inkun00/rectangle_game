@@ -127,7 +127,7 @@ static func _masterpiece(t: Node, app: QuadrilateralApp) -> void:
 	app._tutorial.advance()
 	await _settle(t)
 	_assert_event(t, app, "masterpiece_guide", "An existing masterpiece skips selection when replayed in a compact window")
-	t.assert_false(app._drawing_screen._masterpiece_tools.is_visible_in_tree(), "Compact masterpiece practice uses the alternate edit menu")
+	t.assert_true(app._drawing_screen._masterpiece_tools.is_visible_in_tree(), "Compact masterpiece practice retains the inline outline controls")
 	var guide_visible: bool = app._drawing_screen.canvas.show_masterpiece
 	app._drawing_screen._more_edit_action(10)
 	await _settle(t)

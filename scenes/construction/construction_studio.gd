@@ -149,7 +149,7 @@ var _upload_retry: Button
 var _upload_board: Button
 var _upload_message: String = ""
 var _upload_pending_count: int = 0
-var _upload_post_url: String = ""
+var _upload_post_url: String = PadletUploader.BUILDING_BOARD_URL
 var _upload_busy: bool = false
 var _client_board: PanelContainer
 var _client_board_grid: GridContainer
@@ -1972,11 +1972,11 @@ func _open_building_publication() -> void:
 		_set_status(str(offer.error))
 		return
 	canvas.cancel_gesture()
-	_open_modal("완성한 건물을 패들릿에 올리기", true)
+	_open_modal("건축물 전시관에 올리기", true)
 	_publication_offer = offer
 	_money_line(_modal_body, str(offer.price_label), int(offer.price), true)
-	_modal_body.add_child(_label("이름, 제목, 설명, 금액과 건물 PNG가 패들릿에 함께 올라가요.", 16, MUTED))
-	_publication_author = _publication_line("사용자 이름", "이름이나 별명을 적어 주세요", SubmissionMetadata.MAX_AUTHOR_LENGTH)
+	_modal_body.add_child(_label("작성자 이름, 제목, 설명, 금액과 건물 이미지가 전시관에 함께 올라가요.", 16, MUTED))
+	_publication_author = _publication_line("작성자 이름", "전시관에 표시할 이름이나 별명을 적어 주세요", SubmissionMetadata.MAX_AUTHOR_LENGTH)
 	_publication_author.name = "BuildingPublicationAuthor"
 	_publication_author.text = publication_author_name
 	_publication_title = _publication_line("건물 제목", "완성한 건물의 제목을 적어 주세요", SubmissionMetadata.MAX_TITLE_LENGTH)
@@ -2086,14 +2086,14 @@ func _build_upload_status(parent: VBoxContainer) -> void:
 	_upload_retry = _button("등록 다시 시도", _request_building_upload_retry)
 	_upload_retry.name = "RetryBuildingUpload"
 	actions.add_child(_upload_retry)
-	_upload_board = _button("패들릿 보기", _open_building_board)
+	_upload_board = _button("건축물 전시관 보기", _open_building_board)
 	_upload_board.name = "OpenBuildingPadlet"
 	actions.add_child(_upload_board)
 
 func set_building_upload_status(message: String, pending_count: int = 0, post_url: String = "", busy: bool = false) -> void:
 	_upload_message = message
 	_upload_pending_count = maxi(0, pending_count)
-	_upload_post_url = post_url if ArtPublicationStore._valid_post_url(post_url) else PadletUploader.BOARD_URL
+	_upload_post_url = post_url if ArtPublicationStore._valid_post_url(post_url) else PadletUploader.BUILDING_BOARD_URL
 	_upload_busy = busy
 	_refresh_building_upload_status()
 
@@ -2116,7 +2116,7 @@ func _request_building_upload_retry() -> void:
 
 func _open_building_board() -> void:
 	if tutorial_blocked or is_instance_valid(_modal) or not is_visible_in_tree(): return
-	OS.shell_open(_upload_post_url if not _upload_post_url.is_empty() else PadletUploader.BOARD_URL)
+	OS.shell_open(_upload_post_url)
 
 func _select_offer(choice: int) -> void:
 	if not state.select_contract(choice):

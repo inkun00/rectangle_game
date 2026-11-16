@@ -3,6 +3,7 @@ extends RefCounted
 
 const PRODUCTION_ORIGIN: String = "https://rectangle-game-iota.vercel.app"
 const BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
+const BUILDING_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025ilggr7czshhrgkv2"
 
 static func upload(owner: Node, entry: Dictionary, bytes: PackedByteArray) -> Dictionary:
 	var origin: String = PRODUCTION_ORIGIN

@@ -40,11 +40,13 @@ static func _test_receipt_gating_and_roundtrip(t: Node) -> void:
 		return
 	var entry: Dictionary = prepared.entry
 	t.assert_eq(str(entry.id).length(), 32, "Each publication receives a stable opaque request identifier")
+	t.assert_eq(entry.price, offer.price, "The outbox carries the final sale amount")
 	t.assert_eq(entry.author, "네모별", "Persisted metadata trims the display name")
 	t.assert_eq(entry.description, "사각형으로 만든 집이에요.\n두 가지 색을 골랐어요.", "Persisted descriptions retain intentional line breaks")
 	t.assert_eq(store.last_author(), "네모별", "The durable outbox remembers the previous artist's name")
 	t.assert_eq(store.pending([]).size(), 0, "Preparing metadata before payment cannot publish an unsold painting")
 	var receipt: Dictionary = ArtMarket.receipt_from_quote(offer, "새 집")
+	t.assert_eq(receipt.version, ArtMarket.RECEIPT_VERSION, "The publication uses a current-version sale receipt")
 	var receipts: Array[Dictionary] = [receipt]
 	t.assert_eq(store.pending(receipts).size(), 1, "The matching committed sale enables its prepared publication")
 	var wrong_title: Dictionary = receipt.duplicate(true)

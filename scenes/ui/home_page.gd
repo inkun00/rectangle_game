@@ -19,6 +19,7 @@ var _margin: MarginContainer
 var _column: VBoxContainer
 var _learning_record: Label
 var _learning_button: Button
+var _ending_card: PanelContainer
 var _ending_progress: Label
 var _ending_choice: Button
 
@@ -73,11 +74,13 @@ func _ready() -> void:
 	_build_mode("Construction", "집 짓기 놀이", "뚝딱! 사각형 집 짓기", "의뢰인의 집을 짓고 수익으로 나만의 집도 완성해요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
 	_build_mode("Adventure", "마을을 도와 자금 모으기", "마을 주민 심부름하기", "사각이와 여섯 지역을 돌아다니며 주민의 부탁을 해결하고 돈을 벌어요.", GameArt.sheet("world_backdrop"), "마을 주민 심부름하기", func(): adventure_requested.emit())
 	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", ENDING_CHOICE_TITLE, "그림 판매와 건축 의뢰 완료를 합쳐 10회 달성하면 두 길이 열려요.", StarfrontArt.scene(8), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
-	_ending_choice.hide()
+	var ending_content: VBoxContainer = _ending_choice.get_parent() as VBoxContainer
+	_ending_card = ending_content.get_parent() as PanelContainer
+	_ending_card.hide()
+	_ending_choice.focus_mode = Control.FOCUS_NONE
 	_ending_progress = _label("", 15, Art.ACCENT)
-	var ending_card: Node = _ending_choice.get_parent()
-	ending_card.add_child(_ending_progress)
-	ending_card.move_child(_ending_progress, _ending_choice.get_index() - 1)
+	ending_content.add_child(_ending_progress)
+	ending_content.move_child(_ending_progress, _ending_choice.get_index() - 1)
 	var footer: HFlowContainer = HFlowContainer.new()
 	footer.add_theme_constant_override("h_separation", 24)
 	footer.add_theme_constant_override("v_separation", 6)
@@ -117,7 +120,11 @@ func set_learning_progress(count: int) -> void:
 		_learning_record.text = "수직부터 사각형까지 · 활동 기록 %d / 8" % count
 
 func set_ending_progress(sales: int, houses: int, required: int, has_saved_ending: bool) -> void:
-	_ending_choice.visible = sales + houses >= required or has_saved_ending
+	var unlocked: bool = sales + houses >= required or has_saved_ending
+	if _ending_card.visible != unlocked:
+		_ending_card.visible = unlocked
+		_ending_choice.focus_mode = Control.FOCUS_ALL if unlocked else Control.FOCUS_NONE
+		_update_card_columns()
 	_ending_progress.text = "그림 %d회 + 집 %d회 · %d/%d회" % [sales, houses, mini(sales + houses, required), required]
 
 func _build_mode(mode: String, badge_text: String, title: String, description: String, texture: Texture2D, action_text: String, action: Callable) -> Button:
@@ -184,7 +191,7 @@ func _button(text: String, action: Callable, primary: bool) -> Button:
 
 func _responsive() -> void:
 	if _cards == null: return
-	_cards.columns = 4 if size.x >= 1200.0 else (2 if size.x >= 730.0 else 1)
+	_update_card_columns()
 	var gutter: int = 20 if size.x < 1100.0 else int(clampf(size.x * 0.03, 28.0, 56.0))
 	for edge: String in ["left", "right"]:
 		_margin.add_theme_constant_override("margin_" + edge, gutter)
@@ -192,3 +199,9 @@ func _responsive() -> void:
 	_margin.add_theme_constant_override("margin_bottom", 16)
 	_heading.add_theme_font_size_override("font_size", 26 if size.x < 850.0 else 30)
 	_column.add_theme_constant_override("separation", 12 if size.y < 760.0 else 16)
+
+func _update_card_columns() -> void:
+	if _ending_card.visible:
+		_cards.columns = 4 if size.x >= 1200.0 else (2 if size.x >= 730.0 else 1)
+	else:
+		_cards.columns = 3 if size.x >= 900.0 else 1

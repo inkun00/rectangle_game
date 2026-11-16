@@ -21,6 +21,16 @@ const base = {
 };
 const manifestPath = `padlet/submissions/${base.id}.json`;
 const pngPath = `padlet/artworks/${base.id}.png`;
+const buildingBoardId = 'testbuildingboard001';
+const buildingBoardUrl = `https://padlet.com/test/architecture-${buildingBoardId}`;
+const buildingBoardApi = `https://api.padlet.dev/v1/boards/${buildingBoardId}`;
+const drawingBoardApi = `https://api.padlet.dev/v1/boards/${BOARD_ID}`;
+const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
+const drawingPayloadHash = digest(JSON.stringify([base.id, base.author, base.title, base.description, base.price, digest(png)]));
+const buildingSubmission = { ...base, kind: 'commission', price: 260_000_000 };
+const buildingPayloadHash = digest(JSON.stringify([
+  base.id, base.author, base.title, base.description, buildingSubmission.price, digest(png), buildingSubmission.kind,
+]));
 const publicPngUrl = `${PUBLIC_ORIGIN}/api/artwork-image?id=${base.id}`;
 const legacyOrigin = 'https://rectangle-game-snowy.vercel.app';
 const legacyPngUrl = `${legacyOrigin}/api/artwork-image?id=${base.id}`;
@@ -68,7 +78,10 @@ function environment(overrides = {}) {
   let clock = 1000000;
   const deps = {
     blob: new MemoryBlob(),
-    env: { PADLET_API_KEY: 'test-private-padlet-key', BLOB_READ_WRITE_TOKEN: 'test-private-blob-key', NODE_ENV: 'production' },
+    env: {
+      PADLET_API_KEY: 'test-private-padlet-key', BLOB_READ_WRITE_TOKEN: 'test-private-blob-key', NODE_ENV: 'production',
+      PADLET_BUILDING_BOARD_ID: buildingBoardId, PADLET_BUILDING_BOARD_URL: buildingBoardUrl,
+    },
     now: () => clock,
     pause: async () => {},
     calls: [],
@@ -101,7 +114,7 @@ async function call(handler, body = base, settings = {}) {
   return response;
 }
 
-test('posts the completed PNG with all five fields to the fixed board, then serves identical pixels', async () => {
+test('publishes the picture and its display fields without a work number', async () => {
   const deps = environment();
   const response = await call(createSubmissionHandler(deps), { ...base, board_id: 'ignored', destination: 'https://invalid.example/' }, {
     headers: { origin: PUBLIC_ORIGIN }, parsed: false,
@@ -109,13 +122,15 @@ test('posts the completed PNG with all five fields to the fixed board, then serv
   assert.equal(response.statusCode, 200);
   assert.equal(response.json.ok, true);
   assert.equal(response.json.post_url, post.attributes.webUrl.live);
-  assert.equal(deps.calls[0].url, `https://api.padlet.dev/v1/boards/${BOARD_ID}/posts`);
+  assert.equal(deps.calls[0].url, `${drawingBoardApi}/posts`);
   assert.equal(deps.calls[0].options.headers['X-API-KEY'], deps.env.PADLET_API_KEY);
   const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
-  assert.equal(content.subject, base.title);
-  assert.match(content.body, /사용자 이름: 사각이/);
+  assert.equal(content.subject, `${base.title} · ${base.author}`);
+  assert.match(content.body, /작성자: 사각이/);
   assert.match(content.body, /네모난 집과 파란 하늘/);
   assert.match(content.body, /게임 내 그림 가격: 2,600원/);
+  assert.doesNotMatch(content.body, /작품 번호/);
+  assert.equal(content.body.includes(base.id), false);
   assert.equal(content.attachment.url, publicPngUrl);
   assert.deepEqual(deps.blob.files.get(pngPath).bytes, png);
   assert.equal(deps.blob.json(manifestPath).state, 'published');
@@ -129,7 +144,7 @@ test('posts the completed PNG with all five fields to the fixed board, then serv
   assert.equal(response.bytes.includes(deps.env.BLOB_READ_WRITE_TOKEN), false);
 });
 
-test('posts buildings and ending projects with their price labels and original PNG', async () => {
+test('routes buildings apart from drawings and spaceships while preserving price labels and the original PNG', async () => {
   for (const [kind, price, priceLine, descriptionLabel] of [
     ['commission', 260_000_000, /게임 내 건물 가격: 260,000,000원/, '건물 설명'],
     ['my_house', 10_700_000, /게임 내 재료비: 10,700,000원/, '건물 설명'],
@@ -138,17 +153,31 @@ test('posts buildings and ending projects with their price labels and original P
     ['spaceship', 1_800_000_000, /게임 내 우주선 제작비: 1,800,000,000원/, '우주선 설명'],
   ]) {
     const deps = environment();
+    // Simulate a post without a public permalink, as can occur while moderation is pending.
+    deps.fetch = async (url, options) => {
+      deps.calls.push({ url, options });
+      return new Response(JSON.stringify({ data: { ...post, attributes: { status: 'pending_moderation' } } }), { status: 201 });
+    };
+    const boardApi = kind === 'spaceship' ? drawingBoardApi : buildingBoardApi;
+    const boardUrl = kind === 'spaceship' ? BOARD_URL : buildingBoardUrl;
     const projectName = kind === 'earth_house' ? '노을이 머무는 집'
       : kind === 'spaceship' ? '사각성으로 가는 푸른 별' : base.title;
     const submission = { ...base, kind, price, title: projectName };
     const handler = createSubmissionHandler(deps);
-    assert.equal((await call(handler, submission)).statusCode, 200);
+    const result = await call(handler, submission);
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.json.post_url, boardUrl);
+    assert.equal(result.json.moderation_pending, true);
+    assert.equal(deps.calls[0].url, `${boardApi}/posts`);
+    assert.equal(deps.blob.json(manifestPath).board_url, boardUrl);
     const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
-    assert.equal(content.subject, projectName);
+    assert.equal(content.subject, `${projectName} · ${base.author}`);
     assert.equal(content.attachment.caption, projectName);
-    assert.match(content.body, /사용자 이름: 사각이/);
+    assert.match(content.body, /작성자: 사각이/);
     assert.ok(content.body.includes(`${descriptionLabel}: ${base.description}`));
     assert.match(content.body, priceLine);
+    assert.doesNotMatch(content.body, /작품 번호/);
+    assert.equal(content.body.includes(base.id), false);
     assert.equal(content.attachment.url, publicPngUrl);
     assert.deepEqual(deps.blob.files.get(pngPath).bytes, png);
     assert.equal((await call(handler, submission)).statusCode, 200);
@@ -161,10 +190,8 @@ test('posts buildings and ending projects with their price labels and original P
 
 test('a saved drawing receipt is still recognized after the addition of publication kinds', async () => {
   const deps = environment();
-  const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
-  const legacyPayload = [base.id, base.author, base.title, base.description, base.price, digest(png)];
   deps.blob.setJson(manifestPath, {
-    version: 1, id: base.id, state: 'published', payload_hash: digest(JSON.stringify(legacyPayload)),
+    version: 1, id: base.id, state: 'published', payload_hash: drawingPayloadHash,
     post_url: post.attributes.webUrl.live,
   });
   const response = await call(createSubmissionHandler(deps));
@@ -225,17 +252,70 @@ test('two independent functions publishing concurrently create one Padlet post',
   assert.equal((await call(createSubmissionHandler(deps))).json.ok, true);
 });
 
-test('a lost POST response reconciles the existing post instead of creating another', async () => {
+test('a lost POST response reconciles the saved attachment URL across hosts', async () => {
   const deps = environment();
   let creates = 0;
+  let boardPosts = [];
   deps.fetch = async (_url, options) => {
     if (options.method === 'POST') { creates += 1; throw new Error('Response lost after remote commit'); }
-    const legacyPost = { ...post, attributes: { ...post.attributes, content: { attachment: { url: legacyPngUrl } } } };
-    return new Response(JSON.stringify({ data: { type: 'board' }, included: [legacyPost] }));
+    return new Response(JSON.stringify({ data: { type: 'board' }, included: boardPosts }));
   };
-  assert.equal((await call(createSubmissionHandler(deps))).json.ok, true);
+  const first = await call(createSubmissionHandler(deps), base, { headers: { host: new URL(legacyOrigin).host } });
+  assert.equal(first.statusCode, 202);
+  assert.equal(deps.blob.json(manifestPath).attachment_url, legacyPngUrl);
+  boardPosts = [{ ...post, attributes: { ...post.attributes, content: { attachment: { url: legacyPngUrl } } } }];
   assert.equal((await call(createSubmissionHandler(deps))).json.ok, true);
   assert.equal(creates, 1);
+});
+
+test('an uncertain building publication reconciles only on its originally selected board', async () => {
+  const deps = environment();
+  let boardPosts = [];
+  deps.fetch = async (url, options) => {
+    deps.calls.push({ url, options });
+    if (options.method === 'POST') throw new Error('Response lost after remote commit');
+    return new Response(JSON.stringify({ included: boardPosts }));
+  };
+  const first = await call(createSubmissionHandler(deps), buildingSubmission);
+  assert.equal(first.statusCode, 202);
+  assert.equal(deps.blob.json(manifestPath).board_id, buildingBoardId);
+  assert.equal(deps.blob.json(manifestPath).board_url, buildingBoardUrl);
+
+  deps.env.PADLET_BUILDING_BOARD_ID = 'testbuildingboard002';
+  deps.env.PADLET_BUILDING_BOARD_URL = `https://padlet.com/test/architecture-${deps.env.PADLET_BUILDING_BOARD_ID}`;
+  boardPosts = [{ ...post, attributes: { content: post.attributes.content } }];
+  const retry = await call(createSubmissionHandler(deps), buildingSubmission);
+  assert.equal(retry.statusCode, 200);
+  assert.equal(retry.json.post_url, buildingBoardUrl);
+  assert.deepEqual(deps.calls.map(({ url }) => url), [
+    `${buildingBoardApi}/posts`, `${buildingBoardApi}?include=posts`, `${buildingBoardApi}?include=posts`,
+  ]);
+});
+
+test('legacy building publications with uncertain outcomes reconcile on the original drawing board', async () => {
+  for (const state of ['unknown', 'posting']) {
+    const deps = environment();
+    deps.blob.setJson(manifestPath, {
+      version: 1, id: base.id, payload_hash: buildingPayloadHash, state, updated_at: deps.now() - 46000,
+    });
+    delete deps.env.PADLET_BUILDING_BOARD_ID;
+    const retry = await call(createSubmissionHandler(deps), buildingSubmission);
+    assert.equal(retry.statusCode, 200);
+    assert.equal(retry.json.post_url, post.attributes.webUrl.live);
+    assert.deepEqual(deps.calls.map(({ url }) => url), [`${drawingBoardApi}?include=posts`]);
+  }
+});
+
+test('legacy prepared and definitely rejected buildings use the building board on a new attempt', async () => {
+  for (const state of ['prepared', 'rejected']) {
+    const deps = environment();
+    deps.blob.setJson(manifestPath, {
+      version: 1, id: base.id, payload_hash: buildingPayloadHash, state, updated_at: deps.now(),
+    });
+    assert.equal((await call(createSubmissionHandler(deps), buildingSubmission)).statusCode, 200);
+    assert.deepEqual(deps.calls.map(({ url }) => url), [`${buildingBoardApi}/posts`]);
+    assert.equal(deps.blob.json(manifestPath).board_id, buildingBoardId);
+  }
 });
 
 test('unknown remote outcomes never trigger a blind second create, and eventually explain how to get help', async () => {
@@ -255,15 +335,34 @@ test('unknown remote outcomes never trigger a blind second create, and eventuall
   assert.equal(creates, 1);
 });
 
-test('reconciliation can find the stable work number if Padlet rewrites the attachment URL', async () => {
+test('an older pending submission can still reconcile through its original body marker', async () => {
   const deps = environment();
+  deps.blob.setJson(manifestPath, {
+    version: 1, id: base.id, payload_hash: drawingPayloadHash, state: 'unknown', updated_at: deps.now(),
+  });
+  let creates = 0;
   deps.fetch = async (_url, options) => {
-    if (options.method === 'POST') return new Response('upstream failure', { status: 502 });
+    if (options.method === 'POST') creates += 1;
     return new Response(JSON.stringify({ included: [{ ...post, attributes: {
       ...post.attributes, content: { bodyHtml: `<p>작품 번호: ${base.id}</p>` },
     } }] }));
   };
   assert.equal((await call(createSubmissionHandler(deps))).json.ok, true);
+  assert.equal(creates, 0);
+});
+
+test('new pending submissions ignore marker text on unrelated posts', async () => {
+  const deps = environment();
+  let creates = 0;
+  deps.fetch = async (_url, options) => {
+    if (options.method === 'POST') { creates += 1; throw new Error('Response lost'); }
+    return new Response(JSON.stringify({ included: [{ ...post, attributes: {
+      ...post.attributes, content: { attachment: { url: legacyPngUrl }, bodyHtml: `<p>작품 번호: ${base.id}</p>` },
+    } }] }));
+  };
+  assert.equal((await call(createSubmissionHandler(deps))).statusCode, 202);
+  assert.equal((await call(createSubmissionHandler(deps))).statusCode, 202);
+  assert.equal(creates, 1);
 });
 
 test('a durable receipt write failure still returns remote success and recovers on a later request', async () => {
@@ -363,6 +462,49 @@ test('missing configuration gives actionable Korean feedback without exposing se
   assert.equal(deps.calls.length, 0);
 });
 
+test('uses the production building gallery when no override is configured', async () => {
+  const deps = environment();
+  delete deps.env.PADLET_BUILDING_BOARD_ID;
+  delete deps.env.PADLET_BUILDING_BOARD_URL;
+  const productionBoardId = 's025ilggr7czshhrgkv2';
+  const productionBoardUrl = `https://padlet.com/inkun02/padlet-${productionBoardId}`;
+  deps.fetch = async (url, options) => {
+    deps.calls.push({ url, options });
+    return new Response(JSON.stringify({ data: { type: post.type, id: post.id } }), { status: 201 });
+  };
+  const result = await call(createSubmissionHandler(deps), buildingSubmission);
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.json.post_url, productionBoardUrl);
+  assert.equal(deps.blob.json(manifestPath).board_id, productionBoardId);
+  assert.deepEqual(deps.calls.map(({ url }) => url), [`https://api.padlet.dev/v1/boards/${productionBoardId}/posts`]);
+});
+
+test('incomplete or invalid building board overrides leave drawing and spaceship publication available', async () => {
+  for (const board of [
+    { PADLET_BUILDING_BOARD_ID: undefined },
+    { PADLET_BUILDING_BOARD_URL: undefined },
+    { PADLET_BUILDING_BOARD_ID: '', PADLET_BUILDING_BOARD_URL: '' },
+    { PADLET_BUILDING_BOARD_URL: 'https://padlet.com/test/architecture-testbuildingboard002' },
+    { PADLET_BUILDING_BOARD_URL: `https://invalid.example/${buildingBoardId}` },
+    { PADLET_BUILDING_BOARD_URL: `${buildingBoardUrl}/wish/1234` },
+    { PADLET_BUILDING_BOARD_ID: BOARD_ID, PADLET_BUILDING_BOARD_URL: BOARD_URL },
+  ]) {
+    const deps = environment();
+    Object.assign(deps.env, board);
+    const handler = createSubmissionHandler(deps);
+    const response = await call(handler, buildingSubmission);
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.json.retryable, true);
+    assert.match(response.json.error, /건축물 전시관/);
+    assert.equal(deps.calls.length, 0);
+    assert.equal(deps.blob.files.has(manifestPath), false);
+
+    assert.equal((await call(handler)).statusCode, 200);
+    assert.equal((await call(handler, { ...base, id: 'a'.repeat(32), kind: 'spaceship', price: 1_200_000_000 })).statusCode, 200);
+    assert.deepEqual(deps.calls.map(({ url }) => url), [`${drawingBoardApi}/posts`, `${drawingBoardApi}/posts`]);
+  }
+});
+
 test('persistent request limits span function instances and allow a new minute', async () => {
   const deps = environment();
   deps.blob.setJson('padlet/rate/global.json', { window: Math.floor(deps.now() / 60000), count: 180 });
@@ -404,11 +546,12 @@ test('image route supports HEAD and conditional reads but never exposes JSON man
   }
 });
 
-test('author text is escaped and never replaces the API account author identity', async () => {
+test('the entered author is plain text in the subject and escaped in the HTML body', async () => {
   const deps = environment();
   assert.equal((await call(createSubmissionHandler(deps), { ...base, author: '<작가 & 친구>', description: '<script>alert(1)</script>' })).json.ok, true);
   const attributes = JSON.parse(deps.calls[0].options.body).data.attributes;
   assert.equal(attributes.author, undefined);
+  assert.equal(attributes.content.subject, `${base.title} · <작가 & 친구>`);
   assert.match(attributes.content.body, /&lt;작가 &amp; 친구&gt;/);
   assert.equal(attributes.content.body.includes('<script>'), false);
 });

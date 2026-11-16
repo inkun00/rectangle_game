@@ -37,11 +37,12 @@ static func _test_building_publication(t: Node) -> void:
 		return bytes
 	var requests: Array[Dictionary] = []
 	var images: Array[PackedByteArray] = []
+	var test_post_url: String = PadletUploader.BUILDING_BOARD_URL + "/wish/local-test"
 	app._art_upload_transport = func(entry: Dictionary, image: PackedByteArray) -> Dictionary:
 		requests.append(entry)
 		images.append(image)
 		if requests.size() == 1: return {"ok": false, "error": "연결이 끊겼어요."}
-		return {"ok": true, "post_url": PadletUploader.BOARD_URL}
+		return {"ok": true, "post_url": test_post_url}
 	t.add_child(app)
 	await t.get_tree().process_frame
 	await app._show_construction()
@@ -63,6 +64,7 @@ static func _test_building_publication(t: Node) -> void:
 	await t.get_tree().process_frame
 	t.assert_eq(rendered.size(), 1, "Publishing renders the settled design exactly once")
 	t.assert_eq(requests.size(), 1, "A finished design and metadata enter the same Padlet transport")
+	t.assert_eq(studio._upload_post_url, PadletUploader.BUILDING_BOARD_URL, "A failed upload links to the building exhibition")
 	var pending: Array[Dictionary] = app._art_publications.pending([], true)
 	t.assert_eq(pending.size(), 1, "A failed building upload remains queued without a drawing sale receipt")
 	t.assert_eq(app._art_publications.pending([]).size(), 0, "The drawing queue excludes building submissions")
@@ -80,6 +82,8 @@ static func _test_building_publication(t: Node) -> void:
 		if requests.size() == 2:
 			t.assert_eq(requests[1].id, requests[0].id, "The retry keeps the original request ID")
 			t.assert_eq(images[1], bytes, "The retry sends the original saved PNG bytes")
+			t.assert_eq(requests[1].author, metadata.author, "The entered author name is retained when retrying")
+			t.assert_eq(studio._upload_post_url, test_post_url, "The building exhibition button opens the shared design")
 		t.assert_eq(restored.pending([], true).size(), 0, "A published building leaves the retry queue")
 		await app._publish_building(data)
 		t.assert_eq(requests.size(), 2, "Submitting the same settled design again does not create a duplicate post")

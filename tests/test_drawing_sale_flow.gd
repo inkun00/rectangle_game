@@ -43,6 +43,7 @@ class UploadTransport:
 		return result
 
 static func run(t: Node) -> void:
+	await _test_drawing_work(t)
 	await _test_success_and_undo(t)
 	await _test_failed_png(t, false)
 	await _test_failed_png(t, true)
@@ -54,6 +55,40 @@ static func run(t: Node) -> void:
 	await _test_failed_outbox(t)
 	await _test_sale_during_upload(t)
 	await _test_sale_during_upload(t, true)
+
+static func _test_drawing_work(t: Node) -> void:
+	var studio: Studio = Studio.new()
+	studio.testing = true
+	t.add_child(studio)
+	await t.get_tree().process_frame
+	var edits: Array[bool] = []
+	studio.document.artwork_edited.connect(func(): edits.append(true))
+	studio.document.add_sized_shape("square", Vector2.ZERO, Vector2(500, 500), Color.BLUE)
+	studio.document.duplicate_selected()
+	t.assert_eq(edits.size(), 1, "Creating a shape starts work while duplicating it cannot extend work time")
+	studio._begin_drawing_work(1000)
+	studio._record_drawing_work(31000)
+	t.assert_eq(studio.document.work_msec, Studio.DRAWING_IDLE_MSEC, "An inactive drawing stops adding work after a short interval")
+	studio._begin_drawing_work(31000)
+	studio._record_drawing_work(36000)
+	studio.notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	studio._record_drawing_work(66000)
+	t.assert_eq(studio.document.work_msec, Studio.DRAWING_IDLE_MSEC + 5000, "Background time never adds to the draft")
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(studio.document.serialize()))
+	var restored: Drawing = Drawing.new()
+	t.assert_true(restored.restore(saved), "A stored drawing retains its work time")
+	t.assert_eq(restored.work_msec, studio.document.work_msec, "Work time continues after saving and loading")
+	saved.work_msec = Drawing.REQUIRED_WORK_MSEC + 1
+	t.assert_false(restored.restore(saved), "Out-of-range work time cannot replace the current draft")
+	var now: int = 66000
+	for _interval: int in range(30):
+		studio._begin_drawing_work(now)
+		now += 10000
+		studio._record_drawing_work(now)
+	t.assert_eq(studio.document.work_msec, Drawing.REQUIRED_WORK_MSEC, "Continued editing can earn the full five minutes")
+	studio._clear_drawing()
+	t.assert_eq(studio.document.work_msec, 0, "Clearing the drawing ends the previous draft's time")
+	studio.free()
 
 static func _test_success_and_undo(t: Node) -> void:
 	var directory: String = _directory()
@@ -69,14 +104,14 @@ static func _test_success_and_undo(t: Node) -> void:
 	studio.canvas.selected_trapezoid_variant = "right_left"
 	var artwork: Dictionary = studio.document.serialize()
 	var quote: Dictionary = Market.quote(studio.document)
-	t.assert_true(quote.can_sell and quote.price < quote.full_price, "A five-piece painting can be sold at a discount")
+	t.assert_true(quote.can_sell, "A timed five-piece painting with enough paper coverage can be sold")
 	t.assert_true(studio.save_drawing(false), "The original drawing draft exists before selling")
 	var renderer: SaleRenderer = _renderer()
 	studio.sale_png_renderer = renderer.render
 	studio.testing = false
 	studio._sale_button.pressed.emit()
 	t.assert_true(studio._sale_dialog.visible, "The actual sale button opens the title and price dialog")
-	t.assert_true(studio._sale_price.text.contains("화랑 만족도 94.4%") and studio._sale_price.text.contains("줄어든 금액"), "The actual dialog shows the partial achievement and its deduction")
+	t.assert_eq(studio._sale_price.text, "판매금 " + ConstructionCatalog.format_won(int(quote.price)), "The actual dialog shows only the final price")
 	_set_title(studio, "")
 	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "An empty title disables sale confirmation")
 	studio._sale_dialog.confirmed.emit()
@@ -121,7 +156,8 @@ static func _test_success_and_undo(t: Node) -> void:
 	reloaded.free()
 	studio.testing = true
 	studio.document.undo()
-	t.assert_eq(studio.document.serialize(), artwork, "Undo restores the complete sold drawing including its prior scene and selection")
+	artwork.erase("work_msec")
+	t.assert_eq(studio.document.serialize(), artwork, "Undo restores the sold picture without crediting its work time to a new sale")
 	studio._sale_button.pressed.emit()
 	_set_title(studio, "다른 이름으로 다시 판매")
 	t.assert_true(studio._sale_dialog.get_ok_button().disabled, "Restoring and renaming the sold drawing cannot enable another sale")
@@ -470,6 +506,7 @@ static func _assert_blank(t: Node, document: Drawing) -> void:
 	t.assert_eq(document.drawing_mode, "free", "The new canvas returns to free drawing mode")
 	t.assert_eq(document.masterpiece_id, "", "The new canvas removes the previous masterpiece underlay")
 	t.assert_eq(document.selected_id, -1, "The new canvas has no stale selected shape")
+	t.assert_eq(document.work_msec, 0, "The new canvas starts with zero work time")
 
 static func _directory() -> String:
 	return "user://test_drawing_sale_flow_%s" % Crypto.new().generate_random_bytes(12).hex_encode()

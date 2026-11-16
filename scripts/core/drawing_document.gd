@@ -4,10 +4,14 @@ extends "res://scripts/core/character_document.gd"
 const ARTBOARD: Rect2 = Rect2(-480.0, -300.0, 960.0, 600.0)
 const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 const MIN_SIDE_LENGTH: float = 4.0
+const REQUIRED_WORK_MSEC: int = 300000
+
+signal artwork_edited
 
 var background_id: String = "paper"
 var drawing_mode: String = "free"
 var masterpiece_id: String = ""
+var work_msec: int = 0
 var _selection: Array[int] = []
 # Drawing groups are independent of the inherited character animation tags.
 var _groups: Array[Array] = []
@@ -327,7 +331,7 @@ func duplicate_selected() -> void:
 	after.selected_ids = copied_ids
 	after.selected_id = int(copies[selected_id])
 	after.next_id = next_id
-	_commit(after)
+	super._commit(after)
 
 func delete_selected() -> void:
 	var ids: Array[int] = get_selected_ids()
@@ -379,6 +383,8 @@ func ordered_shapes() -> Array[Dictionary]:
 func serialize() -> Dictionary:
 	var data: Dictionary = super.serialize()
 	data.scene = {"background_id": background_id, "drawing_mode": drawing_mode, "masterpiece_id": masterpiece_id}
+	if work_msec > 0 and not shapes.is_empty():
+		data.work_msec = work_msec
 	if not _groups.is_empty():
 		data.groups = _groups.duplicate(true)
 	var ids: Array[int] = get_selected_ids()
@@ -394,6 +400,9 @@ func restore(data: Dictionary) -> bool:
 			return false
 		scene_data = data.scene
 	if not _valid_scene(scene_data):
+		return false
+	var restored_work: Variant = data.get("work_msec", 0)
+	if not _integer(restored_work) or float(restored_work) < 0.0 or float(restored_work) > REQUIRED_WORK_MSEC:
 		return false
 	var checked: CharacterDocument = CharacterDocument.new()
 	if not checked.restore(data) or checked.template_id != "robot":
@@ -436,7 +445,7 @@ func restore(data: Dictionary) -> bool:
 	after.background_id = str(scene_data.background_id)
 	after.drawing_mode = str(scene_data.drawing_mode)
 	after.masterpiece_id = str(scene_data.masterpiece_id)
-	_commit(after)
+	_replace_drawing(after, 0 if checked.shapes.is_empty() else int(restored_work))
 	return true
 
 static func _decode_ids(value: Variant, known_ids: Dictionary) -> Variant:
@@ -477,8 +486,28 @@ func _snapshot() -> Dictionary:
 	data.masterpiece_id = masterpiece_id
 	return data
 
+func _commit(after: Dictionary) -> void:
+	var changed_shapes: bool = shapes != after.shapes
+	if changed_shapes and after.shapes.is_empty():
+		_replace_drawing(after, 0)
+		return
+	super._commit(after)
+	if changed_shapes:
+		artwork_edited.emit()
+
+func _replace_drawing(after: Dictionary, next_work_msec: int) -> void:
+	var before: Dictionary = _snapshot()
+	before.work_msec = work_msec
+	after.work_msec = next_work_msec
+	if before != after:
+		command_manager.push_snapshot(self, &"_apply_snapshot", before, after)
+
 func _apply_snapshot(data: Dictionary) -> void:
 	super._apply_snapshot(data)
+	if data.has("work_msec"):
+		work_msec = int(data.work_msec)
+	elif shapes.is_empty():
+		work_msec = 0
 	_groups.assign(data.groups.duplicate(true))
 	if shapes.is_empty():
 		_groups.clear()

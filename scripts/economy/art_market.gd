@@ -1,7 +1,7 @@
 class_name ArtMarket
 extends RefCounted
 
-## Quotes use the visible quadrilaterals, their shape families, and paper coverage.
+## The gallery checks paper coverage and drawing time before pricing visible shapes.
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const Drawing = preload("res://scripts/core/drawing_document.gd")
 const MAX_SALES: int = 512
@@ -11,10 +11,11 @@ const EMPTY: String = "___"
 const MIN_VISIBLE_SAMPLES: int = 3
 const LEGACY_MIN_SHAPES: int = 5
 const LEGACY_MIN_COVERAGE: float = 0.08
-const RECEIPT_VERSION: int = 3
-const MIN_SALE_SHAPES: int = 6
-const MIN_SALE_FAMILIES: int = 3
-const MIN_SALE_COVERAGE: float = 0.12
+const RECEIPT_VERSION: int = 4
+const PRIOR_SALE_SHAPES: int = 6
+const PRIOR_SALE_FAMILIES: int = 3
+const PRIOR_SALE_COVERAGE: float = 0.12
+const MIN_SALE_COVERAGE: float = 0.4
 # Keep the earlier minimum palette allowance in the base amount.
 const BASE_PRICE: int = 700000
 const MAX_PRICE: int = 8000000
@@ -34,7 +35,7 @@ static func valid_title(value: Variant) -> bool:
 
 
 static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Dictionary:
-	var result: Dictionary = {"can_sell": false, "price": 0, "full_price": 0, "completion_ratio": 0.0, "reason": "", "fingerprint": "", "signature": "", "visible_shapes": 0, "families": 0, "colors": 0, "coverage": 0.0, "checks": []}
+	var result: Dictionary = {"can_sell": false, "price": 0, "reason": "", "fingerprint": "", "signature": "", "visible_shapes": 0, "families": 0, "colors": 0, "coverage": 0.0, "checks": []}
 	if document == null:
 		result.reason = "먼저 사각형으로 그림을 그려 주세요."
 		return result
@@ -60,14 +61,13 @@ static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Di
 	# Keep obscured geometry in this order-independent identity: changing layers
 	# alone must not create another sale. The visible signature catches hidden additions.
 	result.fingerprint = _fingerprint(parts)
-	var enough_shapes: bool = visible_shapes >= MIN_SALE_SHAPES
-	var enough_families: bool = family_count >= MIN_SALE_FAMILIES
 	var enough_coverage: bool = coverage >= MIN_SALE_COVERAGE
 	var required_percent: int = roundi(MIN_SALE_COVERAGE * 100.0)
+	var enough_work: bool = checked.work_msec >= Drawing.REQUIRED_WORK_MSEC
+	var work_seconds: int = floori(float(checked.work_msec) / 1000.0)
 	var checks: Array[Dictionary] = [
-		{"id": "pieces", "label": "눈에 보이는 사각형 %d개 이상" % MIN_SALE_SHAPES, "met": enough_shapes, "detail": "%d / %d개" % [visible_shapes, MIN_SALE_SHAPES]},
-		{"id": "families", "label": "서로 다른 사각형 %d종류 이상" % MIN_SALE_FAMILIES, "met": enough_families, "detail": "%d / %d종류" % [family_count, MIN_SALE_FAMILIES]},
-		{"id": "coverage", "label": "도화지의 %d%% 이상 채우기" % required_percent, "met": enough_coverage, "detail": "현재 %.1f%%" % (coverage * 100.0)}
+		{"id": "coverage", "label": "도화지의 %d%% 이상 채우기" % required_percent, "met": enough_coverage, "detail": "현재 %.1f%%" % (floorf(coverage * 1000.0) / 10.0)},
+		{"id": "time", "label": "직접 그리거나 편집한 시간 5분 이상", "met": enough_work, "detail": "%d분 %02d초" % [floori(float(work_seconds) / 60.0), work_seconds % 60]}
 	]
 	result.checks = checks
 	if visible_shapes == 0:
@@ -76,14 +76,13 @@ static func quote(document: DrawingDocument, sold: Array[Dictionary] = []) -> Di
 		result.reason = "작품 판매 기록이 가득 찼어요. 집 짓기로 우주선 제작비를 더 모을 수 있어요."
 	elif is_duplicate(result, sold):
 		result.reason = "이미 판매한 작품과 같거나 아주 비슷해요. 새 구도나 도형으로 다른 작품을 만들어 주세요."
+	elif not enough_coverage:
+		result.reason = "사각형으로 도화지의 %d%% 이상을 채워 주세요." % required_percent
+	elif not enough_work:
+		result.reason = "도형을 직접 그리고 다듬어 작업 시간 5분을 채워 주세요."
 	else:
-		var completion_ratio: float = _completion_ratio(visible_shapes, family_count, coverage)
-		var full_price: int = _full_price(visible_shapes, family_count, coverage)
 		result.can_sell = true
-		result.completion_ratio = completion_ratio
-		result.full_price = full_price
-		result.price = _discounted_price(full_price, completion_ratio)
-		result.reason = "세 가지 목표를 모두 채웠어요." if completion_ratio == 1.0 else "지금 팔거나, 부족한 목표를 더 채워 값을 높일 수 있어요."
+		result.price = _current_price(visible_shapes, family_count)
 	return result
 
 
@@ -116,8 +115,10 @@ static func _validate_receipt_fields(receipt: Dictionary) -> bool:
 		minimum_shapes = LEGACY_MIN_SHAPES
 		minimum_coverage = LEGACY_MIN_COVERAGE
 	elif version == 2:
-		minimum_shapes = MIN_SALE_SHAPES
-		minimum_families = MIN_SALE_FAMILIES
+		minimum_shapes = PRIOR_SALE_SHAPES
+		minimum_families = PRIOR_SALE_FAMILIES
+		minimum_coverage = PRIOR_SALE_COVERAGE
+	elif version == RECEIPT_VERSION:
 		minimum_coverage = MIN_SALE_COVERAGE
 	if not _integer(receipt.visible_shapes, minimum_shapes, 128): return false
 	if not _integer(receipt.families, minimum_families, 5): return false
@@ -140,11 +141,14 @@ static func _validate_receipt_fields(receipt: Dictionary) -> bool:
 	var families: int = int(receipt.families)
 	if occupied < shapes * MIN_VISIBLE_SAMPLES: return false
 	var expected_price: int
-	if version < RECEIPT_VERSION:
+	if version <= 2:
 		var base_price: int = 500000 + mini(int(receipt.colors), 8) * 100000 if legacy else BASE_PRICE
 		expected_price = _price(shapes, families, coverage, base_price)
-	else:
+	elif version == 3:
 		expected_price = _discounted_price(_full_price(shapes, families, measured_coverage), _completion_ratio(shapes, families, measured_coverage))
+	else:
+		if measured_coverage < MIN_SALE_COVERAGE: return false
+		expected_price = _current_price(shapes, families)
 	return _integer(receipt.price, 100, MAX_PRICE) and int(receipt.price) == expected_price
 
 
@@ -176,17 +180,19 @@ static func _price(shapes: int, families: int, coverage: float, base_price: int 
 	var amount: int = base_price + mini(shapes, 24) * 150000 + mini(families, 5) * 450000 + int(coverage * 1000000.0)
 	return mini(MAX_PRICE, int(float(amount) / 100.0) * 100)
 
+static func _current_price(shapes: int, families: int) -> int:
+	return 200000 + mini(shapes, 12) * 200000 + maxi(shapes - 12, 0) * 42000 + (families - 1) * 2000
 
 static func _completion_ratio(shapes: int, families: int, coverage: float) -> float:
-	var shape_ratio: float = minf(float(shapes) / MIN_SALE_SHAPES, 1.0)
-	var family_ratio: float = minf(float(families) / MIN_SALE_FAMILIES, 1.0)
-	var area_ratio: float = minf(coverage / MIN_SALE_COVERAGE, 1.0)
+	var shape_ratio: float = minf(float(shapes) / PRIOR_SALE_SHAPES, 1.0)
+	var family_ratio: float = minf(float(families) / PRIOR_SALE_FAMILIES, 1.0)
+	var area_ratio: float = minf(coverage / PRIOR_SALE_COVERAGE, 1.0)
 	return (shape_ratio + family_ratio + area_ratio) / 3.0
 
 
 static func _full_price(shapes: int, families: int, coverage: float) -> int:
 	# Quote the value with each goal filled before applying the buyer's discount.
-	return _price(maxi(shapes, MIN_SALE_SHAPES), maxi(families, MIN_SALE_FAMILIES), maxf(coverage, MIN_SALE_COVERAGE))
+	return _price(maxi(shapes, PRIOR_SALE_SHAPES), maxi(families, PRIOR_SALE_FAMILIES), maxf(coverage, PRIOR_SALE_COVERAGE))
 
 
 static func _discounted_price(full_price: int, completion_ratio: float) -> int:
