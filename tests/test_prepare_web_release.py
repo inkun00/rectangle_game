@@ -7,16 +7,22 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 import zlib
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tools.prepare_web_release import ROOT, compressed_loader, optimize_png, prepare
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from ci_build import template_directory
+from prepare_web_release import ROOT, compressed_loader, optimize_png, prepare
+from web_resource_packs import PackEntry, ResourcePack, write_pack
 
 
 def exported_loader() -> str:
-    # The repository ships its Godot-generated engine. Exercise that real
-    # version rather than a stub that cannot expose preloader integration bugs.
+    # Prefer the untouched engine so the real Godot preloader patches run.
+    template = template_directory() / "web_nothreads_release.zip"
+    if template.is_file():
+        with zipfile.ZipFile(template) as archive:
+            return archive.read("godot.js").decode("utf-8")
     engine_path = next(path for path in (ROOT / "build/web").glob("engine-*.js")
                        if re.fullmatch(r"engine-[0-9a-f]{12}\.js", path.name))
     source = engine_path.read_text(encoding="utf-8")
@@ -30,20 +36,24 @@ def exported_loader() -> str:
     return source
 
 
-def write_export(directory: Path, worklet: str = "worklet") -> None:
+def write_export(directory: Path, revision: str = "original") -> bytes:
     for name in (
         "index.wasm",
-        "index.pck",
         "index.audio.worklet.js",
         "index.audio.position.worklet.js",
     ):
-        (directory / name).write_bytes((name + worklet).encode("ascii") * 64)
+        (directory / name).write_bytes((name + revision).encode("ascii") * 64)
+    core = PackEntry("project.binary", revision.encode("ascii"))
+    drawing = PackEntry("assets/generated/drawing/sample.svg", b"<svg/>")
+    (directory / "index.pck").write_bytes(write_pack(ResourcePack((4, 7, 2), (core, drawing))))
     (directory / "index.js").write_text(exported_loader(), encoding="utf-8")
     (directory / "index.html").write_text(
+        '<script>window.QUAD_RESOURCE_PACKS = null;</script>\n'
         '<script src="index.js"></script>\n'
-        'const config = {"executable":"index","fileSizes":{"index.pck":9,"index.wasm":10}};',
+        '<script>const config = {"executable":"index","fileSizes":{}};</script>',
         encoding="utf-8",
     )
+    return write_pack(ResourcePack((4, 7, 2), (core,)))
 
 
 class PrepareWebReleaseTests(unittest.TestCase):
@@ -70,11 +80,10 @@ class PrepareWebReleaseTests(unittest.TestCase):
     def test_content_hashes_and_references(self) -> None:
         with tempfile.TemporaryDirectory(dir=ROOT) as temporary:
             directory = Path(temporary)
-            write_export(directory)
+            raw_pack = write_export(directory)
             (directory / "index.png").write_bytes(b"unused splash")
             (directory / "index.png.import").write_bytes(b"editor cache")
             raw_wasm = (directory / "index.wasm").read_bytes()
-            raw_pack = (directory / "index.pck").read_bytes()
             engine, pack = prepare(directory)
             html = (directory / "index.html").read_text(encoding="utf-8")
             config = json.JSONDecoder().raw_decode(html.split("const config = ", 1)[1])[0]
@@ -107,7 +116,7 @@ class PrepareWebReleaseTests(unittest.TestCase):
             self.assertEqual((directory / f"{first_engine}.wasm.gz").read_bytes(), first_gzip)
             (directory / "engine-0123456789ab.wasm").write_bytes(b"legacy raw")
             (directory / "art-0123456789ab.pck.gz").write_bytes(b"legacy compressed")
-            write_export(directory, worklet="updated worklet")
+            write_export(directory, revision="updated")
             next_engine, next_pack = prepare(directory)
             self.assertNotEqual(next_engine, first_engine)
             self.assertNotEqual(next_pack, first_pack)

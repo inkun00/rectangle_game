@@ -114,6 +114,7 @@ var _template_buttons: Dictionary = {}
 var _swatches: Array[Button] = []
 var _world_data: Dictionary = {}
 var _in_world: bool = false
+var _village_character_name: String = "사각이"
 var _restoring: bool = false
 var _exporting: bool = false
 var _save_clock: float = 0.0
@@ -246,6 +247,7 @@ func _build_home() -> void:
 	_home_screen = HomePage.new()
 	_home_screen.drawing_requested.connect(_show_drawing)
 	_home_screen.adventure_requested.connect(_enter_world)
+	_home_screen.workshop_requested.connect(_show_workshop)
 	_home_screen.construction_requested.connect(_show_construction)
 	_home_screen.notebook_requested.connect(_show_notebook)
 	_home_screen.tutorials_requested.connect(_show_tutorials)
@@ -1056,7 +1058,7 @@ func _build_workshop() -> void:
 	var title: Label = QuadTheme.label("01  캐릭터 공방", 23)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_row.add_child(title)
-	_workshop_steps = QuadTheme.label("도형 고르기   →   골격 채우기   →   캐릭터 저장", 15, QuadTheme.MUTED)
+	_workshop_steps = QuadTheme.label("도형 고르기   →   골격 채우기   →   마을 가기", 15, QuadTheme.MUTED)
 	title_row.add_child(_workshop_steps)
 	_workshop_compact_selectors = HFlowContainer.new()
 	_workshop_compact_selectors.add_theme_constant_override("h_separation", 8)
@@ -1232,7 +1234,7 @@ func _build_workshop() -> void:
 	column.add_child(bottom)
 	_workshop_bottom_note = QuadTheme.paragraph("내가 만든 모습 그대로 걷고 뛰어요. 골격을 모두 채우면 모험을 시작할 수 있어요.", 15)
 	bottom.add_child(_workshop_bottom_note)
-	_start_button = QuadTheme.button("마을 주민 심부름하기  →", _enter_world, true)
+	_start_button = QuadTheme.button("내 캐릭터로 마을 가기", _enter_world.bind(true), true)
 	_start_button.custom_minimum_size = Vector2(280, 54)
 	bottom.add_child(_start_button)
 	_select_kind("square")
@@ -1485,6 +1487,7 @@ func _document_changed() -> void:
 	_progress.text = "골격 %d / %d 완성" % [int(done["filled"]), int(done["total"])]
 	_progress_bar.max_value = maxi(int(done["total"]), 1)
 	_progress_bar.value = int(done["filled"])
+	_start_button.disabled = not bool(done.ready)
 	_undo_button.disabled = not document.can_undo()
 	_redo_button.disabled = not document.can_redo()
 	for id: String in _template_buttons:
@@ -1525,7 +1528,7 @@ func _journal_changed() -> void:
 func _adventure_changed() -> void:
 	if _health_label == null: return
 	_health_label.text = "HP  %d / %d      XP  %d / %d" % [adventure.hp, adventure.max_hp, adventure.xp_in_level(), adventure.xp_for_next_level()]
-	_level_label.text = "LV. %d  사각이" % adventure.level
+	_level_label.text = "LV. %d  %s" % [adventure.level, _village_character_name]
 	_health_bar.max_value = adventure.max_hp
 	_health_bar.value = adventure.hp
 	_xp_bar.max_value = adventure.xp_for_next_level()
@@ -1729,12 +1732,17 @@ func _show_travel() -> void:
 		body.add_child(button)
 	body.add_child(QuadTheme.button("걸어서 계속 탐험", _close_modal))
 
-func _enter_world() -> void:
+func _enter_world(use_workshop_character: bool = false) -> void:
+	if use_workshop_character and not bool(document.completion().ready):
+		_show_toast("골격을 모두 채우면 내 캐릭터로 마을에 갈 수 있어요.")
+		return
 	if not await _ensure_feature("adventure"): return
+	var character: Dictionary = document.character_data() if use_workshop_character else CharacterTemplates.protagonist()
+	_village_character_name = str(CharacterTemplates.get_template(document.template_id).name) if use_workshop_character else "사각이"
 	_leave_activity()
 	if world == null:
 		world = QuadrilateralWorld.new()
-		world.setup(CharacterTemplates.protagonist(), journal)
+		world.setup(character, journal)
 		add_child(world)
 		world.interaction_requested.connect(_talk_to_npc)
 		world.hint_requested.connect(_show_toast)
@@ -1748,6 +1756,7 @@ func _enter_world() -> void:
 		world.configure_adventure(adventure)
 		if not _world_data.is_empty(): world.restore(_world_data)
 	else:
+		world.update_character(character)
 		world.show()
 		world.process_mode = Node.PROCESS_MODE_INHERIT
 		world.set_controls_enabled(true)
@@ -1846,7 +1855,7 @@ func _show_quest_success(quest: Dictionary, answer: Dictionary) -> void:
 	# Publish the quest receipt first. The economy can replay any missing
 	# payouts from the completed journal, including after an interrupted save.
 	var paid: Dictionary = _save(false)
-	var body: VBoxContainer = _open_modal("고마워요, 사각이!")
+	var body: VBoxContainer = _open_modal("고마워요, %s!" % _village_character_name)
 	body.add_child(QuadTheme.label(String(quest["title"]) + " 완료", 24, QuadTheme.TEAL))
 	body.add_child(QuadTheme.paragraph(String(answer["message"]), 18, QuadTheme.INK))
 	body.add_child(QuadTheme.label("+ %d 코인  ·  도와준 친구 %d / %d" % [int(answer["reward"]), journal.completed_count(), QuestCatalog.all_quests().size()], 20, QuadTheme.TEAL))

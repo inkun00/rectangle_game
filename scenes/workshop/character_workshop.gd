@@ -121,13 +121,15 @@ func _gui_input(event: InputEvent) -> void:
 func _press(point: Vector2) -> void:
 	var slot_id: String = _slot_at(point)
 	if not slot_id.is_empty():
+		var slot: Dictionary = document.get_slot(slot_id)
 		var existing: Dictionary = document.shape_for_slot(slot_id)
-		if existing.is_empty():
-			var slot: Dictionary = document.get_slot(slot_id)
-			if document.fill_slot(slot_id, selected_kind, paint_color, selected_trapezoid_variant):
+		if not Document.fits_slot(existing, slot):
+			if selected_kind != str(slot.kind):
+				hint_requested.emit("%s에는 %s이 필요해요. 왼쪽에서 골라 주세요." % [str(slot.label), Math.kind_name(str(slot.kind))])
+			elif document.fill_slot(slot_id, selected_kind, existing.get("color", paint_color), selected_trapezoid_variant):
 				hint_requested.emit("%s에 %s을 붙였어요!" % [str(slot.label), Math.kind_name(selected_kind)])
 			else:
-				hint_requested.emit("%s에는 %s이 필요해요. 왼쪽에서 골라 주세요." % [str(slot.label), Math.kind_name(str(slot.kind))])
+				hint_requested.emit("조각을 더 붙이려면 꾸미기 도형을 하나 지워 주세요.")
 			return
 	var hit: int = _shape_at(point)
 	if hit >= 0:
@@ -162,9 +164,10 @@ func _release(point: Vector2) -> void:
 		var target_slot: String = _snap_slot(point, selected_kind)
 		if not target_slot.is_empty():
 			document.fill_slot(target_slot, selected_kind, paint_color, selected_trapezoid_variant)
-		else:
-			document.add_shape(selected_kind, point.snapped(Vector2(2, 2)), paint_color, selected_trapezoid_variant)
+		elif document.add_shape(selected_kind, point.snapped(Vector2(2, 2)), paint_color, selected_trapezoid_variant) >= 0:
 			hint_requested.emit("꾸미기 도형을 만들었어요. 끌어 옮기거나 회전해 보세요.")
+		elif document.shapes.size() >= Document.MAX_SHAPES:
+			hint_requested.emit("조각을 더 붙이려면 꾸미기 도형을 하나 지워 주세요.")
 	queue_redraw()
 
 func _shape_at(point: Vector2) -> int:
@@ -178,11 +181,15 @@ func _shape_at(point: Vector2) -> int:
 func _slot_at(point: Vector2) -> String:
 	var template: Dictionary = Templates.get_template(document.template_id)
 	var parts: Array = template.parts
+	var top_slot: String = ""
 	for index: int in range(parts.size() - 1, -1, -1):
 		var slot: Dictionary = parts[index]
 		if Math.contains_point(slot.vertices, point - Vector2(slot.position)):
-			return str(slot.id)
-	return ""
+			if not Document.fits_slot(document.shape_for_slot(str(slot.id)), slot):
+				return str(slot.id)
+			if top_slot.is_empty():
+				top_slot = str(slot.id)
+	return top_slot
 
 func _snap_slot(point: Vector2, kind: String) -> String:
 	var template: Dictionary = Templates.get_template(document.template_id)
@@ -212,17 +219,21 @@ func _draw() -> void:
 			var dot: Vector2 = Vector2(fmod(origin.x, spacing) + x * spacing, fmod(origin.y, spacing) + y * spacing)
 			draw_circle(dot, 1.0, Color("d5e1df"))
 	var template: Dictionary = Templates.get_template(document.template_id)
+	var unfilled: Array[Dictionary] = []
 	for slot: Dictionary in template.parts:
-		_draw_slot(slot, scale)
+		var needs_part: bool = not Document.fits_slot(document.shape_for_slot(str(slot.id)), slot)
+		if needs_part:
+			unfilled.append(slot)
+		else:
+			_draw_slot(slot, scale, false)
 	for shape: Dictionary in document.ordered_shapes():
 		var position: Vector2 = shape.position
 		if _dragging and int(shape.id) == _drag_id:
 			position = _drag_position
 		_draw_shape(shape, position, scale)
 	# Unfilled details remain visible above larger, already-painted body pieces.
-	for slot: Dictionary in template.parts:
-		if document.shape_for_slot(str(slot.id)).is_empty():
-			_draw_slot(slot, scale)
+	for slot: Dictionary in unfilled:
+		_draw_slot(slot, scale, true)
 	if _creating:
 		var draft: PackedVector2Array = Math.create_vertices(selected_kind, _default_dimensions(selected_kind), selected_trapezoid_variant)
 		var points: PackedVector2Array = _screen_polygon(draft, _drag_position)
@@ -230,7 +241,7 @@ func _draw() -> void:
 		_draw_outline(points, Color("159b91"), 2.0, true)
 	_draw_annotations()
 
-func _draw_slot(slot: Dictionary, scale: float) -> void:
+func _draw_slot(slot: Dictionary, scale: float, needs_part: bool) -> void:
 	var points: PackedVector2Array = _screen_polygon(slot.vertices, slot.position)
 	var highlighted: bool = str(slot.id) == _hover_slot
 	var matches: bool = str(slot.kind) == selected_kind
@@ -241,7 +252,7 @@ func _draw_slot(slot: Dictionary, scale: float) -> void:
 		tint = Color("bfe4d9") if matches else Color("f8dfc3")
 	draw_colored_polygon(points, tint)
 	_draw_outline(points, Color("82a6a2") if matches else Color("afc1be"), 1.5, true)
-	if document.shape_for_slot(str(slot.id)).is_empty():
+	if needs_part:
 		var center: Vector2 = character_to_screen(slot.position)
 		var rect: Rect2 = Math.bounds(slot.vertices)
 		if rect.size.x * scale >= 76 and rect.size.y * scale >= 39:

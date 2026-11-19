@@ -42,6 +42,8 @@ html, body {
   inset: 0;
   display: grid;
   place-items: center;
+  align-items: safe center;
+  overflow: auto;
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   background: linear-gradient(#0b132070, #0b1320dd), url("frontier-loading.webp") center / cover;
   image-rendering: pixelated;
@@ -81,7 +83,8 @@ html, body {
 }
 .card {
   position: relative;
-  width: min(92vw, 380px);
+  width: min(100%, 380px);
+  min-width: 0;
   padding: 36px 30px 30px;
   background: var(--paper);
   border: 3px solid #536e86;
@@ -139,9 +142,7 @@ h1 {
   font-weight: 600;
   color: var(--muted);
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: keep-all;
 }
 #progress-value {
   font-size: 13px;
@@ -188,6 +189,8 @@ progress::-moz-progress-bar {
   line-height: 1.5;
   word-break: keep-all;
 }
+#error-box[data-waiting] { border-color: var(--sun); background: #302d24; }
+#error-box[data-waiting] #error-msg { color: var(--ink); }
 button {
   min-height: 44px;
   border: 9px solid transparent;
@@ -249,15 +252,14 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
       <progress id="progress" max="100" value="0" aria-label="게임 파일 준비 진행률"></progress>
     </div>
     <div id="error-box" hidden>
-      <p id="error-msg"></p>
+      <p id="error-msg" role="status"></p>
       <button id="retry-btn" type="button" aria-describedby="error-msg">다시 불러오기</button>
-      <details><summary>자세한 오류 내용</summary><pre id="error-details"></pre></details>
+      <details id="error-info" hidden><summary>자세한 오류 내용</summary><pre id="error-details"></pre></details>
     </div>
     <noscript>플레이하려면 브라우저 설정에서 자바스크립트를 켠 뒤 다시 불러와 주세요.</noscript>
   </div>
 </section>
 <script>window.QUAD_RESOURCE_PACKS = null;</script>
-<script src="$GODOT_URL"></script>
 <script>
 (() => {
   'use strict';
@@ -267,10 +269,24 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
   const progressValue = document.getElementById('progress-value');
   const stage = document.getElementById('stage');
   const retry = document.getElementById('retry-btn');
+  const recovery = document.getElementById('error-box');
+  const recoveryMessage = document.getElementById('error-msg');
   let settled = false;
   let announcedMilestone = -1;
   let lastPercent = -1;
+  let lastReceived = 0;
+  let waitTimer;
   retry.addEventListener('click', () => location.reload());
+
+  function watchForStall() {
+    clearTimeout(waitTimer);
+    if (!recovery.hidden) return;
+    waitTimer = setTimeout(() => {
+      recovery.setAttribute('data-waiting', '');
+      recoveryMessage.textContent = '준비가 오래 걸리고 있어요. 조금 더 기다리거나 다시 불러올 수 있어요.';
+      recovery.hidden = false;
+    }, 30000);
+  }
 
   function announce(message) {
     if (stage.textContent !== message) stage.textContent = message;
@@ -279,21 +295,28 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
   function fail(error, explanation) {
     if (settled) return;
     settled = true;
+    clearTimeout(waitTimer);
     console.error(error);
     progress.hidden = true;
     progressValue.textContent = '준비 중단';
     stage.setAttribute('aria-live', 'off');
     stage.removeAttribute('role');
     stage.textContent = '준비가 잠시 멈췄어요.';
-    document.getElementById('error-msg').textContent = explanation;
+    recovery.removeAttribute('data-waiting');
+    recoveryMessage.textContent = explanation;
     document.getElementById('error-details').textContent = String(error && error.message || error);
-    document.getElementById('error-box').hidden = false;
+    document.getElementById('error-info').hidden = false;
+    recovery.hidden = false;
     canvas.setAttribute('aria-busy', 'false');
     retry.focus();
   }
 
   function updateProgress(current, total) {
     if (settled) return;
+    if (current > lastReceived) {
+      lastReceived = current;
+      watchForStall();
+    }
     if (!(total > 0)) {
       progress.removeAttribute('value');
       progressValue.textContent = '준비 중';
@@ -313,30 +336,35 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
     else if (milestone > 0) announce('게임 파일을 ' + milestone + '% 받았어요. 조금만 기다려 주세요…');
   }
 
-  try {
-    if (typeof Engine === 'undefined') {
-      fail('게임 실행 파일을 불러오지 못했어요.', '게임 파일을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 불러와 주세요.');
-      return;
+  watchForStall();
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      if (typeof Engine === 'undefined') {
+        fail('게임 실행 파일을 불러오지 못했어요.', '게임 파일을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 불러와 주세요.');
+        return;
+      }
+      const missing = Engine.getMissingFeatures({threads:$GODOT_THREADS_ENABLED});
+      if (missing.length) {
+        fail('지원되지 않는 기능: ' + missing.join(', '), '이 브라우저에서는 게임을 실행할 수 없어요. 브라우저를 업데이트하거나 다른 최신 브라우저에서 열어 주세요.');
+        return;
+      }
+      const config = $GODOT_CONFIG;
+      const engine = new Engine(config);
+      engine.startGame({onProgress:updateProgress}).then(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(waitTimer);
+        canvas.setAttribute('aria-busy', 'false');
+        canvas.tabIndex = 0;
+        loading.remove();
+        canvas.focus();
+      }).catch(error => fail(error, '게임을 준비하다가 멈췄어요. 인터넷 연결을 확인한 뒤 다시 불러와 주세요.'));
+    } catch (error) {
+      fail(error, '게임을 시작하지 못했어요. 다시 불러와도 같다면 브라우저를 업데이트한 뒤 다시 열어 주세요.');
     }
-    const missing = Engine.getMissingFeatures({threads:$GODOT_THREADS_ENABLED});
-    if (missing.length) {
-      fail('지원되지 않는 기능: ' + missing.join(', '), '이 브라우저에서는 게임을 실행할 수 없어요. 브라우저를 업데이트하거나 다른 최신 브라우저에서 열어 주세요.');
-      return;
-    }
-    const config = $GODOT_CONFIG;
-    const engine = new Engine(config);
-    engine.startGame({onProgress:updateProgress}).then(() => {
-      if (settled) return;
-      settled = true;
-      canvas.setAttribute('aria-busy', 'false');
-      canvas.tabIndex = 0;
-      loading.remove();
-      canvas.focus();
-    }).catch(error => fail(error, '게임을 준비하다가 멈췄어요. 인터넷 연결을 확인한 뒤 다시 불러와 주세요.'));
-  } catch (error) {
-    fail(error, '게임을 시작하지 못했어요. 다시 불러와도 같다면 브라우저를 업데이트한 뒤 다시 열어 주세요.');
-  }
+  }, {once:true});
 })();
 </script>
+<script src="$GODOT_URL"></script>
 </body>
 </html>

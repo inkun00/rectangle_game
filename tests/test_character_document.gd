@@ -88,6 +88,52 @@ static func run(t) -> void:
 	t.assert_eq(document.add_shape("square", Vector2(INF, 0), Color.WHITE), -1, "Nonfinite position rejected")
 	_test_right_trapezoid_parts(t)
 	_test_canvas_input(t)
+	_test_repair_after_edit(t)
+
+static func _test_repair_after_edit(t: Node) -> void:
+	var document: Document = Document.new()
+	document.fill_slot("body", "trapezoid", Color.CORAL, "right_right")
+	document.rotate_selected(17.0)
+	var original_body: Dictionary = document.get_selected()
+	document.scale_selected(0.35)
+	document.move_selected(Vector2(140, 80))
+	document.fill_slot("chest", "rhombus", Color.GOLD)
+	document.add_shape("square", Vector2(220, 30), Color.BLUE)
+	var displaced: Dictionary = document.serialize()
+	var restored: Document = Document.new()
+	t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(displaced))), "A displaced part can be repaired after reopening its save")
+	var reopened: Dictionary = restored.serialize()
+	var canvas: Workshop = Workshop.new()
+	canvas.document = restored
+	canvas.size = Vector2(700, 650)
+	canvas.select_kind("trapezoid")
+	var click: InputEventMouseButton = InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	# The chest covers this point, but the missing body's outline is drawn above it.
+	click.position = canvas.character_to_screen(original_body.position)
+	canvas._gui_input(click)
+	click.pressed = false
+	canvas._gui_input(click)
+	t.assert_eq(restored.completion().filled, 2, "Clicking a missing outline refits its part even beneath a painted detail")
+	var fitted: Dictionary = restored.get_selected()
+	t.assert_eq(fitted.id, original_body.id, "Refitting reuses the authored part")
+	t.assert_eq(fitted.color, Color.CORAL, "Refitting retains the authored paint")
+	t.assert_eq(Math.trapezoid_variant(fitted.vertices), "right_right", "Refitting retains the chosen trapezoid variant")
+	var original_edge: Vector2 = original_body.vertices[1] - original_body.vertices[0]
+	var fitted_edge: Vector2 = fitted.vertices[1] - fitted.vertices[0]
+	t.assert_true(original_edge.normalized().is_equal_approx(fitted_edge.normalized()), "Refitting a resized part retains its rotation")
+	restored.undo()
+	t.assert_eq(restored.serialize(), reopened, "One undo restores the displaced part, decorations and selection")
+	restored.fill_example()
+	t.assert_true(restored.completion().ready, "Colored example repairs displaced parts and fills missing slots")
+	t.assert_eq(restored.shapes.size(), 13, "Example keeps the decoration and one of each robot part")
+	var ready: Dictionary = restored.serialize()
+	restored.undo()
+	t.assert_eq(restored.serialize(), reopened, "One undo reverses the whole example repair")
+	restored.redo()
+	t.assert_eq(restored.serialize(), ready, "Redo restores the playable character and its decorations")
+	canvas.free()
 
 static func _test_right_trapezoid_parts(t: Node) -> void:
 	for template: Dictionary in Templates.all_templates():

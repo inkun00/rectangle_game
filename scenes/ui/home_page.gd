@@ -3,6 +3,7 @@ extends Control
 
 signal drawing_requested
 signal adventure_requested
+signal workshop_requested
 signal construction_requested
 signal notebook_requested
 signal tutorials_requested
@@ -55,6 +56,8 @@ func _ready() -> void:
 	_heading = _label("별빛 너머, 나만의 이야기", 30)
 	introduction.add_child(_heading)
 	introduction.add_child(_label("돈을 모아 지구에 살 집을 짓거나 사각성으로 돌아갈 우주선을 만들어요.", 17, Art.INK))
+	_ending_progress = _label("", 16, Art.ACCENT)
+	introduction.add_child(_ending_progress)
 	_cards = GridContainer.new()
 	_cards.name = "ActivityChoices"
 	_cards.add_theme_constant_override("h_separation", 18)
@@ -68,15 +71,13 @@ func _ready() -> void:
 	_ending_card = ending_content.get_parent() as PanelContainer
 	_ending_card.hide()
 	_ending_choice.focus_mode = Control.FOCUS_NONE
-	_ending_progress = _label("", 15, Art.ACCENT)
-	ending_content.add_child(_ending_progress)
-	ending_content.move_child(_ending_progress, _ending_choice.get_index() - 1)
 	var footer: HFlowContainer = HFlowContainer.new()
 	footer.add_theme_constant_override("h_separation", 24)
 	footer.add_theme_constant_override("v_separation", 6)
 	_column.add_child(footer)
 	footer.add_child(_label("그림·집·마을 심부름은 각각 자동 저장돼요.", 15, Art.INK))
 	footer.add_child(_label("초등 수학 4-2 · 사각형", 15, Art.ACCENT))
+	footer.add_child(_button("캐릭터 공방", func(): workshop_requested.emit(), false))
 	footer.add_child(_button("모드 안내", func(): tutorials_requested.emit(), false))
 	footer.add_child(_button("오프닝 다시 보기", func(): opening_requested.emit(), false))
 	resized.connect(_responsive)
@@ -111,7 +112,11 @@ func set_ending_progress(sales: int, houses: int, required: int, has_saved_endin
 		_ending_card.visible = unlocked
 		_ending_choice.focus_mode = Control.FOCUS_ALL if unlocked else Control.FOCUS_NONE
 		_update_card_columns()
-	_ending_progress.text = "그림 %d회 + 집 %d회 · %d/%d회" % [sales, houses, mini(sales + houses, required), required]
+	var counts: String = "그림 의뢰 %d회 + 건축 의뢰 %d회" % [sales, houses]
+	if unlocked:
+		_ending_progress.text = "%s · 아래에서 ‘최후의 선택’을 열어 보세요." % counts
+	else:
+		_ending_progress.text = "%s · 최후의 선택까지 %d/%d회 완료" % [counts, sales + houses, required]
 
 func _build_mode(mode: String, badge_text: String, title: String, description: String, texture: Texture2D, action_text: String, action: Callable) -> Button:
 	var panel: PanelContainer = PanelContainer.new()

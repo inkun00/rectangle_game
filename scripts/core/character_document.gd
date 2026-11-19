@@ -38,8 +38,16 @@ func fill_slot(slot_id: String, kind: String, color: Color, trapezoid_variant: S
 		return false
 	var existing: Dictionary = shape_for_slot(slot_id)
 	if not existing.is_empty():
-		select_shape(int(existing.id))
-		set_color(color)
+		if fits_slot(existing, slot):
+			select_shape(int(existing.id))
+			set_color(color)
+			return true
+		var repaired: Dictionary = _snapshot()
+		var fitted: Dictionary = _refit_part(existing, slot)
+		fitted.color = color
+		repaired.shapes[_shape_index(int(existing.id))] = fitted
+		repaired.selected_id = int(existing.id)
+		_commit(repaired)
 		return true
 	if shapes.size() >= MAX_SHAPES:
 		return false
@@ -149,12 +157,13 @@ func fill_example() -> void:
 	var next_id: int = _next_id
 	var template: Dictionary = Templates.get_template(template_id)
 	for slot: Dictionary in template.parts:
-		if shape_for_slot(str(slot.id)).is_empty():
-			if after.shapes.size() >= MAX_SHAPES:
-				break
+		var existing: Dictionary = shape_for_slot(str(slot.id))
+		if not existing.is_empty():
+			after.shapes[_shape_index(int(existing.id))] = _refit_part(existing, slot)
+		elif after.shapes.size() < MAX_SHAPES:
 			after.shapes.append(_shape_from_slot(slot, next_id, slot.color))
 			next_id += 1
-		after.next_id = next_id
+	after.next_id = next_id
 	after.selected_id = -1
 	_commit(after)
 
@@ -183,7 +192,7 @@ func completion() -> Dictionary:
 	var filled: int = 0
 	for slot: Dictionary in template.parts:
 		var shape: Dictionary = shape_for_slot(str(slot.id))
-		if not shape.is_empty() and _fits_slot(shape, slot):
+		if fits_slot(shape, slot):
 			filled += 1
 	var total: int = template.parts.size()
 	return {"filled": filled, "total": total, "ready": total > 0 and filled == total}
@@ -325,7 +334,22 @@ static func _shape_from_slot(slot: Dictionary, id: int, color: Color, trapezoid_
 		vertices = Math.rotate_vertices(Math.create_vertices("trapezoid", dimensions, trapezoid_variant), rad_to_deg(rotation))
 	return {"id": id, "slot_id": str(slot.id), "kind": str(slot.kind), "position": slot.position, "vertices": vertices, "color": color, "group": str(slot.group)}
 
-static func _fits_slot(shape: Dictionary, slot: Dictionary) -> bool:
+static func _refit_part(shape: Dictionary, slot: Dictionary) -> Dictionary:
+	if fits_slot(shape, slot):
+		return shape
+	shape.position = slot.position
+	if not fits_slot(shape, slot):
+		var area_ratio: float = absf(Math.signed_area(slot.vertices) / Math.signed_area(shape.vertices))
+		var resized: PackedVector2Array = Math.scale_vertices(shape.vertices, sqrt(area_ratio))
+		if _valid_vertices(resized, str(shape.kind)):
+			shape.vertices = resized
+		else:
+			return _shape_from_slot(slot, int(shape.id), shape.color, Math.trapezoid_variant(shape.vertices))
+	return shape
+
+static func fits_slot(shape: Dictionary, slot: Dictionary) -> bool:
+	if shape.is_empty():
+		return false
 	var shape_position: Vector2 = shape.position
 	var slot_position: Vector2 = slot.position
 	var area_ratio: float = absf(Math.signed_area(shape.vertices)) / absf(Math.signed_area(slot.vertices))

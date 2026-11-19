@@ -17,7 +17,9 @@ const script = [...exported.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
 
 function shell(options = {}) {
   const elements = new Map();
-  const document = {activeElement: null, getElementById: id => elements.get(id)};
+  const listeners = {};
+  const document = {activeElement: null, getElementById: id => elements.get(id),
+    addEventListener: (event, handler) => { listeners[event] = handler; }};
   for (const match of html.matchAll(/<[a-z][^>]*\bid="([^"]+)"[^>]*>/g)) {
     const attributes = new Map([...match[0].matchAll(/([\w-]+)="([^"]*)"/g)].map(item => [item[1], item[2]]));
     let text = match[1] === 'stage' ? '그림 도구와 건축 재료를 준비하고 있어요…' : '';
@@ -48,10 +50,23 @@ function shell(options = {}) {
       return readiness;
     }
   }
-  const context = {document, console: {error: value => errors.push(value)}, location: {reload: () => result.reloads++}};
+  const timers = new Map();
+  let now = 0, nextTimer = 0;
+  function advance(ms) {
+    now += ms;
+    for (const [id, timer] of timers) {
+      if (timer.at > now) continue;
+      timers.delete(id);
+      timer.callback();
+    }
+  }
+  const context = {document, console: {error: value => errors.push(value)}, location: {reload: () => result.reloads++},
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, {callback, at: now + delay}); return id; },
+    clearTimeout: id => timers.delete(id)};
   if (!options.noEngine) context.Engine = Engine;
   vm.runInNewContext(script, context, {filename: 'loading.html'});
-  return {...result, resolve, reject, state: result};
+  if (!options.waitForScript) listeners.DOMContentLoaded();
+  return {...result, resolve, reject, advance, scriptLoaded: listeners.DOMContentLoaded, state: result};
 }
 
 async function flush() { await Promise.resolve(); await Promise.resolve(); }
@@ -61,6 +76,7 @@ test('the shell preserves Godot export and asset fingerprinting contracts', () =
     assert.equal(html.split(macro).length - 1, 1, macro);
   }
   assert.equal(exported.split('<script src="index.js"></script>').length - 1, 1);
+  assert.ok(exported.indexOf('watchForStall()') < exported.indexOf('<script src="index.js"></script>'));
   assert.equal(JSON.parse(exported.match(/\bconst config = (\{.*\});/)[1]).executable, 'index');
   assert.match(html, /<title>사각이의 모험<\/title>/);
   assert.match(html, /<h1 id="loading-title">사각이의 모험<\/h1>/);
@@ -105,10 +121,41 @@ test('100% download does not start play until the engine is ready', async () => 
   assert.equal(run.elements.get('canvas').tabIndex, 0);
   assert.equal(run.elements.get('canvas').attributes.get('aria-busy'), 'false');
   assert.equal(run.errors.length, 0);
-  // The VM has no setTimeout: successful startup cannot depend on a fade timer.
   const previous = run.elements.get('stage').textContent;
   run.state.progress(10, 100);
   assert.equal(run.elements.get('stage').textContent, previous);
+});
+
+test('a stalled script offers retry and can still finish normally', async () => {
+  const run = shell({waitForScript: true});
+  run.advance(30000);
+  assert.equal(run.state.starts, 0);
+  assert.equal(run.elements.get('error-box').hidden, false);
+  assert.equal(run.elements.get('error-info').hidden, true);
+  assert.equal(run.elements.get('canvas').attributes.get('aria-busy'), 'true');
+  run.scriptLoaded();
+  run.resolve();
+  await flush();
+  assert.equal(run.elements.get('loading').removed, true);
+  assert.equal(run.document.activeElement, run.elements.get('canvas'));
+});
+
+test('received bytes extend the wait, repeated progress does not, and a later failure can be retried', async () => {
+  const run = shell();
+  run.advance(20000);
+  run.state.progress(1, 100);
+  run.advance(20000);
+  assert.equal(run.elements.get('error-box').hidden, true);
+  run.state.progress(1, 100);
+  run.advance(10000);
+  assert.equal(run.elements.get('error-box').hidden, false);
+  assert.equal(run.document.activeElement, null);
+  run.reject(new Error('Connection interrupted'));
+  await flush();
+  assert.equal(run.elements.get('error-info').hidden, false);
+  assert.equal(run.document.activeElement, run.elements.get('retry-btn'));
+  run.elements.get('retry-btn').listeners.click();
+  assert.equal(run.state.reloads, 1);
 });
 
 test('a rejected engine start exposes recovery and ignores late progress', async () => {

@@ -36,6 +36,9 @@ static func _test_catalog(t) -> void:
 		t.assert_true(["npc_atlas", "expansion_npcs"].has(quest["npc_sheet"]), "NPC sheet is explicit")
 	quests[0]["title"] = "changed"
 	t.assert_false(String(Catalog.all_quests()[0]["title"]) == "changed", "Catalog callers cannot mutate shared content")
+	var chocolate: Dictionary = Catalog.get_quest("rhombus_chocolates")
+	chocolate["options"].clear()
+	t.assert_eq(Catalog.get_quest("rhombus_chocolates")["options"].size(), 3, "Editing returned options cannot change another resident dialogue")
 	t.assert_eq(Catalog.get_quest("square_festival")["answer"], 2, "Square includes all four broader categories")
 	t.assert_eq(Catalog.get_quest("trapezoid_roofs")["answer"], 2, "Trapezoid definition is inclusive")
 

@@ -5,7 +5,14 @@ extends RefCounted
 ## Geometric classifications stay inclusive; pupil questions use observable
 ## sides and angles, not memorised inclusion chains. See PRD curriculum mapping.
 
+static var _quests: Array[Dictionary] = _build_quests()
+
+
 static func all_quests() -> Array[Dictionary]:
+	return _quests.duplicate(true)
+
+
+static func _build_quests() -> Array[Dictionary]:
 	var quests: Array[Dictionary] = [
 		{
 			"id": "rhombus_chocolates", "npc_id": "baker", "npc_name": "초코 제빵사",
@@ -223,15 +230,15 @@ static func all_quests() -> Array[Dictionary]:
 
 
 static func get_quest(quest_id: String) -> Dictionary:
-	for quest: Dictionary in all_quests():
+	for quest: Dictionary in _quests:
 		if String(quest["id"]) == quest_id:
-			return quest
+			return quest.duplicate(true)
 	return {}
 
 
 static func target_limit(item_id: String) -> int:
 	var limit: int = 0
-	for quest: Dictionary in all_quests():
+	for quest: Dictionary in _quests:
 		if String(quest["target"]) == item_id:
 			limit += int(quest["target_count"])
 	return limit
