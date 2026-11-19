@@ -117,11 +117,11 @@ static func _test_world_entry_gate(t: Node) -> void:
 	var gate: PackGate = PackGate.new()
 	gate.available = false
 	var app: QuadrilateralApp = _app(t, gate)
-	var character: Dictionary = app.document.serialize()
+	var journal: Dictionary = app.journal.serialize()
 	await app._enter_world()
 	t.assert_eq(gate.calls, ["adventure"], "Entering the world requests the adventure resources")
 	t.assert_true(app._home_screen.visible and app.world == null, "A failed village download keeps home available for a retry")
-	t.assert_eq(app.document.serialize(), character, "A download failure never changes the player's artwork")
+	t.assert_eq(app.journal.serialize(), journal, "A download failure preserves quest progress for retry")
 	await _settle(t)
 	app.free()
 	await t.get_tree().process_frame

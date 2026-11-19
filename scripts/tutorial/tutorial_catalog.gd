@@ -2,7 +2,7 @@ class_name TutorialCatalog
 extends RefCounted
 
 ## Original short conversations about the existing controls, separate from lessons.
-const MODE_IDS: Array[String] = ["learning", "drawing", "masterpiece", "construction", "my_house", "workshop", "world"]
+const MODE_IDS: Array[String] = ["learning", "drawing", "masterpiece", "construction", "my_house", "world"]
 
 static func title(mode: String) -> String:
 	match mode:
@@ -11,7 +11,6 @@ static func title(mode: String) -> String:
 		"masterpiece": return "명화 채우기 안내"
 		"construction": return "부탁받은 집 짓기 안내"
 		"my_house": return "나만의 집 짓기 안내"
-		"workshop": return "캐릭터 공방 안내"
 		"world": return "마을 주민 심부름하기 안내"
 	return ""
 
@@ -64,18 +63,9 @@ static func steps(mode: String) -> Array[Dictionary]:
 				_step("재료의 위치와 방향을 바꾸며 어울리는 배치를 찾아봐. 회전해도 선택한 사각형의 성질은 그대로야.", "변과 각을 살피며 집을 꾸며요."),
 				_step("네가 만든 집은 계속 이어 지을 수 있어. 마음에 드는 모습이 되면 원하는 때에 그림으로 저장해도 좋아.", "나만의 집을 자유롭게 이어 지어요.")
 			]
-		"workshop":
-			return [
-				_step("사각형 캐릭터 그림을 직접 만들어 보자. 골격의 빈칸마다 네가 고른 사각형을 놓으면 돼.", "캐릭터의 골격과 빈칸을 살펴봐요."),
-				_step("도형을 고르고 빈 골격 칸을 눌러 봐. ‘색칠된 예시 사용’을 눌러 완성된 모습을 먼저 살펴봐도 좋아.", "골격에 사각형을 하나 놓아요.", "workshop_place"),
-				_step("색과 크기, 방향을 바꾸어 너만의 친구로 꾸며 봐. 돌려도 선택한 사각형의 종류는 바뀌지 않아.", "친구에게 어울리는 색과 도형을 골라요."),
-				_step("이제 남은 골격 칸도 채워 보자. 예시를 이용해도 괜찮아.", "모든 골격 칸을 채워요.", "workshop_ready"),
-				_step("미리 보기에서 네가 만든 친구를 살펴봐. 고치고 싶은 곳이 있으면 원하는 도형을 골라 바꿔 보자.", "완성한 친구의 모습을 살펴봐요."),
-				_step("완성한 캐릭터 그림은 PNG로 저장할 수 있어. ‘내 캐릭터로 마을 가기’를 누르면 네가 만든 친구가 직접 걷고 뛰어!", "그림을 간직하거나 내 캐릭터로 마을에 가요.")
-			]
 		"world":
 			return [
-				_step("사각형 친구와 마을을 돌아다니며 주민들의 부탁을 들어주자. 먼저 가까운 곳에서 움직이는 방법부터 익혀 보자.", "주변의 길과 발판을 살펴봐요."),
+				_step("사각이와 마을을 돌아다니며 주민들의 부탁을 들어주자. 먼저 가까운 곳에서 움직이는 방법부터 익혀 보자.", "주변의 길과 발판을 살펴봐요."),
 				_step("A·D나 왼쪽·오른쪽 방향키로 걸어 봐. 화면 이동 버튼을 켰다면 그 버튼을 사용해도 돼.", "길을 따라 조금 걸어 보아요.", "world_move"),
 				_step("Space나 위쪽 방향키로 뛰어 보자. 화면의 점프 버튼도 같은 역할을 해.", "점프를 한 번 해 봐요.", "world_jump"),
 				_step("I나 가방 버튼으로 가진 물건을 살펴보자. 확인한 뒤 닫기나 Esc로 돌아오면 돼.", "가방을 열어 보고 닫아요.", "world_inventory"),

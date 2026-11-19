@@ -111,7 +111,7 @@ func _ready() -> void:
 	await TestCombat.run(self)
 	print("[Suite] World, pickups, physics and navigation")
 	await TestWorld.run(self)
-	print("[Suite] App integration, save/load and workshop-world round trip")
+	print("[Suite] App integration, saved village progress and fixed protagonist")
 	await TestApp.run(self)
 	await TestRpg.run(self)
 	print("[Suite] UI contrast, responsive layout and keyboard navigation")

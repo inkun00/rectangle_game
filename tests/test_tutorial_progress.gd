@@ -16,10 +16,9 @@ static func _test_catalog_contract(t: Node) -> void:
 		"masterpiece": ["masterpiece_chosen", "masterpiece_guide", "drawing_add"],
 		"construction": ["construction_accept", "construction_place", "construction_inspect"],
 		"my_house": ["my_house_place", "my_house_view"],
-		"workshop": ["workshop_place", "workshop_ready"],
 		"world": ["world_move", "world_jump", "world_inventory", "world_journal"]
 	}
-	t.assert_eq(Catalog.MODE_IDS.size(), 7, "Tutorials cover every activity and both creative submodes")
+	t.assert_eq(Catalog.MODE_IDS.size(), 6, "Tutorials cover every activity and both creative submodes")
 	for mode: String in Catalog.MODE_IDS:
 		t.assert_false(Catalog.title(mode).is_empty(), "Every mode has a readable tutorial title")
 		var entries: Array[Dictionary] = Catalog.steps(mode)
@@ -38,6 +37,7 @@ static func _test_catalog_contract(t: Node) -> void:
 		t.assert_eq(actions, expected_events[mode], "Action gates use only the supported events in order")
 		entries[0]["text"] = "changed by a caller"
 		t.assert_false(Catalog.steps(mode)[0]["text"] == "changed by a caller", "One tutorial view cannot mutate the shared catalog")
+	t.assert_true(Catalog.steps("workshop").is_empty(), "The retired workshop has no replayable tutorial")
 	t.assert_true(Catalog.steps("unknown").is_empty(), "Unknown modes have no tutorial content")
 	t.assert_eq(Catalog.title("unknown"), "", "Unknown modes have no misleading title")
 
@@ -75,7 +75,7 @@ static func _test_statuses_and_validation(t: Node) -> void:
 		t.assert_false(progress.restore(invalid), "Malformed tutorial data is rejected")
 		t.assert_eq(progress.serialize(), before, "Rejected tutorial data leaves all live statuses untouched")
 		t.assert_eq(emissions[0], 2, "Rejected restore emits no change")
-	t.assert_true(progress.restore({"version": 1.0, "statuses": {"drawing": "skipped"}}), "JSON's numeric version restores after complete validation")
+	t.assert_true(progress.restore({"version": 1.0, "statuses": {"drawing": "skipped", "workshop": "completed"}}), "Older preferences with a completed workshop still restore the current tutorials")
 	t.assert_eq(progress.statuses, {"drawing": "skipped"}, "Valid restore replaces rather than merges the anonymous preferences")
 	t.assert_true(progress.mark("drawing", "completed"), "Replaying a skipped tutorial can mark it completed")
 	t.assert_eq(progress.statuses["drawing"], "completed", "Replay updates only its own mode")

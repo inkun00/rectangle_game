@@ -8,7 +8,6 @@ static func run(t: Node) -> void:
 	app.testing = true
 	t.add_child(app)
 	await t.get_tree().process_frame
-	app.document.fill_example()
 	app._enter_world()
 	var player: WorldPlayer = app.world.player
 	t.assert_true(app._in_world, "RPG test enters actual main application world")
@@ -133,7 +132,7 @@ static func run(t: Node) -> void:
 	app._close_modal()
 	# Unique test path: no default user save is read or written by this suite.
 	var save_path: String = "res://.godot/rpg_integration_%d.json" % Time.get_ticks_usec()
-	t.assert_eq(WorldSaveStore.save_game(app.document.serialize(), app.journal.serialize(), app.world.serialize(), save_path, app.adventure.serialize()), OK, "Combined RPG save writes optional AdventureState")
+	t.assert_eq(WorldSaveStore.save_game(CharacterDocument.new().serialize(), app.journal.serialize(), app.world.serialize(), save_path, app.adventure.serialize()), OK, "Combined RPG save writes optional AdventureState")
 	var saved: Dictionary = WorldSaveStore.load_game(save_path)
 	t.assert_true(saved.has("adventure"), "Combined save includes persistent RPG data")
 	var restored_adventure: AdventureState = AdventureState.new()
@@ -155,8 +154,6 @@ static func _test_new_region_collection_and_story(t: Node) -> void:
 	app.testing = true
 	t.add_child(app)
 	await t.get_tree().process_frame
-	app.document.set_template("cat")
-	app.document.fill_example()
 	app._enter_world()
 	var new_quests: Array[Dictionary] = []
 	var new_regions: Dictionary = {}
@@ -223,18 +220,14 @@ static func _test_new_region_collection_and_story(t: Node) -> void:
 		if finished == 0:
 			# Recreate the actual app with pre-acceptance inventory to catch the reported lost-item flow.
 			var save_path: String = "res://.godot/quad_expansion_%d.json" % Time.get_ticks_usec()
-			t.assert_eq(WorldSaveStore.save_game(app.document.serialize(), app.journal.serialize(), app.world.serialize(), save_path, app.adventure.serialize()), OK, "Expansion pre-acceptance pickup save succeeds")
-			var saved: Dictionary = WorldSaveStore.load_game(save_path)
+			t.assert_eq(WorldSaveStore.save_game(CharacterDocument.new().serialize(), app.journal.serialize(), app.world.serialize(), save_path, app.adventure.serialize()), OK, "Expansion pre-acceptance pickup save succeeds")
 			app.free()
 			await t.get_tree().process_frame
 			app = AppScene.instantiate()
 			app.testing = true
 			t.add_child(app)
 			await t.get_tree().process_frame
-			t.assert_true(app.document.restore(saved.editor), "Expansion save restores authored character")
-			t.assert_true(app.journal.restore(saved.journal), "Expansion save restores inventory before quest acceptance")
-			t.assert_true(app.adventure.restore(saved.adventure), "Expansion save restores discovered region")
-			app._world_data = saved.world.duplicate(true)
+			t.assert_true(app._load(false, save_path), "Normal load restores pre-acceptance inventory and discovered regions")
 			app._enter_world()
 			t.assert_eq(int(app.journal.inventory.get(target, 0)), int(quest.target_count), "Pre-acceptance inventory survives full main recreation")
 			t.assert_false(app.journal.accepted.has(quest_id), "Loading inventory does not silently accept quest")

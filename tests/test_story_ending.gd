@@ -22,7 +22,7 @@ static func run(t: Node) -> void:
 	for ending_branch: String in ["earth", "space"]:
 		var ending: StoryEnding = Ending.new()
 		var performance: int = 36 if ending_branch == "space" else 12
-		t.assert_true(ending.configure(ending_branch, png, "내가 완성한 작품", "https://padlet.com.attacker.example/post", {}, performance), "Both endings accept the finished artwork snapshot")
+		t.assert_true(ending.configure(ending_branch, png, "내가 완성한 작품", "https://padlet.com.attacker.example/post", performance), "Both endings accept the finished artwork snapshot")
 		t.add_child(ending)
 		await t.get_tree().process_frame
 		t.assert_eq(ending._stage.artwork.get_size(), Vector2(271, 173), "The visible artwork is cropped to fill its cinematic shot")

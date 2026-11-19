@@ -14,7 +14,7 @@ static func run(t: Node) -> void:
 			t.assert_true(texture.get_width() > 0 and texture.get_height() > 0, "The generated artwork has usable dimensions: " + filename)
 			t.assert_true(Art.texture_source(texture).resource_path.begins_with("res://assets/generated/"), "The image comes from a generated source: " + filename)
 	var paper: Texture2D = GameArt.drafting_paper()
-	t.assert_not_null(paper, "Drawing and workshop use the generated quiet paper")
+	t.assert_not_null(paper, "The drawing studio uses the generated quiet paper")
 	if paper != null:
 		t.assert_true(paper.resource_path.ends_with("assets/generated/focused-ui/paper-v1.webp"), "Drawing surfaces use the border-free generated paper source")
 		t.assert_ge(paper.get_width(), 1024, "Quiet paper retains enough detail for a full work surface")

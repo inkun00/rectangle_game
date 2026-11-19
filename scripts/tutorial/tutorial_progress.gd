@@ -28,6 +28,8 @@ func serialize() -> Dictionary:
 func restore(data: Dictionary) -> bool:
 	if not _valid_data(data): return false
 	var restored: Dictionary = (data["statuses"] as Dictionary).duplicate(true)
+	# Older v1 preferences can contain the retired character workshop.
+	restored.erase("workshop")
 	if statuses != restored:
 		statuses = restored
 		changed.emit()
@@ -88,7 +90,7 @@ static func _valid_data(data: Dictionary) -> bool:
 	var stored: Variant = data["statuses"]
 	if not stored is Dictionary: return false
 	for mode: Variant in stored:
-		if not mode is String or not Catalog.MODE_IDS.has(mode): return false
+		if not mode is String or (mode != "workshop" and not Catalog.MODE_IDS.has(mode)): return false
 		var status: Variant = stored[mode]
 		if not status is String or not VALID_STATUSES.has(status): return false
 	return true

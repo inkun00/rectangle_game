@@ -1,5 +1,15 @@
 # ImageGen 에셋 생성 기록
 
+## 사각이의 모험 동작 원화 · 2026-11-20
+
+마을과 두 엔딩은 내장 ImageGen으로 새로 그린 [사각이 동작 시트](sagaki/sagaki-poses.webp)를 함께 사용합니다. 생성 시 원본 오프닝 인물 `assets/generated/opening-v1/alien.png`(Git `5d8bc73~1`)와 현재 배포 영상 `assets/video/quadrilateral-opening.ogv`의 17.5초 장면을 참조했습니다. 민트색 머리, 남색 눈과 장화, 산호색 목도리, 크림색 옷과 금색 표식을 기준으로 삼았습니다.
+
+1536×1024 투명 생성 원본의 여섯 동작에 같은 배율을 적용하고 발바닥을 맞춰 768×512 무손실 WebP에 담았습니다. 위쪽 왼쪽부터 서기·걷기 두 동작, 아래쪽은 점프·공격·피격입니다. 원화는 오른쪽을 보며 게임에서 진행 방향에 맞춰 반전합니다.
+
+생성에 사용한 프롬프트입니다.
+
+> Create one production-ready transparent sprite atlas for the playable protagonist 사각이 in a children's 2D side-scrolling game. Use the supplied original opening-film character art as the strict identity reference, especially its upper-left explorer. Re-illustrate this SAME little character in a gentle right-facing three-quarter side view for gameplay. Preserve the very broad mint/turquoise rectangular head (wider than tall, roughly 42% of character height), extremely simple face with two widely spaced solid dark navy square eyes and tiny horizontal rectangular mouth, cream trapezoidal paper-cut space tunic, single gold square badge, flat coral scarf with two quadrilateral tails flowing behind to the left, mint block hands and shins, navy cuffs and chunky rectangular navy boots. Handmade finely textured folded matte paper miniature under soft warm light, flat readable silhouettes. No antennae, hair, nose, ears, helmet, backpack, weapon, props or outlines. No ground shadows, labels, lettering, frame borders or background. True transparent alpha. Wide 3:2 canvas: exactly THREE columns by TWO rows, SIX isolated full-body poses at the equal cell centers with transparent gutters between, consistent head size and body proportions, feet contained, no part touching another cell. Every pose looks/moves toward the RIGHT. In reading order: (1) neutral standing quietly, (2) walking long contact stride, near arm forward and near boot back, (3) opposite long contact stride near arm back and near boot forward, (4) happy midair jump, knees tucked and arms lifted, (5) playful forward rightward punch, near arm fully extended at chest height, other hand tucked and feet braced, (6) surprised recoil tilted back with bent knees and arms drawn toward chest. Every pose is recognizably the same actor and costume with the same paper texture as the opening film. Keep each full body centered in its own square cell with a margin on every side. Do not reproduce the reference atlas or its painter/builder costumes.
+
 이전 사각성 귀환 우주선의 36종 스프라이트는 [우주선 부품 제작 기록](ship-parts-v2/GENERATION.md)에 정리했습니다. 현재 제작소는 완성형 외관을 바탕으로 게임에서 사각형 패널을 조립합니다. 이전 스프라이트 원본은 게임 패키지에서 제외했습니다.
 
 2026-10-29 초등학생용 건축게임 UI를 위해 새로 생성한 패널·버튼·아이콘·재료·의뢰인·5단계 배지 14종은 [건축게임 제작 기록](construction-game/GENERATION.md)과 해당 폴더의 `prompts.json`에 정리했습니다. [공식 게임 참고 조사](../../docs/CONSTRUCTION_GAME_REFERENCES.md)를 바탕으로 제작했습니다.

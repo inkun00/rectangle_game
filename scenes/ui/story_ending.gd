@@ -25,7 +25,6 @@ var paused: bool = false
 var finished: bool = false
 var _artwork: Texture2D
 var _post_url: String = ""
-var _hero: Dictionary = {}
 var _ship_performance: int = 12
 var _ship_ports: Array[Dictionary] = []
 var _stage: EndingStage
@@ -39,7 +38,7 @@ var _padlet_button: Button
 var _home_button: Button
 
 
-func configure(ending_branch: String, png: PackedByteArray, title: String = "", post_url: String = "", protagonist: Dictionary = {}, ship_performance: int = 12, ship_ports: Array = []) -> bool:
+func configure(ending_branch: String, png: PackedByteArray, title: String = "", post_url: String = "", ship_performance: int = 12, ship_ports: Array = []) -> bool:
 	if is_inside_tree() or ending_branch not in ["earth", "space"] or not _valid_png_header(png): return false
 	var image: Image = Image.new()
 	if image.load_png_from_buffer(png) != OK or image.get_size() != PNG_SIZE: return false
@@ -50,7 +49,6 @@ func configure(ending_branch: String, png: PackedByteArray, title: String = "", 
 	_artwork = ImageTexture.create_from_image(image.get_region(visible_bounds))
 	branch = ending_branch
 	artwork_title = title.strip_edges()
-	_hero = protagonist.duplicate(true) if not protagonist.is_empty() else CharacterTemplates.protagonist()
 	_ship_performance = clampi(ship_performance, 12, 36)
 	if branch == "space" and ArtPublicationStore.valid_ship_ports(ship_ports): _ship_ports.assign(ship_ports.duplicate(true))
 	set_post_url(post_url)
@@ -82,7 +80,6 @@ func _ready() -> void:
 	_stage.artwork = _artwork
 	_stage.ship_power = float(_ship_performance - 12) / 24.0
 	_stage.ship_ports.assign(_ship_ports)
-	_stage.configure_hero(_hero)
 	_stage.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_stage.custom_minimum_size.y = 180.0
 	column.add_child(_stage)
@@ -220,6 +217,7 @@ static func _valid_png_header(png: PackedByteArray) -> bool:
 
 
 class EndingStage extends Control:
+	const HeroArt = preload("res://scripts/core/sagaki_art.gd")
 	var branch: String = ""
 	var elapsed: float = 0.0
 	var artwork: Texture2D
@@ -228,8 +226,6 @@ class EndingStage extends Control:
 	var _village: Texture2D
 	var _planet: Texture2D
 	var _neighbors: Array[Texture2D] = []
-	var _hero_parts: Array[Dictionary] = []
-	var _hero_bounds: Rect2 = Rect2()
 
 
 	func _ready() -> void:
@@ -240,31 +236,6 @@ class EndingStage extends Control:
 		_neighbors.assign([GameArt.npc(0), GameArt.npc(1), GameArt.npc(3)])
 		if branch == "space" and ResourceLoader.exists(PLANET_PATH):
 			_planet = load(PLANET_PATH) as Texture2D
-
-
-	func configure_hero(data: Dictionary) -> void:
-		var first: bool = true
-		var head: Rect2 = Rect2()
-		for item: Dictionary in data.get("parts", []):
-			var vertices: PackedVector2Array = item.vertices
-			var points: PackedVector2Array = PackedVector2Array()
-			for vertex: Vector2 in vertices:
-				var point: Vector2 = vertex + Vector2(item.position)
-				points.append(point)
-				_hero_bounds = Rect2(point, Vector2.ZERO) if first else _hero_bounds.expand(point)
-				first = false
-				if str(item.id) == "head": head = Rect2(point, Vector2.ZERO) if points.size() == 1 else head.expand(point)
-			_hero_parts.append({"points": points, "color": Color(item.color)})
-		if head.has_area() and data.get("template_id") == "robot":
-			var face: Color = Color("213a49")
-			for x: float in [0.29, 0.62]:
-				_add_hero_feature(Rect2(head.position + head.size * Vector2(x, 0.40), head.size * Vector2(0.09, 0.12)), face)
-			_add_hero_feature(Rect2(head.position + head.size * Vector2(0.44, 0.65), head.size * Vector2(0.19, 0.055)), face)
-
-
-	func _add_hero_feature(rect: Rect2, tint: Color) -> void:
-		var points: PackedVector2Array = PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y), rect.end, Vector2(rect.position.x, rect.end.y)])
-		_hero_parts.append({"points": points, "color": tint})
 
 
 	func _draw() -> void:
@@ -283,7 +254,9 @@ class EndingStage extends Control:
 		_draw_artwork(house_center, house_size, 0.0)
 		var walk: float = smoothstep(0.2, 6.7, elapsed)
 		var step: float = 1.0 - smoothstep(5.8, 7.0, elapsed)
-		_draw_hero(Vector2(size.x * lerpf(0.06, 0.31, walk), ground - absf(sin(elapsed * 11.0)) * 4.0 * step), size.y * 0.25)
+		var hero_feet: Vector2 = Vector2(size.x * lerpf(0.06, 0.31, walk), ground - absf(sin(elapsed * 11.0)) * 4.0 * step)
+		var hero_pose: int = HeroArt.walk_frame(elapsed * 11.0) if step > 0.05 else HeroArt.IDLE
+		HeroArt.draw_pose(self, hero_feet, size.y * 0.25, hero_pose)
 		_draw_neighbor(0, Vector2(size.x * lerpf(0.11, 0.20, walk), ground + 9.0), size.y * 0.18, false)
 		_draw_neighbor(1, Vector2(size.x * lerpf(0.97, 0.82, walk), ground + 4.0), size.y * 0.20, true)
 		_draw_neighbor(2, Vector2(size.x * lerpf(1.05, 0.92, walk), ground + 13.0), size.y * 0.17, true)
@@ -301,7 +274,9 @@ class EndingStage extends Control:
 			var ground: float = size.y * (0.81 + lift * 0.55)
 			_draw_ground(ground, Color("284151"), Color("9caebe"))
 			if elapsed < 3.6:
-				_draw_hero(Vector2(size.x * lerpf(0.21, 0.40, smoothstep(0.2, 3.1, elapsed)), ground - absf(sin(elapsed * 10.0)) * 4.0), size.y * 0.20)
+				var hero_feet: Vector2 = Vector2(size.x * lerpf(0.21, 0.40, smoothstep(0.2, 3.1, elapsed)), ground)
+				var hero_pose: int = HeroArt.walk_frame(elapsed * 10.0) if elapsed < 3.1 else HeroArt.IDLE
+				HeroArt.draw_pose(self, hero_feet, size.y * 0.20, hero_pose)
 				_draw_neighbor(0, Vector2(size.x * 0.16, ground), size.y * 0.18, false)
 				_draw_neighbor(1, Vector2(size.x * 0.10, ground + 9.0), size.y * 0.16, false)
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.025, 0.061, 0.13, sky))
@@ -338,19 +313,6 @@ class EndingStage extends Control:
 		draw_set_transform(center, angle)
 		draw_texture_rect(artwork, Rect2(-extent * 0.5, extent), false)
 		draw_set_transform(Vector2.ZERO)
-
-
-	func _draw_hero(feet: Vector2, height: float) -> void:
-		if not _hero_bounds.has_area(): return
-		var origin: Vector2 = Vector2(_hero_bounds.get_center().x, _hero_bounds.end.y)
-		var factor: float = height / _hero_bounds.size.y
-		for item: Dictionary in _hero_parts:
-			var points: PackedVector2Array = PackedVector2Array()
-			for point: Vector2 in item.points: points.append(feet + (point - origin) * factor)
-			var tint: Color = item.color
-			draw_colored_polygon(points, tint)
-			points.append(points[0])
-			draw_polyline(points, tint.darkened(0.32), 1.2, true)
 
 
 	func _draw_neighbor(index: int, feet: Vector2, height: float, face_left: bool) -> void:

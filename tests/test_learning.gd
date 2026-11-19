@@ -399,7 +399,6 @@ static func _test_touch_and_peaceful(t: Node) -> void:
 	app.learning_progress.touch_controls = true
 	app.learning_progress.peaceful = true
 	app._learning_changed()
-	app.document.fill_example()
 	app._enter_world()
 	for frame: int in range(8): await t.get_tree().process_frame
 	app.world.set_physics_process(false)

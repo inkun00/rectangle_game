@@ -4,7 +4,6 @@ extends RefCounted
 const Document = preload("res://scripts/core/character_document.gd")
 const Templates = preload("res://scripts/core/character_templates.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
-const Workshop = preload("res://scenes/workshop/character_workshop.gd")
 
 static func run(t) -> void:
 	var document: Document = Document.new()
@@ -87,7 +86,6 @@ static func run(t) -> void:
 	t.assert_eq(document.add_shape("triangle", Vector2.ZERO, Color.WHITE), -1, "Unsupported free shape rejected")
 	t.assert_eq(document.add_shape("square", Vector2(INF, 0), Color.WHITE), -1, "Nonfinite position rejected")
 	_test_right_trapezoid_parts(t)
-	_test_canvas_input(t)
 	_test_repair_after_edit(t)
 
 static func _test_repair_after_edit(t: Node) -> void:
@@ -103,19 +101,8 @@ static func _test_repair_after_edit(t: Node) -> void:
 	var restored: Document = Document.new()
 	t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(displaced))), "A displaced part can be repaired after reopening its save")
 	var reopened: Dictionary = restored.serialize()
-	var canvas: Workshop = Workshop.new()
-	canvas.document = restored
-	canvas.size = Vector2(700, 650)
-	canvas.select_kind("trapezoid")
-	var click: InputEventMouseButton = InputEventMouseButton.new()
-	click.button_index = MOUSE_BUTTON_LEFT
-	click.pressed = true
-	# The chest covers this point, but the missing body's outline is drawn above it.
-	click.position = canvas.character_to_screen(original_body.position)
-	canvas._gui_input(click)
-	click.pressed = false
-	canvas._gui_input(click)
-	t.assert_eq(restored.completion().filled, 2, "Clicking a missing outline refits its part even beneath a painted detail")
+	t.assert_true(restored.fill_slot("body", "trapezoid", Color.CORAL), "A displaced part in a legacy document can be refitted")
+	t.assert_eq(restored.completion().filled, 2, "Refitting completes the saved part")
 	var fitted: Dictionary = restored.get_selected()
 	t.assert_eq(fitted.id, original_body.id, "Refitting reuses the authored part")
 	t.assert_eq(fitted.color, Color.CORAL, "Refitting retains the authored paint")
@@ -133,7 +120,6 @@ static func _test_repair_after_edit(t: Node) -> void:
 	t.assert_eq(restored.serialize(), reopened, "One undo reverses the whole example repair")
 	restored.redo()
 	t.assert_eq(restored.serialize(), ready, "Redo restores the playable character and its decorations")
-	canvas.free()
 
 static func _test_right_trapezoid_parts(t: Node) -> void:
 	for template: Dictionary in Templates.all_templates():
@@ -171,48 +157,3 @@ static func _test_right_trapezoid_parts(t: Node) -> void:
 	t.assert_eq(free_document.add_shape("trapezoid", Vector2.ZERO, Color.RED, "invalid"), -1, "Invalid subtype cannot add empty character geometry")
 	t.assert_false(free_document.fill_slot("body", "trapezoid", Color.RED, "invalid"), "Invalid subtype cannot fill a skeleton")
 	t.assert_eq(free_document.serialize(), before, "Rejected subtype leaves artwork and selection intact")
-
-static func _test_canvas_input(t) -> void:
-	var canvas: Workshop = Workshop.new()
-	canvas.size = Vector2(700, 650)
-	canvas.document = Document.new()
-	canvas.select_kind("square")
-	# Canvas mouse coordinates must map correctly through responsive centering and scale.
-	var antenna: Vector2 = Vector2(0, -153)
-	var press: InputEventMouseButton = InputEventMouseButton.new()
-	press.button_index = MOUSE_BUTTON_LEFT
-	press.pressed = true
-	press.position = canvas.character_to_screen(antenna)
-	canvas._gui_input(press)
-	t.assert_eq(canvas.document.shapes.size(), 1, "Pointer click fills matching skeleton slot")
-	t.assert_eq(canvas.document.shapes[0].slot_id, "antenna", "Pointer coordinate conversion hits intended slot")
-	var release: InputEventMouseButton = InputEventMouseButton.new()
-	release.button_index = MOUSE_BUTTON_LEFT
-	release.pressed = false
-	release.position = press.position
-	canvas._gui_input(release)
-	t.assert_eq(canvas.document.shapes.size(), 1, "Release after slot fill does not create an extra shape")
-	# Press and drag a painted part: only release commits the command.
-	canvas._gui_input(press)
-	var history_before: int = canvas.document.command_manager.undo_stack.size()
-	var motion: InputEventMouseMotion = InputEventMouseMotion.new()
-	motion.position = canvas.character_to_screen(antenna + Vector2(90, 0))
-	canvas._gui_input(motion)
-	t.assert_eq(canvas.document.command_manager.undo_stack.size(), history_before, "Drag preview does not flood undo history")
-	release.position = motion.position
-	canvas._gui_input(release)
-	t.assert_eq(canvas.document.command_manager.undo_stack.size(), history_before + 1, "One drag creates exactly one command")
-	t.assert_eq(canvas.document.get_selected().position, Vector2(90, -152), "Release applies snapped translation")
-	canvas.document.undo()
-	t.assert_eq(canvas.document.get_selected().position, antenna, "Undo restores the entire pointer drag")
-	# Drawing in free space creates only an approved shape; wrong palette choice cannot fill head.
-	press.position = canvas.character_to_screen(Vector2(210, 30))
-	canvas._gui_input(press)
-	release.position = press.position
-	canvas._gui_input(release)
-	t.assert_eq(canvas.document.shapes.size(), 2, "Clicking free space adds a quadrilateral decoration")
-	t.assert_true(Math.matches_kind(canvas.document.get_selected().vertices, "square"), "Decoration obeys palette family")
-	press.position = canvas.character_to_screen(Vector2(0, -106))
-	canvas._gui_input(press)
-	t.assert_eq(canvas.document.shapes.size(), 2, "Mismatched palette click does not fill rectangle head")
-	canvas.free()

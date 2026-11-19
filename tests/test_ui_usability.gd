@@ -28,8 +28,6 @@ static func run(t: Node) -> void:
 	# This suite exercises UI state; audio playback has its own suite.
 	app._sound.sound_enabled = false
 	await _settle(t)
-	app._show_workshop()
-	app.document.fill_example()
 	app._enter_world()
 	app.world.set_controls_enabled(false)
 	await _settle(t)
@@ -53,11 +51,9 @@ static func run(t: Node) -> void:
 
 
 static func _test_window_scaling_and_focus(t: Node, app: QuadrilateralApp, window: Window) -> void:
-	var document_before: Dictionary = app.document.serialize().duplicate(true)
 	var journal_before: Dictionary = app.journal.serialize().duplicate(true)
 	var adventure_before: Dictionary = app.adventure.serialize().duplicate(true)
 	var world_before: Dictionary = app.world.serialize().duplicate(true)
-	var player_parts_before: Array[Dictionary] = app.world.player._parts.duplicate(true)
 	var focus_origin: Button = QuadTheme.button("테스트 시작 위치", Callable())
 	focus_origin.position = Vector2(12, 12)
 	app._ui.add_child(focus_origin)
@@ -123,8 +119,7 @@ static func _test_window_scaling_and_focus(t: Node, app: QuadrilateralApp, windo
 	await _settle(t)
 	t.assert_true(app._modal_overlay == null, "Escape closes the active modal through real keyboard input")
 	t.assert_eq(app.get_viewport().gui_get_focus_owner(), focus_origin, "Escape restores the prior keyboard focus")
-	t.assert_eq(app.document.serialize(), document_before, "UI resizing and menu navigation preserve editable four-vertex artwork")
-	t.assert_eq(app.world.player._parts, player_parts_before, "UI scaling does not replace or distort the player's artwork")
+	t.assert_true(app._level_label.text.contains("사각이"), "The resized HUD continues to identify the fixed hero")
 	t.assert_eq(app.world.serialize(), world_before, "UI resizing preserves world position, pickups, and checkpoint")
 	t.assert_eq(app.journal.serialize(), journal_before, "UI navigation does not alter quest progress or coins")
 	t.assert_eq(app.adventure.serialize(), adventure_before, "UI navigation does not alter HP, XP, or discoveries")

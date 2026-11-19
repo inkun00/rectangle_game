@@ -7,7 +7,6 @@ static func run(t: Node) -> void:
 	app.testing = true
 	t.add_child(app)
 	app._sound.sound_enabled = false
-	app.document.fill_example()
 	app._enter_world()
 	for frame: int in range(4): await t.get_tree().process_frame
 	var artwork: WorldArtwork = app.world._artwork
@@ -26,7 +25,6 @@ static func run(t: Node) -> void:
 	app._show_learning("square")
 	for frame: int in range(3): await t.get_tree().process_frame
 	t.assert_false(artwork._backdrop_layer.visible, "World background does not leak into the learning activity")
-	app._show_workshop()
 	app._enter_world()
 	for frame: int in range(3): await t.get_tree().process_frame
 	t.assert_true(app.world._artwork._backdrop_layer.visible, "Returning from an activity restores the world background")

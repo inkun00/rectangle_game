@@ -39,7 +39,6 @@ func setup(owner_app: QuadrilateralApp) -> void:
 	app._learning_screen.canvas.changed.connect(_learning_changed)
 	app._learning_screen._primary.pressed.connect(func(): notify("learning_check"))
 	app._learning_screen.tutorial_requested.connect(func(): app._replay_tutorial("learning"))
-	app.document.changed.connect(_workshop_changed)
 	overlay.dismiss()
 
 
@@ -77,7 +76,6 @@ func current_context() -> String:
 		return "masterpiece" if personal and ((active and mode == "masterpiece") or app._drawing_screen.document.drawing_mode == "masterpiece") else "drawing"
 	if is_instance_valid(app._construction_screen) and app._construction_screen.visible:
 		return "my_house" if app._construction_screen.state.my_house_mode else "construction"
-	if app._workshop_screen.visible: return "workshop"
 	if app._in_world: return "world"
 	return ""
 
@@ -169,7 +167,6 @@ func _present() -> void:
 		_walk_origin = app.world.player.position.x
 		_release_pending = Input.is_action_pressed("ui_accept")
 	if blocks_gameplay():
-		app.workshop.cancel_gesture()
 		if is_instance_valid(app._drawing_screen): app._drawing_screen.cancel_gesture()
 		if is_instance_valid(app._construction_screen): app._construction_screen.canvas.cancel_gesture()
 		app._learning_screen.canvas._dragging = false
@@ -186,13 +183,11 @@ func _already_satisfied(event: String) -> bool:
 		"learning_measure": return app._learning_screen.canvas.measured
 		"learning_adjust", "learning_check": return app._learning_screen.phase > 0
 		"masterpiece_chosen": return not app._drawing_screen.document.masterpiece_id.is_empty() and app._drawing_screen.document.drawing_mode == "masterpiece"
-		"workshop_place": return int(app.document.completion().filled) > 0
-		"workshop_ready": return bool(app.document.completion().ready)
 		"construction_accept": return app._construction_screen.state.phase != "briefing"
 		"construction_place": return app._construction_screen.state.phase == "settled" or not app._construction_screen.state.document.parts.is_empty()
 		"construction_inspect": return app._construction_screen.state.phase == "settled"
 		"my_house_place": return not app._construction_screen.state.my_house_document.parts.is_empty()
-		"drawing_add": return app._drawing_screen.document.shapes.size() >= CharacterDocument.MAX_SHAPES
+		"drawing_add": return app._drawing_screen.document.shapes.size() >= DrawingDocument.MAX_SHAPES
 	return false
 
 
@@ -297,12 +292,6 @@ func _learning_changed() -> void:
 	if adjusted: notify("learning_adjust")
 
 
-func _workshop_changed() -> void:
-	if not app._workshop_screen.visible: return
-	if int(app.document.completion().filled) > 0: notify("workshop_place")
-	if bool(app.document.completion().ready): notify("workshop_ready")
-
-
 func _construction_changed() -> void:
 	var studio: ConstructionStudio = app._construction_screen
 	var changed_mode: bool = _construction_mode != studio.state.my_house_mode
@@ -334,8 +323,6 @@ func _target(id: String) -> Control:
 		"construction_inspect": return app._construction_screen._inspect
 		"my_house_place": return app._construction_screen._palette
 		"my_house_view": return app._construction_screen._material_view
-		"workshop_place": return app.workshop
-		"workshop_ready": return app._workshop_helpers
 		"world_move", "world_jump": return app._touch_row if app._touch_row.is_visible_in_tree() else app._hud_controls
 		"world_inventory": return _find_button(app._hud_actions, "가방", true)
 		"world_journal": return app._quest_open_button

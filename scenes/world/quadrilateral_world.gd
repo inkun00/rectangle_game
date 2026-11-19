@@ -57,11 +57,10 @@ func _ready() -> void:
 		camera.reset_smoothing()
 
 
-func setup(character: Dictionary, quest_journal: QuestJournal) -> void:
+func setup(quest_journal: QuestJournal) -> void:
 	journal = quest_journal
 	if not _initialized:
 		_initialize_world()
-	player.set_character(character)
 	if not journal.changed.is_connected(_on_journal_changed):
 		journal.changed.connect(_on_journal_changed)
 	if not _pending_restore.is_empty():
@@ -127,7 +126,7 @@ func _initialize_world() -> void:
 		_artwork.add_enemy(enemy)
 	player = PlayerScript.new()
 	player.set_world_bounds(WORLD_WIDTH)
-	player.name = "DrawnCharacter"
+	player.name = "Sagaki"
 	player.position = Vector2(280.0, GROUND_Y)
 	player.z_index = 5
 	add_child(player)
@@ -357,11 +356,6 @@ func set_controls_enabled(enabled: bool) -> void:
 		camera.enabled = true
 		if is_inside_tree():
 			camera.make_current()
-
-
-func update_character(character: Dictionary) -> void:
-	if is_instance_valid(player):
-		player.set_character(character)
 
 
 func get_current_region() -> String:

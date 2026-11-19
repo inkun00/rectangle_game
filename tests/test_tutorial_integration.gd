@@ -33,7 +33,6 @@ static func run(t: Node) -> void:
 	_unlock_personal_workspaces(t, app)
 	await _masterpiece(t, app)
 	await _learning(t, app)
-	await _workshop(t, app)
 	await _world(t, app)
 	await _construction(t, app)
 	await _my_house(t, app)
@@ -92,7 +91,7 @@ static func _drawing(t: Node, app: QuadrilateralApp) -> void:
 	t.assert_eq(doc.serialize(), artwork, "Skipping a replay preserves the current drawing")
 	t.assert_false(app._tutorial.progress.should_offer("drawing"), "Skipped or completed guidance is not offered repeatedly")
 	app._tutorial.start("drawing")
-	app._show_workshop()
+	app._show_home()
 	t.assert_false(app._tutorial.active, "Changing modes cancels the old tutorial")
 	t.assert_eq(doc.serialize(), artwork, "Navigating away from a tutorial preserves the independent drawing")
 
@@ -233,36 +232,10 @@ static func _learning(t: Node, app: QuadrilateralApp) -> void:
 	app._tutorial.skip()
 
 
-static func _workshop(t: Node, app: QuadrilateralApp) -> void:
-	app._show_workshop()
-	t.assert_false(app._tutorial.active, "Workshop entry remains direct in test mode")
-	app._tutorial.start("workshop")
-	app._tutorial.advance()
-	_assert_event(t, app, "workshop_place", "Workshop tutorial asks for an actual filled skeleton slot")
-	var slot: Dictionary = CharacterTemplates.get_template(app.document.template_id).parts[0]
-	t.assert_true(app.document.fill_slot(str(slot.id), str(slot.kind), Color("77e2dc")), "The player's matching quadrilateral fills a real slot")
-	await _settle(t)
-	t.assert_true(app._tutorial.blocks_gameplay(), "Filling one skeleton slot continues the guide dialogue")
-	app._tutorial.advance()
-	_assert_event(t, app, "workshop_ready", "Workshop tour waits for every required skeleton slot")
-	app.document.fill_example()
-	await _settle(t)
-	t.assert_true(app._tutorial.blocks_gameplay(), "A real completed character satisfies readiness")
-	_finish_dialogue(app._tutorial)
-	var character: Dictionary = app.document.serialize()
-	app._tutorial.start("workshop")
-	_key(app, KEY_DELETE)
-	t.assert_eq(app.document.serialize(), character, "Workshop conversation blocks the main editor's delete shortcut")
-	app._tutorial.advance()
-	t.assert_true(app._tutorial.index > 1 and app._tutorial.blocks_gameplay(), "Replaying with a complete character recognizes an already filled slot")
-	app._tutorial.skip()
-	t.assert_eq(app.document.serialize(), character, "Workshop skip does not replace the student's character")
-
-
 static func _world(t: Node, app: QuadrilateralApp) -> void:
 	app._enter_world()
 	await _settle(t)
-	t.assert_true(app._in_world, "The completed constructed character enters the real world")
+	t.assert_true(app._in_world, "The story protagonist enters the real world")
 	app._tutorial.start("world")
 	t.assert_false(app.world.controls_enabled, "World introduction pauses movement and combat")
 	t.assert_true(app.world.peaceful, "World tutorial protects the learner during practice")

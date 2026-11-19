@@ -3,7 +3,6 @@ extends Control
 
 signal drawing_requested
 signal adventure_requested
-signal workshop_requested
 signal construction_requested
 signal notebook_requested
 signal tutorials_requested
@@ -77,7 +76,6 @@ func _ready() -> void:
 	_column.add_child(footer)
 	footer.add_child(_label("그림·집·마을 심부름은 각각 자동 저장돼요.", 15, Art.INK))
 	footer.add_child(_label("초등 수학 4-2 · 사각형", 15, Art.ACCENT))
-	footer.add_child(_button("캐릭터 공방", func(): workshop_requested.emit(), false))
 	footer.add_child(_button("모드 안내", func(): tutorials_requested.emit(), false))
 	footer.add_child(_button("오프닝 다시 보기", func(): opening_requested.emit(), false))
 	resized.connect(_responsive)

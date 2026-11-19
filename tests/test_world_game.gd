@@ -4,7 +4,6 @@ extends RefCounted
 const World = preload("res://scenes/world/quadrilateral_world.gd")
 const Journal = preload("res://scripts/world/quest_journal.gd")
 const Catalog = preload("res://scripts/world/quest_catalog.gd")
-const Templates = preload("res://scripts/core/character_templates.gd")
 const Adventure = preload("res://scripts/world/adventure_state.gd")
 
 
@@ -12,7 +11,7 @@ static func run(runner: Node) -> void:
 	var journal: QuestJournal = Journal.new()
 	var world: QuadrilateralWorld = World.new()
 	runner.add_child(world)
-	world.setup(Templates.get_template("robot"), journal)
+	world.setup(journal)
 	runner.assert_eq(world.npcs.size(), 16, "Every quest has an NPC in the world")
 	runner.assert_eq(world.collectibles.size(), 41, "All 41 objectives exist as unique pickups")
 	runner.assert_eq(world.navigation_points().size(), 16, "Map has all NPC destinations")
@@ -62,7 +61,7 @@ static func run(runner: Node) -> void:
 	for frame: int in range(12):
 		await runner.get_tree().physics_frame
 	_press(KEY_D, false)
-	runner.assert_gt(world.player.position.x, start_x + 15.0, "Keyboard D moves the custom character")
+	runner.assert_gt(world.player.position.x, start_x + 15.0, "Keyboard D moves the story protagonist")
 	_press(KEY_SPACE, true)
 	for frame: int in range(6):
 		await runner.get_tree().physics_frame
@@ -94,7 +93,7 @@ static func _test_story_landmark_restoration(runner: Node) -> void:
 	var journal: QuestJournal = Journal.new()
 	var empty_story: Dictionary = journal.serialize()
 	var world: QuadrilateralWorld = World.new()
-	world.setup(Templates.get_template("robot"), journal)
+	world.setup(journal)
 	runner.add_child(world)
 	for region: String in ["harbor", "snow", "citadel"]:
 		var landmark: Sprite2D = world._artwork.story_landmarks[region]
@@ -117,7 +116,7 @@ static func _test_story_landmark_restoration(runner: Node) -> void:
 	journal = Journal.new()
 	runner.assert_true(journal.restore(saved["journal"]), "Completed story journal reloads from JSON")
 	world = World.new()
-	world.setup(Templates.get_template("robot"), journal)
+	world.setup(journal)
 	world.restore(saved["world"])
 	runner.add_child(world)
 	for region: String in ["harbor", "snow", "citadel"]:
@@ -133,7 +132,7 @@ static func _test_story_landmark_restoration(runner: Node) -> void:
 static func _test_explicit_pickup_controls(runner: Node) -> void:
 	var journal: QuestJournal = Journal.new()
 	var world: QuadrilateralWorld = World.new()
-	world.setup(Templates.get_template("robot"), journal)
+	world.setup(journal)
 	runner.add_child(world)
 	var announcements: Array[Dictionary] = []
 	world.item_collected.connect(func(label: String, quest_id: String, count: int, required: int) -> void: announcements.append({"label": label, "quest": quest_id, "count": count, "required": required}))
@@ -171,7 +170,7 @@ static func _test_same_instance_adventure_restore(runner: Node) -> void:
 	var adventure: Adventure = Adventure.new()
 	var before_encounter: Dictionary = adventure.serialize()
 	var world: QuadrilateralWorld = World.new()
-	world.setup(Templates.get_template("robot"), Journal.new())
+	world.setup(Journal.new())
 	world.configure_adventure(adventure)
 	runner.add_child(world)
 	world.enemy_defeated.connect(func(id: String) -> void: adventure.record_enemy_defeat(id))
@@ -195,7 +194,7 @@ static func _test_rpg_services_combat_and_travel(runner: Node) -> void:
 	var adventure: Adventure = Adventure.new()
 	var world: QuadrilateralWorld = World.new()
 	world.configure_adventure(adventure)
-	world.setup(Templates.get_template("robot"), journal)
+	world.setup(journal)
 	runner.add_child(world)
 	world.enemy_defeated.connect(func(id: String) -> void: adventure.record_enemy_defeat(id))
 	world.player.damaged.connect(func(amount: int) -> void: adventure.damage(amount))
@@ -259,7 +258,7 @@ static func _test_rpg_services_combat_and_travel(runner: Node) -> void:
 	var restored_adventure: Adventure = Adventure.new()
 	runner.assert_true(restored_adventure.restore(state_save), "Adventure save restores after combat")
 	world = World.new()
-	world.setup(Templates.get_template("robot"), journal)
+	world.setup(journal)
 	world.configure_adventure(restored_adventure)
 	world.restore(world_save)
 	runner.add_child(world)
@@ -271,7 +270,7 @@ static func _test_rpg_services_combat_and_travel(runner: Node) -> void:
 static func _test_walkable_collection_route(runner: Node) -> void:
 	var journal: QuestJournal = Journal.new()
 	var world: QuadrilateralWorld = World.new()
-	world.setup(Templates.get_template("cat"), journal)
+	world.setup(journal)
 	runner.add_child(world)
 	var route: Array[Dictionary] = world.collectibles.duplicate(true)
 	route.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return Vector2(a["position"]).x < Vector2(b["position"]).x)
@@ -296,7 +295,7 @@ static func _test_walkable_collection_route(runner: Node) -> void:
 			journal = Journal.new()
 			runner.assert_true(journal.restore(saved["journal"]), "Mid-route journal restores from JSON")
 			world = World.new()
-			world.setup(Templates.get_template("cat"), journal)
+			world.setup(journal)
 			world.restore(saved["world"])
 			runner.add_child(world)
 			runner.assert_eq(world.serialize()["collected"].size(), prior_count, "Mid-route unique pickups survive scene recreation")

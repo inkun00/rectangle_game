@@ -1,18 +1,9 @@
 class_name QuadrilateralApp
 extends Node
 
-const SHAPES: Array[String] = ["trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
 const StartupQuestions = preload("res://scripts/learning/learning_question_bank.gd")
 const StartupLearning = preload("res://scenes/learning/learning_gate.gd")
-const SHAPE_NOTES: Dictionary = {
-	"trapezoid": "평행한 변이 있는 사각형이에요.\n마주 보는 변을 확인해요.",
-	"parallelogram": "마주 보는 두 쌍의 변이 평행해요.\n마주 보는 변의 길이와 각이 같아요.",
-	"rhombus": "네 변의 길이가 모두 같아요.\n마주 보는 두 쌍의 변은 평행해요.",
-	"rectangle": "네 각이 모두 직각(90°)이에요.\n마주 보는 변의 길이가 같아요.",
-	"square": "네 변의 길이가 모두 같고,\n네 각이 모두 직각(90°)이에요."
-}
 
-var document: CharacterDocument
 var testing: bool = false
 var _art_sale_transaction: Callable = ProgressionTransactions.commit
 var _art_submission_busy: bool = false
@@ -42,7 +33,6 @@ var _startup_variants: Array[int] = []
 var _startup_type_index: int = 0
 var journal: QuestJournal
 var adventure: AdventureState
-var workshop: CharacterWorkshop
 var world: QuadrilateralWorld
 var _sound: SoundManager
 var _ui: Control
@@ -66,36 +56,15 @@ var _modal_scroll: ScrollContainer
 var _modal_close: Button
 var _modal_focus_before: Control
 var _journal_filter: String = "active"
-var _workshop_margin: MarginContainer
-var _workshop_left: ScrollContainer
-var _workshop_workspace: HBoxContainer
-var _workshop_compact_selectors: HFlowContainer
-var _workshop_template_picker: OptionButton
-var _workshop_shape_picker: OptionButton
-var _workshop_trapezoid_picker: OptionButton
-var _workshop_steps: Label
-var _workshop_tagline: Label
-var _workshop_bottom_note: Label
-var _workshop_helpers: HFlowContainer
 var _home_screen: HomePage
 var _drawing_screen: DrawingStudio
 var _construction_screen: ConstructionStudio
-var _workshop_screen: Control
 var _world_hud: Control
 var _modal_overlay: Control
 var _modal_body: VBoxContainer
 var _toast: Label
 var _toast_timer: Timer
 var _autosave: Timer
-var _preview: CharacterPreview
-var _progress: Label
-var _progress_bar: ProgressBar
-var _shape_note: Label
-var _inspector: Label
-var _inspector_panel: Control
-var _start_button: Button
-var _undo_button: Button
-var _redo_button: Button
 var _world_stats: Label
 var _world_region: Label
 var _active_quests: Label
@@ -109,14 +78,11 @@ var _guidance: Label
 var _story_label: Label
 var _tracked_quest: String = ""
 var _guidance_clock: float = 0.0
-var _shape_buttons: Dictionary = {}
-var _template_buttons: Dictionary = {}
-var _swatches: Array[Button] = []
 var _world_data: Dictionary = {}
 var _in_world: bool = false
-var _village_character_name: String = "사각이"
+## The v1 save format includes the retired editor. Preserve old artwork on subsequent saves.
+var _legacy_editor: Dictionary = {"version": 1, "template_id": "robot", "shapes": [], "selected_id": -1}
 var _restoring: bool = false
-var _exporting: bool = false
 var _save_clock: float = 0.0
 var _tutorial: TutorialDirector
 var _opening_screen: OpeningIntro
@@ -139,7 +105,6 @@ func _ready() -> void:
 	get_window().title = QuadTheme.GAME_TITLE
 	if not testing and not learning_progress.load_file():
 		learning_progress.touch_controls = DisplayServer.is_touchscreen_available()
-	document = CharacterDocument.new()
 	journal = QuestJournal.new()
 	adventure = AdventureState.new()
 	_defer_features = defer_feature_screens_for_testing or (not testing and WebResourcePacks.is_web_delivery())
@@ -161,7 +126,6 @@ func _ready() -> void:
 	ButtonArt.install(_ui.theme)
 	get_window().theme = _ui.theme
 	_ui_layer.add_child(_ui)
-	_build_workshop()
 	_build_home()
 	if not _defer_features:
 		# Restore the ledger before the drawing screen checks its saved commission time.
@@ -180,12 +144,10 @@ func _ready() -> void:
 	add_child(_tutorial)
 	_tutorial.setup(self)
 	_economy_changed()
-	document.changed.connect(_document_changed)
 	journal.changed.connect(_journal_changed)
 	adventure.changed.connect(_adventure_changed)
 	get_viewport().size_changed.connect(func(): call_deferred("_responsive"))
 	if not testing: _load(false)
-	_document_changed()
 	_journal_changed()
 	_adventure_changed()
 	learning_progress.changed.connect(_learning_changed)
@@ -247,7 +209,6 @@ func _build_home() -> void:
 	_home_screen = HomePage.new()
 	_home_screen.drawing_requested.connect(_show_drawing)
 	_home_screen.adventure_requested.connect(_enter_world)
-	_home_screen.workshop_requested.connect(_show_workshop)
 	_home_screen.construction_requested.connect(_show_construction)
 	_home_screen.notebook_requested.connect(_show_notebook)
 	_home_screen.tutorials_requested.connect(_show_tutorials)
@@ -797,7 +758,7 @@ func _show_story_ending(branch: String, entry: Dictionary) -> void:
 	if entry.is_empty(): return
 	var bytes: PackedByteArray = _art_publications.read_png(entry, _ending_png_directory)
 	var screen: StoryEnding = StoryEnding.new()
-	if not screen.configure(branch, bytes, str(entry.title), str(entry.post_url), {}, int(entry.get("performance", 12)), entry.get("ports", [])):
+	if not screen.configure(branch, bytes, str(entry.title), str(entry.post_url), int(entry.get("performance", 12)), entry.get("ports", [])):
 		screen.free()
 		_show_toast("엔딩에 쓸 완성 PNG를 열지 못했어요.")
 		return
@@ -908,13 +869,12 @@ func _leave_activity() -> void:
 	if _tutorial != null: _tutorial.cancel()
 	_clear_touch_inputs()
 	_close_modal()
-	var save_adventure: bool = _in_world or _workshop_screen.visible
+	var save_adventure: bool = _in_world
 	if is_instance_valid(_drawing_screen) and _drawing_screen.visible:
 		_drawing_screen.cancel_gesture()
 		if not testing: _drawing_screen.save_drawing(false)
 	if is_instance_valid(_construction_screen) and _construction_screen.visible:
 		_construction_screen.cancel_activity()
-	workshop.cancel_gesture()
 	if world != null:
 		_world_data = world.serialize()
 		world.set_controls_enabled(false)
@@ -926,7 +886,6 @@ func _leave_activity() -> void:
 	if is_instance_valid(_drawing_screen): _drawing_screen.hide()
 	if is_instance_valid(_construction_screen): _construction_screen.hide()
 	if is_instance_valid(_space_screen): _space_screen.hide()
-	_workshop_screen.hide()
 	if is_instance_valid(_learning_screen): _learning_screen.hide()
 	_world_hud.hide()
 	if _toast != null: _toast.hide()
@@ -991,13 +950,6 @@ func _open_construction(personal: bool) -> void:
 	_responsive()
 	_tutorial.visit("my_house" if personal else "construction")
 
-func _show_workshop() -> void:
-	if is_instance_valid(_startup_learning): return
-	_leave_activity()
-	_workshop_screen.show()
-	_responsive()
-	_tutorial.visit("workshop")
-
 func _process(delta: float) -> void:
 	if _in_world:
 		_guidance_clock += delta
@@ -1008,260 +960,6 @@ func _process(delta: float) -> void:
 		if _save_clock > 10.0:
 			_save_clock = 0.0
 			_save(false)
-
-func _build_workshop() -> void:
-	_workshop_screen = Control.new()
-	_workshop_screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_ui.add_child(_workshop_screen)
-	var bg: TextureRect = TextureRect.new()
-	bg.texture = GameArt.panel_texture(0)
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_workshop_screen.add_child(bg)
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_workshop_screen.add_child(scroll)
-	_workshop_margin = MarginContainer.new()
-	_workshop_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_workshop_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	for edge: String in ["left", "right", "top", "bottom"]:
-		_workshop_margin.add_theme_constant_override("margin_" + edge, 24)
-	scroll.add_child(_workshop_margin)
-	var column: VBoxContainer = VBoxContainer.new()
-	column.add_theme_constant_override("separation", 12)
-	_workshop_margin.add_child(column)
-	var header: HFlowContainer = HFlowContainer.new()
-	header.add_theme_constant_override("h_separation", 12)
-	header.add_theme_constant_override("v_separation", 8)
-	column.add_child(header)
-	var brand: VBoxContainer = VBoxContainer.new()
-	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(brand)
-	brand.add_child(QuadTheme.label(QuadTheme.GAME_TITLE, 29))
-	_workshop_tagline = QuadTheme.label("나의 그림이 모험이 되는 곳", 15, QuadTheme.MUTED)
-	brand.add_child(_workshop_tagline)
-	header.add_child(QuadTheme.button("메인으로", _show_home))
-	header.add_child(QuadTheme.button("튜토리얼", func(): _replay_tutorial("workshop")))
-	header.add_child(QuadTheme.button("도형 도감", _show_notebook))
-	header.add_child(QuadTheme.button("불러오기", func(): _load(true)))
-	header.add_child(QuadTheme.button("저장", func(): _save(true)))
-	var sound_button: Button = QuadTheme.button("소리 켜짐", Callable())
-	sound_button.pressed.connect(func():
-		_sound.sound_enabled = not _sound.sound_enabled
-		sound_button.text = "소리 켜짐" if _sound.sound_enabled else "소리 꺼짐")
-	header.add_child(sound_button)
-	var title_row: HFlowContainer = HFlowContainer.new()
-	title_row.add_theme_constant_override("h_separation", 16)
-	column.add_child(title_row)
-	var title: Label = QuadTheme.label("01  캐릭터 공방", 23)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_row.add_child(title)
-	_workshop_steps = QuadTheme.label("도형 고르기   →   골격 채우기   →   마을 가기", 15, QuadTheme.MUTED)
-	title_row.add_child(_workshop_steps)
-	_workshop_compact_selectors = HFlowContainer.new()
-	_workshop_compact_selectors.add_theme_constant_override("h_separation", 8)
-	_workshop_compact_selectors.add_theme_constant_override("v_separation", 8)
-	column.add_child(_workshop_compact_selectors)
-	_workshop_template_picker = OptionButton.new()
-	_workshop_shape_picker = OptionButton.new()
-	_workshop_trapezoid_picker = OptionButton.new()
-	_workshop_trapezoid_picker.name = "WorkshopTrapezoidVariant"
-	_workshop_trapezoid_picker.tooltip_text = "새로 붙일 사다리꼴 모양을 골라요. 한쪽에 직각이 두 개 있어도 사다리꼴이에요."
-	for picker: OptionButton in [_workshop_template_picker, _workshop_shape_picker, _workshop_trapezoid_picker]:
-		var skin: Button = QuadTheme.button("", Callable())
-		picker.custom_minimum_size = Vector2(150, 48)
-		picker.add_theme_font_override("font", QuadTheme.FONT)
-		picker.add_theme_font_size_override("font_size", 18)
-		for state: String in ["normal", "hover", "pressed", "disabled", "focus"]:
-			picker.add_theme_stylebox_override(state, skin.get_theme_stylebox(state))
-		for color_name: String in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_disabled_color", "font_focus_color"]:
-			picker.add_theme_color_override(color_name, skin.get_theme_color(color_name))
-		picker.get_popup().add_theme_font_override("font", QuadTheme.FONT)
-		picker.get_popup().add_theme_font_size_override("font_size", 18)
-		picker.get_popup().add_theme_color_override("font_color", QuadTheme.INK)
-		picker.get_popup().add_theme_color_override("font_hover_color", QuadTheme.INK)
-		picker.get_popup().add_theme_stylebox_override("panel", GameArt.panel(0, 8))
-		picker.get_popup().add_theme_stylebox_override("hover", skin.get_theme_stylebox("hover"))
-		picker.get_popup().add_theme_constant_override("v_separation", 12)
-		if picker != _workshop_trapezoid_picker:
-			_workshop_compact_selectors.add_child(picker)
-		skin.free()
-	for info: Dictionary in CharacterTemplates.all_templates():
-		_workshop_template_picker.add_item("친구 · " + str(info["name"]))
-		_workshop_template_picker.set_item_metadata(_workshop_template_picker.item_count - 1, str(info["id"]))
-	for kind: String in SHAPES:
-		_workshop_shape_picker.add_item("도형 · " + QuadrilateralMath.kind_label(kind))
-		_workshop_shape_picker.set_item_metadata(_workshop_shape_picker.item_count - 1, kind)
-	_workshop_template_picker.item_selected.connect(func(index: int): _choose_template(str(_workshop_template_picker.get_item_metadata(index))))
-	_workshop_shape_picker.item_selected.connect(func(index: int): _select_kind(str(_workshop_shape_picker.get_item_metadata(index))))
-	var trapezoid_labels: Array[String] = ["양옆이 기울어진 모양", "왼쪽 두 각이 직각", "오른쪽 두 각이 직각"]
-	for index: int in range(QuadrilateralMath.TRAPEZOID_VARIANTS.size()):
-		_workshop_trapezoid_picker.add_item(trapezoid_labels[index])
-		_workshop_trapezoid_picker.set_item_metadata(index, QuadrilateralMath.TRAPEZOID_VARIANTS[index])
-	_workshop_trapezoid_picker.item_selected.connect(func(index: int): workshop.select_trapezoid_variant(str(_workshop_trapezoid_picker.get_item_metadata(index))))
-	document.changed.connect(func():
-		for index: int in range(_workshop_template_picker.item_count):
-			if str(_workshop_template_picker.get_item_metadata(index)) == document.template_id:
-				_workshop_template_picker.select(index)
-				break)
-	_workshop_workspace = HBoxContainer.new()
-	_workshop_workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_workshop_workspace.add_theme_constant_override("separation", 18)
-	column.add_child(_workshop_workspace)
-	_workshop_left = ScrollContainer.new()
-	_workshop_left.custom_minimum_size.x = 228
-	_workshop_left.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_workshop_workspace.add_child(_workshop_left)
-	var left: VBoxContainer = VBoxContainer.new()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.add_theme_constant_override("separation", 16)
-	_workshop_left.add_child(left)
-	var templates: VBoxContainer = QuadTheme.card(left, Color.WHITE, 12)
-	templates.add_theme_constant_override("separation", 8)
-	templates.add_child(QuadTheme.paragraph("친구를 골라요", 17, QuadTheme.INK))
-	for info: Dictionary in CharacterTemplates.all_templates():
-		var id: String = String(info["id"])
-		var b: Button = QuadTheme.button(String(info["name"]), func(): _choose_template(id))
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		templates.add_child(b)
-		_template_buttons[id] = b
-	var shapes: VBoxContainer = QuadTheme.card(left, Color.WHITE, 12)
-	shapes.add_theme_constant_override("separation", 8)
-	shapes.add_child(QuadTheme.label("사각형 팔레트", 17))
-	for kind: String in SHAPES:
-		var b: Button = QuadTheme.button(QuadrilateralMath.kind_label(kind), func(): _select_kind(kind))
-		b.icon = QuadTheme.icon(kind)
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.add_theme_constant_override("h_separation", 6)
-		b.add_theme_constant_override("icon_max_width", 26)
-		shapes.add_child(b)
-		_shape_buttons[kind] = b
-	_shape_note = QuadTheme.paragraph("", 15)
-	shapes.add_child(_shape_note)
-	var center: VBoxContainer = VBoxContainer.new()
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	center.add_theme_constant_override("separation", 12)
-	_workshop_workspace.add_child(center)
-	var toolbar: HFlowContainer = HFlowContainer.new()
-	toolbar.add_theme_constant_override("h_separation", 8)
-	toolbar.add_theme_constant_override("v_separation", 8)
-	center.add_child(toolbar)
-	toolbar.add_child(_workshop_trapezoid_picker)
-	_undo_button = QuadTheme.button("되돌리기", document.undo)
-	_redo_button = QuadTheme.button("다시", document.redo)
-	toolbar.add_child(_undo_button)
-	toolbar.add_child(_redo_button)
-	toolbar.add_child(QuadTheme.button("복제", document.duplicate_selected))
-	toolbar.add_child(QuadTheme.button("삭제", document.delete_selected))
-	toolbar.add_child(QuadTheme.button("왼쪽 15°", func(): document.rotate_selected(-15)))
-	toolbar.add_child(QuadTheme.button("오른쪽 15°", func(): document.rotate_selected(15)))
-	toolbar.add_child(QuadTheme.button("축소", func(): document.scale_selected(0.9)))
-	toolbar.add_child(QuadTheme.button("확대", func(): document.scale_selected(1.1)))
-	var canvas_panel: PanelContainer = PanelContainer.new()
-	canvas_panel.custom_minimum_size = Vector2(220, 240)
-	canvas_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	canvas_panel.add_theme_stylebox_override("panel", QuadTheme.style(Color("eff5f4"), 20, QuadTheme.BORDER, 0))
-	center.add_child(canvas_panel)
-	workshop = CharacterWorkshop.new()
-	workshop.document = document
-	workshop.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	workshop.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	workshop.hint_requested.connect(_show_toast)
-	canvas_panel.add_child(workshop)
-	var colors: HFlowContainer = HFlowContainer.new()
-	colors.alignment = FlowContainer.ALIGNMENT_CENTER
-	colors.add_theme_constant_override("h_separation", 8)
-	colors.add_theme_constant_override("v_separation", 8)
-	center.add_child(colors)
-	colors.add_child(QuadTheme.label("색", 14, QuadTheme.MUTED))
-	for color: Color in QuadTheme.COLORS:
-		var swatch: Button = QuadTheme.button("", func(): _choose_color(color))
-		swatch.tooltip_text = "칠할 색 #" + color.to_html(false).to_upper()
-		swatch.custom_minimum_size = Vector2(44, 44)
-		for state: String in ["normal", "hover", "pressed", "disabled"]:
-			swatch.add_theme_stylebox_override(state, ButtonArt.swatch(color, state))
-		colors.add_child(swatch)
-		_swatches.append(swatch)
-	var custom_color: ColorPickerButton = ColorPickerButton.new()
-	ButtonArt.apply(custom_color, false, 18)
-	custom_color.custom_minimum_size = Vector2(44, 44)
-	custom_color.color = QuadTheme.TEAL
-	custom_color.edit_alpha = false
-	custom_color.color_changed.connect(_choose_color)
-	custom_color.tooltip_text = "직접 색 고르기"
-	colors.add_child(custom_color)
-	var canvas_hint: Label = QuadTheme.label("도형을 고른 뒤 같은 이름의 골격을 눌러요. 빈 곳에 드래그하면 자유롭게 추가해요.", 14, QuadTheme.MUTED)
-	canvas_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	canvas_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	center.add_child(canvas_hint)
-	_workshop_helpers = HFlowContainer.new()
-	_workshop_helpers.add_theme_constant_override("h_separation", 8)
-	_workshop_helpers.add_theme_constant_override("v_separation", 8)
-	center.add_child(_workshop_helpers)
-	_workshop_helpers.add_child(QuadTheme.button("색칠된 예시 사용", document.fill_example))
-	_workshop_helpers.add_child(QuadTheme.button("그림 PNG 저장", _export_png))
-	_progress = QuadTheme.label("", 15)
-	_progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_workshop_helpers.add_child(_progress)
-	var right_scroll: ScrollContainer = ScrollContainer.new()
-	right_scroll.custom_minimum_size.x = 258
-	right_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_workshop_workspace.add_child(right_scroll)
-	_inspector_panel = right_scroll
-	var right: VBoxContainer = VBoxContainer.new()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right.add_theme_constant_override("separation", 14)
-	right_scroll.add_child(right)
-	var preview_card: VBoxContainer = QuadTheme.card(right)
-	preview_card.add_child(QuadTheme.label("나의 모험 친구", 18))
-	_preview = CharacterPreview.new()
-	preview_card.add_child(_preview)
-	_progress_bar = ProgressBar.new()
-	_progress_bar.custom_minimum_size.y = 9
-	_progress_bar.show_percentage = false
-	_progress_bar.add_theme_stylebox_override("background", QuadTheme.style(Color("e7eee8"), 5, Color.TRANSPARENT, 0))
-	_progress_bar.add_theme_stylebox_override("fill", StarfrontArt.gauge(7))
-	preview_card.add_child(_progress_bar)
-	var info_card: VBoxContainer = QuadTheme.card(right, Color("fff6e3"))
-	info_card.add_child(QuadTheme.label("도형 탐구", 16))
-	_inspector = QuadTheme.paragraph("도형을 누르면 변의 길이와 각을 살펴볼 수 있어요.", 13, QuadTheme.INK)
-	info_card.add_child(_inspector)
-	var bottom: HFlowContainer = HFlowContainer.new()
-	bottom.add_theme_constant_override("h_separation", 16)
-	bottom.add_theme_constant_override("v_separation", 8)
-	column.add_child(bottom)
-	_workshop_bottom_note = QuadTheme.paragraph("내가 만든 모습 그대로 걷고 뛰어요. 골격을 모두 채우면 모험을 시작할 수 있어요.", 15)
-	bottom.add_child(_workshop_bottom_note)
-	_start_button = QuadTheme.button("내 캐릭터로 마을 가기", _enter_world.bind(true), true)
-	_start_button.custom_minimum_size = Vector2(280, 54)
-	bottom.add_child(_start_button)
-	_select_kind("square")
-
-func _layout_workshop(ui_size: Vector2) -> void:
-	if _workshop_margin == null: return
-	var narrow: bool = ui_size.x < 620.0
-	var compact: bool = ui_size.x < 1160.0
-	var gutter: int = 12 if compact else 24
-	for edge: String in ["left", "right", "top", "bottom"]:
-		_workshop_margin.add_theme_constant_override("margin_" + edge, gutter)
-	_workshop_workspace.add_theme_constant_override("separation", 12 if compact else 18)
-	_workshop_left.custom_minimum_size.x = 190.0 if compact else 228.0
-	_workshop_left.visible = not narrow
-	_inspector_panel.visible = not compact
-	_workshop_compact_selectors.visible = narrow
-	_workshop_steps.visible = ui_size.x >= 760.0
-	_workshop_tagline.visible = not narrow
-	_workshop_bottom_note.visible = not compact
-	for index: int in range(_workshop_template_picker.item_count):
-		if str(_workshop_template_picker.get_item_metadata(index)) == document.template_id:
-			_workshop_template_picker.select(index)
-			break
-	for index: int in range(_workshop_shape_picker.item_count):
-		if str(_workshop_shape_picker.get_item_metadata(index)) == workshop.selected_kind:
-			_workshop_shape_picker.select(index)
-			break
 
 func _build_world_hud() -> void:
 	_world_hud = Control.new()
@@ -1454,58 +1152,6 @@ func _show_toast(message: String) -> void:
 	_ui.move_child(_toast, _ui.get_child_count() - 1)
 	_toast_timer.start()
 
-func _select_kind(kind: String) -> void:
-	if workshop != null: workshop.select_kind(kind)
-	if _workshop_trapezoid_picker != null:
-		_workshop_trapezoid_picker.visible = kind == "trapezoid"
-		if workshop != null:
-			_workshop_trapezoid_picker.select(QuadrilateralMath.TRAPEZOID_VARIANTS.find(workshop.selected_trapezoid_variant))
-	if _shape_note != null: _shape_note.text = String(SHAPE_NOTES.get(kind, ""))
-	for key: String in _shape_buttons:
-		var b: Button = _shape_buttons[key]
-		ButtonArt.apply(b, key == kind, 18)
-
-func _choose_color(color: Color) -> void:
-	workshop.set_paint_color(color)
-	document.set_color(color)
-	for i: int in range(_swatches.size()):
-		var c: Color = QuadTheme.COLORS[i]
-		_swatches[i].text = "●" if c.is_equal_approx(color) else ""
-		var ink: Color = Color("213b42") if c.get_luminance() > 0.55 else Color.WHITE
-		for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
-			_swatches[i].add_theme_color_override(state, ink)
-
-func _choose_template(id: String) -> void:
-	document.set_template(id)
-	_sound.play_click()
-	_show_toast("골격을 바꿨어요. 되돌리기로 이전 그림을 복원할 수 있어요.")
-
-func _document_changed() -> void:
-	if _preview == null: return
-	_preview.set_character(document.character_data())
-	var done: Dictionary = document.completion()
-	_progress.text = "골격 %d / %d 완성" % [int(done["filled"]), int(done["total"])]
-	_progress_bar.max_value = maxi(int(done["total"]), 1)
-	_progress_bar.value = int(done["filled"])
-	_start_button.disabled = not bool(done.ready)
-	_undo_button.disabled = not document.can_undo()
-	_redo_button.disabled = not document.can_redo()
-	for id: String in _template_buttons:
-		var b: Button = _template_buttons[id]
-		ButtonArt.apply(b, id == document.template_id, 18)
-	var selected: Dictionary = document.get_selected()
-	if selected.is_empty():
-		_inspector.text = "도형을 누르면 변의 길이와 각을 살펴볼 수 있어요.\n\n돌리거나 크기를 바꿔도 선택한 사각형의 성질은 유지돼요."
-	else:
-		var vertices: PackedVector2Array = selected["vertices"]
-		var lengths: PackedFloat32Array = QuadrilateralMath.side_lengths(vertices)
-		var length_text: PackedStringArray = PackedStringArray()
-		var angle_text: PackedStringArray = PackedStringArray()
-		for length: float in lengths: length_text.append(QuadrilateralMath.measurement_label(length / 20.0))
-		for angle: float in QuadrilateralMath.angles(vertices): angle_text.append(QuadrilateralMath.measurement_label(angle) + "°")
-		_inspector.text = "%s\n\n변 ㄱㄴ · ㄴㄷ · ㄷㄹ · ㄹㄱ (칸)\n%s\n\n각 ㄱ · ㄴ · ㄷ · ㄹ\n%s\n\n%s" % [QuadrilateralMath.kind_label(String(selected["kind"])), " · ".join(length_text), " · ".join(angle_text), QuadrilateralMath.property_summary(vertices)]
-	if not _restoring and _autosave != null: _autosave.start()
-
 func _journal_changed() -> void:
 	if _world_stats == null: return
 	_world_stats.text = "%d 코인   ·   친구 %d / %d" % [journal.coins, journal.completed_count(), QuestCatalog.all_quests().size()]
@@ -1528,7 +1174,7 @@ func _journal_changed() -> void:
 func _adventure_changed() -> void:
 	if _health_label == null: return
 	_health_label.text = "HP  %d / %d      XP  %d / %d" % [adventure.hp, adventure.max_hp, adventure.xp_in_level(), adventure.xp_for_next_level()]
-	_level_label.text = "LV. %d  %s" % [adventure.level, _village_character_name]
+	_level_label.text = "LV. %d  사각이" % adventure.level
 	_health_bar.max_value = adventure.max_hp
 	_health_bar.value = adventure.hp
 	_xp_bar.max_value = adventure.xp_for_next_level()
@@ -1732,17 +1378,12 @@ func _show_travel() -> void:
 		body.add_child(button)
 	body.add_child(QuadTheme.button("걸어서 계속 탐험", _close_modal))
 
-func _enter_world(use_workshop_character: bool = false) -> void:
-	if use_workshop_character and not bool(document.completion().ready):
-		_show_toast("골격을 모두 채우면 내 캐릭터로 마을에 갈 수 있어요.")
-		return
+func _enter_world() -> void:
 	if not await _ensure_feature("adventure"): return
-	var character: Dictionary = document.character_data() if use_workshop_character else CharacterTemplates.protagonist()
-	_village_character_name = str(CharacterTemplates.get_template(document.template_id).name) if use_workshop_character else "사각이"
 	_leave_activity()
 	if world == null:
 		world = QuadrilateralWorld.new()
-		world.setup(character, journal)
+		world.setup(journal)
 		add_child(world)
 		world.interaction_requested.connect(_talk_to_npc)
 		world.hint_requested.connect(_show_toast)
@@ -1756,13 +1397,11 @@ func _enter_world(use_workshop_character: bool = false) -> void:
 		world.configure_adventure(adventure)
 		if not _world_data.is_empty(): world.restore(_world_data)
 	else:
-		world.update_character(character)
 		world.show()
 		world.process_mode = Node.PROCESS_MODE_INHERIT
 		world.set_controls_enabled(true)
 	_in_world = true
 	world.peaceful = learning_progress.peaceful
-	_workshop_screen.hide()
 	_world_hud.show()
 	_responsive()
 	_adventure_changed()
@@ -1855,7 +1494,7 @@ func _show_quest_success(quest: Dictionary, answer: Dictionary) -> void:
 	# Publish the quest receipt first. The economy can replay any missing
 	# payouts from the completed journal, including after an interrupted save.
 	var paid: Dictionary = _save(false)
-	var body: VBoxContainer = _open_modal("고마워요, %s!" % _village_character_name)
+	var body: VBoxContainer = _open_modal("고마워요, 사각이!")
 	body.add_child(QuadTheme.label(String(quest["title"]) + " 완료", 24, QuadTheme.TEAL))
 	body.add_child(QuadTheme.paragraph(String(answer["message"]), 18, QuadTheme.INK))
 	body.add_child(QuadTheme.label("+ %d 코인  ·  도와준 친구 %d / %d" % [int(answer["reward"]), journal.completed_count(), QuestCatalog.all_quests().size()], 20, QuadTheme.TEAL))
@@ -1891,6 +1530,13 @@ func _show_game_menu() -> void:
 		learning_progress.touch_controls = enabled
 		learning_progress.changed.emit())
 	body.add_child(touch)
+	var sound: CheckButton = CheckButton.new()
+	sound.text = "효과음 켜기"
+	ButtonArt.apply(sound)
+	sound.custom_minimum_size.y = 48
+	sound.button_pressed = _sound.sound_enabled
+	sound.toggled.connect(func(enabled: bool): _sound.sound_enabled = enabled)
+	body.add_child(sound)
 	body.add_child(QuadTheme.button("수학 직접 해 보기", _show_learning))
 	body.add_child(QuadTheme.paragraph("방향키 / A·D 이동 · Space 점프\nG 줍기 · E 대화 · Z / F 공격 · Q 회복약\nTab으로 버튼 이동 · Enter 선택 · Esc 닫기", 18, QuadTheme.INK))
 	body.add_child(QuadTheme.button("부탁 수첩  J", _show_journal, true))
@@ -1902,6 +1548,7 @@ func _show_game_menu() -> void:
 	body.add_child(QuadTheme.button("튜토리얼 다시 보기", func(): _replay_tutorial("world")))
 	body.add_child(QuadTheme.button("모든 모드 안내", _show_tutorials))
 	body.add_child(QuadTheme.button("심부름 기록 저장", func(): _save(true)))
+	body.add_child(QuadTheme.button("심부름 기록 불러오기", func(): _load(true)))
 	body.add_child(QuadTheme.button("메인으로", _show_home))
 	body.add_child(QuadTheme.button("심부름 계속하기", _close_modal))
 
@@ -1924,6 +1571,7 @@ func _show_tutorials() -> void:
 		body.add_child(QuadTheme.button(TutorialCatalog.title(context) + suffix, _replay_tutorial.bind(context)))
 
 func _replay_tutorial(context: String) -> void:
+	if not TutorialCatalog.MODE_IDS.has(context): return
 	var current: String = _tutorial.current_context()
 	if context in ["masterpiece", "my_house"] and context != current: return
 	_close_modal(false)
@@ -1936,7 +1584,6 @@ func _replay_tutorial(context: String) -> void:
 			"construction":
 				await _show_construction()
 				if not is_instance_valid(_construction_screen) or not _construction_screen.visible: return
-			"workshop": _show_workshop()
 			"world":
 				await _enter_world()
 				if not _in_world: return
@@ -2132,22 +1779,22 @@ func _save(notify_user: bool) -> Dictionary:
 	var error: Error = OK
 	if not testing:
 		if world != null: _world_data = world.serialize()
-		error = WorldSaveStore.save_game(document.serialize(), journal.serialize(), _world_data, WorldSaveStore.SAVE_PATH, adventure.serialize())
+		error = WorldSaveStore.save_game(_legacy_editor, journal.serialize(), _world_data, WorldSaveStore.SAVE_PATH, adventure.serialize())
 	var result: Dictionary = _sync_village_rewards() if error == OK else {"ok": false}
 	if notify_user:
-		_show_toast("캐릭터 그림과 심부름 기록을 저장했어요." if bool(result.ok) else "저장 공간을 확인해 주세요. 저장하지 못했어요.")
+		_show_toast("심부름 기록을 저장했어요." if bool(result.ok) else "저장 공간을 확인해 주세요. 저장하지 못했어요.")
 	return result
 
-func _load(notify_user: bool) -> bool:
-	var data: Dictionary = WorldSaveStore.load_game()
+func _load(notify_user: bool, path: String = WorldSaveStore.SAVE_PATH) -> bool:
+	var data: Dictionary = WorldSaveStore.load_game(path)
 	if data.is_empty():
-		if notify_user: _show_toast("아직 저장한 캐릭터 그림과 심부름 기록이 없어요.")
+		if notify_user: _show_toast("아직 저장한 심부름 기록이 없어요.")
 		return false
-	var candidate_document: CharacterDocument = CharacterDocument.new()
+	var legacy_document: CharacterDocument = CharacterDocument.new()
 	var candidate_journal: QuestJournal = QuestJournal.new()
 	var candidate_adventure: AdventureState = AdventureState.new()
-	if not candidate_document.restore(data["editor"]) or not candidate_journal.restore(data["journal"]) or not QuadrilateralWorld.is_valid_save(data["world"]):
-		if notify_user: _show_toast("저장 내용을 읽을 수 없어요. 현재 그림은 그대로 유지돼요.")
+	if not legacy_document.restore(data["editor"]) or not candidate_journal.restore(data["journal"]) or not QuadrilateralWorld.is_valid_save(data["world"]):
+		if notify_user: _show_toast("심부름 기록을 읽지 못했어요. 현재 진행 상황은 그대로예요.")
 		return false
 	if data.has("adventure") and not candidate_adventure.restore(data["adventure"]):
 		if notify_user: _show_toast("모험가 정보를 읽을 수 없어요. 현재 상태는 유지돼요.")
@@ -2157,7 +1804,7 @@ func _load(notify_user: bool) -> bool:
 	for claimed_id: String in candidate_adventure.claimed_quests:
 		if not candidate_journal.completed.has(claimed_id): return false
 	_restoring = true
-	document.restore(data["editor"])
+	_legacy_editor = legacy_document.serialize()
 	journal.restore(data["journal"])
 	adventure.restore(candidate_adventure.serialize())
 	_world_data = data["world"].duplicate(true)
@@ -2166,39 +1813,8 @@ func _load(notify_user: bool) -> bool:
 		world.configure_adventure(adventure)
 	_restoring = false
 	_sync_village_rewards()
-	if notify_user: _show_toast("캐릭터 그림과 심부름 기록을 불러왔어요.")
+	if notify_user: _show_toast("심부름 기록을 불러왔어요.")
 	return true
-
-func _export_png() -> void:
-	if _exporting or document.shapes.is_empty():
-		_show_toast("먼저 사각형을 그려 주세요.")
-		return
-	if DisplayServer.get_name() == "headless": return
-	_exporting = true
-	var bytes: PackedByteArray = await CharacterExporter.export_png(get_tree(), document.character_data())
-	_exporting = false
-	if OS.has_feature("web"):
-		JavaScriptBridge.download_buffer(bytes, "my-quadrilateral-friend.png", "image/png")
-		_show_toast("캐릭터 PNG를 내려받았어요.")
-	else:
-		var dialog: FileDialog = FileDialog.new()
-		dialog.theme = _ui.theme
-		dialog.access = FileDialog.ACCESS_FILESYSTEM
-		dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-		dialog.filters = PackedStringArray(["*.png ; PNG 이미지"])
-		dialog.current_file = "my-quadrilateral-friend.png"
-		dialog.use_native_dialog = true
-		dialog.file_selected.connect(func(path: String):
-			var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-			if file != null:
-				file.store_buffer(bytes)
-				file.close()
-				_show_toast("캐릭터 PNG를 저장했어요.")
-			else: _show_toast("이미지 저장 위치를 확인해 주세요.")
-			dialog.queue_free())
-		dialog.canceled.connect(dialog.queue_free)
-		add_child(dialog)
-		dialog.popup_centered(Vector2i(800, 600))
 
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
@@ -2214,7 +1830,6 @@ func _responsive() -> void:
 	_ui_layer.scale = Vector2(1.0 / stretch.x, 1.0 / stretch.y)
 	_ui.position = Vector2.ZERO
 	_ui.size = get_viewport().get_visible_rect().size * stretch
-	_layout_workshop(_ui.size)
 	_layout_hud(_ui.size)
 	_layout_modal()
 	if _toast != null:
@@ -2308,26 +1923,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if is_instance_valid(_modal_overlay): return
-	if _home_screen.visible: return
+	if not _in_world: return
 	if event.ctrl_pressed and event.keycode == KEY_S:
 		_save(true)
 		get_viewport().set_input_as_handled()
-	elif _in_world:
-		if event.keycode == KEY_J: _show_journal()
-		elif event.keycode == KEY_M: _show_map()
-		elif event.keycode == KEY_I: _show_inventory()
-		elif event.keycode == KEY_H: _show_story()
-		elif event.keycode == KEY_Q: _use_potion()
-	elif event.ctrl_pressed and event.keycode == KEY_Z:
-		if event.shift_pressed: document.redo()
-		else: document.undo()
-		get_viewport().set_input_as_handled()
-	elif event.ctrl_pressed and event.keycode == KEY_Y:
-		document.redo()
-		get_viewport().set_input_as_handled()
-	elif event.ctrl_pressed and event.keycode == KEY_D:
-		document.duplicate_selected()
-		get_viewport().set_input_as_handled()
-	elif event.keycode == KEY_DELETE:
-		document.delete_selected()
-		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_J: _show_journal()
+	elif event.keycode == KEY_M: _show_map()
+	elif event.keycode == KEY_I: _show_inventory()
+	elif event.keycode == KEY_H: _show_story()
+	elif event.keycode == KEY_Q: _use_potion()

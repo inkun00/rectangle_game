@@ -59,6 +59,6 @@ npx vercel --prod
 
 엔진·core·기능 팩은 내용 해시가 들어간 이름과 기존 장기 캐시를 사용합니다. `.br`에는 `Content-Encoding: br`가 필요하며, `vercel.json`이 이 헤더와 WASM의 MIME을 설정합니다. Brotli를 사용할 수 없는 정적 호스트에는 로더가 해제하는 `.gz` 대체 경로가 있으므로 두 표현을 함께 배포합니다. 바뀌지 않은 기능 팩의 파일명을 임의로 바꾸지 마세요. 라이선스와 생성 그래픽 고지 문서도 결과물에 포함합니다.
 
-배포 후 첫 화면의 한글, 오프닝 시작·일시정지·음소거·건너뛰기·재시청, 그림 그리기·집 짓기·우주선 제작·모험 이동, 판매·구매, 공방→월드 이동, 물건 수집·대화, 새로고침 후 저장 복원을 확인합니다. 깨끗한 브라우저 캐시와 기존 캐시 양쪽에서 요청 실패와 콘솔 오류도 확인합니다.
+배포 후 첫 화면의 한글, 오프닝 시작·일시정지·음소거·건너뛰기·재시청, 그림 그리기·집 짓기·우주선 제작·모험 이동, 판매·구매, 사각이의 마을 입장과 동작, 물건 수집·대화, 새로고침 후 저장 복원을 확인합니다. 깨끗한 브라우저 캐시와 기존 캐시 양쪽에서 요청 실패와 콘솔 오류도 확인합니다.
 
 공식 근거: [Godot 4.7.2 배포 파일](https://github.com/godotengine/godot-builds/releases/tag/4.7.2-stable), [Vercel 빌드 이미지](https://vercel.com/docs/builds/build-image), [Vercel 프로젝트 설정](https://vercel.com/docs/project-configuration/vercel-json), [GitHub Actions와 Vercel](https://vercel.com/kb/guide/how-can-i-use-github-actions-with-vercel).

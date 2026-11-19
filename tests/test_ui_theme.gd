@@ -28,7 +28,7 @@ static func _test_button_states(t: Node) -> void:
 		t.assert_ge(button.custom_minimum_size.x, 44.0, "Short button labels retain a usable hit width")
 		t.assert_ge(button.custom_minimum_size.y, 48.0, "Buttons retain a comfortable hit height")
 		t.assert_ge(button.get_theme_font_size("font_size"), 18, "Button actions are legible for young readers")
-		t.assert_eq(button.focus_mode, Control.FOCUS_ALL, "Workshop and modal buttons support keyboard focus")
+		t.assert_eq(button.focus_mode, Control.FOCUS_ALL, "Themed buttons support keyboard focus")
 		var styles: Dictionary = {}
 		for state: String in ["normal", "hover", "pressed", "disabled", "focus"]:
 			var style: StyleBoxTexture = button.get_theme_stylebox(state) as StyleBoxTexture
