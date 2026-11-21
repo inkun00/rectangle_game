@@ -37,6 +37,9 @@ def fixture() -> ResourcePack:
         ("assets/generated/drawing/masterpieces/guide.svg", "guide"),
         ("assets/generated/starfront-hd/backgrounds/forest.webp", "adventureforest"),
         ("assets/generated/starfront-hd/backgrounds/observatory.webp", "home"),
+        ("assets/generated/starfront-hd/backgrounds/workshop.webp", "hangar"),
+        ("assets/generated/starfront-hd/backgrounds/construction.webp", "worksite"),
+        ("assets/generated/home-atlas/building.webp", "destination"),
         ("assets/generated/starfront-hd/materials/details-a.webp", "material"),
         ("assets/generated/opening-v1/planet.webp", "planet"),
     ):
@@ -62,6 +65,9 @@ class PackTests(unittest.TestCase):
         self.assertIn(".godot/imported/drawingforest.ctex", drawing)
         self.assertNotIn(".godot/imported/adventureforest.ctex", drawing)
         self.assertIn(".godot/imported/adventureforest.ctex", adventure)
+        self.assertIn(".godot/imported/hangar.ctex", {entry.path for entry in groups["space"].entries})
+        self.assertIn(".godot/imported/worksite.ctex", {entry.path for entry in groups["construction"].entries})
+        self.assertIn(".godot/imported/destination.ctex", {entry.path for entry in groups["core"].entries})
         self.assertIn(".godot/imported/planet.ctex", {entry.path for entry in groups["space"].entries})
         self.assertEqual([entry.data for entry in groups["opening"].entries],
                          [b"unchanged video bytes" * 50])

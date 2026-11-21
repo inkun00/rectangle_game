@@ -1,13 +1,17 @@
 class_name ButtonArt
 extends RefCounted
 
-## Shared ImageGen sprites. Runtime work only trims transparent padding, samples
-## at UI resolution, and nine-slices the narrow edge; labels remain live text.
-const ROOT: String = "res://assets/generated/buttons-v1/"
+## Pre-cropped ImageGen sprites keep their original edges at any control size.
+const ROOT: String = "res://assets/generated/adventure-ui-v2/"
+const PETROL: Texture2D = preload(ROOT + "button-petrol.webp")
+const CORAL: Texture2D = preload(ROOT + "button-coral.webp")
+const JADE: Texture2D = preload(ROOT + "button-jade.webp")
+const SLATE: Texture2D = preload(ROOT + "button-slate.webp")
+const CHECKED: Texture2D = preload(ROOT + "checked.webp")
+const UNCHECKED: Texture2D = preload(ROOT + "unchecked.webp")
 const INK: Color = Color("edf5fc")
 const MUTED: Color = Color("9eb1c1")
 const STATES: Array[String] = ["normal", "hover", "pressed", "hover_pressed", "disabled"]
-static var _textures: Dictionary = {}
 static var _font: FontFile
 
 static func _ui_font() -> FontFile:
@@ -16,46 +20,27 @@ static func _ui_font() -> FontFile:
 		_font.oversampling = 1.0
 	return _font
 
-static func _sprite(filename: String, dimensions: Vector2i) -> Texture2D:
-	var key: String = "%s:%s" % [filename, dimensions]
-	if _textures.has(key): return _textures[key] as Texture2D
-	var path: String = ROOT + filename
-	var source: Texture2D = load(path) as Texture2D
-	var pixels: Image = source.get_image()
-	if pixels.is_compressed(): pixels.decompress()
-	var mask: BitMap = BitMap.new()
-	mask.create_from_image_alpha(pixels, 0.5)
-	var outlines: Array[PackedVector2Array] = mask.opaque_to_polygons(Rect2i(Vector2i.ZERO, pixels.get_size()), 1.0)
-	var bounds: Rect2 = Rect2()
-	for outline: PackedVector2Array in outlines:
-		for point: Vector2 in outline:
-			if not bounds.has_area(): bounds = Rect2(point, Vector2.ONE)
-			else: bounds = bounds.expand(point)
-	var used: Rect2i = Rect2i(bounds).grow(1).intersection(Rect2i(Vector2i.ZERO, pixels.get_size())) if bounds.has_area() else pixels.get_used_rect()
-	if used.has_area(): pixels = pixels.get_region(used)
-	pixels.resize(dimensions.x, dimensions.y, Image.INTERPOLATE_LANCZOS)
-	var result: ImageTexture = ImageTexture.create_from_image(pixels)
-	result.set_meta("generated_source", path)
-	_textures[key] = result
-	return result
-
 static func texture(primary: bool = false) -> Texture2D:
-	return StarfrontArt.face(2 if primary else 0)
+	return CORAL if primary else PETROL
 
 static func indicator(checked: bool) -> Texture2D:
-	var pixels: Image = StarfrontArt.face(3 if checked else 4).get_image()
-	pixels.resize(26, 26, Image.INTERPOLATE_NEAREST)
-	var result: ImageTexture = ImageTexture.create_from_image(pixels)
-	result.set_meta("generated_source", StarfrontArt.ROOT + "skin.webp")
-	return result
+	return CHECKED if checked else UNCHECKED
 
 static func style(primary: bool = false, state: String = "normal", padding: int = 12) -> StyleBoxTexture:
-	var selected: bool = state in ["pressed", "hover_pressed"]
-	var index: int = 3 if selected else (2 if primary else 0)
-	if state == "hover": index = 2 if primary else 1
-	if state == "disabled": index = 5
-	var result: StyleBoxTexture = StarfrontArt.panel(index, padding)
-	if state == "hover" and primary: result.modulate_color = Color(1.10, 1.10, 1.06)
+	var result: StyleBoxTexture = StyleBoxTexture.new()
+	result.texture = texture(primary)
+	match state:
+		"hover":
+			result.modulate_color = Color(1.20, 1.16, 1.10)
+			if not primary: result.texture = JADE
+		"pressed", "hover_pressed":
+			result.texture = JADE
+			result.modulate_color = Color(0.82, 0.92, 0.90)
+		"disabled":
+			result.texture = SLATE
+			result.modulate_color = Color(0.78, 0.83, 0.87)
+	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		result.set_texture_margin(edge, 8.0)
 	result.content_margin_top = 10.0
 	result.content_margin_bottom = 10.0
 	result.content_margin_left = float(maxi(padding, 14))
@@ -63,22 +48,12 @@ static func style(primary: bool = false, state: String = "normal", padding: int 
 	return result
 
 static func focus_style() -> StyleBoxTexture:
-	var result: StyleBoxTexture = StarfrontArt.panel(3, 0)
+	var result: StyleBoxTexture = StyleBoxTexture.new()
+	result.texture = JADE
 	result.draw_center = false
 	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_expand_margin(edge, 3.0)
-	return result
-
-static func swatch(color: Color, state: String = "normal") -> StyleBoxTexture:
-	var result: StyleBoxTexture = StyleBoxTexture.new()
-	result.texture = StarfrontArt.interior(5)
-	var pixel: Image = result.texture.get_image()
-	var neutral: Color = pixel.get_pixel(floori(float(pixel.get_width()) / 2.0), floori(float(pixel.get_height()) / 2.0))
-	result.modulate_color = Color(1.0 / maxf(neutral.r, 0.01), 1.0 / maxf(neutral.g, 0.01), 1.0 / maxf(neutral.b, 0.01))
-	result.modulate_color *= color.lightened(0.12) if state == "hover" else color
-	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 5.0)
-		result.set_content_margin(edge, 0.0)
+		result.set_texture_margin(edge, 4.0)
+		result.set_expand_margin(edge, 4.0)
 	return result
 
 static func apply(button: BaseButton, primary: bool = false, font_size: int = 18) -> void:
@@ -138,5 +113,20 @@ static func install(theme: Theme) -> void:
 	for type: String in ["CheckButton", "CheckBox"]:
 		for icon: String in ["checked", "checked_disabled", "radio_checked", "radio_checked_disabled"]: theme.set_icon(icon, type, indicator(true))
 		for icon: String in ["unchecked", "unchecked_disabled", "radio_unchecked", "radio_unchecked_disabled"]: theme.set_icon(icon, type, indicator(false))
+	for type: String in ["PopupMenu", "PopupPanel", "AcceptDialog", "TooltipPanel"]:
+		theme.set_stylebox("panel", type, StarfrontArt.panel(0, 10))
+	# Embedded windows draw their draggable title and resize handles outside the
+	# content rectangle. Keep the engine's metrics when replacing that frame.
+	for state: String in ["embedded_border", "embedded_unfocused_border"]:
+		var frame: StyleBoxTexture = StarfrontArt.panel(3 if state == "embedded_border" else 0)
+		var native: StyleBoxFlat = ThemeDB.get_default_theme().get_stylebox(state, "Window") as StyleBoxFlat
+		for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+			frame.set_expand_margin(edge, native.get_expand_margin(edge))
+			frame.set_content_margin(edge, native.get_content_margin(edge))
+		theme.set_stylebox(state, "Window", frame)
+	theme.set_stylebox("normal", "LineEdit", StarfrontArt.panel(0, 6))
+	theme.set_stylebox("focus", "LineEdit", focus_style())
 	theme.set_stylebox("hover", "PopupMenu", style(false, "hover", 8))
+	theme.set_constant("v_separation", "PopupMenu", 8)
+	theme.set_color("font_color", "PopupMenu", INK)
 	theme.set_color("font_hover_color", "PopupMenu", INK)

@@ -158,6 +158,21 @@ test('received bytes extend the wait, repeated progress does not, and a later fa
   assert.equal(run.state.reloads, 1);
 });
 
+test('resumed progress clears a stall notice and preserves keyboard focus on retry', () => {
+  const run = shell();
+  const recovery = run.elements.get('error-box');
+  const retry = run.elements.get('retry-btn');
+  run.advance(30000);
+  run.state.progress(1, 100);
+  assert.equal(recovery.hidden, true);
+  run.advance(30000);
+  assert.equal(recovery.hidden, false);
+  retry.focus();
+  run.state.progress(2, 100);
+  assert.equal(recovery.hidden, false);
+  assert.equal(run.document.activeElement, retry);
+});
+
 test('a rejected engine start exposes recovery and ignores late progress', async () => {
   const run = shell();
   run.reject(new Error('<failed network request>'));

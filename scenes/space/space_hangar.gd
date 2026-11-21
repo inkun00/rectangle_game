@@ -76,7 +76,7 @@ func _ready() -> void:
 	background.texture = StarfrontArt.scene(6)
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	background.modulate = Color("7a8c9c")
+	background.modulate = Color("324b58")
 	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)

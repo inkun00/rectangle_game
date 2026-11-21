@@ -137,13 +137,18 @@ def feature_for_source(path: str) -> str:
     if path.startswith("assets/generated/starfront-hd/props/"):
         return "adventure"
     if path.startswith("assets/generated/starfront-hd/backgrounds/"):
-        if PurePosixPath(path).stem in REGION_BACKGROUNDS:
+        scene = PurePosixPath(path).stem
+        if scene in REGION_BACKGROUNDS:
             return "adventure"
+        if scene == "construction":
+            return "construction"
+        if scene == "workshop":
+            return "space"
     if path == "assets/generated/opening-v1/planet.webp":
         return "space"
     if path in ("assets/video/quadrilateral-opening.ogv", "assets/video/quadrilateral-opening.ogv.uid"):
         return "opening"
-    # Shared UI, portraits, paper, home-card backgrounds, fonts and code remain
+    # Shared UI, portraits, paper, home illustrations, fonts and code remain
     # in the bootstrap pack. The desktop export is never passed through here.
     return "core"
 

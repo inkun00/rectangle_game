@@ -9,17 +9,16 @@ func _initialize() -> void:
 			push_error("Could not export generated loading button: " + filename)
 			quit(1)
 			return
-	# Encode the original once; the imported scene texture is already lossy.
-	# This build-only tool reads the local master, outside the resource importer.
-	var loading_path: String = ProjectSettings.globalize_path("res://assets/generated/starfront-hd/backgrounds/observatory.webp")
-	var loading_image: Image = Image.load_from_file(loading_path)
-	if loading_image == null or loading_image.is_empty():
-		push_error("Could not load the original loading background")
+	var panel: Image = StarfrontArt.panel(0).texture.get_image()
+	if panel.save_png("res://build/web/loading-panel.png") != OK:
+		push_error("Could not export the generated loading panel")
 		quit(1)
 		return
-	var loading_error: Error = loading_image.save_webp("res://build/web/frontier-loading.webp", true, 0.95)
-	if loading_error != OK:
-		push_error("Could not export the WebP loading background")
+	# The browser-only image is excluded from the PCK and already encoded.
+	var panorama: String = ProjectSettings.globalize_path("res://assets/generated/browser-arrival-v1/night-village.webp")
+	var destination: String = ProjectSettings.globalize_path("res://build/web/frontier-loading.webp")
+	if DirAccess.copy_absolute(panorama, destination) != OK:
+		push_error("Could not copy the loading-screen illustration")
 		quit(1)
 		return
 	quit()

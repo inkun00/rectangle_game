@@ -3,6 +3,8 @@ extends RefCounted
 ## Original ImageGen assets; presentation only, never geometry or game state.
 const ROOT: String = "res://assets/generated/starfront-v1/"
 const HD_ROOT: String = "res://assets/generated/starfront-hd/"
+const NAVY_PANEL: Texture2D = preload("res://assets/generated/adventure-ui-v2/panel-navy.webp")
+const PETROL_PANEL: Texture2D = preload("res://assets/generated/adventure-ui-v2/panel-petrol.webp")
 const SCENE_NAMES: Array[String] = ["market", "forest", "valley", "harbor", "snow", "citadel", "workshop", "construction", "observatory"]
 const PROP_SHEETS: Array[String] = ["settlement", "vegetation", "terrain", "destinations", "landmarks"]
 # Measured opaque silhouettes retain overhanging lanterns and smoke. A uniform
@@ -107,34 +109,23 @@ static func material(index: int) -> AtlasTexture:
 	return _slice(source, region, "hd_material:%d" % index)
 
 static func face(index: int) -> Texture2D:
-	var key: String = "face:%d" % index
-	if _cells.has(key): return _cells[key] as Texture2D
-	var source: AtlasTexture = cell("skin", index, 4, 2)
-	var pixels: Image = source.get_image()
-	if pixels.is_compressed(): pixels.decompress()
-	# Compress the complete decorative frame before nine-slicing it. Its broad
-	# source border must never expand into a label's text region.
-	pixels.resize(64, 64, Image.INTERPOLATE_NEAREST)
-	var result: ImageTexture = ImageTexture.create_from_image(pixels)
-	result.set_meta("generated_source", ROOT + "skin.webp")
-	_cells[key] = result
-	return result
+	return PETROL_PANEL if index in [1, 3, 5] else NAVY_PANEL
 
 static func panel(index: int = 0, padding: int = 14) -> StyleBoxTexture:
 	var result: StyleBoxTexture = StyleBoxTexture.new()
 	result.texture = face(index)
 	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
-		result.set_texture_margin(edge, 10.0)
+		result.set_texture_margin(edge, 12.0)
 		result.set_content_margin(edge, float(padding))
 	return result
 
 static func interior(index: int = 0) -> Texture2D:
-	var source: AtlasTexture = cell("skin", index, 4, 2)
-	var result: AtlasTexture = AtlasTexture.new()
-	result.atlas = source.atlas
-	result.region = source.region.grow(-source.region.size.x * 0.24)
-	result.filter_clip = true
-	return result
+	# The two colored instrument fills still use the painted gauge swatches.
+	if index in [6, 7]:
+		var gauge_cell: AtlasTexture = cell("skin", index, 4, 2)
+		return _slice(gauge_cell.atlas, Rect2i(gauge_cell.region.grow(-gauge_cell.region.size.x * 0.24)), "gauge:%d" % index)
+	var source: Texture2D = face(index)
+	return _slice(source, Rect2i(Vector2i.ZERO, Vector2i(source.get_size())).grow(-14), source.resource_path + ":interior")
 
 static func gauge(index: int) -> StyleBoxTexture:
 	var result: StyleBoxTexture = panel(index, 0)

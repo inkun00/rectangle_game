@@ -16,6 +16,17 @@ static func run(t: Node) -> void:
 	for label: Label in app._home_screen.find_children("*", "Label", true, false):
 		if label.text == "사각이의 모험": has_title = true
 	t.assert_true(has_title, "The home page displays the exact Korean game title")
+	var hero_picture: TextureRect = app._home_screen.find_child("OrbitalObservatoryBackground", true, false)
+	t.assert_true(hero_picture != null and hero_picture.texture != null, "The home opens with the illustrated Sagaki panorama")
+	var menu_sources: Array[String] = []
+	for card: Node in app._home_screen._cards.get_children():
+		var preview: TextureRect = card.find_child("ModePreview", true, false)
+		t.assert_true(preview != null and preview.texture != null, "Every home destination has an illustration, including the unlocked ending")
+		if preview == null or preview.texture == null: continue
+		var source: String = preview.texture.resource_path
+		t.assert_true(source.begins_with("res://assets/generated/home-atlas/"), "Menu cards use the original paper illustrations")
+		t.assert_false(menu_sources.has(source), "Each destination can be recognized by its own artwork")
+		menu_sources.append(source)
 	t.assert_false(app._drawing_screen.visible, "Drawing studio is hidden before choosing it")
 	t.assert_eq(_button(app._home_screen, "캐릭터 공방"), null, "Home has no custom character workshop entry")
 	t.assert_false(app._world_hud.visible, "World HUD does not overlap the home page")

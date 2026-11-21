@@ -210,6 +210,22 @@ static func _test_gallery_workflow(t: Node) -> void:
 	t.assert_eq(studio.document.serialize(), commission, "The regular workspace keeps the complete old commission artwork and scene metadata")
 	t.assert_true(studio.canvas.document == studio.document, "The canvas renders the currently selected workspace document")
 	t.assert_false(studio.canvas.drawing_tool, "Returning to a saved selected shape restores its selection tool")
+	root.size = Vector2i(390, 780)
+	root.content_scale_size = root.size
+	await _frames(t)
+	var bounds: Rect2 = Rect2(Vector2.ZERO, Vector2(root.size))
+	for action: Node in studio._drawing_header.find_children("*", "Button", true, false):
+		var button: Button = action as Button
+		if button.is_visible_in_tree():
+			t.assert_true(bounds.encloses(button.get_global_rect()), "Drawing title bar keeps " + button.text + " within the portrait viewport")
+	studio._open_colors()
+	await _frames(t)
+	_assert_window_fits(t, studio._color_dialog, root.size, "Portrait paint palette fits")
+	studio._color_dialog.hide()
+	studio._open_gallery(false)
+	await _frames(t)
+	_assert_window_fits(t, studio._gallery, root.size, "Portrait background gallery fits")
+	studio._gallery.hide()
 	studio.free()
 	root.size = original_size
 	root.content_scale_size = original_scale

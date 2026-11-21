@@ -17,6 +17,7 @@ class DeferredPreparation extends RefCounted:
 static func run(t: Node) -> void:
 	_test_preferences(t)
 	await _test_navigation(t)
+	await _test_portrait(t)
 	await _test_preparation(t)
 	await _test_playback(t)
 
@@ -114,6 +115,22 @@ static func _test_navigation(t: Node) -> void:
 	t.assert_false(is_instance_valid(app._opening_screen), "Direct navigation also releases any opening player")
 	t.assert_false(app.world.controls_enabled, "Returning home after replay cannot resume hidden gameplay")
 	app.free()
+	await t.get_tree().process_frame
+
+
+static func _test_portrait(t: Node) -> void:
+	var phone: Control = Control.new()
+	phone.size = Vector2(390, 780)
+	t.add_child(phone)
+	var intro: OpeningIntro = OpeningIntro.new()
+	phone.add_child(intro)
+	for frame: int in range(6): await t.get_tree().process_frame
+	var bounds: Rect2 = phone.get_global_rect()
+	for control: Control in [intro._story_panel, intro._start_button, intro._pause_button, intro._sound_button, intro._skip_button]:
+		t.assert_true(bounds.encloses(control.get_global_rect()), "The portrait opening fully shows %s" % control.name)
+	t.assert_ge(intro._time_label.size.x, 100.0, "The playback clock has room for elapsed time on a phone")
+	t.assert_lt(intro._pause_button.get_global_rect().end.y, intro._skip_button.global_position.y, "Portrait playback controls use two rows")
+	phone.free()
 	await t.get_tree().process_frame
 
 

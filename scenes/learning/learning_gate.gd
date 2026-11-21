@@ -15,6 +15,8 @@ var _clear_feedback_on_edit: bool = false
 var _panel: PanelContainer
 var _scroll: ScrollContainer
 var _progress: Label
+var _progress_bar: ProgressBar
+var _footer: BoxContainer
 var _title: Label
 var _prompt: Label
 var _metrics: Label
@@ -36,30 +38,41 @@ var _check: Button
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	var shade: ColorRect = ColorRect.new()
-	shade.color = Color(0.02, 0.04, 0.07, 0.85)
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(shade)
+	var workbench: TextureRect = TextureRect.new()
+	workbench.texture = load("res://assets/generated/geometry-desk-v1/geometry-desk.webp") as Texture2D
+	workbench.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	workbench.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	workbench.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	workbench.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(workbench)
 	var center: CenterContainer = CenterContainer.new()
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 	_panel = PanelContainer.new()
-	_panel.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
+	_panel.add_theme_stylebox_override("panel", GameArt.panel(0, 24))
 	center.add_child(_panel)
 	var column: VBoxContainer = VBoxContainer.new()
-	column.add_theme_constant_override("separation", 10)
+	column.add_theme_constant_override("separation", 12)
 	_panel.add_child(column)
 	var header: HBoxContainer = HBoxContainer.new()
-	header.add_theme_constant_override("separation", 8)
+	header.add_theme_constant_override("separation", 12)
 	column.add_child(header)
-	var heading: Label = QuadTheme.paragraph("게임 시작 전 수학 문제", 23, QuadTheme.TEAL)
+	var heading: Label = QuadTheme.paragraph("모험 준비 · 수학 문제", 16, QuadTheme.TEAL)
 	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	header.add_child(heading)
 	_progress = QuadTheme.label("", 16, QuadTheme.INK)
 	_progress.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	header.add_child(_progress)
+	_progress_bar = ProgressBar.new()
+	_progress_bar.custom_minimum_size = Vector2(76, 6)
+	_progress_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_progress_bar.show_percentage = false
+	var progress_track: StyleBoxTexture = StarfrontArt.gauge(7)
+	progress_track.modulate_color = Color("505565")
+	_progress_bar.add_theme_stylebox_override("background", progress_track)
+	_progress_bar.add_theme_stylebox_override("fill", StarfrontArt.gauge(7))
+	header.add_child(_progress_bar)
 	_scroll = ScrollContainer.new()
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.follow_focus = true
@@ -69,7 +82,7 @@ func _ready() -> void:
 	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 10)
 	_scroll.add_child(body)
-	_title = QuadTheme.paragraph("", 20, QuadTheme.TEAL)
+	_title = QuadTheme.paragraph("", 29, QuadTheme.INK)
 	body.add_child(_title)
 	_prompt = QuadTheme.paragraph("", 18, QuadTheme.INK)
 	body.add_child(_prompt)
@@ -77,20 +90,25 @@ func _ready() -> void:
 	canvas.name = "GateLearningCanvas"
 	canvas.changed.connect(_interaction_changed)
 	body.add_child(canvas)
-	canvas.custom_minimum_size.y = 280.0
 	grid_canvas = GridCanvas.new()
 	grid_canvas.name = "GateLearningGrid"
 	grid_canvas.changed.connect(_interaction_changed)
 	body.add_child(grid_canvas)
-	grid_canvas.custom_minimum_size.y = 300.0
 	_build_tools(body)
-	_metrics = QuadTheme.paragraph("", 16, QuadTheme.INK)
+	_metrics = QuadTheme.paragraph("", 16, QuadTheme.MUTED)
 	body.add_child(_metrics)
-	_feedback = QuadTheme.paragraph("", 16, Color("ffd18a"))
-	column.add_child(_feedback)
-	_check = QuadTheme.button("확인하기", submit_answer, true)
+	_footer = BoxContainer.new()
+	_footer.alignment = BoxContainer.ALIGNMENT_END
+	_footer.add_theme_constant_override("separation", 14)
+	column.add_child(_footer)
+	_feedback = QuadTheme.paragraph("", 16, StarfrontArt.AMBER)
+	_feedback.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_footer.add_child(_feedback)
+	_check = QuadTheme.button("정답 확인하기", submit_answer, true)
 	_check.name = "CheckMathGateAnswer"
-	column.add_child(_check)
+	_check.custom_minimum_size.x = 164
+	_check.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_footer.add_child(_check)
 	resized.connect(_layout)
 	_layout()
 
@@ -124,8 +142,13 @@ func _build_tools(body: VBoxContainer) -> void:
 	body.add_child(_choices)
 
 func _layout() -> void:
-	var width: float = minf(780.0, maxf(0.0, size.x - 24.0))
+	var width: float = minf(808.0, maxf(0.0, size.x - 24.0))
 	var height: float = minf(680.0, maxf(0.0, size.y - 24.0))
+	_footer.vertical = width < 540.0
+	_progress_bar.visible = width >= 470.0
+	var content_width: float = width - _panel.get_theme_stylebox("panel").get_minimum_size().x
+	canvas.custom_minimum_size.y = clampf(minf(height * 0.43, content_width * 0.60), 150.0, 290.0)
+	grid_canvas.custom_minimum_size.y = clampf(minf(height * 0.43, content_width * 0.70), 170.0, 290.0)
 	_panel.custom_minimum_size = Vector2(width, height)
 
 func present(value: Dictionary, step: int, total: int, feedback: String = "") -> void:
@@ -133,6 +156,8 @@ func present(value: Dictionary, step: int, total: int, feedback: String = "") ->
 	_mode = str(question.mode)
 	_answer = -1
 	_progress.text = "문제 %d / %d" % [step, total]
+	_progress_bar.max_value = total
+	_progress_bar.value = step
 	_title.text = str(question.title)
 	_prompt.text = str(question.prompt)
 	_show_feedback(feedback)

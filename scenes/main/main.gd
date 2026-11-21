@@ -52,6 +52,7 @@ var _touch_fingers: Dictionary = {}
 var _hud_controls: Label
 var _hud_buttons: Array[Button] = []
 var _modal_panel: PanelContainer
+var _modal_height: float = 680.0
 var _modal_scroll: ScrollContainer
 var _modal_close: Button
 var _modal_focus_before: Control
@@ -69,6 +70,7 @@ var _world_stats: Label
 var _world_region: Label
 var _active_quests: Label
 var _health_label: Label
+var _xp_label: Label
 var _level_label: Label
 var _health_bar: ProgressBar
 var _xp_bar: ProgressBar
@@ -968,32 +970,50 @@ func _build_world_hud() -> void:
 	_world_hud.visible = false
 	_ui.add_child(_world_hud)
 	_identity_panel = PanelContainer.new()
-	_identity_panel.add_theme_stylebox_override("panel", GameArt.panel(1, 16))
+	_identity_panel.add_theme_stylebox_override("panel", GameArt.panel(1, 14))
 	_world_hud.add_child(_identity_panel)
+	var identity: HBoxContainer = HBoxContainer.new()
+	identity.add_theme_constant_override("separation", 12)
+	_identity_panel.add_child(identity)
+	var portrait: AtlasTexture = AtlasTexture.new()
+	portrait.atlas = load(SagakiArt.SHEET_PATH) as Texture2D
+	portrait.region = Rect2(24, 18, 174, 142)
+	portrait.filter_clip = true
+	var portrait_view: TextureRect = GameArt.view(portrait, Vector2(60, 52))
+	portrait_view.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	identity.add_child(portrait_view)
 	var character_info: VBoxContainer = VBoxContainer.new()
-	character_info.add_theme_constant_override("separation", 6)
-	_identity_panel.add_child(character_info)
-	_level_label = QuadTheme.label("LV. 1  사각이", 22, Color("f6d794"))
+	character_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	character_info.add_theme_constant_override("separation", 4)
+	identity.add_child(character_info)
+	_level_label = QuadTheme.label("", 22, QuadTheme.INK)
 	character_info.add_child(_level_label)
-	_health_label = QuadTheme.label("", 16, Color("f7edd7"))
-	character_info.add_child(_health_label)
-	_health_bar = _rpg_bar(Color("ff6b79"), 12)
-	character_info.add_child(_health_bar)
+	var gauges: GridContainer = GridContainer.new()
+	gauges.columns = 2
+	gauges.add_theme_constant_override("h_separation", 10)
+	gauges.add_theme_constant_override("v_separation", 3)
+	character_info.add_child(gauges)
+	_health_label = QuadTheme.label("", 16, Color("ffbab0"))
+	_xp_label = QuadTheme.label("", 16, QuadTheme.TEAL)
+	gauges.add_child(_health_label)
+	gauges.add_child(_xp_label)
+	_health_bar = _rpg_bar(Color("ff6b79"), 7)
 	_xp_bar = _rpg_bar(Color("74dfb0"), 7)
-	character_info.add_child(_xp_bar)
+	gauges.add_child(_health_bar)
+	gauges.add_child(_xp_bar)
 	_region_panel = PanelContainer.new()
 	_region_panel.add_theme_stylebox_override("panel", GameArt.panel(1, 14))
 	_world_hud.add_child(_region_panel)
 	var region_info: VBoxContainer = VBoxContainer.new()
 	region_info.add_theme_constant_override("separation", 5)
 	_region_panel.add_child(region_info)
-	_world_region = QuadTheme.paragraph("초록 마을", 20, Color("f6d794"))
+	_world_region = QuadTheme.paragraph("초록 마을", 22, QuadTheme.INK)
 	_world_region.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	region_info.add_child(_world_region)
-	_world_stats = QuadTheme.label("", 16, Color("f7edd7"))
+	_world_stats = QuadTheme.label("", 16, StarfrontArt.AMBER)
 	_world_stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	region_info.add_child(_world_stats)
-	_story_label = QuadTheme.paragraph("", 16, Color("e2e9df"))
+	_story_label = QuadTheme.paragraph("", 16, QuadTheme.MUTED)
 	_story_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	region_info.add_child(_story_label)
 	_quest_panel = PanelContainer.new()
@@ -1002,14 +1022,19 @@ func _build_world_hud() -> void:
 	var qv: VBoxContainer = VBoxContainer.new()
 	qv.add_theme_constant_override("separation", 8)
 	_quest_panel.add_child(qv)
-	_quest_heading = QuadTheme.label("지금의 부탁", 18, Color("f6d794"))
-	qv.add_child(_quest_heading)
+	var quest_header: HBoxContainer = HBoxContainer.new()
+	quest_header.add_theme_constant_override("separation", 8)
+	qv.add_child(quest_header)
+	_quest_heading = QuadTheme.label("지금의 부탁", 18, QuadTheme.TEAL)
+	_quest_heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	quest_header.add_child(_quest_heading)
+	_quest_open_button = _rpg_button("수첩 J", _show_journal)
+	_quest_open_button.tooltip_text = "부탁 수첩 열기"
+	quest_header.add_child(_quest_open_button)
 	_active_quests = QuadTheme.paragraph("", 17, Color("f7edd7"))
 	qv.add_child(_active_quests)
-	_guidance = QuadTheme.paragraph("", 16, Color("f6d794"))
+	_guidance = QuadTheme.paragraph("", 16, StarfrontArt.AMBER)
 	qv.add_child(_guidance)
-	_quest_open_button = _rpg_button("부탁 수첩  J", _show_journal)
-	qv.add_child(_quest_open_button)
 	_hud_bottom = PanelContainer.new()
 	_hud_bottom.add_theme_stylebox_override("panel", GameArt.panel(1, 12))
 	_world_hud.add_child(_hud_bottom)
@@ -1050,7 +1075,7 @@ func _build_world_hud() -> void:
 	_touch_buttons["attack"] = touch_attack
 	_touch_row.add_child(touch_attack)
 	_touch_row.visible = learning_progress.touch_controls
-	_hud_controls = QuadTheme.paragraph("방향키 이동   Space 점프   G 줍기   E 대화   Z / F 공격   Q 회복   Tab 메뉴", 16, Color("e2e9df"))
+	_hud_controls = QuadTheme.paragraph("", 16, QuadTheme.MUTED)
 	_hud_controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(_hud_controls)
 	for panel: PanelContainer in [_identity_panel, _region_panel, _quest_panel, _hud_bottom]:
@@ -1069,30 +1094,26 @@ func _layout_hud(area: Vector2) -> void:
 	var touch_compact: bool = _compact_hud and learning_progress.touch_controls
 	var narrow: bool = area.x < 640.0
 	var gutter: float = 12.0 if _compact_hud else 20.0
-	var identity_width: float = minf(306.0, area.x - gutter * 2.0)
+	var identity_width: float = area.x - gutter * 2.0 if narrow else 332.0
 	_identity_panel.position = Vector2(gutter, gutter)
 	_identity_panel.size = Vector2(identity_width, 116)
 	var region_width: float = area.x - gutter * 2.0 if narrow else (area.x - identity_width - gutter * 3.0 if _compact_hud else 360.0)
 	_region_panel.position = Vector2(gutter if narrow else (area.x - region_width - gutter if _compact_hud else area.x * 0.5 - 180.0), 136.0 if narrow else gutter)
 	_region_panel.size = Vector2(region_width, 90.0)
 	_story_label.visible = not _compact_hud
-	_quest_heading.visible = not _compact_hud
-	_quest_open_button.visible = not _compact_hud
+	_quest_heading.get_parent().visible = not _compact_hud
 	_active_quests.visible = not touch_compact
 	_quest_panel.position = Vector2(gutter if _compact_hud else area.x - 340.0 - gutter, 240.0 if narrow else (144.0 if _compact_hud else gutter))
 	_quest_panel.size = Vector2(minf(470.0, area.x - gutter * 2.0) if _compact_hud else 340.0, 0)
-	var bottom_height: float = 120.0 if narrow else 104.0
-	var hotbar_width: float = minf(1000.0, area.x - gutter * 2.0)
-	_hud_bottom.position = Vector2((area.x - hotbar_width) * 0.5, area.y - bottom_height - gutter)
-	_hud_bottom.size = Vector2(hotbar_width, bottom_height)
 	for button: Button in _hud_buttons:
 		var show_button: bool = not _compact_hud or bool(button.get_meta("compact", false))
 		button.visible = show_button
 		button.icon = button.get_meta("art_icon") if not _compact_hud and button.has_meta("art_icon") else null
 		button.add_theme_font_size_override("font_size", 17 if _compact_hud else 18)
-		button.text = str(button.get_meta("caption", button.text))
+		var caption: String = str(button.get_meta("caption", button.text))
+		button.text = caption.get_slice(" ", 0) if narrow else caption
 	if _potion_button != null: _potion_button.text = "회복약 %d  Q" % adventure.potions
-	_hud_controls.text = "방향키 이동 · Space 점프\nZ / F 공격 · Q 회복 · Tab 메뉴" if _compact_hud else "방향키 이동   Space 점프   G 줍기   E 대화   Z / F 공격   Q 회복   Tab 메뉴"
+	_hud_controls.text = "방향키 이동 · Space 점프 · Z / F 공격 · Q 회복 · Tab 메뉴" if _compact_hud else "방향키 이동   ·   Space 점프   ·   J 부탁 수첩   ·   M 지도   ·   Tab 메뉴"
 	_hud_controls.visible = not learning_progress.touch_controls
 	call_deferred("_fit_hud_heights")
 
@@ -1101,17 +1122,26 @@ func _fit_hud_heights() -> void:
 	for panel: PanelContainer in [_identity_panel, _region_panel, _quest_panel]:
 		panel.size.y = panel.get_combined_minimum_size().y
 	var gutter: float = 12.0 if _compact_hud else 20.0
-	_hud_bottom.size.y = _hud_bottom.get_combined_minimum_size().y
-	_hud_bottom.position.y = _ui_size().y - _hud_bottom.size.y - gutter
+	var area: Vector2 = _ui_size()
+	if _compact_hud:
+		var below_status: float = _identity_panel.get_rect().end.y + gutter
+		if area.x < 640.0:
+			_region_panel.position.y = below_status
+			below_status = _region_panel.get_rect().end.y + gutter
+		_quest_panel.position.y = below_status
+	var hotbar_width: float = minf(1000.0, area.x - gutter * 2.0)
+	_hud_bottom.size = Vector2(hotbar_width, _hud_bottom.get_combined_minimum_size().y)
+	_hud_bottom.position = Vector2((area.x - hotbar_width) * 0.5, area.y - _hud_bottom.size.y - gutter)
+	_layout_toast()
 
 func _rpg_bar(tint: Color, height: float) -> ProgressBar:
 	var bar: ProgressBar = ProgressBar.new()
-	bar.custom_minimum_size = Vector2(250, height)
+	bar.custom_minimum_size = Vector2(48, height)
+	bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.show_percentage = false
-	var back: StyleBoxTexture = GameArt.panel(1, 0)
-	var fill: StyleBoxTexture = StarfrontArt.panel(6 if tint.r > tint.g else 7, 0)
-	fill.texture = StarfrontArt.interior(6 if tint.r > tint.g else 7)
-	for edge: Side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]: fill.set_texture_margin(edge, 0.0)
+	var back: StyleBoxTexture = StarfrontArt.gauge(7)
+	back.modulate_color = Color("505565")
+	var fill: StyleBoxTexture = StarfrontArt.gauge(6 if tint.r > tint.g else 7)
 	bar.add_theme_stylebox_override("background", back)
 	bar.add_theme_stylebox_override("fill", fill)
 	return bar
@@ -1126,8 +1156,9 @@ func _rpg_button(text: String, callback: Callable, item_index: int = -1) -> Butt
 	return button
 
 func _build_toast() -> void:
-	_toast = QuadTheme.label("", 16, Color.WHITE)
+	_toast = QuadTheme.label("", 17, Color.WHITE)
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_toast.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_toast.offset_left = -370
 	_toast.offset_right = 370
 	_toast.offset_top = -174
@@ -1148,9 +1179,19 @@ func _build_toast() -> void:
 func _show_toast(message: String) -> void:
 	if _toast == null: return
 	_toast.text = message
+	_layout_toast()
 	_toast.show()
 	_ui.move_child(_toast, _ui.get_child_count() - 1)
 	_toast_timer.start()
+
+func _layout_toast() -> void:
+	if _toast == null: return
+	var toast_width: float = minf(740.0, _ui.size.x - 32.0)
+	_toast.offset_left = -toast_width * 0.5
+	_toast.offset_right = toast_width * 0.5
+	var gap: float = _ui.size.y - _hud_bottom.position.y + 8.0 if _in_world else 24.0
+	_toast.offset_bottom = -gap
+	_toast.offset_top = -gap - maxf(48.0, _toast.get_combined_minimum_size().y)
 
 func _journal_changed() -> void:
 	if _world_stats == null: return
@@ -1167,14 +1208,15 @@ func _journal_changed() -> void:
 		lines.resize(shown_count)
 		lines.append("외 %d개의 부탁  ·  J로 모두 보기" % remaining)
 	if lines.is_empty():
-		_active_quests.text = "주민 곁에서 E를 눌러\n새로운 부탁을 받아 보세요!" if journal.completed_count() < QuestCatalog.all_quests().size() else "모든 주민을 도왔어요!\n별빛이 다시 켜졌어요.\n이야기 수첩에서 여행을 돌아봐요."
+		_active_quests.text = "주민 곁에서 E를 눌러 부탁을 받아요." if journal.completed_count() < QuestCatalog.all_quests().size() else "모든 주민을 도왔어요!\n이야기 수첩에서 여행을 돌아봐요."
 	else: _active_quests.text = "\n\n".join(lines)
 	if not _restoring and _autosave != null: _autosave.start()
 
 func _adventure_changed() -> void:
 	if _health_label == null: return
-	_health_label.text = "HP  %d / %d      XP  %d / %d" % [adventure.hp, adventure.max_hp, adventure.xp_in_level(), adventure.xp_for_next_level()]
-	_level_label.text = "LV. %d  사각이" % adventure.level
+	_health_label.text = "체력 %d/%d" % [adventure.hp, adventure.max_hp]
+	_xp_label.text = "경험 %d/%d" % [adventure.xp_in_level(), adventure.xp_for_next_level()]
+	_level_label.text = "사각이  ·  Lv. %d" % adventure.level
 	_health_bar.max_value = adventure.max_hp
 	_health_bar.value = adventure.hp
 	_xp_bar.max_value = adventure.xp_for_next_level()
@@ -1240,7 +1282,7 @@ func _refresh_world_guidance() -> void:
 		var vertical: String = " · 위쪽 발판으로 점프" if offset.y < -90.0 else ""
 		_guidance.text = "%s\n%s %d걸음%s" % [waypoint["name"], direction, maxi(1, ceili(absf(offset.x) / 40.0)), vertical]
 	else:
-		_guidance.text = "물건은 G로 줍기 · 가까이 닿으면 자동 수집\n부탁을 받기 전에 모아도 괜찮아요."
+		_guidance.text = "빛나는 물건에 다가가거나 G로 주워요."
 
 func _quest_waypoint(quest_id: String) -> Dictionary:
 	if world == null or quest_id.is_empty(): return {}
@@ -1342,26 +1384,34 @@ func _show_service(service_id: String) -> void:
 		_show_travel()
 		return
 	var is_shop: bool = service_id == "shop"
-	var body: VBoxContainer = _open_modal("네모 잡화점" if is_shop else "따뜻한 모험가 쉼터")
+	var body: VBoxContainer = _open_modal("네모 잡화점" if is_shop else "따뜻한 모험가 쉼터", 460.0)
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_child(GameArt.view(GameArt.item(8) if is_shop else GameArt.cell("environment_atlas", 2, 4, 3), Vector2(120, 130)))
 	row.add_child(QuadTheme.paragraph("모험을 떠나기 전에 가방을 채워요.\n회복약 한 병은 체력을 40 회복해요." if is_shop else "따뜻한 쉼터에서 쉬었다 가세요.\n휴식하면 체력을 모두 회복해요.", 21, QuadTheme.INK))
 	body.add_child(row)
 	body.add_child(QuadTheme.label("보유 코인 %d  ·  회복약 %d  ·  HP %d / %d" % [journal.coins, adventure.potions, adventure.hp, adventure.max_hp], 18))
-	var feedback: Label = QuadTheme.paragraph("", 16, QuadTheme.TEAL)
-	if is_shop:
-		body.add_child(QuadTheme.button("10 코인으로 회복약 구입", func():
-			if adventure.purchase_potion(journal):
-				_show_service("shop")
-				_show_toast("회복약 한 병을 가방에 넣었어요.")
-			else: feedback.text = "코인이 부족해요. 주민의 부탁을 도와 보상을 받아요.", true))
-	else:
-		body.add_child(QuadTheme.button("5 코인으로 충분히 쉬기", func():
-			if adventure.rest(journal):
-				_close_modal()
-				_show_toast("푹 쉬고 체력을 모두 회복했어요!")
-			else: feedback.text = "이미 체력이 가득해요." if adventure.hp >= adventure.max_hp else "휴식에 필요한 코인이 부족해요.", true))
-	body.add_child(feedback)
+	var cost: int = AdventureState.POTION_COST if is_shop else AdventureState.REST_COST
+	var caption: String = ("%d 코인으로 회복약 구입" if is_shop else "%d 코인으로 충분히 쉬기") % cost
+	if not is_shop and adventure.hp == 0:
+		cost = 0
+		caption = "무료로 기운 되찾기"
+	var action: Button = QuadTheme.button(caption, func():
+		if is_shop and adventure.purchase_potion(journal):
+			_show_service(service_id)
+			_show_toast("회복약 한 병을 가방에 넣었어요.")
+		elif not is_shop and adventure.rest(journal):
+			_close_modal()
+			_show_toast("푹 쉬고 체력을 모두 회복했어요!")
+		else:
+			_show_service(service_id), true)
+	body.add_child(action)
+	var unavailable: String = ""
+	if not is_shop and adventure.hp >= adventure.max_hp: unavailable = "체력이 가득해요. 다쳤을 때 쉬어 가요."
+	elif is_shop and adventure.potions >= AdventureState.MAX_POTIONS: unavailable = "가방에 회복약이 가득해요."
+	elif journal.coins < cost: unavailable = "%d코인이 더 필요해요. 주민의 부탁을 도와 코인을 모아요." % (cost - journal.coins)
+	if not unavailable.is_empty():
+		action.disabled = true
+		body.add_child(QuadTheme.paragraph(unavailable, 16, StarfrontArt.AMBER))
 	body.add_child(QuadTheme.button("다음에 다시 올게요", _close_modal))
 
 func _show_travel() -> void:
@@ -1510,8 +1560,19 @@ func _show_quest_success(quest: Dictionary, answer: Dictionary) -> void:
 	body.add_child(QuadTheme.button("심부름 계속하기", _close_modal, true))
 
 func _show_game_menu() -> void:
-	var body: VBoxContainer = _open_modal("마을 주민 심부름하기")
-	body.add_child(QuadTheme.paragraph("심부름으로 번 돈 %s\n집 짓기와 우주선 제작에 사용할 수 있어요." % ConstructionCatalog.format_won(_economy_state.village_income()), 17, QuadTheme.TEAL))
+	var body: VBoxContainer = _open_modal("모험 메뉴")
+	body.add_child(QuadTheme.paragraph("심부름 수입 %s · 집과 우주선을 만들 때 쓸 수 있어요." % ConstructionCatalog.format_won(_economy_state.village_income()), 17))
+	var routes: GridContainer = _menu_grid(body)
+	_add_menu_action(routes, "부탁 수첩  J", _show_journal, 4)
+	_add_menu_action(routes, "여행 지도  M", _show_map, 10)
+	_add_menu_action(routes, "모험가의 가방  I", _show_inventory, 11)
+	_add_menu_action(routes, "이야기 수첩  H", _show_story, 23)
+	_add_menu_action(routes, "사각형 도감", _show_notebook, 7)
+	_add_menu_action(routes, "수학 직접 해 보기", _show_learning, 6)
+	body.add_child(QuadTheme.label("탐험 설정", 18, QuadTheme.TEAL))
+	var settings: VBoxContainer = VBoxContainer.new()
+	settings.add_theme_constant_override("separation", 6)
+	body.add_child(settings)
 	var peaceful: CheckButton = CheckButton.new()
 	peaceful.text = "편안한 탐험 · 몬스터에 닿아도 다치지 않아요"
 	ButtonArt.apply(peaceful)
@@ -1520,7 +1581,7 @@ func _show_game_menu() -> void:
 	peaceful.toggled.connect(func(enabled: bool):
 		learning_progress.peaceful = enabled
 		learning_progress.changed.emit())
-	body.add_child(peaceful)
+	settings.add_child(peaceful)
 	var touch: CheckButton = CheckButton.new()
 	touch.text = "화면에 이동·점프 버튼 표시"
 	ButtonArt.apply(touch)
@@ -1529,28 +1590,42 @@ func _show_game_menu() -> void:
 	touch.toggled.connect(func(enabled: bool):
 		learning_progress.touch_controls = enabled
 		learning_progress.changed.emit())
-	body.add_child(touch)
+	settings.add_child(touch)
 	var sound: CheckButton = CheckButton.new()
 	sound.text = "효과음 켜기"
 	ButtonArt.apply(sound)
 	sound.custom_minimum_size.y = 48
 	sound.button_pressed = _sound.sound_enabled
 	sound.toggled.connect(func(enabled: bool): _sound.sound_enabled = enabled)
-	body.add_child(sound)
-	body.add_child(QuadTheme.button("수학 직접 해 보기", _show_learning))
-	body.add_child(QuadTheme.paragraph("방향키 / A·D 이동 · Space 점프\nG 줍기 · E 대화 · Z / F 공격 · Q 회복약\nTab으로 버튼 이동 · Enter 선택 · Esc 닫기", 18, QuadTheme.INK))
-	body.add_child(QuadTheme.button("부탁 수첩  J", _show_journal, true))
-	body.add_child(QuadTheme.button("여행 지도  M", _show_map))
-	body.add_child(QuadTheme.button("모험가의 가방  I", _show_inventory))
-	body.add_child(QuadTheme.button("이야기 수첩  H", _show_story))
-	body.add_child(QuadTheme.button("사각형 도감", _show_notebook))
-	body.add_child(QuadTheme.button("조작 방법", _show_controls))
-	body.add_child(QuadTheme.button("튜토리얼 다시 보기", func(): _replay_tutorial("world")))
-	body.add_child(QuadTheme.button("모든 모드 안내", _show_tutorials))
-	body.add_child(QuadTheme.button("심부름 기록 저장", func(): _save(true)))
-	body.add_child(QuadTheme.button("심부름 기록 불러오기", func(): _load(true)))
-	body.add_child(QuadTheme.button("메인으로", _show_home))
-	body.add_child(QuadTheme.button("심부름 계속하기", _close_modal))
+	settings.add_child(sound)
+	body.add_child(QuadTheme.label("기록과 도움말", 18, QuadTheme.TEAL))
+	var records: GridContainer = _menu_grid(body)
+	_add_menu_action(records, "심부름 기록 저장", func(): _save(true))
+	_add_menu_action(records, "심부름 기록 불러오기", func(): _load(true))
+	_add_menu_action(records, "조작 방법", _show_controls)
+	_add_menu_action(records, "튜토리얼 다시 보기", func(): _replay_tutorial("world"))
+	_add_menu_action(records, "모든 모드 안내", _show_tutorials)
+	_add_menu_action(records, "메인으로", _show_home)
+	body.add_child(QuadTheme.button("심부름 계속하기", _close_modal, true))
+
+func _menu_grid(parent: VBoxContainer) -> GridContainer:
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = 2
+	grid.add_to_group(&"responsive_menu_grid")
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 8)
+	parent.add_child(grid)
+	return grid
+
+func _add_menu_action(grid: GridContainer, caption: String, action: Callable, item_index: int = -1) -> void:
+	var button: Button = QuadTheme.button(caption, action)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if item_index >= 0:
+		button.icon = GameArt.item(item_index)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.add_theme_constant_override("h_separation", 12)
+		button.custom_minimum_size.y = 56
+	grid.add_child(button)
 
 func _show_controls() -> void:
 	var body: VBoxContainer = _open_modal("조작 방법")
@@ -1666,7 +1741,7 @@ func _show_map() -> void:
 				_close_modal()))
 	body.add_child(QuadTheme.button("탐험 계속하기", _close_modal))
 
-func _open_modal(title: String) -> VBoxContainer:
+func _open_modal(title: String, preferred_height: float = 680.0) -> VBoxContainer:
 	_clear_touch_inputs()
 	if not is_instance_valid(_modal_overlay):
 		_modal_focus_before = get_viewport().gui_get_focus_owner()
@@ -1677,18 +1752,20 @@ func _open_modal(title: String) -> VBoxContainer:
 	_modal_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ui.add_child(_modal_overlay)
 	var dim: ColorRect = ColorRect.new()
-	dim.color = Color(0.09, 0.17, 0.2, 0.52)
+	dim.color = Color(0.04, 0.09, 0.13, 0.70)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_modal_overlay.add_child(dim)
 	_modal_panel = PanelContainer.new()
+	_modal_height = preferred_height
 	_modal_panel.add_theme_stylebox_override("panel", QuadTheme.style(QuadTheme.PAPER, 22, QuadTheme.BORDER, 20))
 	_modal_overlay.add_child(_modal_panel)
 	var outer: VBoxContainer = VBoxContainer.new()
-	outer.add_theme_constant_override("separation", 18)
+	outer.add_theme_constant_override("separation", 14)
 	_modal_panel.add_child(outer)
 	var header: HBoxContainer = HBoxContainer.new()
 	outer.add_child(header)
-	var heading: Label = QuadTheme.paragraph(title, 23, QuadTheme.INK)
+	var heading: Label = QuadTheme.paragraph(title, 26, QuadTheme.INK)
+	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(heading)
 	_modal_close = QuadTheme.button("닫기 Esc", _close_modal)
@@ -1711,13 +1788,15 @@ func _layout_modal() -> void:
 	if not is_instance_valid(_modal_panel): return
 	var area: Vector2 = _ui_size()
 	var margin: float = 12.0 if area.x < 640.0 else 24.0
-	var panel_size: Vector2 = Vector2(minf(760.0, area.x - margin * 2.0), minf(680.0, area.y - margin * 2.0))
+	var panel_size: Vector2 = Vector2(minf(760.0, area.x - margin * 2.0), minf(_modal_height, area.y - margin * 2.0))
 	_fit_modal_content(_modal_panel, maxf(100.0, panel_size.x - 64.0))
 	_modal_panel.size = panel_size
 	_modal_panel.position = (area - panel_size) * 0.5
 
 func _fit_modal_content(parent: Node, width: float) -> void:
 	for child: Node in parent.get_children():
+		if child is GridContainer and child.is_in_group(&"responsive_menu_grid"):
+			(child as GridContainer).columns = 1 if width < 430.0 else 2
 		if child is Control:
 			var control: Control = child as Control
 			if control.custom_minimum_size.x > width:
@@ -1821,6 +1900,9 @@ func _responsive() -> void:
 	var window: Window = get_window()
 	var creation_visible: bool = is_instance_valid(_startup_learning) or (is_instance_valid(_home_screen) and (_home_screen.visible or (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen) or is_instance_valid(_ending_scene)))
 	var desired_size: Vector2i = Vector2i(maxi(window.size.x, 800), maxi(window.size.y, 600)) if creation_visible else Vector2i(1600, 900)
+	# Embedded drawing palettes use the root window's scale, outside the HUD layer.
+	if is_instance_valid(_drawing_screen) and _drawing_screen.visible:
+		desired_size = window.size.max(Vector2i.ONE)
 	if window.content_scale_size != desired_size:
 		window.content_scale_size = desired_size
 	# Counter only the UI stretch. World coordinates and player artwork stay intact.
@@ -1832,16 +1914,7 @@ func _responsive() -> void:
 	_ui.size = get_viewport().get_visible_rect().size * stretch
 	_layout_hud(_ui.size)
 	_layout_modal()
-	if _toast != null:
-		var toast_width: float = minf(740.0, _ui.size.x - 32.0)
-		_toast.offset_left = -toast_width * 0.5
-		_toast.offset_right = toast_width * 0.5
-		_toast.offset_top = -214.0 if _compact_hud else -194.0
-		_toast.offset_bottom = -144.0 if _compact_hud else -124.0
-		if learning_progress.touch_controls and _compact_hud:
-			_toast.offset_top = -300.0
-			_toast.offset_bottom = -240.0
-		_toast.add_theme_font_size_override("font_size", 17)
+	_layout_toast()
 	_journal_changed()
 	_refresh_world_guidance()
 	if _tutorial != null: _tutorial.refresh.call_deferred()

@@ -22,6 +22,8 @@ var _pause_button: Button
 var _sound_button: Button
 var _skip_button: Button
 var _gate: CenterContainer
+var _story_panel: PanelContainer
+var _controls: GridContainer
 var _time_label: Label
 var _preparation_label: Label
 var _stalled_seconds: float = 0.0
@@ -82,41 +84,51 @@ func _ready() -> void:
 	_gate = CenterContainer.new()
 	_gate.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	stage.add_child(_gate)
-	var panel: PanelContainer = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(500, 0)
-	panel.add_theme_stylebox_override("panel", Art.gold_panel(24))
-	_gate.add_child(panel)
+	_story_panel = PanelContainer.new()
+	_story_panel.add_theme_stylebox_override("panel", Art.gold_panel(24))
+	_gate.add_child(_story_panel)
 	var story: VBoxContainer = VBoxContainer.new()
 	story.add_theme_constant_override("separation", 16)
-	panel.add_child(story)
+	_story_panel.add_child(story)
 	story.add_child(QuadTheme.paragraph("사각이의 두 가지 길", 26, Color.WHITE))
 	story.add_child(QuadTheme.paragraph("사각성에서 온 사각이가 지구에 불시착했어요!\n마을을 도와 돈을 모으고,\n지구에 남을지 사각성으로 돌아갈지 골라요.", 20, Art.INK))
-	_start_button = _button("이야기 시작", start_playback)
+	_start_button = _button("이야기 시작", start_playback, true)
 	_start_button.name = "StartOpening"
 	story.add_child(_start_button)
 	_preparation_label = QuadTheme.paragraph("소리와 함께 감상할 수 있어요.", 15, Art.INK)
 	story.add_child(_preparation_label)
-	var controls: HBoxContainer = HBoxContainer.new()
-	controls.add_theme_constant_override("separation", 8)
-	column.add_child(controls)
+	_controls = GridContainer.new()
+	_controls.add_theme_constant_override("h_separation", 8)
+	_controls.add_theme_constant_override("v_separation", 8)
+	column.add_child(_controls)
 	_pause_button = _button("일시정지", toggle_pause)
 	_pause_button.name = "PauseOpening"
 	_pause_button.disabled = true
-	controls.add_child(_pause_button)
+	_controls.add_child(_pause_button)
 	_sound_button = _button("", toggle_sound)
 	_sound_button.name = "OpeningSound"
-	controls.add_child(_sound_button)
-	_time_label = QuadTheme.paragraph("", 15, Color("becedd"))
+	_controls.add_child(_sound_button)
+	_time_label = QuadTheme.label("재생 대기", 15, Color("becedd"))
 	_time_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_time_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	controls.add_child(_time_label)
+	_controls.add_child(_time_label)
 	_skip_button = _button("건너뛰기 · Esc", func(): finish("skipped"))
 	_skip_button.name = "SkipOpening"
-	controls.add_child(_skip_button)
+	_controls.add_child(_skip_button)
+	resized.connect(_resize_controls)
+	_resize_controls()
 	_refresh_sound()
 	_start_button.grab_focus()
 	set_process(false)
+
+
+func _resize_controls() -> void:
+	_story_panel.custom_minimum_size.x = clampf(size.x - 24.0, 0.0, 500.0)
+	var compact: bool = size.x < 550.0
+	_controls.columns = 2 if compact else 4
+	for button: Button in [_pause_button, _sound_button, _skip_button]:
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if compact else Control.SIZE_FILL
 
 
 func _build_brand_card(aspect: AspectRatioContainer) -> void:
@@ -132,12 +144,9 @@ func _build_brand_card(aspect: AspectRatioContainer) -> void:
 	_brand_card.anchor_right = 0.484
 	_brand_card.anchor_bottom = 0.40
 	layer.add_child(_brand_card)
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color("0b2534")
+	var style: StyleBoxTexture = Art.panel(true, 4)
 	style.content_margin_left = 14.0
 	style.content_margin_right = 12.0
-	style.border_color = Color("f5c25c")
-	style.border_width_left = 3
 	_brand_card.add_theme_stylebox_override("panel", style)
 	var words: VBoxContainer = VBoxContainer.new()
 	words.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -156,8 +165,8 @@ func _build_brand_card(aspect: AspectRatioContainer) -> void:
 		subtitle.add_theme_font_size_override("font_size", maxi(10, roundi(layer.size.x * 0.024))))
 
 
-func _button(text: String, action: Callable) -> Button:
-	var button: Button = QuadTheme.button(text, action)
+func _button(text: String, action: Callable, primary: bool = false) -> Button:
+	var button: Button = QuadTheme.button(text, action, primary)
 	button.custom_minimum_size = Vector2(0, 48)
 	button.focus_mode = Control.FOCUS_ALL
 	button.add_theme_font_size_override("font_size", 18)

@@ -277,7 +277,7 @@ def prepare(directory: Path) -> tuple[str, str]:
     for pattern in ("*.png.import", "*.webp.import"):
         for imported in directory.glob(pattern):
             imported.unlink()
-    # Replaced by a same-resolution WebP in export_button_web.gd.
+    # Current releases use a generated WebP for the browser loading screen.
     old_loading = directory / "frontier-loading.png"
     if old_loading.is_file() and "frontier-loading.png" not in html:
         old_loading.unlink()

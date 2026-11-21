@@ -29,8 +29,8 @@ static func generated_texture(filename: String) -> Texture2D:
 		"construction-materials.png", "construction-materials-expanded.png": return StarfrontArt.hd_sheet("materials/details-a")
 		"ui-icons.png": return StarfrontArt.sheet("tools")
 		"ui-surfaces.png": return StarfrontArt.sheet("skin")
-		"drawing-cover.png": return StarfrontArt.scene(6)
-		"construction-cover.png": return StarfrontArt.scene(7)
+		"drawing-cover.png": return preload("res://assets/generated/home-atlas/drawing.webp")
+		"construction-cover.png": return preload("res://assets/generated/home-atlas/building.webp")
 		"app-icon.png": return StarfrontArt.cell("items", 23, 4, 6, true)
 	if _textures.has(filename): return _textures[filename] as Texture2D
 	var path: String = GENERATED_ROOT + filename
@@ -128,75 +128,10 @@ static func material_icon(material_id: String) -> Texture2D:
 
 static func tool_icon(tool: String) -> Texture2D:
 	if tool == "pan":
-		return _pan_icon()
+		return preload("res://assets/generated/adventure-ui-v2/pan.webp")
 	if tool == "clear":
-		return _clear_icon()
+		return preload("res://assets/generated/adventure-ui-v2/broom.webp")
 	return _atlas("ui-icons.png", int(TOOL_CELLS.get(tool, 0)), 4, 4)
-
-static func _clear_icon() -> Texture2D:
-	var key: String = "tool_icon:clear"
-	if _textures.has(key): return _textures[key] as Texture2D
-	var img: Image = Image.create(24, 24, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var handle_col: Color = Color("d49a55")
-	var metal_col: Color = Color("8fa2a6")
-	var bristle_col: Color = Color("f6cf46")
-	var bristle_shade: Color = Color("d4a822")
-	var spark_col: Color = Color("62c7b8")
-	for i: int in range(10):
-		var x: int = 19 - i
-		var y: int = 4 + i
-		if x >= 0 and x < 24 and y >= 0 and y < 24:
-			img.set_pixel(x, y, handle_col)
-			if x + 1 < 24:
-				img.set_pixel(x + 1, y, handle_col)
-	for ox: int in range(-1, 2):
-		for oy: int in range(-1, 2):
-			var fx: int = 10 + ox
-			var fy: int = 13 + oy
-			if fx >= 0 and fx < 24 and fy >= 0 and fy < 24:
-				img.set_pixel(fx, fy, metal_col)
-	for bx: int in range(4, 12):
-		for by: int in range(14, 22):
-			if (bx + by) >= 18 and (bx + by) <= 28 and (by - bx) >= 6:
-				if bx >= 0 and bx < 24 and by >= 0 and by < 24:
-					img.set_pixel(bx, by, bristle_col if (bx + by) % 2 == 0 else bristle_shade)
-	img.set_pixel(3, 21, spark_col)
-	img.set_pixel(4, 22, spark_col)
-	img.set_pixel(14, 21, spark_col)
-	var tex: ImageTexture = ImageTexture.create_from_image(img)
-	_textures[key] = tex
-	return tex
-
-static func _pan_icon() -> Texture2D:
-	var key: String = "tool_icon:pan"
-	if _textures.has(key): return _textures[key] as Texture2D
-	var img: Image = Image.create(24, 24, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var col: Color = Color("f6b338")
-	for y: int in range(10, 14):
-		for x: int in range(10, 14):
-			img.set_pixel(x, y, col)
-	for i: int in range(5, 19):
-		img.set_pixel(11, i, col)
-		img.set_pixel(12, i, col)
-		img.set_pixel(i, 11, col)
-		img.set_pixel(i, 12, col)
-	for d: int in range(4):
-		for ox: int in range(-d, d + 1):
-			var px: int = 11 + ox if ox <= 0 else 12 + ox - 1
-			if px >= 0 and px < 24:
-				img.set_pixel(px, 3 + d, col)
-				img.set_pixel(px, 20 - d, col)
-	for d: int in range(4):
-		for oy: int in range(-d, d + 1):
-			var py: int = 11 + oy if oy <= 0 else 12 + oy - 1
-			if py >= 0 and py < 24:
-				img.set_pixel(3 + d, py, col)
-				img.set_pixel(20 - d, py, col)
-	var tex: ImageTexture = ImageTexture.create_from_image(img)
-	_textures[key] = tex
-	return tex
 
 static func category_icon(category: String) -> Texture2D:
 	match category:

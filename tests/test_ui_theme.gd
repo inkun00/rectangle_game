@@ -35,7 +35,7 @@ static func _test_button_states(t: Node) -> void:
 			t.assert_not_null(style, "Each button state uses the generated texture theme: " + state)
 			if style == null: continue
 			styles[state] = style
-			t.assert_true(_generated_source(style.texture).contains("assets/generated/") and _generated_source(style.texture).ends_with("starfront-v1/skin.webp"), "State texture retains its generated button artwork provenance: " + state)
+			t.assert_true(_generated_source(style.texture).begins_with(ButtonArt.ROOT + "button-"), "State texture retains its generated button artwork provenance: " + state)
 		for state: String in ["normal", "hover", "pressed"]:
 			var color_key: String = "font_color" if state == "normal" else "font_%s_color" % state
 			t.assert_ge(_minimum_contrast(button.get_theme_color(color_key), styles[state]), 4.5, "Button text is readable in interactive state: " + state)
@@ -108,11 +108,9 @@ static func _minimum_contrast(text_color: Color, style: StyleBoxTexture) -> floa
 	var image: Image = style.texture.get_image()
 	if image.is_compressed(): image.decompress()
 	var minimum: float = INF
-	# Button text sits on the central face. Its transparent outer corners and
-	# narrow decorative rim are not behind the label and use the surrounding UI.
-	var is_button: bool = _generated_source(style.texture).ends_with("starfront-v1/skin.webp")
-	var first: Vector2i = Vector2i(floori(float(image.get_width()) * 0.3), floori(float(image.get_height()) * 0.3)) if is_button else Vector2i.ZERO
-	var last: Vector2i = Vector2i(ceili(float(image.get_width()) * 0.7), ceili(float(image.get_height()) * 0.7)) if is_button else image.get_size()
+	# Sample the entire stretchable face behind the label, excluding the sliced rim.
+	var first: Vector2i = Vector2i(ceili(style.get_texture_margin(SIDE_LEFT)), ceili(style.get_texture_margin(SIDE_TOP)))
+	var last: Vector2i = image.get_size() - Vector2i(ceili(style.get_texture_margin(SIDE_RIGHT)), ceili(style.get_texture_margin(SIDE_BOTTOM)))
 	for y: int in range(first.y, last.y, 6):
 		for x: int in range(first.x, last.x, 6):
 			var background: Color = _compose(image.get_pixel(x, y), style.modulate_color)

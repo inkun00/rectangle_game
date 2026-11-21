@@ -98,8 +98,8 @@ func _ready() -> void:
 	_progress.show_percentage = false
 	_progress.custom_minimum_size.y = 5.0
 	_progress.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_progress.add_theme_stylebox_override("background", _flat(Color("243b50")))
-	_progress.add_theme_stylebox_override("fill", _flat(QuadTheme.TEAL))
+	_progress.add_theme_stylebox_override("background", StarfrontArt.gauge(4))
+	_progress.add_theme_stylebox_override("fill", StarfrontArt.gauge(7))
 	column.add_child(_progress)
 	var actions: HFlowContainer = HFlowContainer.new()
 	actions.alignment = FlowContainer.ALIGNMENT_CENTER
@@ -200,12 +200,6 @@ func _refresh() -> void:
 	_subtitle.text = caption
 	_chapter.text = "지구에 남기로 했어요" if earth else "사각성에 돌아왔어요"
 	if not finished: _chapter.text = "마을의 새 이웃" if earth else "사각성으로"
-
-
-static func _flat(color: Color) -> StyleBoxFlat:
-	var result: StyleBoxFlat = StyleBoxFlat.new()
-	result.bg_color = color
-	return result
 
 
 static func _valid_png_header(png: PackedByteArray) -> bool:

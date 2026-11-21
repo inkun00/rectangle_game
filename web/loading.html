@@ -3,22 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#111c29">
+<meta name="theme-color" content="#122930">
 <title>사각이의 모험</title>
 $GODOT_HEAD_INCLUDE
 <style>
 :root {
   color-scheme: dark;
-  --page-deep: #0b1320;
-  --paper: #182432;
-  --ink: #edf5fc;
-  --forest: #77e2dc;
-  --forest-bright: #8bece2;
-  --muted: #bacbd9;
-  --line: #3c5268;
-  --sun: #f2c14e;
-  --amber: #e08238;
-  --error: #ff9b97;
+  --night: #122930;
+  --ink: #fff5df;
+  --mint: #91e6c4;
+  --muted: #d2dfd5;
+  --coral: #ffb5a0;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -27,177 +22,94 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: var(--page-deep);
+  background: var(--night);
   color: var(--ink);
   font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
 }
-#canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-#canvas:focus-visible{outline:4px solid var(--sun);outline-offset:-6px}
+#canvas { width: 100%; height: 100%; display: block; }
+#canvas:focus-visible{outline:3px solid var(--mint);outline-offset:-5px}
 #loading {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
-  align-items: safe center;
-  overflow: auto;
-  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  background: linear-gradient(#0b132070, #0b1320dd), url("frontier-loading.webp") center / cover;
-  image-rendering: pixelated;
   z-index: 10;
+  isolation: isolate;
+  overflow-y: auto;
+  background: var(--night);
 }
-#loading::before {
-  content: "";
+.key-art {
   position: fixed;
   inset: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 70% center;
   pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
 }
-.bg-shapes {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  opacity: 0.14;
-}
-.bg-shape {
-  position: absolute;
-  stroke: rgba(242, 193, 78, 0.45);
-  stroke-width: 2;
-  fill: rgba(37, 150, 123, 0.08);
-  animation: floatShape 16s ease-in-out infinite alternate;
-}
-.bg-shape.s1 { top: 12%; left: 10%; width: 80px; height: 80px; }
-.bg-shape.s2 { top: 15%; right: 12%; width: 110px; height: 75px; animation-duration: 20s; }
-.bg-shape.s3 { bottom: 14%; left: 14%; width: 95px; height: 70px; animation-duration: 18s; }
-.bg-shape.s4 { bottom: 12%; right: 10%; width: 85px; height: 85px; animation-duration: 22s; }
-@keyframes floatShape {
-  0% { transform: translateY(0) rotate(0deg); }
-  100% { transform: translateY(-12px) rotate(4deg); }
+.loading-layout {
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(clamp(32px, 8vh, 90px), env(safe-area-inset-bottom)) max(clamp(28px, 7vw, 112px), env(safe-area-inset-left));
 }
 .card {
-  position: relative;
-  width: min(100%, 380px);
+  width: min(100%, 440px);
   min-width: 0;
-  padding: 36px 30px 30px;
-  background: var(--paper);
-  border: 3px solid #536e86;
-  border-radius: 2px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(20, 60, 50, 0.12);
-  text-align: center;
-  overflow: hidden;
-}
-.card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  background: var(--sun);
-}
-.brand-icon-wrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 2px;
-  background: #132c3c;
-  box-shadow: 0 10px 22px rgba(20, 70, 58, 0.28);
-  margin-bottom: 16px;
-}
-.brand-icon {
-  display: block;
-  width: 50px;
-  height: 50px;
-  object-fit: contain;
+  padding: clamp(16px, 2.4vw, 28px);
+  border: 12px solid transparent;
+  border-image: url("loading-panel.png") 12 fill / 12px;
+  background: var(--night) padding-box;
+  box-shadow: 0 10px 32px #07191e40;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 h1 {
-  margin: 0 0 24px;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  margin: 0 0 clamp(18px, 3vh, 28px);
   color: var(--ink);
-}
-.progress-box {
-  width: 100%;
+  font-size: clamp(30px, 3.4vw, 46px);
+  line-height: 1.15;
+  letter-spacing: -.065em;
+  font-weight: 800;
 }
 .progress-meta {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin-bottom: 10px;
 }
-#stage {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  text-align: left;
-  word-break: keep-all;
-}
+#stage { margin: 0; font-size: 14px; line-height: 1.55; color: var(--muted); }
 #progress-value {
-  font-size: 13px;
+  flex: none;
+  color: var(--mint);
+  font-size: 18px;
   font-weight: 700;
-  color: var(--forest);
   font-variant-numeric: tabular-nums;
-  flex-shrink: 0;
 }
 progress {
-  display: block;
   width: 100%;
-  height: 10px;
+  height: 6px;
+  display: block;
   overflow: hidden;
   border: 0;
-  border-radius: 1px;
-  background: #0d1620;
+  border-radius: 2px;
+  appearance: none;
+  background: #0c1e25;
+  accent-color: var(--mint);
 }
-progress::-webkit-progress-bar {
-  background: #0d1620;
-  border-radius: 1px;
-}
-progress::-webkit-progress-value {
-  background: linear-gradient(90deg, #77e2dc, #2ec49f, #f2c14e);
-  border-radius: 1px;
-  transition: width 0.2s ease;
-}
-progress::-moz-progress-bar {
-  background: linear-gradient(90deg, #77e2dc, #2ec49f, #f2c14e);
-  border-radius: 1px;
-}
-#error-box {
-  margin-top: 20px;
-  padding: 16px;
-  border-radius: 14px;
-  border-left: 4px solid var(--error);
-  background: #35222c;
-  text-align: left;
-}
-#error-msg {
-  margin: 0 0 12px;
-  color: var(--error);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.5;
-  word-break: keep-all;
-}
-#error-box[data-waiting] { border-color: var(--sun); background: #302d24; }
-#error-box[data-waiting] #error-msg { color: var(--ink); }
+progress::-webkit-progress-bar { background: #0c1e25; }
+progress::-webkit-progress-value { background: var(--mint); transition: width .2s ease; }
+progress::-moz-progress-bar { background: var(--mint); }
+#error-box { border-top: 1px solid #8da9a16b; margin-top: 16px; padding-top: 16px; }
+#error-msg { margin: 0 0 14px; color: var(--coral); font-size: 15px; line-height: 1.55; }
+#error-box[data-waiting] #error-msg { color: var(--muted); }
 button {
-  min-height: 44px;
-  border: 9px solid transparent;
-  border-image: url("button-primary.png") 9 fill / 9px / 0 stretch;
-  padding: 4px 16px;
-  background: #573b24;
-  background-clip: padding-box;
+  min-height: 46px;
+  border: 8px solid transparent;
+  border-image: url("button-primary.png") 8 fill / 8px;
+  padding: 2px 16px;
+  background: #793f38 padding-box;
   color: var(--ink);
   font: inherit;
   font-size: 16px;
@@ -205,13 +117,13 @@ button {
   cursor: pointer;
   touch-action: manipulation;
 }
-button:hover { filter: brightness(1.08); }
-button:active { filter: brightness(0.88); }
-button:focus-visible, summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
-details { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-summary { width: fit-content; min-height: 24px; cursor: pointer; }
+button:hover { filter: brightness(1.12); }
+button:active { filter: brightness(.89); }
+button:focus-visible, summary:focus-visible { outline: 3px solid var(--mint); outline-offset: 3px; }
+details { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+summary { width: fit-content; min-height: 32px; padding: 5px 0; cursor: pointer; }
 summary:hover { color: var(--ink); }
-#error-details { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; }
+#error-details { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; }
 .sr-only {
   position: absolute;
   width: 1px;
@@ -223,9 +135,22 @@ summary:hover { color: var(--ink); }
   white-space: nowrap;
   border: 0;
 }
-noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13px; line-height: 1.5; }
+noscript { display: block; margin-top: 14px; color: var(--coral); font-size: 14px; line-height: 1.5; }
+@media (max-width: 600px) and (orientation: portrait) {
+  .key-art { object-position: 74% center; }
+  .loading-layout {
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    align-items: flex-end;
+    justify-content: center;
+  }
+}
+@media (max-height: 460px) and (orientation: landscape) {
+  .loading-layout { padding-top: max(14px, env(safe-area-inset-top)); padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  .card { width: min(100%, 385px); padding: 12px 18px; }
+  h1 { font-size: 30px; margin-bottom: 12px; }
+}
 @media (prefers-reduced-motion:reduce) {
-  button, progress::-webkit-progress-value, .bg-shape { transition: none; animation: none; }
+  progress::-webkit-progress-value { transition: none; }
 }
 </style>
 </head>
@@ -233,30 +158,22 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
 <canvas id="canvas" tabindex="-1" aria-label="사각이의 모험 게임" aria-describedby="game-controls" aria-busy="true">브라우저에서 캔버스를 지원해야 플레이할 수 있어요.</canvas>
 <p id="game-controls" class="sr-only">시작 화면에서 사각형 수학 문제를 다섯 유형 모두 맞히면 게임이 열려요. 격자 문제에서는 방향키와 Enter로 꼭짓점을 놓아요. 메인 화면에서 그림 그리기, 집 짓기, 마을 주민 심부름하기를 골라요. 마을에서 방향키 또는 A와 D로 이동하고, Space로 점프해요. G로 물품을 줍고 E로 주민과 대화해요. Z 또는 F로 공격하고 Q로 물약을 사용해요. J는 부탁 목록, M은 지도, Esc는 게임 메뉴를 여는 키예요.</p>
 <section id="loading" aria-labelledby="loading-title">
-  <div class="bg-shapes" aria-hidden="true">
-    <svg class="bg-shape s1" viewBox="0 0 100 100"><rect x="14" y="14" width="72" height="72" rx="4"/></svg>
-    <svg class="bg-shape s2" viewBox="0 0 140 90"><polygon points="26,14 130,14 114,76 10,76"/></svg>
-    <svg class="bg-shape s3" viewBox="0 0 130 90"><polygon points="28,14 102,14 122,76 8,76"/></svg>
-    <svg class="bg-shape s4" viewBox="0 0 100 100"><polygon points="50,8 92,50 50,92 8,50"/></svg>
-  </div>
-  <div class="card">
-    <div class="brand-icon-wrap">
-      <img class="brand-icon" src="index.icon.png" width="50" height="50" alt="">
-    </div>
-    <h1 id="loading-title">사각이의 모험</h1>
-    <div class="progress-box">
+  <img class="key-art" src="frontier-loading.webp" fetchpriority="high" alt="">
+  <div class="loading-layout">
+    <div class="card">
+      <h1 id="loading-title">사각이의 모험</h1>
       <div class="progress-meta">
         <p id="stage" role="status" aria-live="polite" aria-atomic="true">게임을 준비하고 있어요…</p>
         <span id="progress-value">0%</span>
       </div>
       <progress id="progress" max="100" value="0" aria-label="게임 파일 준비 진행률"></progress>
+      <div id="error-box" hidden>
+        <p id="error-msg" role="status"></p>
+        <button id="retry-btn" type="button" aria-describedby="error-msg">다시 불러오기</button>
+        <details id="error-info" hidden><summary>자세한 오류 내용</summary><pre id="error-details"></pre></details>
+      </div>
+      <noscript>플레이하려면 브라우저 설정에서 자바스크립트를 켠 뒤 다시 불러와 주세요.</noscript>
     </div>
-    <div id="error-box" hidden>
-      <p id="error-msg" role="status"></p>
-      <button id="retry-btn" type="button" aria-describedby="error-msg">다시 불러오기</button>
-      <details id="error-info" hidden><summary>자세한 오류 내용</summary><pre id="error-details"></pre></details>
-    </div>
-    <noscript>플레이하려면 브라우저 설정에서 자바스크립트를 켠 뒤 다시 불러와 주세요.</noscript>
   </div>
 </section>
 <script>window.QUAD_RESOURCE_PACKS = null;</script>
@@ -315,6 +232,10 @@ noscript { display: block; margin-top: 14px; color: var(--error); font-size: 13p
     if (settled) return;
     if (current > lastReceived) {
       lastReceived = current;
+      if (!recovery.hidden && document.activeElement !== retry) {
+        recovery.hidden = true;
+        recovery.removeAttribute('data-waiting');
+      }
       watchForStall();
     }
     if (!(total > 0)) {

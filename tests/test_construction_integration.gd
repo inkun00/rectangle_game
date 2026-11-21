@@ -373,6 +373,23 @@ static func _test_worksite_layout(t: Node) -> void:
 		var text_width: float = picker.get_theme_font("font").get_string_size(picker.text, HORIZONTAL_ALIGNMENT_LEFT, -1, picker.get_theme_font_size("font_size")).x
 		var available_width: float = picker.size.x - picker.get_theme_stylebox("normal").get_minimum_size().x - picker.get_theme_icon("arrow").get_width() - picker.get_theme_constant("arrow_margin")
 		t.assert_true(text_width <= available_width, "The longest representative family label stays readable at %s" % str(dimensions))
+	window.size = Vector2i(390, 780)
+	window.content_scale_size = window.size
+	studio._filter_shape("all")
+	for frame: int in range(5): await t.get_tree().process_frame
+	var phone: Rect2 = Rect2(Vector2.ZERO, Vector2(window.size))
+	var home: Button = studio.find_child("ConstructionHome", true, false) as Button
+	for control: Control in [home, studio._palette_toggle, studio.canvas, studio._inspect, studio._status]:
+		t.assert_true(control.is_visible_in_tree() and phone.encloses(control.get_global_rect()), "Portrait workbench keeps %s reachable" % control.name)
+	studio._palette_toggle.pressed.emit()
+	for frame: int in range(3): await t.get_tree().process_frame
+	var cards: Array[Button] = _visible_materials(studio)
+	t.assert_true(studio._palette.is_visible_in_tree() and not cards.is_empty(), "Portrait materials open at full available width")
+	if not cards.is_empty():
+		t.assert_true(phone.encloses(cards[0].get_global_rect()), "A complete material card fits in portrait")
+		cards[0].pressed.emit()
+		for frame: int in range(3): await t.get_tree().process_frame
+		t.assert_true(studio.canvas.is_visible_in_tree() and not studio._palette.is_visible_in_tree() and studio.canvas.drawing_tool, "Picking a material returns to its ready-to-place canvas")
 	studio.free()
 	window.size = original_size
 	window.content_scale_size = original_scale

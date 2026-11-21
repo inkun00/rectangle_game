@@ -10,29 +10,36 @@ signal opening_requested
 signal ending_choice_requested
 
 const Art = preload("res://scripts/construction_art.gd")
+const MENU_ART: String = "res://assets/generated/home-atlas/"
 const ENDING_CHOICE_TITLE: String = "최후의 선택"
 
 var _cards: GridContainer
+var _hero: Control
+var _hero_copy: VBoxContainer
+var _hero_picture: TextureRect
 var _heading: Label
+var _hero_description: Label
 var _margin: MarginContainer
 var _column: VBoxContainer
+var _section: BoxContainer
+var _footer: HFlowContainer
 var _drawing_button: Button
 var _ending_card: PanelContainer
 var _ending_progress: Label
 var _ending_choice: Button
+var _card_layouts: Array[BoxContainer] = []
+var _previews: Array[TextureRect] = []
+var _display_font: FontVariation = FontVariation.new()
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var background: TextureRect = TextureRect.new()
-	background.name = "OrbitalObservatoryBackground"
-	background.texture = StarfrontArt.scene(8)
-	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	background.modulate = Color("8094ac")
-	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(background)
+	_display_font.base_font = QuadTheme.FONT
+	_display_font.variation_embolden = 0.7
+	var paper: ColorRect = ColorRect.new()
+	paper.color = Color("112332")
+	paper.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	paper.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(paper)
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.name = "HomeScroll"
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -43,154 +50,153 @@ func _ready() -> void:
 	_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_margin)
 	_column = VBoxContainer.new()
-	_column.add_theme_constant_override("separation", 16)
 	_margin.add_child(_column)
-	_build_header(_column)
-	var hero_panel: PanelContainer = PanelContainer.new()
-	hero_panel.add_theme_stylebox_override("panel", Art.gold_panel(14))
-	_column.add_child(hero_panel)
-	var introduction: VBoxContainer = VBoxContainer.new()
-	introduction.add_theme_constant_override("separation", 4)
-	hero_panel.add_child(introduction)
-	_heading = _label("별빛 너머, 나만의 이야기", 30)
-	introduction.add_child(_heading)
-	introduction.add_child(_label("돈을 모아 지구에 살 집을 짓거나 사각성으로 돌아갈 우주선을 만들어요.", 17, Art.INK))
-	_ending_progress = _label("", 16, Art.ACCENT)
-	introduction.add_child(_ending_progress)
+	_build_hero()
+	_section = BoxContainer.new()
+	_section.add_theme_constant_override("separation", 8)
+	_column.add_child(_section)
+	var activities: Label = _title("어디로 갈까요?", 25)
+	activities.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_section.add_child(activities)
+	_ending_progress = QuadTheme.label("", 16, Color("a4e4d8"))
+	_ending_progress.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_section.add_child(_ending_progress)
 	_cards = GridContainer.new()
 	_cards.name = "ActivityChoices"
-	_cards.add_theme_constant_override("h_separation", 18)
-	_cards.add_theme_constant_override("v_separation", 18)
+	_cards.add_theme_constant_override("h_separation", 16)
+	_cards.add_theme_constant_override("v_separation", 12)
 	_column.add_child(_cards)
-	_drawing_button = _build_mode("Drawing", "그림 의뢰로 자금 모으기", "사각형 그림 의뢰", "의뢰인의 부탁을 듣고 사각형으로 작품을 그려 보상을 받아요.", Art.generated_texture("drawing-cover.png"), "그림 그리기", func(): drawing_requested.emit())
-	_build_mode("Construction", "건축 의뢰로 자금 모으기", "뚝딱! 사각형 집 짓기", "의뢰인이 부탁한 집을 짓고 완성도에 따라 보상을 받아요.", Art.generated_texture("construction-cover.png"), "집 짓기", func(): construction_requested.emit())
-	_build_mode("Adventure", "마을을 도와 자금 모으기", "마을 주민 심부름하기", "사각이와 여섯 지역을 돌아다니며 주민의 부탁을 해결하고 돈을 벌어요.", GameArt.sheet("world_backdrop"), "마을 주민 심부름하기", func(): adventure_requested.emit())
-	_ending_choice = _build_mode("Ending", "사각이의 다음 이야기", ENDING_CHOICE_TITLE, "나만의 그림을 그리고, 지구에 살 집이나 사각성으로 돌아갈 우주선을 만들어요.", StarfrontArt.scene(8), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
-	var ending_content: VBoxContainer = _ending_choice.get_parent() as VBoxContainer
-	_ending_card = ending_content.get_parent() as PanelContainer
+	_drawing_button = _build_mode("Drawing", "그림 작업실", "사각형으로 의뢰인의 그림을 완성해요.", _menu_texture("drawing"), "그림 그리기", func(): drawing_requested.emit())
+	_build_mode("Construction", "건축 공방", "재료를 골라 의뢰인이 꿈꾸는 집을 지어요.", _menu_texture("building"), "집 짓기", func(): construction_requested.emit())
+	_build_mode("Adventure", "사각형 마을", "여섯 지역을 탐험하며 주민의 부탁을 들어줘요.", _menu_texture("village"), "마을 주민 심부름하기", func(): adventure_requested.emit())
+	_ending_choice = _build_mode("Ending", "사각이의 내일", "지구에 살 집과 사각성으로 갈 우주선 중 하나를 골라요.", _menu_texture("choice"), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
 	_ending_card.hide()
 	_ending_choice.focus_mode = Control.FOCUS_NONE
-	var footer: HFlowContainer = HFlowContainer.new()
-	footer.add_theme_constant_override("h_separation", 24)
-	footer.add_theme_constant_override("v_separation", 6)
-	_column.add_child(footer)
-	footer.add_child(_label("그림·집·마을 심부름은 각각 자동 저장돼요.", 15, Art.INK))
-	footer.add_child(_label("초등 수학 4-2 · 사각형", 15, Art.ACCENT))
-	footer.add_child(_button("모드 안내", func(): tutorials_requested.emit(), false))
-	footer.add_child(_button("오프닝 다시 보기", func(): opening_requested.emit(), false))
+	_footer = HFlowContainer.new()
+	_footer.add_theme_constant_override("h_separation", 10)
+	_footer.add_theme_constant_override("v_separation", 8)
+	_column.add_child(_footer)
+	for entry: Array in [
+		["도형 도감", func(): notebook_requested.emit()],
+		["모드 안내", func(): tutorials_requested.emit()],
+		["오프닝 다시 보기", func(): opening_requested.emit()],
+	]:
+		_footer.add_child(QuadTheme.button(entry[0], entry[1]))
+	var saved: Label = QuadTheme.label("활동 기록은 자동으로 저장돼요.", 15, Art.MUTED)
+	saved.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_footer.add_child(saved)
 	resized.connect(_responsive)
 	_responsive()
 
 func focus_primary() -> void:
 	_drawing_button.grab_focus()
 
-func _build_header(parent: Node) -> void:
-	var header_panel: PanelContainer = PanelContainer.new()
-	header_panel.add_theme_stylebox_override("panel", Art.panel(false, 10))
-	parent.add_child(header_panel)
-	var header: HBoxContainer = HBoxContainer.new()
-	header.add_theme_constant_override("separation", 12)
-	header_panel.add_child(header)
-	var mark: TextureRect = TextureRect.new()
-	mark.texture = Art.generated_texture("app-icon.png")
-	mark.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	mark.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	mark.custom_minimum_size = Vector2(40, 40)
-	header.add_child(mark)
-	var brand: Label = _label(QuadTheme.GAME_TITLE, 22)
-	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	header.add_child(brand)
-	header.add_child(_button("도형 도감", func(): notebook_requested.emit(), false))
+func _build_hero() -> void:
+	_hero = Control.new()
+	_hero.clip_contents = true
+	_hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_column.add_child(_hero)
+	_hero_picture = TextureRect.new()
+	_hero_picture.name = "OrbitalObservatoryBackground"
+	_hero_picture.texture = _menu_texture("arrival")
+	_hero_picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_hero_picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	_hero_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hero_picture.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hero.add_child(_hero_picture)
+	_hero_copy = VBoxContainer.new()
+	_hero_copy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hero_copy.alignment = BoxContainer.ALIGNMENT_CENTER
+	_hero_copy.anchor_right = 0.55
+	_hero_copy.anchor_bottom = 1.0
+	_hero_copy.add_theme_constant_override("separation", 8)
+	_hero.add_child(_hero_copy)
+	_heading = _title(QuadTheme.GAME_TITLE, 48)
+	_hero_copy.add_child(_heading)
+	_hero_description = QuadTheme.paragraph("", 19, Color("c6e6de"))
+	_hero_copy.add_child(_hero_description)
+
+func _menu_texture(filename: String) -> Texture2D:
+	return load(MENU_ART + filename + ".webp") as Texture2D
+
+func _title(caption: String, font_size: int) -> Label:
+	var result: Label = QuadTheme.label(caption, font_size, Color("fff1d6"))
+	result.add_theme_font_override("font", _display_font)
+	return result
 
 func set_ending_progress(sales: int, houses: int, required: int, has_saved_ending: bool) -> void:
 	var unlocked: bool = sales + houses >= required or has_saved_ending
 	if _ending_card.visible != unlocked:
 		_ending_card.visible = unlocked
 		_ending_choice.focus_mode = Control.FOCUS_ALL if unlocked else Control.FOCUS_NONE
-		_update_card_columns()
-	var counts: String = "그림 의뢰 %d회 + 건축 의뢰 %d회" % [sales, houses]
-	if unlocked:
-		_ending_progress.text = "%s · 아래에서 ‘최후의 선택’을 열어 보세요." % counts
-	else:
-		_ending_progress.text = "%s · 최후의 선택까지 %d/%d회 완료" % [counts, sales + houses, required]
+		_responsive()
+	_ending_progress.text = "‘최후의 선택’을 열어 보세요." if unlocked else "최후의 선택까지  ·  그림과 건축 의뢰 %d/%d회" % [sales + houses, required]
+	_ending_progress.tooltip_text = "완성한 그림 의뢰 %d회, 건축 의뢰 %d회" % [sales, houses]
+	_ending_progress.mouse_filter = Control.MOUSE_FILTER_PASS
 
-func _build_mode(mode: String, badge_text: String, title: String, description: String, texture: Texture2D, action_text: String, action: Callable) -> Button:
+func _build_mode(mode: String, title: String, description: String, texture: Texture2D, action_text: String, action: Callable) -> Button:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.name = mode + "Choice"
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", Art.panel(false, 16))
+	panel.add_theme_stylebox_override("panel", Art.panel(false, 9))
 	_cards.add_child(panel)
-	var content: VBoxContainer = VBoxContainer.new()
-	content.add_theme_constant_override("separation", 10)
-	panel.add_child(content)
-	var badge: PanelContainer = PanelContainer.new()
-	badge.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	badge.add_theme_stylebox_override("panel", Art.pill_style(Color.WHITE, 8, 3))
-	content.add_child(badge)
-	var badge_lbl: Label = _label(badge_text, 13, Art.GOLD if mode == "Construction" else Art.ACCENT)
-	badge_lbl.autowrap_mode = TextServer.AUTOWRAP_OFF
-	badge.add_child(badge_lbl)
-	var picture_frame: PanelContainer = PanelContainer.new()
-	picture_frame.add_theme_stylebox_override("panel", Art.card_panel(3, Color("dceae4")))
-	content.add_child(picture_frame)
+	if mode == "Ending": _ending_card = panel
+	var layout: BoxContainer = BoxContainer.new()
+	layout.add_theme_constant_override("separation", 10)
+	layout.vertical = true
+	panel.add_child(layout)
+	_card_layouts.append(layout)
 	var picture: TextureRect = TextureRect.new()
 	picture.name = "ModePreview"
 	picture.texture = texture
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	picture.custom_minimum_size = Vector2(0, 120)
 	picture.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	picture.clip_contents = true
-	picture_frame.add_child(picture)
-	content.add_child(_label(title, 22))
-	content.add_child(_label(description, 16, Art.MUTED))
+	layout.add_child(picture)
+	_previews.append(picture)
+	var details: VBoxContainer = VBoxContainer.new()
+	details.add_theme_constant_override("separation", 5)
+	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	details.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	layout.add_child(details)
+	details.add_child(_title(title, 23))
+	details.add_child(QuadTheme.paragraph(description, 16, Color("d1e2e5")))
 	var spacer: Control = Control.new()
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_child(spacer)
-	var button: Button = _button(action_text, action, true)
+	details.add_child(spacer)
+	var button: Button = QuadTheme.button(action_text, action, true)
 	button.name = "Open" + mode
-	content.add_child(button)
-	return button
-
-func _label(text: String, font_size: int = 18, color: Color = Art.INK) -> Label:
-	return QuadTheme.paragraph(text, font_size, color)
-
-func _button(text: String, action: Callable, primary: bool) -> Button:
-	var button: Button = Button.new()
-	button.text = text
-	button.custom_minimum_size = Vector2(0, 48)
-	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	button.focus_mode = Control.FOCUS_ALL
-	button.add_theme_font_override("font", QuadTheme.FONT)
-	button.add_theme_font_size_override("font_size", 18)
-	for state: String in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
-		button.add_theme_stylebox_override(state, Art.button_style(primary, state, 12))
-	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		button.add_theme_color_override(state, Color.WHITE if primary else Art.INK)
-	button.add_theme_color_override("font_pressed_color", Color.WHITE)
-	button.add_theme_color_override("font_hover_pressed_color", Color.WHITE)
-	button.add_theme_stylebox_override("focus", ButtonArt.focus_style())
-	button.pressed.connect(action)
+	details.add_child(button)
 	return button
 
 func _responsive() -> void:
-	if _cards == null: return
-	_update_card_columns()
-	var gutter: int = 20 if size.x < 1100.0 else int(clampf(size.x * 0.03, 28.0, 56.0))
+	if _ending_card == null: return
+	var narrow: bool = size.x < 600.0
+	var single_column: bool = size.x < 730.0 if _ending_card.visible else size.x < 900.0
+	var side_by_side: bool = single_column and size.x >= 345.0
+	if single_column:
+		_cards.columns = 1
+	elif _ending_card.visible:
+		_cards.columns = 4 if size.x >= 1200.0 else 2
+	else:
+		_cards.columns = 3
+	for index: int in _card_layouts.size():
+		_card_layouts[index].vertical = not side_by_side
+		_previews[index].custom_minimum_size.y = 96.0 if side_by_side else clampf(size.y * 0.19, 115.0, 215.0)
+		_previews[index].size_flags_stretch_ratio = 0.48 if narrow else 1.0
+	var gutter: int = int(clampf(size.x * 0.034, 12.0, 80.0))
 	for edge: String in ["left", "right"]:
 		_margin.add_theme_constant_override("margin_" + edge, gutter)
-	_margin.add_theme_constant_override("margin_top", 16)
-	_margin.add_theme_constant_override("margin_bottom", 16)
-	_heading.add_theme_font_size_override("font_size", 26 if size.x < 850.0 else 30)
-	_column.add_theme_constant_override("separation", 12 if size.y < 760.0 else 16)
-
-func _update_card_columns() -> void:
-	if _ending_card.visible:
-		_cards.columns = 4 if size.x >= 1200.0 else (2 if size.x >= 730.0 else 1)
-	else:
-		_cards.columns = 3 if size.x >= 900.0 else 1
+	_margin.add_theme_constant_override("margin_top", 12 if narrow else 22)
+	_margin.add_theme_constant_override("margin_bottom", 20)
+	_column.add_theme_constant_override("separation", 12 if narrow else (16 if size.y < 800.0 else 22))
+	_section.vertical = narrow
+	var hero_height: float = clampf(size.x * 0.183, 96.0, 330.0)
+	_hero.custom_minimum_size.y = hero_height
+	_hero_copy.anchor_right = 0.64 if narrow else 0.55
+	_hero_copy.offset_left = clampf(size.x * 0.035, 12.0, 64.0)
+	_heading.add_theme_font_size_override("font_size", int(clampf(size.x * 0.042, 27.0, 65.0)))
+	_hero_description.text = "지구에 남을까?" if narrow else "지구에 집을 지을까, 사각성으로 돌아갈까?\n의뢰를 마치며 사각이의 미래를 준비해요."
+	_hero_description.add_theme_font_size_override("font_size", 15 if narrow else (17 if single_column else 20))

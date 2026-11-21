@@ -77,6 +77,12 @@ var _repairs: Button
 var _client_action: Button
 var _sidebar: PanelContainer
 var _palette: PanelContainer
+var _center_panel: PanelContainer
+var _palette_toggle: Button
+var _palette_open: bool = false
+var _header_actions: HBoxContainer
+var _tool_row: BoxContainer
+var _tool_spacer: Control
 var _palette_hint: Label
 var _modal: Control
 var _modal_body: VBoxContainer
@@ -369,13 +375,21 @@ func _build_ui() -> void:
 	_cash.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_cash.custom_minimum_size.x = 132
 	_cash_pill.add_child(_cash)
-	header.add_child(_button("저장", func(): save_game(true)))
-	header.add_child(_button("도움말", _show_help))
+	_palette_toggle = _button("재료 상자", func():
+		_palette_open = not _palette_open
+		_refresh())
+	_palette_toggle.name = "ToggleConstructionMaterials"
+	header.add_child(_palette_toggle)
+	_header_actions = HBoxContainer.new()
+	_header_actions.add_theme_constant_override("separation", 6)
+	header.add_child(_header_actions)
+	_header_actions.add_child(_button("저장", func(): save_game(true)))
+	_header_actions.add_child(_button("도움말", _show_help))
 	_stage_button = _button("집 단계", _show_stages, true)
 	_stage_button.name = "ConstructionStages"
-	header.add_child(_stage_button)
+	_header_actions.add_child(_stage_button)
 	_compact_details = _button("의뢰·장부", _show_project_info)
-	header.add_child(_compact_details)
+	_header_actions.add_child(_compact_details)
 	var stages: HBoxContainer = HBoxContainer.new()
 	_phase_bar = stages
 	_phase_bar.visible = false
@@ -496,6 +510,7 @@ func _build_ui() -> void:
 	_materials_empty = _label("이 조합의 자재가 없어요.\n전체 용도나 모양으로 바꿔 보세요.", 14, MUTED)
 	_materials.add_child(_materials_empty)
 	var center_panel: PanelContainer = PanelContainer.new()
+	_center_panel = center_panel
 	center_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	center_panel.add_theme_stylebox_override("panel", Art.card_panel(6, Color("f9fcfb")))
@@ -509,7 +524,8 @@ func _build_ui() -> void:
 	_top_bar_panel = top_bar_panel
 	top_bar_panel.add_theme_stylebox_override("panel", Art.pill_style(Color("f4f8f6"), 6, 4))
 	center.add_child(top_bar_panel)
-	var top_bar: HBoxContainer = HBoxContainer.new()
+	var top_bar: BoxContainer = BoxContainer.new()
+	_tool_row = top_bar
 	top_bar.add_theme_constant_override("separation", 6)
 	top_bar_panel.add_child(top_bar)
 
@@ -538,6 +554,7 @@ func _build_ui() -> void:
 	clear_btn.tooltip_text = "비우기: 배치한 모든 자재를 지우고 처음부터 다시 시작해요"
 
 	_compact_edit = MenuButton.new()
+	_compact_edit.flat = false
 	_compact_edit.text = "도구 더 보기"
 	_compact_edit.custom_minimum_size.y = 38
 	_compact_edit.add_theme_font_override("font", QuadTheme.FONT)
@@ -554,6 +571,7 @@ func _build_ui() -> void:
 	_edit_buttons.append(_compact_edit)
 
 	var top_spacer: Control = Control.new()
+	_tool_spacer = top_spacer
 	top_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_bar.add_child(top_spacer)
 
@@ -644,6 +662,7 @@ func _build_ui() -> void:
 	_add_edit_button(_lower_toolbar, "축소", func(): canvas.zoom_by(0.8))
 	_add_edit_button(_lower_toolbar, "집에 맞추기", func(): canvas.fit_parts())
 	var move: MenuButton = MenuButton.new()
+	move.flat = false
 	move.text = "재료 이동"
 	move.custom_minimum_size.y = 44
 	move.add_theme_font_override("font", QuadTheme.FONT)
@@ -989,7 +1008,10 @@ func _choose_material(id: String) -> void:
 		SoundManager.instance.play_click()
 	var material: Dictionary = Catalog.material(id)
 	_set_status("%s · %s\n%s" % [material.label, Catalog.format_won(int(material.price)), material.description])
+	var returning_to_canvas: bool = _palette_toggle.visible and _palette_open
+	if returning_to_canvas: _palette_open = false
 	_refresh()
+	if returning_to_canvas: canvas.grab_focus()
 	_material_scroll_revision += 1
 	if _material_buttons[id].visible:
 		_reveal_selected_material(id, _material_scroll_revision)
@@ -1251,7 +1273,11 @@ func _refresh() -> void:
 	_custom_material_button.disabled = is_instance_valid(_modal) or tutorial_blocked
 	_custom_material_filter.disabled = is_instance_valid(_modal)
 	var settled: bool = (not my_mode and state.phase == "settled")
-	_palette.visible = not settled
+	var single_pane: bool = size.x < 710.0
+	_palette_toggle.visible = single_pane and not settled
+	_palette_toggle.text = "도면으로" if _palette_open else "재료 상자"
+	_palette.visible = not settled and (not single_pane or _palette_open)
+	_center_panel.visible = not single_pane or not _palette_open or settled
 	if is_instance_valid(_top_bar_panel):
 		_top_bar_panel.visible = not settled
 	_toolbar.visible = not settled and size.x >= 1450 and size.y >= 800
@@ -1450,7 +1476,7 @@ func _build_onscreen_client_board() -> void:
 	var top_row: HBoxContainer = HBoxContainer.new()
 	top_row.add_theme_constant_override("separation", 8)
 	box.add_child(top_row)
-	var heading: Label = _label("3×3 집짓기 의뢰인 선택 (9단계)", 19, BLUE)
+	var heading: Label = _label("집짓기 의뢰인 선택 (9단계)", 19, BLUE)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top_row.add_child(heading)
 	_client_board_asset_label = _label("", 15, Color("ffd18a"))
@@ -1556,7 +1582,7 @@ func _show_client_offer_modal(choice: int) -> void:
 	, unlocked)
 	accept_btn.name = "ConfirmClientOffer_%d" % choice
 	accept_btn.disabled = not can_accept_now
-	_modal_action("3×3 의뢰인 목록", _show_stages)
+	_modal_action("의뢰인 목록", _show_stages)
 
 func _show_project_info() -> void:
 	if state.my_house_mode:
@@ -1594,7 +1620,7 @@ func _show_brief() -> void:
 	var held_assets: int = state.saved_balance()
 	var required_assets: int = int(contract.get("minimum_balance", status.get("minimum_balance", 30000000)))
 	_open_modal("%s 님이 찾아왔어요" % str(contract.client))
-	var choose_client_btn: Button = _button("3×3 의뢰인 선택 (9단계)", _show_stages, true)
+	var choose_client_btn: Button = _button("의뢰인 선택 (9단계)", _show_stages, true)
 	choose_client_btn.name = "OpenClientGridFromBrief"
 	choose_client_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	_modal_body.add_child(choose_client_btn)
@@ -1848,11 +1874,11 @@ func _show_glossary() -> void:
 
 func _show_stages() -> void:
 	if state.my_house_mode: return
-	_open_modal("3×3 의뢰인 선택 · 금액별 9단계")
+	_open_modal("의뢰인 선택 · 금액별 9단계")
 	_modal_body.add_child(_label("보유 자산 %s · 누적 건축 수익 %s" % [Catalog.format_won(state.saved_balance()), Catalog.format_won(state.earned_profit())], 16, BLUE))
 	var grid: GridContainer = GridContainer.new()
 	grid.name = "ModalClientGrid3x3"
-	grid.columns = 3
+	grid.columns = 1 if size.x < 540.0 else 3
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 10)
@@ -2321,34 +2347,48 @@ func _on_visibility_changed() -> void:
 		call_deferred("_ensure_brief")
 
 func _responsive() -> void:
+	var single_pane: bool = size.x < 710.0
 	if is_instance_valid(_phase_bar): _phase_bar.visible = false
 	if is_instance_valid(_cash): _cash.custom_minimum_size.x = 116 if size.x < 1200 else 132
 	if is_instance_valid(_cash): _cash.visible = size.x >= 1000
 	if is_instance_valid(_cash_pill): _cash_pill.visible = size.x >= 1000
 	if is_instance_valid(_title_label):
-		var header: Node = _title_label.get_parent().get_parent()
-		for child: Node in header.get_children():
-			if child is Button and child.has_meta("construction_tool"):
-				child.icon = null if size.x < 1200 else Art.tool_icon(str(child.get_meta("construction_tool")))
+		var header: HBoxContainer = _title_label.get_parent().get_parent() as HBoxContainer
+		var actions_parent: Node = header.get_parent() if single_pane else header
+		if _header_actions.get_parent() != actions_parent:
+			_header_actions.reparent(actions_parent, false)
+		for button: Node in _header_actions.get_children() + [header.get_child(0)]:
+			if button.has_meta("construction_tool"):
+				(button as Button).icon = null if size.x < 1200 else Art.tool_icon(str(button.get_meta("construction_tool")))
+		for button: Control in _header_actions.get_children():
+			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL if single_pane else Control.SIZE_FILL
 	if is_instance_valid(_stage_summary): _stage_summary.visible = false
 	if is_instance_valid(_stage_card): _stage_card.visible = false
 	if is_instance_valid(_palette_hint): _palette_hint.visible = false
 	if is_instance_valid(_shape_filter): _shape_filter.visible = true
 	if not is_instance_valid(_palette): return
 	_palette.custom_minimum_size.x = 224 if size.x < 1250 else 240
-	_category_chips.visible = size.y >= 760
+	_palette.size_flags_horizontal = Control.SIZE_EXPAND_FILL if single_pane else Control.SIZE_FILL
+	_tool_row.vertical = single_pane
+	_tool_spacer.visible = not single_pane
+	_view_bar.alignment = BoxContainer.ALIGNMENT_CENTER if single_pane else BoxContainer.ALIGNMENT_BEGIN
+	_category_chips.visible = size.y >= 760 and not single_pane
 	_category_picker.visible = not _category_chips.visible
 	_sidebar.custom_minimum_size.x = 250
 	_sidebar.visible = size.x >= 1450 and size.y >= 760
 	_compact_details.visible = not _sidebar.visible
 	if is_instance_valid(canvas):
+		_client_board_grid.columns = 1 if size.x < 540.0 else 3
 		_layout_margin.add_theme_constant_override("margin_top", 6 if size.y < 760 else 10)
 		_layout_margin.add_theme_constant_override("margin_bottom", 6 if size.y < 760 else 10)
 		_layout_column.add_theme_constant_override("separation", 4 if size.y < 760 else 6)
 		canvas.custom_minimum_size.y = 90 if size.y < 760 else 160
 		_refresh()
 	if is_instance_valid(canvas) and not state.document.parts.is_empty(): canvas.call_deferred("fit_parts")
-	if is_instance_valid(_modal): call_deferred("_resize_modal")
+	if is_instance_valid(_modal):
+		var stage_grid: GridContainer = _modal.find_child("ModalClientGrid3x3", true, false) as GridContainer
+		if stage_grid != null: stage_grid.columns = 1 if size.x < 540.0 else 3
+		call_deferred("_resize_modal")
 
 func _set_status(text: String) -> void:
 	_status.text = Language.simplify(text)

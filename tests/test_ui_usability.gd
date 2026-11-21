@@ -2,7 +2,7 @@ class_name TestUiUsability
 extends RefCounted
 
 const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
-const WINDOW_SIZES: Array[Vector2i] = [Vector2i(800, 600), Vector2i(783, 712), Vector2i(1280, 720)]
+const WINDOW_SIZES: Array[Vector2i] = [Vector2i(800, 600), Vector2i(783, 712), Vector2i(390, 780), Vector2i(1280, 720)]
 
 
 static func run(t: Node) -> void:
@@ -34,6 +34,7 @@ static func run(t: Node) -> void:
 	await _test_window_scaling_and_focus(t, app, window)
 	await _test_journal_filters(t, app)
 	await _test_inventory_actions(t, app)
+	await _test_service_feedback(t, app)
 	app.free()
 	# A resized root Window is shared by the other integration suites.
 	window.content_scale_size = window_state["content_scale_size"]
@@ -209,6 +210,27 @@ static func _test_inventory_actions(t: Node, app: QuadrilateralApp) -> void:
 	app._close_modal()
 	app.world.set_controls_enabled(false)
 	await _settle(t)
+
+
+static func _test_service_feedback(t: Node, app: QuadrilateralApp) -> void:
+	app.journal.coins = 0
+	app._show_service("shop")
+	await _settle(t)
+	var buy: Button = _button_containing(app._modal_body, "회복약 구입")
+	t.assert_true(buy != null and buy.disabled, "The shop presents an unaffordable potion as unavailable")
+	t.assert_true(_labels(app._modal_body).contains("10코인이 더 필요"), "The shop explains how much a player still needs")
+	app.adventure.hp = 0
+	app._show_service("inn")
+	await _settle(t)
+	var rescue: Button = _button_containing(app._modal_body, "무료")
+	t.assert_true(rescue != null and not rescue.disabled, "Free defeat recovery stays accessible without coins")
+	if rescue != null: rescue.pressed.emit()
+	t.assert_eq(app.adventure.hp, app.adventure.max_hp, "The inn's free recovery action restores the player's actual health")
+	app._show_service("inn")
+	await _settle(t)
+	var rest: Button = _button_containing(app._modal_body, "충분히 쉬기")
+	t.assert_true(rest != null and rest.disabled and _labels(app._modal_body).contains("체력이 가득"), "A full-health visitor sees why paid rest is unavailable")
+	app._close_modal()
 
 
 static func _assert_game_menu_actions(t: Node, app: QuadrilateralApp) -> void:

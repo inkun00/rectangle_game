@@ -87,7 +87,8 @@ var _palette_scroll: ScrollContainer
 var _shape_picker: OptionButton
 var _trapezoid_variant_picker: OptionButton
 var _more_edits: MenuButton
-var _drawing_header: HBoxContainer
+var _drawing_header: BoxContainer
+var _sale_footer: BoxContainer
 var _drawing_title: Label
 var _drawing_tagline: Label
 var _drawing_load: Button
@@ -191,8 +192,8 @@ func _button(text: String, callback: Callable, primary: bool = false) -> Button:
 
 func _build_ui() -> void:
 	var background: TextureRect = TextureRect.new()
-	background.texture = StarfrontArt.scene(6)
-	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	background.texture = load("res://assets/generated/drawing/artist-desk-v2.webp") as Texture2D
+	background.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -205,24 +206,32 @@ func _build_ui() -> void:
 	var column: VBoxContainer = VBoxContainer.new()
 	column.add_theme_constant_override("separation", 8)
 	margin.add_child(column)
-	_drawing_header = HBoxContainer.new()
+	_drawing_header = BoxContainer.new()
 	_drawing_header.add_theme_constant_override("separation", 10)
 	column.add_child(_drawing_header)
+	var identity: HBoxContainer = HBoxContainer.new()
+	identity.add_theme_constant_override("separation", 10)
+	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_drawing_header.add_child(identity)
 	var home: Button = _button("← 메인", _go_home)
 	home.name = "HomeButton"
-	_drawing_header.add_child(home)
+	identity.add_child(home)
 	var title: VBoxContainer = VBoxContainer.new()
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_drawing_header.add_child(title)
+	identity.add_child(title)
 	_drawing_title = QuadTheme.label("사각형 그림 그리기", 25)
 	title.add_child(_drawing_title)
 	_drawing_tagline = QuadTheme.label("변과 각을 살피며 나만의 작품을 만들어요", 15, QuadTheme.MUTED)
 	title.add_child(_drawing_tagline)
 	_drawing_load = _button("불러오기", func(): load_drawing(true))
-	_drawing_header.add_child(_drawing_load)
-	_drawing_header.add_child(_button("튜토리얼", func(): tutorial_requested.emit()))
-	_drawing_header.add_child(_button("저장", func(): save_drawing(true)))
-	_drawing_header.add_child(_button("PNG 저장", _export_png, true))
+	var file_actions: HBoxContainer = HBoxContainer.new()
+	file_actions.add_theme_constant_override("separation", 8)
+	file_actions.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_drawing_header.add_child(file_actions)
+	file_actions.add_child(_drawing_load)
+	file_actions.add_child(_button("튜토리얼", func(): tutorial_requested.emit()))
+	file_actions.add_child(_button("저장", func(): save_drawing(true)))
+	file_actions.add_child(_button("PNG 저장", _export_png, true))
 	_tool_scroll = ScrollContainer.new()
 	_tool_scroll.name = "DrawingToolbarScroll"
 	_tool_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
@@ -411,20 +420,22 @@ func _build_ui() -> void:
 	colors.add_child(snap)
 	_selection = QuadTheme.paragraph("", 15, QuadTheme.INK)
 	center.add_child(_selection)
-	var footer: HBoxContainer = HBoxContainer.new()
-	footer.name = "DrawingSaleFooter"
-	footer.add_theme_constant_override("separation", 14)
+	_sale_footer = BoxContainer.new()
+	_sale_footer.name = "DrawingSaleFooter"
+	var commission_actions: HBoxContainer = HBoxContainer.new()
+	commission_actions.add_theme_constant_override("separation", 8)
+	_sale_footer.add_child(commission_actions)
 	_sale_button = _button("그림 의뢰 받기", _open_commission_action, true)
 	_sale_button.name = "SellDrawingButton"
 	_sale_button.custom_minimum_size = Vector2(156, 48)
-	footer.add_child(_sale_button)
+	commission_actions.add_child(_sale_button)
 	_commission_brief = _button("의뢰서 보기", _open_commissions)
 	_commission_brief.name = "OpenArtCommissionBrief"
-	footer.add_child(_commission_brief)
+	commission_actions.add_child(_commission_brief)
 	var status_panel: PanelContainer = PanelContainer.new()
 	status_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status_panel.add_theme_stylebox_override("panel", GameArt.panel(0, 6))
-	footer.add_child(status_panel)
+	_sale_footer.add_child(status_panel)
 	var footer_text: VBoxContainer = VBoxContainer.new()
 	footer_text.alignment = BoxContainer.ALIGNMENT_CENTER
 	status_panel.add_child(footer_text)
@@ -433,7 +444,7 @@ func _build_ui() -> void:
 	footer_text.add_child(_commission_summary)
 	_status = QuadTheme.paragraph("의뢰인의 부탁을 살펴보고 그림을 그려요.", 14, QuadTheme.INK)
 	footer_text.add_child(_status)
-	column.add_child(footer)
+	column.add_child(_sale_footer)
 	_upload_row = HFlowContainer.new()
 	_upload_row.name = "ArtUploadStatus"
 	_upload_row.add_theme_constant_override("h_separation", 10)
@@ -456,11 +467,15 @@ func _build_ui() -> void:
 
 func _responsive_drawing() -> void:
 	if not is_instance_valid(canvas): return
+	var narrow: bool = size.x < 620.0
+	_drawing_header.vertical = narrow
+	_sale_footer.vertical = narrow
+	_sale_footer.add_theme_constant_override("separation", 5 if narrow else 14)
 	var spacious: bool = size.x >= 1250 and size.y >= 760
 	_palette_scroll.visible = spacious
 	_shape_picker.visible = not spacious
 	_shape_tools.visible = not spacious or canvas.selected_kind == "trapezoid"
-	_drawing_tagline.visible = size.y >= 760
+	_drawing_tagline.visible = not narrow and size.y >= 760
 	_drawing_load.visible = size.x >= 1000
 	_drawing_title.add_theme_font_size_override("font_size", 22 if size.x < 1000 else 25)
 	for index: int in range(_main_colors.size()): _main_colors[index].visible = index < (9 if spacious else 6)
@@ -608,24 +623,39 @@ func _make_swatch(color: Color) -> Button:
 	swatch.custom_minimum_size = Vector2(44, 44)
 	swatch.tooltip_text = "#" + color.to_html(false)
 	swatch.set_meta("paint_color", color)
-	for state: String in ["normal", "hover", "pressed", "disabled"]:
-		swatch.add_theme_stylebox_override(state, Buttons.swatch(color, state))
+	swatch.accessibility_name = "물감 " + swatch.tooltip_text
+	var sample: ColorRect = ColorRect.new()
+	sample.name = "PaintSample"
+	sample.color = color
+	sample.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	swatch.add_child(sample)
+	sample.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sample.offset_left = 7.0
+	sample.offset_top = 7.0
+	sample.offset_right = -7.0
+	sample.offset_bottom = -7.0
+	var marker: Label = QuadTheme.label("●", 15, Color.WHITE if color.srgb_to_linear().get_luminance() < 0.18 else Color("101b25"))
+	marker.name = "Selected"
+	marker.visible = canvas.paint_color.is_equal_approx(color)
+	marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	marker.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sample.add_child(marker)
+	marker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_swatches.append(swatch)
 	return swatch
 
 func _refresh_swatches() -> void:
 	for swatch: Button in _swatches:
 		var color: Color = swatch.get_meta("paint_color")
-		swatch.text = "●" if canvas.paint_color.is_equal_approx(color) else ""
-		var ink: Color = Color.WHITE if color.get_luminance() < 0.4 else QuadTheme.INK
-		for state: String in ["font_color", "font_hover_color", "font_pressed_color"]:
-			swatch.add_theme_color_override(state, ink)
+		var marker: Label = swatch.get_node("PaintSample/Selected")
+		marker.visible = canvas.paint_color.is_equal_approx(color)
 
 func _open_colors() -> void:
 	cancel_gesture()
 	if _color_dialog == null:
 		_color_dialog = AcceptDialog.new()
-		_color_dialog.title = "56색 팔레트 · 고른 색이 선택 도형에도 적용돼요"
+		_color_dialog.title = "56색 팔레트"
 		_color_dialog.get_ok_button().text = "닫기"
 		_color_dialog.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
 		Buttons.apply(_color_dialog.get_ok_button())
@@ -635,16 +665,15 @@ func _open_colors() -> void:
 		# A scroll viewport keeps wrapped text's initial minimum height from
 		# enlarging the Window before its containers have their first layout.
 		var scroll: ScrollContainer = ScrollContainer.new()
-		scroll.custom_minimum_size = Vector2(430, 430)
+		scroll.custom_minimum_size = Vector2(0, 120)
 		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		_color_dialog.add_child(scroll)
 		var column: VBoxContainer = VBoxContainer.new()
 		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		column.add_theme_constant_override("separation", 12)
 		scroll.add_child(column)
-		column.add_child(QuadTheme.paragraph("선명한 색 · 파스텔 · 깊은 색 · 무채색\n더 많은 색은 그림 화면의 직접 색 고르기를 사용해요.", 15, QuadTheme.INK))
-		var grid: GridContainer = GridContainer.new()
-		grid.columns = 8
+		column.add_child(QuadTheme.paragraph("고른 색은 선택한 도형에도 적용돼요. 원하는 색이 없으면 직접 색 고르기를 사용해요.", 15, QuadTheme.INK))
+		var grid: HFlowContainer = HFlowContainer.new()
 		grid.add_theme_constant_override("h_separation", 8)
 		grid.add_theme_constant_override("v_separation", 8)
 		column.add_child(grid)
@@ -674,7 +703,7 @@ func _open_gallery(masterpieces: bool) -> void:
 	_gallery.name = "DrawingGallery"
 	_gallery.title = "명화 채우기 · 밑그림 10종" if masterpieces else "그림 배경 · 30가지 장면"
 	_gallery.get_ok_button().text = "닫기"
-	_gallery.min_size = Vector2i(500, 400)
+	_gallery.min_size = Vector2i(240, 190)
 	_gallery.add_theme_stylebox_override("panel", GameArt.panel(0, 16))
 	Buttons.apply(_gallery.get_ok_button())
 	_gallery.get_ok_button().custom_minimum_size.y = 44
@@ -683,7 +712,7 @@ func _open_gallery(masterpieces: bool) -> void:
 	# Scroll the entire choice list so both its first wrapped description and
 	# all rows can fit in a short window without pushing its close button offscreen.
 	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(720, 440)
+	scroll.custom_minimum_size = Vector2(0, 150)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_gallery.add_child(scroll)
 	var column: VBoxContainer = VBoxContainer.new()
@@ -693,8 +722,7 @@ func _open_gallery(masterpieces: bool) -> void:
 	column.add_child(QuadTheme.paragraph("마음에 드는 명화를 골라요. 연한 밑그림 위를 사각형으로 자유롭게 채울 수 있어요." if masterpieces else "배경을 골라 나만의 그림을 꾸며요. 그린 도형은 그대로 이어서 사용할 수 있어요.", 15, QuadTheme.INK))
 	if not masterpieces:
 		column.add_child(_button("빈 종이로 그리기", func(): _choose_scene("paper", false)))
-	var grid: GridContainer = GridContainer.new()
-	grid.columns = 3
+	var grid: HFlowContainer = HFlowContainer.new()
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 12)

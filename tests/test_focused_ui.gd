@@ -6,12 +6,12 @@ const Art = preload("res://scripts/construction_art.gd")
 
 static func run(t: Node) -> void:
 	for texture: Texture2D in [Art.surface_texture(), Art.quiet_surface_texture()]:
-		t.assert_not_null(texture, "Quiet UI retains the generated metal interior")
+		t.assert_not_null(texture, "Quiet UI retains the generated bookcloth interior")
 		if texture == null: continue
 		t.assert_true(texture is AtlasTexture, "Quiet surfaces crop the generated skin rather than enlarging ornaments")
 		if texture is AtlasTexture:
-			t.assert_true((texture as AtlasTexture).atlas.resource_path.ends_with("starfront-v1/skin.webp"), "All quiet chrome shares the new generated palette")
-		t.assert_ge(texture.get_width(), 64, "Metal face has enough source detail")
+			t.assert_true((texture as AtlasTexture).atlas.resource_path.ends_with("adventure-ui-v2/panel-navy.webp"), "All quiet chrome shares the new generated palette")
+		t.assert_ge(texture.get_width(), 64, "Bookcloth face has enough source detail")
 	var window: Window = t.get_window()
 	var previous: Dictionary = {
 		"size": window.size, "minimum": window.min_size,
