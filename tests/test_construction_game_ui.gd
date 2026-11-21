@@ -14,9 +14,12 @@ static func run(t: Node) -> void:
 	await _test_completed_house_gallery(t)
 
 static func _test_first_stage_and_help(t: Node) -> void:
+	var viewport_area: Control = Control.new()
+	viewport_area.size = Vector2(1280, 720)
+	t.add_child(viewport_area)
 	var studio: Studio = Studio.new()
 	studio.testing = true
-	t.add_child(studio)
+	viewport_area.add_child(studio)
 	await _frames(t, 3)
 	t.assert_true(studio.canvas.use_2d_background, "Construction mode uses a 2D front-elevation backdrop matching the 2D house")
 	t.assert_eq(studio.find_child("MyHouseModeButton", true, false), null, "The commission toolbar cannot open the personal studio")
@@ -26,6 +29,13 @@ static func _test_first_stage_and_help(t: Node) -> void:
 	if studio._client_grid != null:
 		t.assert_eq(studio._client_grid.columns, 3, "Client board arranges clients in a 3x3 grid")
 		t.assert_eq(studio._client_grid.get_child_count(), 9, "Client board renders all 9 stage clients")
+		viewport_area.size = Vector2(390, 780)
+		await _frames(t, 3)
+		t.assert_eq(studio._client_grid.columns, 1, "A portrait client board fits one readable card per row")
+		t.assert_eq(studio._client_grid.get_child_count(), 9, "Portrait retains all nine clients")
+		viewport_area.size = Vector2(1280, 720)
+		await _frames(t, 3)
+		t.assert_eq(studio._client_grid.columns, 3, "Returning to desktop restores the three-column board")
 	studio._show_client_offer_modal(0)
 	t.assert_true(studio._modal.visible, "Clicking a client opens the commission detail and acceptance confirmation modal")
 	t.assert_true(_text(studio._modal).contains("보유 자산"), "Client detail modal displays the player's held assets and acceptability")
@@ -100,7 +110,7 @@ static func _test_first_stage_and_help(t: Node) -> void:
 	for term: String in ["가로 받침", "누르는 무게", "먼저 받는 돈", "평행", "보상 받기"]:
 		t.assert_true(glossary.contains(term), "The visible glossary exposes a meaningful explanation: " + term)
 	t.assert_false(studio.canvas.editing_enabled, "Reading the glossary owns input while a house is being built")
-	studio.free()
+	viewport_area.free()
 	await t.get_tree().process_frame
 
 static func _test_completed_house_gallery(t: Node) -> void:
