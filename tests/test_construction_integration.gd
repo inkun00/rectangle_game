@@ -17,6 +17,7 @@ static func run(t: Node) -> void:
 	await _test_dialog_resizing_and_focus(t)
 	await _test_starter_replacement(t)
 	await _test_material_family_filters(t)
+	await _test_expanded_material_library(t)
 	await _test_facade_repair_feedback(t)
 
 static func _test_building_publication(t: Node) -> void:
@@ -222,7 +223,7 @@ static func _test_material_family_filters(t: Node) -> void:
 		if not studio._material_buttons[id].visible: continue
 		opening_count += 1
 		var material: Dictionary = Catalog.material(id)
-		if not Studio._material_matches(material, "rectangle") or not str(material.role) in ["door", "window"]: wrong_use = true
+		if not QuadrilateralMath.matches_kind(Catalog.material_vertices(id), "rectangle") or not str(material.role) in ["door", "window"]: wrong_use = true
 	t.assert_gt(opening_count, 0, "The shape and compact use filters can find rectangular doors and windows")
 	t.assert_false(wrong_use, "Shape and use filters are intersected rather than replacing one another")
 	t.assert_true(studio._material_buttons.window.visible, "A square window satisfies the four-right-angle rectangle filter")
@@ -244,6 +245,59 @@ static func _test_material_family_filters(t: Node) -> void:
 	studio._show_help()
 	t.assert_true(studio._shape_filter.disabled and studio._category_picker.disabled, "Modal input ownership disables the background filter dropdowns")
 	studio.free()
+	await t.get_tree().process_frame
+
+static func _test_expanded_material_library(t: Node) -> void:
+	var window: Window = t.get_tree().root
+	var previous_size: Vector2i = window.size
+	var previous_scale: Vector2i = window.content_scale_size
+	for dimensions: Vector2i in [Vector2i(1366, 768), Vector2i(390, 780)]:
+		window.size = dimensions
+		window.content_scale_size = dimensions
+		var studio: Studio = Studio.new()
+		studio.testing = true
+		t.add_child(studio)
+		await t.get_tree().process_frame
+		studio._accept_contract()
+		if studio._palette_toggle.visible: studio._palette_toggle.pressed.emit()
+		for frame: int in range(4): await t.get_tree().process_frame
+		var viewport: Rect2 = Rect2(Vector2.ZERO, Vector2(dimensions))
+		for control: Control in [studio._scope_buttons.new, studio._material_search, studio._material_count]:
+			t.assert_true(control.is_visible_in_tree() and viewport.encloses(control.get_global_rect()), "New materials and name search stay accessible at %s" % str(dimensions))
+		studio._scope_buttons.new.pressed.emit()
+		t.assert_eq(studio._material_count.text, "30종", "The new shelf reports all thirty ready-made materials")
+		t.assert_false(studio._material_buttons.window.visible, "Original materials stay on the full shelf")
+		studio._material_search.text = "자개"
+		studio._material_search.text_changed.emit(studio._material_search.text)
+		t.assert_true(studio._material_buttons.shell_tile.visible and studio._material_buttons.shell_flower.visible, "A Korean finish name finds both pieces even when their names describe the shell design")
+		studio._filter_shape("rectangle")
+		studio._browse_materials("opening")
+		studio._material_search.text = "한 지"
+		studio._material_search.text_changed.emit(studio._material_search.text)
+		t.assert_eq(studio._material_count.text, "1종", "Korean name, source, inclusive shape and use filters combine")
+		var card: Button = studio._material_buttons.paper_lattice_window
+		t.assert_true(card.visible, "A square lattice window is also found among rectangular openings")
+		for frame: int in range(4): await t.get_tree().process_frame
+		var shelf: ScrollContainer = studio._materials.get_parent() as ScrollContainer
+		t.assert_true(shelf.get_global_rect().encloses(card.get_global_rect()), "The first search result is completely on screen")
+		card.pressed.emit()
+		for frame: int in range(3): await t.get_tree().process_frame
+		t.assert_true(studio.canvas.is_visible_in_tree(), "Choosing a search result returns to the drawing surface")
+		_pointer(studio, Vector2(500, 500), true)
+		_pointer(studio, Vector2(500, 500), false)
+		t.assert_eq(studio.state.document.parts.size(), 1, "A selected expansion material can be placed on the board")
+		if not studio.state.document.parts.is_empty():
+			t.assert_eq(studio.state.document.parts[0].material_id, "paper_lattice_window", "The placed window is the exact searched material")
+		if studio._palette_toggle.visible: studio._palette_toggle.pressed.emit()
+		t.assert_eq(studio._material_count.text, "1종", "Placement preserves the search for the next piece")
+		studio._material_search.text = "없는재료"
+		studio._material_search.text_changed.emit(studio._material_search.text)
+		t.assert_true(studio._materials_empty.visible and studio._material_reset.visible, "An unmatched search offers a direct way back to all materials")
+		studio._material_reset.pressed.emit()
+		t.assert_true(studio._material_search.text.is_empty() and studio._material_buttons.window.visible and studio._material_buttons.paper_lattice_window.visible, "Reset reveals both original and new materials")
+		studio.free()
+	window.size = previous_size
+	window.content_scale_size = previous_scale
 	await t.get_tree().process_frame
 
 static func _test_dialog_resizing_and_focus(t: Node) -> void:

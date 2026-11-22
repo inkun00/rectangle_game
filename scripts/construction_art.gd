@@ -18,6 +18,18 @@ const GOLD: Color = Color("ffd18a")
 const SLATE_DARK: Color = Color("101a27")
 const LINE: Color = Color("42586d")
 const QUIET_PAPER_PATH: String = "res://assets/generated/focused-ui/paper-v1.webp"
+const LIBRARY_SHEET: String = "res://assets/generated/construction-library-v2/surfaces.webp"
+const OPENING_SHEET: String = "res://assets/generated/construction-library-v2/openings.webp"
+const OPENING_CELLS: Array[String] = [
+	"walnut_door", "bamboo_door", "paper_lattice_window",
+	"stained_flower_window", "sea_glass_window", "stained_star_window"
+]
+const LIBRARY_CELLS: Array[String] = [
+	"bamboo", "cork", "sandstone", "basalt",
+	"birch", "jade_tile", "terracotta", "reed_thatch",
+	"patina_copper", "solar_cell", "sea_glass", "stained_glass",
+	"paper_lattice", "walnut", "shell_mosaic", "rattan"
+]
 const TOOL_CELLS: Dictionary = {"select": 0, "undo": 1, "redo": 2, "delete": 3, "rotate": 4, "zoom": 5, "fit": 6, "inspect": 7, "receipt": 8, "home": 9, "save": 10, "help": 11, "duplicate": 12, "draw": 13, "adventure": 14, "book": 15}
 const EXPANDED_MATERIAL_CELLS: Dictionary = {"stone": 0, "concrete": 1, "plaster": 2, "green_brick": 3, "frosted_glass": 4, "amber_glass": 5, "teal_glass": 6, "grille": 7, "zinc_roof": 8, "clay_roof": 9, "slate_roof": 10, "metal_roof": 11, "cedar": 12, "louver": 13, "mosaic": 14, "copper": 15}
 static var _textures: Dictionary = {}
@@ -33,7 +45,7 @@ static func generated_texture(filename: String) -> Texture2D:
 		"construction-cover.png": return preload("res://assets/generated/home-atlas/building.webp")
 		"app-icon.png": return StarfrontArt.cell("items", 23, 4, 6, true)
 	if _textures.has(filename): return _textures[filename] as Texture2D
-	var path: String = GENERATED_ROOT + filename
+	var path: String = filename if filename in [LIBRARY_SHEET, OPENING_SHEET] else GENERATED_ROOT + filename
 	if GAME_FILES.has(filename) and ResourceLoader.exists(GAME_ROOT + str(GAME_FILES[filename])):
 		path = GAME_ROOT + str(GAME_FILES[filename])
 	if not ResourceLoader.exists(path): return null
@@ -112,7 +124,13 @@ static func material_icon(material_id: String) -> Texture2D:
 	if material.is_empty(): return null
 	# Counted masonry always uses one generated brick per repeated tile.
 	if int(material.get("brick_count", 0)) > 0: return _atlas("construction-materials.png", 0, 4, 2)
+	var opening_cell: int = OPENING_CELLS.find(material_id)
+	if opening_cell >= 0:
+		return _atlas(OPENING_SHEET, opening_cell, 3, 2)
 	var texture_key: String = str(material.get("texture_key", ""))
+	var library_cell: int = LIBRARY_CELLS.find(texture_key)
+	if library_cell >= 0:
+		return _atlas(LIBRARY_SHEET, library_cell, 4, 4)
 	if texture_key == "brick": return StarfrontArt.material(0)
 	if EXPANDED_MATERIAL_CELLS.has(texture_key):
 		return _atlas("construction-materials-expanded.png", int(EXPANDED_MATERIAL_CELLS[texture_key]), 4, 4)
@@ -153,8 +171,10 @@ static func shape_icon(kind: String) -> Texture2D:
 		"trapezoid": dims = Vector2(18, 13)
 		"parallelogram": dims = Vector2(18, 12)
 		"rhombus": dims = Vector2(14, 18)
+		"freeform": dims = Vector2(20, 17)
 		_: dims = Vector2(15, 15)
-	var verts: PackedVector2Array = Math.create_vertices(kind if kind in Math.KINDS else "square", dims)
+	var verts: PackedVector2Array = Math.create_vertices(kind, dims)
+	if verts.is_empty(): verts = Math.create_vertices("square", dims)
 	var center: Vector2 = Vector2(12, 12)
 	var poly: PackedVector2Array = PackedVector2Array()
 	for v: Vector2 in verts:
@@ -166,6 +186,7 @@ static func shape_icon(kind: String) -> Texture2D:
 		"trapezoid": fill_col = Color("52b788")
 		"parallelogram": fill_col = Color("9b72cf")
 		"rhombus": fill_col = Color("f4a261")
+		"freeform": fill_col = Color("46c6b3")
 	for py: int in range(24):
 		for px: int in range(24):
 			var pt: Vector2 = Vector2(float(px) + 0.5, float(py) + 0.5)

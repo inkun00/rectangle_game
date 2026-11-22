@@ -3,7 +3,8 @@ extends RefCounted
 
 ## Four local vertices are the only geometric state. All properties are derived.
 const KINDS: Array[String] = ["trapezoid", "parallelogram", "rhombus", "rectangle", "square"]
-const LABELS: Dictionary = {"trapezoid": "사다리꼴", "parallelogram": "평행사변형", "rhombus": "마름모", "rectangle": "직사각형", "square": "정사각형"}
+const FREEFORM: String = "freeform"
+const LABELS: Dictionary = {FREEFORM: "자유형 사각형", "trapezoid": "사다리꼴", "parallelogram": "평행사변형", "rhombus": "마름모", "rectangle": "직사각형", "square": "정사각형"}
 const TRAPEZOID_VARIANTS: Array[String] = ["symmetric", "right_left", "right_right"]
 const TOLERANCE: float = 0.001
 
@@ -53,9 +54,11 @@ static func classifications(vertices: PackedVector2Array) -> Array[String]:
 
 static func create_vertices(kind: String, dimensions: Vector2 = Vector2(92.0, 68.0), trapezoid_variant: String = "symmetric") -> PackedVector2Array:
 	var half: Vector2 = dimensions.abs() * 0.5
-	if not dimensions.is_finite() or half.x < 2.0 or half.y < 2.0 or not KINDS.has(kind):
+	if not dimensions.is_finite() or half.x < 2.0 or half.y < 2.0 or (kind != FREEFORM and not KINDS.has(kind)):
 		return PackedVector2Array()
 	match kind:
+		FREEFORM:
+			return PackedVector2Array([half * Vector2(-1.0, -0.55), half * Vector2(1.0, -1.0), half * Vector2(0.58, 0.55), half * Vector2(-0.58, 1.0)])
 		"trapezoid":
 			if not TRAPEZOID_VARIANTS.has(trapezoid_variant):
 				return PackedVector2Array()

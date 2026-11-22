@@ -131,6 +131,7 @@ def feature_for_source(path: str) -> str:
     if path.startswith("assets/generated/drawing/"):
         return "drawing"
     if (path.startswith("assets/generated/starfront-hd/materials/")
+            or path.startswith("assets/generated/construction-library-v2/")
             or re.fullmatch(r"assets/generated/construction-game/badge-[1-5]\.webp", path)
             or path == "assets/generated/starfront-v1/brick.webp"):
         return "construction"

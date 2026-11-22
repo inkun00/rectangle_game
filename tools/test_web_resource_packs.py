@@ -41,6 +41,7 @@ def fixture() -> ResourcePack:
         ("assets/generated/starfront-hd/backgrounds/construction.webp", "worksite"),
         ("assets/generated/home-atlas/building.webp", "destination"),
         ("assets/generated/starfront-hd/materials/details-a.webp", "material"),
+        ("assets/generated/construction-library-v2/surfaces.webp", "library"),
         ("assets/generated/opening-v1/planet.webp", "planet"),
     ):
         entries.extend(imported(source, cache, (cache.encode() + b"\0RGBA") * 40))
@@ -67,6 +68,7 @@ class PackTests(unittest.TestCase):
         self.assertIn(".godot/imported/adventureforest.ctex", adventure)
         self.assertIn(".godot/imported/hangar.ctex", {entry.path for entry in groups["space"].entries})
         self.assertIn(".godot/imported/worksite.ctex", {entry.path for entry in groups["construction"].entries})
+        self.assertIn(".godot/imported/library.ctex", {entry.path for entry in groups["construction"].entries})
         self.assertIn(".godot/imported/destination.ctex", {entry.path for entry in groups["core"].entries})
         self.assertIn(".godot/imported/planet.ctex", {entry.path for entry in groups["space"].entries})
         self.assertEqual([entry.data for entry in groups["opening"].entries],

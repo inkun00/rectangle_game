@@ -10,6 +10,7 @@ const CommissionCatalog = preload("res://scripts/economy/art_commission_catalog.
 
 static func run(t: Node) -> void:
 	_test_quotes(t)
+	_test_freeform_quote(t)
 	_test_sale_requirements(t)
 	_test_commission_quotes(t)
 	_test_receipts(t)
@@ -18,6 +19,23 @@ static func run(t: Node) -> void:
 
 static func sample_art() -> DrawingDocument:
 	return ArtSamples.house()
+
+static func _test_freeform_quote(t: Node) -> void:
+	var drawing: DrawingDocument = Model.new()
+	drawing.add_sized_shape("rectangle", Vector2.ZERO, Vector2(860, 450), Color.CORAL)
+	var kinds: Array[String] = ["square", "rhombus", "trapezoid", "parallelogram", "freeform"]
+	for index: int in range(kinds.size()):
+		drawing.add_sized_shape(kinds[index], Vector2(-280 + index * 140, 0), Vector2(100, 72), Color.DARK_BLUE)
+	var center: Vector2 = drawing.get_selected().position
+	var irregular: PackedVector2Array = PackedVector2Array([Vector2(-35, -43), Vector2(55, -25), Vector2(40, 38), Vector2(-50, 28)])
+	drawing.transform_selected(irregular, center)
+	drawing.work_msec = Model.REQUIRED_WORK_MSEC
+	var offer: Dictionary = Market.quote(drawing, [], ArtSamples.COMMISSION_ID)
+	t.assert_eq(offer.families, 6, "An irregular visible quadrilateral counts alongside all five named families")
+	var receipt: Dictionary = Market.receipt_from_quote(offer, "여섯 가지 사각형")
+	t.assert_true(Market.validate_receipt(receipt), "A six-family commission can be paid and its receipt reloaded")
+	drawing.transform_selected(QuadrilateralMath.create_vertices("square", Vector2(72, 72)), center)
+	t.assert_eq(Market.quote(drawing).families, 5, "A freeform edited into a square counts once with the other squares")
 
 static func _test_quotes(t: Node) -> void:
 	var drawing: DrawingDocument = sample_art()

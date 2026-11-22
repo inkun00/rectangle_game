@@ -14,7 +14,7 @@ const PERSONAL_SAVE_PATH: String = "user://quadrilateral_personal_drawing_v1.jso
 const PADLET_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 const DRAWING_IDLE_MSEC: int = 15000
 const TOOLBAR_FONT_SIZE: int = 16
-const SHAPE_ORDER: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus"]
+const SHAPE_ORDER: Array[String] = ["square", "rectangle", "trapezoid", "parallelogram", "rhombus", "freeform"]
 const TRAPEZOID_VARIANT_LABELS: Array[String] = ["양옆이 기울어진 모양", "왼쪽 두 각이 직각", "오른쪽 두 각이 직각"]
 const SHAPE_ACTION_LABELS: Dictionary = {6: "뒤로 보내기", 7: "앞으로 보내기", 2: "왼쪽 15° 회전", 3: "오른쪽 15° 회전", 4: "축소", 5: "확대", 0: "복제", 1: "삭제"}
 const GROUP_ACTION: int = 12
@@ -24,7 +24,8 @@ const SHAPE_HELP: Dictionary = {
 	"rectangle": "네 각이 모두 직각이에요. 길쭉한 벽이나 창문을 그려 봐요.",
 	"trapezoid": "평행한 변이 한 쌍 이상 있어요. 지붕이나 화분을 만들어 봐요.",
 	"parallelogram": "마주 보는 두 쌍의 변이 평행해요. 기울어진 길을 그려 봐요.",
-	"rhombus": "네 변의 길이가 모두 같아요. 반짝이는 보석을 만들어 봐요."
+	"rhombus": "네 변의 길이가 모두 같아요. 반짝이는 보석을 만들어 봐요.",
+	"freeform": "종이에서 끌어 그려요. 그린 뒤에는 청록색 꼭짓점을 하나씩 움직여요."
 }
 const PALETTE: Array[Color] = [
 	Color("ef5350"), Color("ff7043"), Color("ff9800"), Color("ffca28"), Color("ffee58"), Color("c0ca33"), Color("66bb6a"), Color("26a69a"),
@@ -266,7 +267,7 @@ func _build_ui() -> void:
 	_shape_hint = QuadTheme.paragraph("", 16, QuadTheme.INK)
 	palette.add_child(_shape_hint)
 	palette.add_child(_button("가운데에 도형 추가", func(): canvas.add_at_center()))
-	palette.add_child(QuadTheme.paragraph("종이에서 드래그해 그려요. 선택한 도형의 변·꼭짓점으로 크기를, 원형 손잡이로 방향을 바꿔요.", 15, QuadTheme.INK))
+	palette.add_child(QuadTheme.paragraph("변 가운데의 손잡이를 끌면 크기가 바뀌어요. 둥근 화살표를 끌면 도형이 돌아가요.", 15, QuadTheme.INK))
 	_masterpiece_button = _button("명화 밑그림 고르기", func(): _open_gallery(true))
 	_masterpiece_button.name = "MasterpieceGalleryButton"
 	palette.add_child(_masterpiece_button)
@@ -751,7 +752,7 @@ func _choose_scene(id: String, masterpiece: bool) -> void:
 	if masterpiece:
 		if not document.set_masterpiece(id):
 			return
-		_set_status("명화 채우기 · %s: 다섯 가지 사각형으로 밑그림을 채워 보세요." % Catalog.masterpiece(id).name)
+		_set_status("명화 채우기 · %s · 여러 가지 사각형으로 밑그림을 채워 보세요." % Catalog.masterpiece(id).name)
 	else:
 		if not document.set_background(id):
 			return
@@ -782,10 +783,11 @@ func _refresh() -> void:
 	Buttons.apply(_multiple_selection_button, canvas.multiple_selection, TOOLBAR_FONT_SIZE)
 	_group_button.disabled = not document.can_group_selection()
 	_ungroup_button.disabled = not document.can_ungroup_selection()
-	_shape_hint.text = str(SHAPE_HELP[canvas.selected_kind])
 	_undo.disabled = not document.can_undo()
 	_redo.disabled = not document.can_redo()
 	var selected: Dictionary = document.get_selected()
+	var hint_kind: String = canvas.selected_kind if selected.is_empty() else str(selected.kind)
+	_shape_hint.text = str(SHAPE_HELP[hint_kind])
 	_mode_free.set_pressed_no_signal(document.drawing_mode == "free")
 	_mode_masterpiece.set_pressed_no_signal(document.drawing_mode == "masterpiece")
 	Buttons.apply(_mode_free, document.drawing_mode == "free", TOOLBAR_FONT_SIZE)
@@ -816,8 +818,12 @@ func _refresh() -> void:
 	if canvas.multiple_selection or selection_count > 1:
 		_selection.text += "%d개 선택" % selection_count
 		if document.can_ungroup_selection(): _selection.text += " · 묶음 포함"
+	elif selected.is_empty() and canvas.drawing_tool and canvas.selected_kind == "freeform":
+		_selection.text += str(SHAPE_HELP["freeform"])
 	elif selected.is_empty():
 		_selection.text += "도형을 고른 뒤 종이에 그리거나, 선택·이동으로 그림을 골라요."
+	elif selected.kind == "freeform":
+		_selection.text += "자유형 사각형 · 청록색 꼭짓점을 끌어 모양을 바꿔요."
 	else:
 		_selection.text += "%s · 길이 단위: cm · 손잡이로 크기·방향 조절" % QuadrilateralMath.kind_name(str(selected.kind))
 

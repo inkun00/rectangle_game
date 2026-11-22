@@ -23,7 +23,7 @@ static func run(t: Node) -> void:
 	await _settle(t)
 	t.assert_true(is_instance_valid(studio._custom_material_form), "The actual order button opens a custom material form")
 	t.assert_false(studio.canvas.editing_enabled, "Ordering owns input instead of placing materials behind the dialog")
-	t.assert_true(studio._custom_material_button.disabled and studio._custom_material_filter.disabled, "The open maker disables background custom material controls")
+	t.assert_true(studio._custom_material_button.disabled and studio._scope_buttons.custom.disabled and not studio._material_search.editable, "The open maker disables background material browsing")
 	var form: CustomMaterialForm = studio._custom_material_form
 	_pick(form._kind_picker, "trapezoid")
 	await _settle(t)
@@ -52,7 +52,7 @@ static func run(t: Node) -> void:
 	t.assert_true(studio._material_buttons.has(id), "The newly registered recipe becomes a reusable material card")
 	t.assert_true(studio._material_buttons[id]._dimensions.visible and studio._material_buttons[id]._dimensions.text.contains(Custom.pattern_label("checks")), "Registered cards identify their chosen pattern for reuse")
 	t.assert_eq(studio.canvas.material_id, id, "The registered material is selected for ordinary placement")
-	t.assert_true(studio._custom_only and studio._custom_material_filter.button_pressed, "Registration opens the dedicated personal-material list")
+	t.assert_true(studio._scope_buttons.custom.button_pressed, "Registration opens the dedicated personal-material list")
 	t.assert_false(studio._material_buttons.wall.visible, "Personal-material browsing hides the built-in inventory")
 	t.assert_eq(studio.state.balance, int(original.balance), "Registering a reusable design is free")
 	studio._add_material(id)
@@ -95,13 +95,13 @@ static func run(t: Node) -> void:
 	t.assert_eq(restored.state.my_house_document.material_cost(), price, "Reloaded custom geometry uses the same deterministic price")
 	t.assert_false(restored.state.my_house_mode, "A restored personal draft does not promote a regular construction session to personal mode")
 	t.assert_true(restored.state.accept_contract(), "A registered recipe survives accepting a new commission")
-	restored._browse_custom_materials(true)
+	restored._scope_buttons.custom.pressed.emit()
 	restored._choose_material(id)
 	restored._add_material(id)
 	t.assert_eq(restored.state.document.parts[0].material_id, id, "The same personal material can be reused in a separate commissioned house")
 	t.assert_eq(restored.state.document.material_cost(), price, "Reusing the recipe charges its unit cost for each new placement")
 	restored._select_guide_material()
-	t.assert_false(restored._custom_only, "The first-house guide can reveal its built-in material after custom browsing")
+	t.assert_true(restored._scope_buttons.all.button_pressed, "The first-house guide can reveal its built-in material after custom browsing")
 	restored.free()
 	await _settle(t)
 	_cleanup()
@@ -148,6 +148,32 @@ static func _assert_modal_layouts(t: Node, studio: Studio) -> void:
 		t.assert_true(form._width_spin.get_line_edit().get_theme_font("font") == QuadTheme.FONT, "Custom numeric controls use the readable Korean UI font")
 		studio._close_modal()
 		await _settle(t)
+	var window: Window = t.get_tree().root
+	var previous_size: Vector2i = window.size
+	var previous_scale: Vector2i = window.content_scale_size
+	window.size = Vector2i(390, 780)
+	window.content_scale_size = window.size
+	await _settle(t)
+	studio._show_custom_material_form()
+	await _settle(t)
+	var picker: OptionButton = studio._custom_material_form._surface_picker
+	studio._modal_scroll.ensure_control_visible(picker)
+	await _settle(t)
+	picker.show_popup()
+	await _settle(t)
+	var menu: PopupMenu = picker.get_popup()
+	var menu_bounds: Rect2 = Rect2(menu.position, menu.size)
+	var button_bounds: Rect2 = picker.get_global_transform_with_canvas() * Rect2(Vector2.ZERO, picker.size)
+	t.assert_true(menu.visible and menu.item_count == Custom.SURFACE_IDS.size(), "The phone finish selector opens with every registered surface")
+	t.assert_true(menu.size.y <= studio.get_viewport_rect().size.y * 0.45, "The long finish menu scrolls within the portrait viewport")
+	t.assert_false(menu_bounds.intersects(button_bounds), "The touch release that opens the finish menu cannot choose an item under the finger")
+	for index: int in range(menu.item_count):
+		t.assert_eq(menu.get_item_text(index), Custom.surface_label(Custom.SURFACE_IDS[index]), "The finish menu displays the Korean name of each available surface")
+	menu.hide()
+	studio._close_modal()
+	window.size = previous_size
+	window.content_scale_size = previous_scale
+	await _settle(t)
 
 static func _pick(picker: OptionButton, id: String) -> void:
 	for index: int in range(picker.item_count):

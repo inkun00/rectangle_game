@@ -6,12 +6,66 @@ const Catalog = preload("res://scripts/core/drawing_catalog.gd")
 
 static func run(t: Node) -> void:
 	_test_atomic_transforms(t)
+	_test_freeform_editing(t)
 	_test_scene_history(t)
 	_test_scene_restore(t)
 	_test_right_trapezoid_history(t)
 	_test_group_selection_history(t)
 	_test_group_batch_edits(t)
 	_test_group_save_restore(t)
+
+static func _test_freeform_editing(t: Node) -> void:
+	var document: Model = Model.new()
+	var id: int = document.add_sized_shape("freeform", Vector2(-70, 40), Vector2(140, 90), Color.TEAL)
+	t.assert_gt(id, 0, "A drawing accepts a freeform quadrilateral")
+	var original: Dictionary = document.get_selected()
+	var corners: PackedVector2Array = original.vertices.duplicate()
+	var target: Vector2 = corners[2] + Vector2(52, -14)
+	corners[2] = target
+	var history: int = document.command_manager.undo_stack.size()
+	document.transform_selected(corners, original.position)
+	var edited: Dictionary = document.get_selected()
+	t.assert_eq(document.command_manager.undo_stack.size(), history + 1, "One freeform corner edit is one undo step")
+	document.transform_selected(edited.vertices, edited.position)
+	t.assert_eq(document.command_manager.undo_stack.size(), history + 1, "Clicking a corner without moving it does not rebase the drawing again")
+	for i: int in range(4):
+		var world_corner: Vector2 = Vector2(edited.position) + Vector2(edited.vertices[i])
+		t.assert_true(world_corner.is_equal_approx(Vector2(original.position) + corners[i]), "Deformation preserves each intended world corner")
+	t.assert_true(QuadrilateralMath.contains_point(edited.vertices, Vector2.ZERO), "The freeform rotation pivot stays inside the edited outline")
+	t.assert_eq(QuadrilateralMath.parallel_pair_count(edited.vertices), 0, "Freeform art can have no parallel sides")
+	var angle_sum: float = 0.0
+	for angle: float in QuadrilateralMath.angles(edited.vertices): angle_sum += angle
+	t.assert_float_approx(angle_sum, 360.0, 0.01, "Edited freeform angles total 360 degrees")
+	document.undo()
+	t.assert_eq(document.get_selected(), original, "Undo restores the original four vertices and position")
+	document.redo()
+	t.assert_eq(document.get_selected(), edited, "Redo restores the edited shape")
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(document.serialize()))
+	var restored: Model = Model.new()
+	t.assert_true(restored.restore(saved), "An irregular freeform drawing survives JSON save and load")
+	t.assert_eq(restored.serialize(), document.serialize(), "Loaded freeform geometry stays exact")
+	document.rotate_selected(37.0)
+	document.scale_selected(1.5)
+	t.assert_true(QuadrilateralMath.is_valid(document.get_selected().vertices), "Freeform art can rotate and resize")
+	document.duplicate_selected()
+	t.assert_eq(document.get_selected().kind, "freeform", "Duplicating a freeform shape preserves its editing mode")
+	var legacy: CharacterDocument = CharacterDocument.new()
+	t.assert_false(legacy.restore(saved), "Drawing-only geometry cannot enter legacy character saves")
+	var before_rejection: Dictionary = restored.serialize()
+	history = restored.command_manager.undo_stack.size()
+	for invalid: Array in [
+		[[0, 0], [60, 60], [60, 0], [0, 60]],
+		[[0, 0], [60, 0], [20, 10], [0, 60]],
+		[[0, 0], [60, 0], [60, 0], [0, 60]]
+	]:
+		var broken: Dictionary = saved.duplicate(true)
+		broken.shapes[0].vertices = invalid
+		t.assert_false(restored.restore(broken), "Crossed, concave or collapsed freeform saves are rejected")
+		var invalid_vertices: PackedVector2Array = PackedVector2Array()
+		for point: Array in invalid: invalid_vertices.append(Vector2(point[0], point[1]))
+		restored.transform_selected(invalid_vertices, edited.position)
+		t.assert_eq(restored.serialize(), before_rejection, "Invalid edits and saves preserve live freeform artwork")
+		t.assert_eq(restored.command_manager.undo_stack.size(), history, "Invalid freeform geometry leaves history alone")
 
 static func _test_group_selection_history(t: Node) -> void:
 	var document: Model = Model.new()

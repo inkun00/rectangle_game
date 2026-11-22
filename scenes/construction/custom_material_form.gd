@@ -86,6 +86,7 @@ func _build_ui() -> void:
 	_surface_picker = _picker("CustomMaterialSurface")
 	for surface: String in Custom.SURFACE_IDS:
 		_add_choice(_surface_picker, Custom.surface_label(surface), surface)
+	_surface_picker.get_popup().visibility_changed.connect(_position_surface_menu)
 	_field("재질", _surface_picker)
 	_surface_picker.item_selected.connect(func(_index: int): refresh_quote())
 	_pattern_picker = _picker("CustomMaterialPattern")
@@ -178,6 +179,15 @@ func _add_choice(picker: OptionButton, caption: String, id: String) -> void:
 	picker.set_item_metadata(picker.item_count - 1, id)
 
 
+func _position_surface_menu() -> void:
+	var menu: PopupMenu = _surface_picker.get_popup()
+	if not menu.visible: return
+	# Keep the release from the opening tap outside the expanded list.
+	var button: Rect2 = _surface_picker.get_global_transform_with_canvas() * Rect2(Vector2.ZERO, _surface_picker.size)
+	if menu.position.y < button.end.y and menu.position.y + menu.size.y > button.position.y:
+		menu.position.y = maxi(floori(get_viewport_rect().position.y), floori(button.position.y) - menu.size.y)
+
+
 func _choice(picker: OptionButton) -> String:
 	return str(picker.get_item_metadata(picker.selected)) if picker.selected >= 0 else ""
 
@@ -185,6 +195,9 @@ func _choice(picker: OptionButton) -> String:
 func _layout_fields() -> void:
 	if _fields != null:
 		_fields.columns = 2 if size.x >= 480.0 else 1
+		var extent: Vector2 = get_viewport_rect().size
+		var menu_height: float = minf(320.0 * get_global_transform_with_canvas().get_scale().y, extent.y * 0.42)
+		_surface_picker.get_popup().max_size = Vector2i(ceili(extent.x), maxi(1, floori(menu_height)))
 
 
 func _dimensions_changed(width_changed: bool) -> void:

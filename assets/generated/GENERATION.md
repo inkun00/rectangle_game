@@ -88,6 +88,8 @@ The 30 new drawing backgrounds and 10 original geometric masterpiece studies are
 
 # 메인·집 짓기 화면 정돈
 
+2026-11-22 집짓기 재료 상자에 추가한 표면 16종은 내장 ImageGen으로 제작했다. 생성 프롬프트, 질감 순서와 가공 내역은 [집짓기 재료 생성 기록](construction-library-v2/GENERATION.md)에 있다.
+
 2026-10-29: 화면 전체로 늘린 장식 패널과 공사장 배경을 제거하고, ImageGen으로 만든 고해상도 저대비 표면을 적용했습니다. [최종 표면과 프롬프트](focused-ui/GENERATION.md), [게임 디자인 참고와 적용](../../docs/FOCUSED_GAME_DESIGN.md)을 확인하세요. 재료·주민·월드의 기존 생성 그림은 유지합니다.
 
 ## 공통 버튼

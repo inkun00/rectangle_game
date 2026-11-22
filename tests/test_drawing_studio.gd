@@ -9,6 +9,7 @@ static func run(t: Node) -> void:
 	_test_geometry_and_history(t)
 	await _test_canvas(t)
 	await _test_trapezoid_variants(t)
+	await _test_freeform_palette(t)
 	await _test_persistence(t)
 
 static func _test_geometry_and_history(t: Node) -> void:
@@ -69,7 +70,7 @@ static func _test_geometry_and_history(t: Node) -> void:
 	invalid = snapshot.duplicate(true)
 	invalid.shapes[0].position = [1400, 1400]
 	t.assert_false(restored.restore(invalid), "Off-artboard save cannot make artwork unreachable")
-	t.assert_eq(document.add_sized_shape("triangle", Vector2.ZERO, Vector2(50, 50), Color.RED), -1, "Only five quadrilateral families are accepted")
+	t.assert_eq(document.add_sized_shape("triangle", Vector2.ZERO, Vector2(50, 50), Color.RED), -1, "Drawing rejects a three-sided shape")
 	t.assert_eq(document.add_sized_shape("square", Vector2.ZERO, Vector2(INF, 50), Color.RED), -1, "Nonfinite creation dimensions are rejected")
 
 static func _test_canvas(t: Node) -> void:
@@ -121,7 +122,7 @@ static func _test_trapezoid_variants(t: Node) -> void:
 	studio.canvas.add_at_center()
 	var existing: Array[Dictionary] = studio.document.shapes.duplicate(true)
 	studio.canvas.select_kind("trapezoid")
-	t.assert_eq(studio._shape_picker.item_count, 5, "Trapezoid variants remain within the five shape families")
+	t.assert_eq(studio._shape_picker.item_count, 6, "The picker offers the five named families and a freeform quadrilateral")
 	t.assert_eq(studio._trapezoid_variant_picker.item_count, 3, "The drawing picker offers symmetric and both right trapezoids")
 	for dimensions: Vector2 in [Vector2(800, 600), Vector2(1366, 768)]:
 		studio.size = dimensions
@@ -151,6 +152,36 @@ static func _test_trapezoid_variants(t: Node) -> void:
 	studio.canvas.select_kind("trapezoid")
 	t.assert_eq(studio._trapezoid_variant_picker.selected, 2, "Returning to trapezoids remembers the selected creation variant")
 	studio.free()
+
+static func _test_freeform_palette(t: Node) -> void:
+	var surface: Control = Control.new()
+	surface.size = Vector2(1366, 768)
+	t.add_child(surface)
+	var studio: Studio = Studio.new()
+	studio.testing = true
+	surface.add_child(studio)
+	for frame: int in range(4): await t.get_tree().process_frame
+	var choice: Button = studio._shape_buttons["freeform"]
+	t.assert_true(choice.is_visible_in_tree() and surface.get_rect().encloses(choice.get_global_rect()), "Desktop palette shows the freeform tool")
+	t.assert_eq(choice.text, "자유형 사각형", "Desktop freeform choice uses its Korean name")
+	choice.pressed.emit()
+	t.assert_eq(studio.canvas.selected_kind, "freeform", "Pressing the palette action switches the creator to freeform")
+	t.assert_true(studio._shape_hint.text.contains("꼭짓점"), "The visible palette explains how to move the corners")
+	surface.size = Vector2(390, 780)
+	for frame: int in range(4): await t.get_tree().process_frame
+	var compact: OptionButton = studio._shape_picker
+	t.assert_true(compact.is_visible_in_tree() and surface.get_rect().encloses(compact.get_global_rect()), "Phone shows a reachable shape picker")
+	studio.canvas.select_kind("square")
+	var index: int = Studio.SHAPE_ORDER.find("freeform")
+	t.assert_eq(compact.get_item_text(index), choice.text, "Compact and desktop tools use the same name")
+	t.assert_eq(compact.get_item_icon(index), choice.icon, "Compact and desktop tools use the same silhouette")
+	compact.item_selected.emit(index)
+	t.assert_eq(studio.canvas.selected_kind, "freeform", "Choosing freeform in the compact picker opens the drawing tool")
+	t.assert_true(studio._selection.is_visible_in_tree() and studio._selection.text.contains("꼭짓점"), "The phone shows corner instructions before drawing")
+	studio.canvas.add_at_center()
+	t.assert_eq(studio.document.get_selected().get("kind"), "freeform", "The selected tool creates the drawing's freeform part")
+	t.assert_true(studio._selection.text.contains("청록색 꼭짓점"), "The selected shape points the player to its vertex handles")
+	surface.free()
 
 static func _assert_trapezoid_angles(t: Node, vertices: PackedVector2Array, variant: String) -> void:
 	var angles: PackedFloat32Array = QuadrilateralMath.angles_degrees(vertices)

@@ -10,6 +10,7 @@ const Math = preload("res://scripts/core/quadrilateral_math.gd")
 static func run(t: Node) -> void:
 	_test_materials_and_openings(t)
 	_test_balanced_catalog(t)
+	_test_expansion_delivery(t)
 	_test_history_and_validation(t)
 	_test_contracts_and_money(t)
 	_test_partial_payment(t)
@@ -96,7 +97,7 @@ static func _test_balanced_catalog(t: Node) -> void:
 		var longest: float = 0.0
 		for length: float in Math.side_lengths(vertices): longest = maxf(longest, length)
 		lengths[family][snappedf(longest, 0.001)] = true
-	t.assert_eq(seen.size(), 44, "Construction retains forty-two materials and adds two right-trapezoid roof directions")
+	t.assert_eq(seen.size(), 74, "Construction keeps the original forty-four materials and adds thirty")
 	for family: String in Math.KINDS:
 		t.assert_ge(int(counts[family]), 8, "Every quadrilateral family retains at least eight catalog choices: " + family)
 		t.assert_gt((roles[family] as Dictionary).size(), 2, "Each family has functional uses beyond a single decoration role: " + family)
@@ -104,8 +105,18 @@ static func _test_balanced_catalog(t: Node) -> void:
 	var legacy_prices: Dictionary = {"brick": 500, "wall": 4500, "wall_square": 1000, "door": 572100, "door_short": 476800, "window": 233300, "window_small": 131200, "window_tall": 350000, "window_wide": 466600, "lintel": 13200, "lintel_long": 22000, "roof": 177100, "roof_medium": 265700, "roof_wide": 354200, "panel": 25400, "panel_long": 33100, "ornament": 41900, "ornament_large": 73800}
 	for id: String in legacy_prices:
 		t.assert_eq(int(Catalog.material(id).price), int(legacy_prices[id]), "Expanded catalog preserves prices used by existing saved ledgers: " + id)
-	for id: String in Catalog.BALANCED_SPECS:
+	var expansion_counts: Dictionary = {}
+	var expansion_surfaces: Dictionary = {}
+	for id: String in seen:
+		if not Catalog.is_expansion_material(id) and not Catalog.BALANCED_SPECS.has(id): continue
 		var material: Dictionary = Catalog.material(id)
+		if Catalog.is_expansion_material(id):
+			var kind: String = str(material.kind)
+			expansion_counts[kind] = int(expansion_counts.get(kind, 0)) + 1
+			expansion_surfaces[str(material.texture_key)] = true
+			t.assert_eq(material.opening, material.role in ["door", "window"], "Only doors and windows reserve openings: " + id)
+			t.assert_eq(material.structural, material.role in ["wall", "beam", "roof"], "Structural behavior follows the piece's role: " + id)
+			t.assert_eq(material.brick_count, 0, "Alternative wood and stone do not satisfy brick requirements: " + id)
 		t.assert_false(str(material.texture_key).is_empty(), "New material identifies its generated surface: " + id)
 		t.assert_true(str(material.source_note).contains("추정") or str(material.source_note).contains("8장"), "New surface prices disclose their educational estimate: " + id)
 		t.assert_false(Catalog.short_label(id).is_empty(), "New materials have a readable compact label: " + id)
@@ -113,6 +124,10 @@ static func _test_balanced_catalog(t: Node) -> void:
 		var placed: int = document.add_part(id, Vector2(500, 280))
 		t.assert_gt(placed, 0, "New material can be purchased and placed through normal commands: " + id)
 		var original: Dictionary = document.serialize()
+		document.undo()
+		t.assert_eq(document.material_cost(), 0, "Undo releases the full purchase amount: " + id)
+		document.redo()
+		t.assert_eq(document.serialize().parts, original.parts, "Redo reinstates the purchase with its original geometry: " + id)
 		t.assert_true(document.rotate_selected(90.0), "New material supports the existing rotation command: " + id)
 		t.assert_true(Math.matches_kind(document.get_selected().vertices, str(material.kind)), "Rotation preserves a new material's chosen family: " + id)
 		document.undo()
@@ -121,6 +136,38 @@ static func _test_balanced_catalog(t: Node) -> void:
 		var restored: Document = Document.new()
 		t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(document.serialize()))), "New material survives validated JSON restoration: " + id)
 		t.assert_eq(restored.material_cost(), document.material_cost(), "Restoring a new material preserves the quoted cost: " + id)
+	for family: String in Math.KINDS:
+		t.assert_eq(expansion_counts.get(family, 0), 6, "The expansion adds six representatives to each chosen family: " + family)
+	t.assert_eq(expansion_surfaces.size(), 16, "The new catalog uses sixteen distinct illustrated surfaces")
+	t.assert_false(Catalog.is_expansion_material("brick"), "The new-material filter excludes the original catalog")
+
+static func _test_expansion_delivery(t: Node) -> void:
+	var state: State = State.new()
+	state.accept_contract()
+	state.build_starter()
+	var plan: Array[Dictionary] = state.document.parts.duplicate(true)
+	for part: Dictionary in plan:
+		if part.material_id == "door": part.material_id = "walnut_door"
+		elif part.material_id == "window": part.material_id = "paper_lattice_window"
+	t.assert_true(state.document.replace_parts(plan), "The new door and grid window fit actual starter openings")
+	t.assert_eq(state.counts().doors, 1, "The new walnut door satisfies the client’s entrance requirement")
+	t.assert_eq(state.counts().windows, 1, "The new paper window counts as a real aperture")
+	t.assert_eq(state.document.add_part("shell_tile", Vector2(500, 500)), -1, "Decoration cannot cover the new door")
+	for x: float in [240.0, 360.0, 480.0, 600.0]:
+		state.document.add_part("lintel", Vector2(x, 430))
+	for x: float in [300.0, 540.0]:
+		t.assert_gt(state.document.add_part("solar_roof", Vector2(x, 400)), 0, "Two solar roofs can join across the facade")
+	t.assert_gt(state.document.add_part("shell_tile", Vector2(400, 480)), 0, "A new decorative tile can attach to the masonry")
+	var actual_cost: int = state.material_cost()
+	var result: Dictionary = state.settle(_stable_report(state.document))
+	t.assert_false(result.is_empty(), "The starter facade with new materials can be delivered within the first budget")
+	if result.is_empty(): return
+	t.assert_eq(result.score, 100, "The new four-cell square window satisfies the measured client preferences")
+	t.assert_eq(result.material_cost, actual_cost, "The paid receipt uses the real price of the placed materials")
+	var restored: State = State.new()
+	t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(state.serialize()))), "A house containing expansion materials can be reopened after payment")
+	t.assert_eq(restored.document.parts, state.document.parts, "The paid house retains the precise material IDs and vertex geometry")
+	t.assert_eq(restored.balance, state.balance, "Loading the expanded house ledger preserves its balance")
 
 static func _test_history_and_validation(t: Node) -> void:
 	var model: Document = Document.new()

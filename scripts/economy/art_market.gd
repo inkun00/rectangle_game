@@ -140,7 +140,8 @@ static func _validate_receipt_fields(receipt: Dictionary) -> bool:
 	elif version >= LEGACY_VISIBLE_PRICE_VERSION:
 		minimum_coverage = MIN_SALE_COVERAGE
 	if not _integer(receipt.visible_shapes, minimum_shapes, 128): return false
-	if not _integer(receipt.families, minimum_families, 5): return false
+	var maximum_families: int = Math.KINDS.size() + (1 if version >= LEGACY_VISIBLE_PRICE_VERSION else 0)
+	if not _integer(receipt.families, minimum_families, maximum_families): return false
 	if int(receipt.families) > int(receipt.visible_shapes) or not _integer(receipt.colors, 2 if legacy else 1, 128): return false
 	if not receipt.coverage is float and not receipt.coverage is int: return false
 	var coverage: float = float(receipt.coverage)
@@ -298,7 +299,7 @@ static func _specific_family(vertices: PackedVector2Array) -> String:
 	var properties: Dictionary = Math.classification(vertices)
 	for kind: String in ["square", "rectangle", "rhombus", "parallelogram", "trapezoid"]:
 		if bool(properties.get(kind, false)): return kind
-	return ""
+	return "freeform"
 
 
 static func _color_token(color: Color) -> String:

@@ -7,7 +7,11 @@ const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const PREFIX: String = "custom_v1"
 const MAX_REGISTERED: int = 64
 const GRID_AREA: float = 400.0
-const SURFACE_IDS: Array[String] = ["wood", "brick", "stone", "concrete", "metal"]
+const SURFACE_IDS: Array[String] = [
+	"wood", "brick", "stone", "concrete", "metal",
+	"bamboo", "cork", "sandstone", "basalt", "birch", "jade_tile", "terracotta", "reed_thatch",
+	"patina_copper", "solar_cell", "sea_glass", "stained_glass", "paper_lattice", "walnut", "shell_mosaic", "rattan"
+]
 const PATTERN_IDS: Array[String] = ["plain", "bands", "checks", "diamond"]
 const ROLE_IDS: Array[String] = ["wall", "roof", "beam", "decor"]
 const SURFACES: Dictionary = {
@@ -15,7 +19,23 @@ const SURFACES: Dictionary = {
 	"brick": {"label": "벽돌", "texture_key": "brick", "rate": 1600, "density": 1.3},
 	"stone": {"label": "돌", "texture_key": "stone", "rate": 2800, "density": 1.8},
 	"concrete": {"label": "콘크리트", "texture_key": "concrete", "rate": 2000, "density": 1.6},
-	"metal": {"label": "금속", "texture_key": "metal_roof", "rate": 3600, "density": 1.2}
+	"metal": {"label": "금속", "texture_key": "metal_roof", "rate": 3600, "density": 1.2},
+	"bamboo": {"label": "대나무", "texture_key": "bamboo", "rate": 1800, "density": 0.65},
+	"cork": {"label": "코르크", "texture_key": "cork", "rate": 1400, "density": 0.45},
+	"sandstone": {"label": "모래돌", "texture_key": "sandstone", "rate": 2300, "density": 1.5},
+	"basalt": {"label": "현무암", "texture_key": "basalt", "rate": 3200, "density": 1.9},
+	"birch": {"label": "자작나무", "texture_key": "birch", "rate": 2400, "density": 0.75},
+	"jade_tile": {"label": "청자 타일", "texture_key": "jade_tile", "rate": 3300, "density": 1.25},
+	"terracotta": {"label": "황토 기와", "texture_key": "terracotta", "rate": 1900, "density": 1.15},
+	"reed_thatch": {"label": "갈대 이엉", "texture_key": "reed_thatch", "rate": 1200, "density": 0.4},
+	"patina_copper": {"label": "녹청 구리", "texture_key": "patina_copper", "rate": 4000, "density": 1.4},
+	"solar_cell": {"label": "태양 전지판", "texture_key": "solar_cell", "rate": 4600, "density": 1.1},
+	"sea_glass": {"label": "바다 유리", "texture_key": "sea_glass", "rate": 2900, "density": 1.15},
+	"stained_glass": {"label": "색유리", "texture_key": "stained_glass", "rate": 3800, "density": 1.2},
+	"paper_lattice": {"label": "한지 창살", "texture_key": "paper_lattice", "rate": 1600, "density": 0.5},
+	"walnut": {"label": "호두나무", "texture_key": "walnut", "rate": 2700, "density": 0.9},
+	"shell_mosaic": {"label": "자개", "texture_key": "shell_mosaic", "rate": 4200, "density": 1.1},
+	"rattan": {"label": "등나무 짜임", "texture_key": "rattan", "rate": 1700, "density": 0.6}
 }
 const PATTERNS: Dictionary = {
 	"plain": {"label": "민무늬", "percent": 0},

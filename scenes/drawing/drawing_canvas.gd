@@ -33,6 +33,8 @@ var _add_to_selection: bool = false
 var _dragging: bool = false
 var _resizing: bool = false
 var _rotating: bool = false
+var _vertex_index: int = -1
+var _vertex_blocked: bool = false
 var _press_position: Vector2 = Vector2.ZERO
 var _drag_position: Vector2 = Vector2.ZERO
 var _drag_origin: Vector2 = Vector2.ZERO
@@ -81,7 +83,7 @@ func screen_to_artwork(point: Vector2) -> Vector2:
 	return (point - size * 0.5) / canvas_scale()
 
 func select_kind(kind: String) -> void:
-	if not QuadrilateralMath.KINDS.has(kind):
+	if not Model.supports_kind(kind):
 		return
 	cancel_gesture()
 	selected_kind = kind
@@ -116,9 +118,14 @@ func select_trapezoid_variant(variant: String) -> void:
 func add_at_center() -> void:
 	cancel_gesture()
 	var new_id: int = document.add_shape(selected_kind, Vector2.ZERO, paint_color, selected_trapezoid_variant)
+	_finish_creation(new_id)
+
+func _finish_creation(new_id: int) -> void:
+	select_tool()
 	if new_id < 0:
 		hint_requested.emit("도형은 최대 128개까지 그릴 수 있어요.")
-	select_tool()
+	elif selected_kind == QuadrilateralMath.FREEFORM:
+		hint_requested.emit("초록색 꼭짓점 하나를 끌어 모양을 바꿔 보세요.")
 
 func cancel_gesture() -> void:
 	_creating = false
@@ -126,6 +133,8 @@ func cancel_gesture() -> void:
 	_dragging = false
 	_resizing = false
 	_rotating = false
+	_vertex_index = -1
+	_vertex_blocked = false
 	_snap_active = false
 	_preview_vertices = PackedVector2Array()
 	_drag_selection.clear()
@@ -133,11 +142,13 @@ func cancel_gesture() -> void:
 	queue_redraw()
 
 func _has_transform_gesture() -> bool:
-	return _dragging or _resizing or _rotating
+	return _dragging or _resizing or _rotating or _vertex_index >= 0
 
 func _document_changed() -> void:
-	if _has_transform_gesture() and (document.selected_id != _drag_id or document.get_selected_ids() != _drag_selection):
-		cancel_gesture()
+	if _has_transform_gesture():
+		var selected: Dictionary = document.get_selected()
+		if document.selected_id != _drag_id or document.get_selected_ids() != _drag_selection or selected.vertices != _origin_vertices or selected.position != _drag_origin:
+			cancel_gesture()
 	_sync_scene_textures()
 	queue_redraw()
 
@@ -163,7 +174,9 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		var point: Vector2 = screen_to_artwork(event.position)
-		if event.pressed:
+		if event.canceled:
+			cancel_gesture()
+		elif event.pressed:
 			var handle: Dictionary = _selected_handle_at(point)
 			if not Model.ARTBOARD.has_point(point) and handle.is_empty():
 				return
@@ -227,6 +240,9 @@ func _press(point: Vector2, shift: bool = false) -> void:
 	if mode == "rotate":
 		_rotating = true
 		hint_requested.emit("회전 손잡이로 방향을 바꿔요. Shift를 누르면 15°씩 회전해요.")
+	elif mode == "vertex" and selected.kind == QuadrilateralMath.FREEFORM:
+		_vertex_index = int(handle.index)
+		hint_requested.emit("이 꼭짓점을 끌면 나머지 세 꼭짓점은 그대로 있어요.")
 	elif mode in ["edge", "vertex"]:
 		_resizing = true
 		var index: int = int(handle.index)
@@ -249,9 +265,7 @@ func _release(point: Vector2, shift: bool = false, alt: bool = false) -> void:
 			extent = Vector2(100, 80)
 			center = _press_position
 		var new_id: int = document.add_sized_shape(selected_kind, center, extent, paint_color, selected_trapezoid_variant)
-		if new_id < 0:
-			hint_requested.emit("도형은 최대 128개까지 그릴 수 있어요.")
-		select_tool()
+		_finish_creation(new_id)
 	elif _selecting_box:
 		_finish_box_selection(point)
 	elif _dragging and _drag_selection.size() > 1 and _press_position.distance_to(point) * canvas_scale() < SELECTION_DRAG_THRESHOLD:
@@ -264,11 +278,12 @@ func _release(point: Vector2, shift: bool = false, alt: bool = false) -> void:
 		var vertices: PackedVector2Array = _preview_vertices.duplicate()
 		var position: Vector2 = _drag_position
 		var movement: Vector2 = position - _drag_origin
-		var was_transform: bool = _resizing or _rotating
+		var was_transform: bool = _resizing or _rotating or _vertex_index >= 0
 		# Commit once only after the full gesture preview has finished.
 		cancel_gesture()
 		if was_transform:
-			document.transform_selected(vertices, position)
+			if vertices != _origin_vertices or position != _drag_origin:
+				document.transform_selected(vertices, position)
 		else:
 			document.move_selection(movement)
 	cancel_gesture()
@@ -291,6 +306,8 @@ func _update_gesture(point: Vector2, shift: bool = false, alt: bool = false) -> 
 		_drag_position = point.clamp(Model.ARTBOARD.position, Model.ARTBOARD.end)
 	elif _selecting_box:
 		_drag_position = point
+	elif _vertex_index >= 0:
+		_update_vertex(point, snap_enabled and not alt)
 	elif _dragging:
 		_drag_position = _fit_drag_position(_drag_origin + point - _press_position)
 		if snap_enabled and not alt:
@@ -316,6 +333,26 @@ func _fit_drag_position(position: Vector2) -> Vector2:
 		return _drag_origin + document.constrained_selection_delta(position - _drag_origin)
 	return Model.fitted_position(_origin_vertices, position)
 
+func _update_vertex(point: Vector2, allow_snap: bool) -> void:
+	if not point.is_finite():
+		return
+	var corner: Vector2 = _drag_origin + _origin_vertices[_vertex_index]
+	var target: Vector2 = (corner + (point - _press_position)).clamp(Model.ARTBOARD.position, Model.ARTBOARD.end)
+	var vertices: PackedVector2Array = _origin_vertices.duplicate()
+	if not target.is_equal_approx(corner):
+		var offset: Vector2 = _snap_offset(PackedVector2Array([Vector2.ZERO]), target) if allow_snap else Vector2.ZERO
+		vertices[_vertex_index] = target + offset - _drag_origin
+		if _snap_active and not Model.valid_transform_vertices(vertices, QuadrilateralMath.FREEFORM):
+			_snap_active = false
+			vertices[_vertex_index] = target - _drag_origin
+	if not Model.valid_transform_vertices(vertices, QuadrilateralMath.FREEFORM):
+		if not _vertex_blocked:
+			hint_requested.emit("네 꼭짓점이 바깥을 향하고 변이 겹치지 않게 조금 옮겨 보세요.")
+		_vertex_blocked = true
+		return
+	_vertex_blocked = false
+	_preview_vertices = vertices
+
 func _update_resize(point: Vector2, allow_snap: bool) -> void:
 	if _resize_vector.length_squared() < 0.01:
 		return
@@ -331,17 +368,27 @@ func _update_resize(point: Vector2, allow_snap: bool) -> void:
 
 func _maximum_resize_factor() -> float:
 	var maximum: float = 1000.0
+	var freeform: bool = document.get_selected().kind == QuadrilateralMath.FREEFORM
 	for vertex: Vector2 in _origin_vertices:
 		var direction: Vector2 = _drag_origin + vertex - _resize_anchor
 		for axis: int in range(2):
 			if absf(direction[axis]) > 0.0001:
 				var limit: float = Model.ARTBOARD.end[axis] if direction[axis] > 0.0 else Model.ARTBOARD.position[axis]
 				maximum = minf(maximum, (limit - _resize_anchor[axis]) / direction[axis])
-			if absf(vertex[axis]) > 0.0001:
+			if not freeform and absf(vertex[axis]) > 0.0001:
 				maximum = minf(maximum, 600.0 / absf(vertex[axis]))
 	return maximum
 
 func _snapped_position(vertices: PackedVector2Array, position: Vector2) -> Vector2:
+	var correction: Vector2 = _snap_offset(vertices, position)
+	if _snap_active:
+		var fitted: Vector2 = _fit_drag_position(position + correction)
+		if fitted.distance_to(position + correction) < 0.01:
+			return fitted
+		_snap_active = false
+	return position
+
+func _snap_offset(vertices: PackedVector2Array, position: Vector2) -> Vector2:
 	var best: float = SNAP_DISTANCE / canvas_scale()
 	var correction: Vector2 = Vector2.ZERO
 	var found_vertex: bool = false
@@ -375,12 +422,7 @@ func _snapped_position(vertices: PackedVector2Array, position: Vector2) -> Vecto
 						best = distance
 						correction = target - source
 						_set_snap(source, target, PackedVector2Array([edge_start, edge_end]))
-	if _snap_active:
-		var fitted: Vector2 = _fit_drag_position(position + correction)
-		if fitted.distance_to(position + correction) < 0.01:
-			return fitted
-		_snap_active = false
-	return position
+	return correction
 
 func _snapped_resize_factor(factor: float, minimum: float, maximum: float) -> float:
 	var best: float = SNAP_DISTANCE / canvas_scale()
@@ -437,10 +479,17 @@ func _edge_handle(part: Dictionary, point: Vector2) -> Dictionary:
 	# within the usual screen-space handle radius. Exact edges stay outside it.
 	if clearance <= threshold * 1.5 and local.distance_to(center) < minf(clearance * 0.5, 6.0 / canvas_scale()):
 		return {}
+	var freeform: bool = part.kind == QuadrilateralMath.FREEFORM
+	var corner_radius: float = 16.0 / canvas_scale() if freeform else threshold
+	var closest_corner: int = -1
 	for index: int in range(4):
 		var adjacent: float = minf(vertices[index].distance_to(vertices[(index + 1) % 4]), vertices[index].distance_to(vertices[(index + 3) % 4]))
-		if local.distance_to(vertices[index]) <= minf(threshold, adjacent * 0.32):
-			return {"id": int(part.id), "mode": "vertex", "index": index}
+		var distance: float = local.distance_to(vertices[index])
+		if distance <= minf(corner_radius, adjacent * (0.42 if freeform else 0.32)):
+			closest_corner = index
+			corner_radius = distance
+	if closest_corner >= 0:
+		return {"id": int(part.id), "mode": "vertex", "index": closest_corner}
 	for index: int in range(4):
 		var closest: Vector2 = Geometry2D.get_closest_point_to_segment(local, vertices[index], vertices[(index + 1) % 4])
 		if local.distance_to(closest) <= threshold:
@@ -490,7 +539,7 @@ func _update_hover(point: Vector2) -> void:
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if _shape_at(point) >= 0 else Control.CURSOR_CROSS
 	elif _rotating or str(_hover.get("mode", "")) == "rotate":
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	elif _resizing or not _hover.is_empty():
+	elif _resizing or _vertex_index >= 0 or not _hover.is_empty():
 		mouse_default_cursor_shape = Control.CURSOR_DRAG
 	elif _shape_at(point) >= 0:
 		mouse_default_cursor_shape = Control.CURSOR_MOVE
@@ -581,11 +630,19 @@ func _draw_selection(part: Dictionary) -> void:
 		var hovered: bool = int(_hover.get("index", -1)) == index and str(_hover.get("mode", "")) == "edge"
 		if hovered:
 			draw_line(first, second, Color("0c6658"), 5.0, true)
-		draw_circle(first, 5.0, Color.WHITE)
-		draw_arc(first, 5.0, 0.0, TAU, 20, Color("213b42"), 1.5, true)
+		if part.kind != QuadrilateralMath.FREEFORM:
+			draw_circle(first, 5.0, Color.WHITE)
+			draw_arc(first, 5.0, 0.0, TAU, 20, Color("213b42"), 1.5, true)
 		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), Color.WHITE)
 		draw_rect(Rect2(midpoint - Vector2(3.5, 3.5), Vector2(7, 7)), Color("0c6658"), false, 1.5)
 		_draw_length_label(midpoint + normal * 23.0, QuadrilateralMath.measurement_label(lengths[index] / UNITS_PER_CM) + " cm")
+	if part.kind == QuadrilateralMath.FREEFORM:
+		for index: int in range(4):
+			var vertex: Vector2 = artwork_to_screen(position + vertices[index])
+			var active: bool = _vertex_index == index or (_hover.get("mode", "") == "vertex" and _hover.get("index", -1) == index)
+			var radius: float = 8.0 if active else 6.5
+			draw_circle(vertex, radius, Color("b14635") if _vertex_blocked and _vertex_index == index else Color("087766"), true, -1.0, true)
+			draw_arc(vertex, radius, 0.0, TAU, 24, Color.WHITE, 2.0, true)
 	draw_circle(handle, 11.0, Color.WHITE)
 	draw_arc(handle, 11.0, 0.0, TAU, 24, Color("0c6658"), 2.0, true)
 	draw_arc(handle, 5.5, -PI * 0.85, PI * 0.65, 18, Color("0c6658"), 1.7, true)

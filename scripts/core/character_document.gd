@@ -238,64 +238,70 @@ func serialize() -> Dictionary:
 	return {"version": 1, "template_id": template_id, "shapes": encoded, "selected_id": selected_id}
 
 func restore(data: Dictionary) -> bool:
+	var decoded: Dictionary = _decode_artwork(data, _valid_vertices)
+	if decoded.is_empty():
+		return false
+	_commit(decoded)
+	return true
+
+static func _decode_artwork(data: Dictionary, accepts_vertices: Callable) -> Dictionary:
 	# Decode every value before touching the live document or its undo history.
 	if not _integer(data.get("version", null)) or int(data.version) != 1:
-		return false
+		return {}
 	if not data.get("template_id", null) is String or not data.get("shapes", null) is Array:
-		return false
+		return {}
 	var template: Dictionary = Templates.get_template(str(data.template_id))
 	if template.is_empty() or data.shapes.size() > MAX_SHAPES:
-		return false
+		return {}
 	var decoded: Array[Dictionary] = []
 	var used_ids: Dictionary = {}
 	var used_slots: Dictionary = {}
 	var next_id: int = 1
 	for value: Variant in data.shapes:
 		if not value is Dictionary:
-			return false
+			return {}
 		var raw: Dictionary = value
 		if not _integer(raw.get("id", null)) or int(raw.id) <= 0 or int(raw.id) > 1000000 or used_ids.has(int(raw.id)):
-			return false
-		if not raw.get("kind", null) is String or not Math.KINDS.has(str(raw.kind)):
-			return false
+			return {}
+		if not raw.get("kind", null) is String:
+			return {}
 		if not raw.get("slot_id", null) is String or not raw.get("group", null) is String or not GROUPS.has(str(raw.group)):
-			return false
+			return {}
 		if not _number_array(raw.get("position", null), 2) or not _number_array(raw.get("color", null), 4):
-			return false
+			return {}
 		var position: Vector2 = Vector2(float(raw.position[0]), float(raw.position[1]))
 		var color: Color = Color(float(raw.color[0]), float(raw.color[1]), float(raw.color[2]), float(raw.color[3]))
 		if not _valid_position(position) or not _valid_color(color):
-			return false
+			return {}
 		if not raw.get("vertices", null) is Array or raw.vertices.size() != 4:
-			return false
+			return {}
 		var vertices: PackedVector2Array = PackedVector2Array()
 		for point: Variant in raw.vertices:
 			if not _number_array(point, 2):
-				return false
+				return {}
 			vertices.append(Vector2(float(point[0]), float(point[1])))
-		if not _valid_vertices(vertices, str(raw.kind)):
-			return false
+		if not accepts_vertices.call(vertices, str(raw.kind)):
+			return {}
 		var slot_id: String = str(raw.slot_id)
 		if not slot_id.is_empty():
 			if used_slots.has(slot_id):
-				return false
+				return {}
 			var matching_slot: Dictionary = {}
 			for slot: Dictionary in template.parts:
 				if str(slot.id) == slot_id:
 					matching_slot = slot
 			if matching_slot.is_empty() or str(matching_slot.kind) != str(raw.kind) or str(matching_slot.group) != str(raw.group):
-				return false
+				return {}
 			used_slots[slot_id] = true
 		used_ids[int(raw.id)] = true
 		next_id = maxi(next_id, int(raw.id) + 1)
 		decoded.append({"id": int(raw.id), "slot_id": slot_id, "kind": str(raw.kind), "position": position, "vertices": vertices, "color": color, "group": str(raw.group)})
 	if not _integer(data.get("selected_id", -1)):
-		return false
+		return {}
 	var selected: int = int(data.get("selected_id", -1))
 	if selected != -1 and not used_ids.has(selected):
-		return false
-	_commit({"template_id": str(data.template_id), "shapes": decoded, "selected_id": selected, "next_id": next_id})
-	return true
+		return {}
+	return {"template_id": str(data.template_id), "shapes": decoded, "selected_id": selected, "next_id": next_id}
 
 func _edit_selected(property: String, value: Variant) -> void:
 	var index: int = _shape_index(selected_id)

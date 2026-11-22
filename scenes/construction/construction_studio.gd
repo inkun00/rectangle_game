@@ -55,10 +55,14 @@ var _selection: Label
 var _portrait_holder: CenterContainer
 var _materials: VBoxContainer
 var _materials_empty: Label
+var _material_reset: Button
+var _material_count: Label
+var _material_search: LineEdit
 var _material_buttons: Dictionary = {}
+var _material_index: Dictionary = {}
+var _material_scope: String = "all"
+var _scope_buttons: Dictionary = {}
 var _custom_material_button: Button
-var _custom_material_filter: Button
-var _custom_only: bool = false
 var _library_custom_ids: Array[String] = []
 var _custom_material_form: CustomForm
 var _brick_mode: OptionButton
@@ -425,23 +429,44 @@ func _build_ui() -> void:
 	var palette_header: HBoxContainer = HBoxContainer.new()
 	palette_header.add_theme_constant_override("separation", 6)
 	palette_box.add_child(palette_header)
-	palette_header.add_child(GameArt.view(Art.tool_icon("draw"), Vector2(20, 20)))
-	palette_header.add_child(_label("재료 상자", 18))
-	var custom_actions: HBoxContainer = HBoxContainer.new()
-	custom_actions.add_theme_constant_override("separation", 6)
-	palette_box.add_child(custom_actions)
+	var palette_title: Label = _label("재료 상자", 18)
+	palette_title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	palette_header.add_child(palette_title)
+	_material_count = _label("", 14, MUTED)
+	_material_count.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_material_count.autowrap_mode = TextServer.AUTOWRAP_OFF
+	palette_header.add_child(_material_count)
 	_custom_material_button = _button("주문 제작", _show_custom_material_form, true)
 	_custom_material_button.name = "CustomMaterialMaker"
-	_custom_material_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_custom_material_button.add_theme_font_size_override("font_size", 14)
-	custom_actions.add_child(_custom_material_button)
-	_custom_material_filter = _button("내 자재", Callable())
-	_custom_material_filter.name = "RegisteredMaterialFilter"
-	_custom_material_filter.toggle_mode = true
-	_custom_material_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_custom_material_filter.add_theme_font_size_override("font_size", 14)
-	_custom_material_filter.toggled.connect(_browse_custom_materials)
-	custom_actions.add_child(_custom_material_filter)
+	palette_header.add_child(_custom_material_button)
+	var scopes: HBoxContainer = HBoxContainer.new()
+	scopes.add_theme_constant_override("separation", 4)
+	palette_box.add_child(scopes)
+	var scope_labels: Dictionary = {"all": "모두", "new": "새 재료", "custom": "내 재료"}
+	for scope: String in scope_labels:
+		var button: Button = _button(scope_labels[scope], _browse_material_scope.bind(scope))
+		button.toggle_mode = true
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.add_theme_font_size_override("font_size", 14)
+		scopes.add_child(button)
+		_scope_buttons[scope] = button
+	_material_search = LineEdit.new()
+	_material_search.name = "MaterialNameSearch"
+	_material_search.placeholder_text = "재료 이름 검색"
+	_material_search.accessibility_name = "재료 이름 검색"
+	_material_search.clear_button_enabled = true
+	_material_search.custom_minimum_size.y = 40
+	_material_search.add_theme_font_override("font", QuadTheme.FONT)
+	_material_search.add_theme_font_size_override("font_size", 15)
+	_material_search.add_theme_color_override("font_color", INK)
+	_material_search.add_theme_color_override("font_placeholder_color", MUTED)
+	_material_search.add_theme_color_override("clear_button_color", INK)
+	_material_search.add_theme_stylebox_override("normal", Art.pill_style(Color.WHITE, 10, 4))
+	_material_search.add_theme_stylebox_override("focus", ButtonArt.focus_style())
+	_material_search.text_changed.connect(func(_query: String): _browse_materials(_material_category))
+	_material_search.text_submitted.connect(func(_query: String): _material_search.release_focus())
+	palette_box.add_child(_material_search)
 	_stage_card = PanelContainer.new()
 	_stage_card.visible = false
 	_stage_card.add_theme_stylebox_override("panel", Art.gold_panel(8))
@@ -456,13 +481,9 @@ func _build_ui() -> void:
 	_shape_filter.name = "MaterialShapeFilter"
 	_shape_filter.tooltip_text = "변과 각의 성질로 찾아요. 고른 이름의 조건을 만족하는 재료를 모두 보여 줘요."
 	_shape_filter.add_item("도형: 전체", 0)
-	var family_counts: Dictionary = {}
-	for material: Dictionary in state.available_materials():
-		for family: String in QuadrilateralMath.KINDS:
-			if _material_matches(material, family): family_counts[family] = int(family_counts.get(family, 0)) + 1
 	for index: int in range(1, MATERIAL_FAMILIES.size()):
 		var family: String = MATERIAL_FAMILIES[index]
-		_shape_filter.add_item("도형: %s %d종" % [QuadrilateralMath.kind_label(family), int(family_counts.get(family, 0))], index)
+		_shape_filter.add_item(QuadrilateralMath.kind_label(family), index)
 	_shape_filter.item_selected.connect(func(index: int): _filter_shape(MATERIAL_FAMILIES[index]))
 	palette_box.add_child(_shape_filter)
 	_category_picker = _picker()
@@ -509,6 +530,8 @@ func _build_ui() -> void:
 	_sync_material_library()
 	_materials_empty = _label("이 조합의 자재가 없어요.\n전체 용도나 모양으로 바꿔 보세요.", 14, MUTED)
 	_materials.add_child(_materials_empty)
+	_material_reset = _button("전체 재료 보기", _clear_material_filters)
+	_materials.add_child(_material_reset)
 	var center_panel: PanelContainer = PanelContainer.new()
 	_center_panel = center_panel
 	center_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -823,9 +846,6 @@ func _build_ui() -> void:
 	_filter_materials("all")
 	_responsive()
 
-static func _material_matches(material: Dictionary, family: String) -> bool:
-	return QuadrilateralMath.matches_kind(Catalog.material_vertices(str(material.id)), family)
-
 func _sync_material_library() -> void:
 	if not is_instance_valid(_materials): return
 	if not _material_buttons.is_empty() and _library_custom_ids == state.custom_material_ids: return
@@ -841,6 +861,22 @@ func _sync_material_library() -> void:
 		_materials.add_child(button)
 		if is_instance_valid(_materials_empty): _materials.move_child(button, _materials_empty.get_index())
 		_material_buttons[id] = button
+		var role: String = str(material.role)
+		var category: String = role
+		if role in ["wall", "brick", "beam"]: category = "wall"
+		elif role in ["door", "window"]: category = "opening"
+		var short_name: String = Catalog.short_label(id)
+		var names: String = "%s|%s|%s|%s" % [material.label, short_name, Language.simplify(str(material.label)), Language.simplify(short_name)]
+		var texture_key: String = str(material.get("texture_key", ""))
+		if Catalog.Custom.SURFACES.has(texture_key):
+			names += "|" + Catalog.Custom.surface_label(texture_key)
+		_material_index[id] = {
+			"category": category,
+			"kind": material.kind,
+			"families": QuadrilateralMath.classifications(Catalog.material_vertices(id)),
+			"scope": "custom" if bool(material.get("custom", false)) else ("new" if Catalog.is_expansion_material(id) else "original"),
+			"names": names.replace(" ", "").to_lower()
+		}
 	var previous_ids: Array[String] = []
 	previous_ids.assign(_material_buttons.keys())
 	for id: String in previous_ids:
@@ -849,16 +885,14 @@ func _sync_material_library() -> void:
 		_materials.remove_child(button)
 		button.queue_free()
 		_material_buttons.erase(id)
+		_material_index.erase(id)
 	_library_custom_ids.assign(state.custom_material_ids)
 	if is_instance_valid(canvas) and not available.has(canvas.material_id):
 		canvas.choose_material("wall")
 
-func _browse_custom_materials(enabled: bool) -> void:
-	_custom_only = enabled
-	_material_family = "all"
-	_shape_filter.select(0)
-	_filter_materials("all")
-	_reset_material_scroll()
+func _browse_material_scope(scope: String) -> void:
+	_material_scope = scope
+	_browse_materials(_material_category)
 
 func _show_custom_material_form() -> void:
 	if tutorial_blocked or is_instance_valid(_modal): return
@@ -878,7 +912,8 @@ func _register_custom_material(id: String) -> void:
 		return
 	_close_modal()
 	_sync_material_library()
-	_browse_custom_materials(true)
+	_clear_material_filters()
+	_browse_material_scope("custom")
 	if _is_editable_mode(): _choose_material(id)
 	var material: Dictionary = Catalog.material(id)
 	_set_status("%s을 등록했어요. 내 자재에서 계속 고를 수 있어요. 한 개를 놓을 때마다 제작비 %s이 재료비에 들어가요." % [str(material.label), Catalog.format_won(int(material.price))])
@@ -888,17 +923,19 @@ func _filter_materials(category: String) -> void:
 	_material_category = category
 	var shown_count: int = 0
 	var family_counts: Dictionary = {}
+	var allowed: Array = _allowed_families()
+	var query: String = _material_search.text.strip_edges().replace(" ", "").to_lower()
+	var use_brick_mode: bool = _material_scope == "all" and query.is_empty() and _material_family == "all" and category in ["all", "wall"]
 	for id: String in _material_buttons:
-		var material: Dictionary = Catalog.material(id)
-		var role: String = str(material.role)
-		var shown: bool = category == "all" or (category == "wall" and role in ["brick", "wall", "beam"]) or (category == "opening" and role in ["door", "window"]) or category == role
-		shown = shown and (not _custom_only or bool(material.get("custom", false)))
-		shown = shown and _allowed_families().has(str(material.kind))
+		var item: Dictionary = _material_index[id]
+		var shown: bool = (category == "all" or category == item.category) and allowed.has(item.kind)
+		shown = shown and (_material_scope == "all" or _material_scope == item.scope)
+		shown = shown and (query.is_empty() or str(item.names).contains(query))
 		if shown:
-			for family: String in QuadrilateralMath.KINDS:
-				if _material_matches(material, family): family_counts[family] = int(family_counts.get(family, 0)) + 1
-		shown = shown and (_material_family == "all" or _material_matches(material, _material_family))
-		if _material_family == "all":
+			for family: String in item.families:
+				family_counts[family] = int(family_counts.get(family, 0)) + 1
+		shown = shown and (_material_family == "all" or item.families.has(_material_family))
+		if use_brick_mode:
 			if id == "brick": shown = shown and _brick_mode.selected == 1
 			if id == "wall": shown = shown and _brick_mode.selected == 0
 		_material_buttons[id].visible = shown
@@ -906,13 +943,20 @@ func _filter_materials(category: String) -> void:
 	for index: int in range(1, MATERIAL_FAMILIES.size()):
 		var family: String = MATERIAL_FAMILIES[index]
 		_shape_filter.set_item_text(index, "도형: %s %d종" % [QuadrilateralMath.kind_label(family), int(family_counts.get(family, 0))])
+	_material_count.text = "%d종" % shown_count
 	_materials_empty.visible = shown_count == 0
-	_materials_empty.text = "등록한 자재가 없어요.\n‘주문 제작’으로 만들어 보세요." if _custom_only and state.custom_material_ids.is_empty() else "이 조합의 자재가 없어요.\n전체 용도나 모양으로 바꿔 보세요."
-	_custom_material_filter.set_pressed_no_signal(_custom_only)
-	_custom_material_filter.tooltip_text = "등록한 주문 자재 %d종을 찾아요." % state.custom_material_ids.size()
+	_material_reset.visible = shown_count == 0
+	if _material_scope == "custom" and state.custom_material_ids.is_empty():
+		_materials_empty.text = "아직 내 재료가 없어요.\n‘주문 제작’으로 첫 재료를 만들어 보세요."
+	elif not query.is_empty():
+		_materials_empty.text = "이 이름과 조건에 맞는 재료가 없어요."
+	else:
+		_materials_empty.text = "고른 조건에 맞는 재료가 없어요."
+	for scope: String in _scope_buttons:
+		_scope_buttons[scope].set_pressed_no_signal(scope == _material_scope)
 	for id: String in _category_buttons: _category_buttons[id].set_pressed_no_signal(id == category)
 	_category_picker.select(MATERIAL_CATEGORIES.find(category))
-	_brick_mode.visible = _material_family == "all"
+	_brick_mode.visible = use_brick_mode
 
 func _filter_shape(family: String) -> void:
 	if not MATERIAL_FAMILIES.has(family): return
@@ -931,10 +975,11 @@ func _reset_material_scroll() -> void:
 	library.set_deferred("scroll_vertical", 0)
 
 func _clear_material_filters() -> void:
-	_custom_only = false
+	_material_scope = "all"
 	_material_family = "all"
+	_material_search.clear()
 	_shape_filter.select(0)
-	_filter_materials("all")
+	_browse_materials("all")
 
 func _set_view(presentation: bool) -> void:
 	canvas.set_presentation_mode(presentation)
@@ -1271,7 +1316,9 @@ func _refresh() -> void:
 	_shape_filter.disabled = is_instance_valid(_modal)
 	_category_picker.disabled = is_instance_valid(_modal)
 	_custom_material_button.disabled = is_instance_valid(_modal) or tutorial_blocked
-	_custom_material_filter.disabled = is_instance_valid(_modal)
+	for button: Button in _scope_buttons.values(): button.disabled = is_instance_valid(_modal)
+	_material_search.editable = not is_instance_valid(_modal)
+	_material_reset.disabled = is_instance_valid(_modal)
 	var settled: bool = (not my_mode and state.phase == "settled")
 	var single_pane: bool = size.x < 710.0
 	_palette_toggle.visible = single_pane and not settled
@@ -2436,6 +2483,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if is_instance_valid(_modal):
 		if event.keycode == KEY_ESCAPE:
 			_close_modal()
+			get_viewport().set_input_as_handled()
+		return
+	if _material_search.has_focus():
+		if event.keycode == KEY_ESCAPE:
+			_material_search.release_focus()
 			get_viewport().set_input_as_handled()
 		return
 	if event.ctrl_pressed and event.keycode == KEY_S:

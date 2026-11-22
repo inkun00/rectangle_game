@@ -196,15 +196,18 @@ func set_masterpiece(id: String) -> bool:
 	_commit(after)
 	return true
 
+static func supports_kind(kind: String) -> bool:
+	return kind == Math.FREEFORM or Math.KINDS.has(kind)
+
 func add_shape(kind: String, position: Vector2, color: Color, trapezoid_variant: String = "symmetric") -> int:
 	return add_sized_shape(kind, position, Vector2(100, 80), color, trapezoid_variant)
 
 func add_sized_shape(kind: String, position: Vector2, dimensions: Vector2, color: Color, trapezoid_variant: String = "symmetric") -> int:
-	if not Math.KINDS.has(kind) or not position.is_finite() or not dimensions.is_finite() or not _valid_color(color) or shapes.size() >= MAX_SHAPES:
+	if not supports_kind(kind) or not position.is_finite() or not dimensions.is_finite() or not _valid_color(color) or shapes.size() >= MAX_SHAPES:
 		return -1
 	var extent: Vector2 = dimensions.abs().clamp(Vector2(12, 12), ARTBOARD.size)
 	var vertices: PackedVector2Array = Math.create_vertices(kind, extent, trapezoid_variant)
-	if not _valid_vertices(vertices, kind):
+	if not valid_transform_vertices(vertices, kind):
 		return -1
 	var after: Dictionary = _snapshot()
 	var new_id: int = _next_id
@@ -252,7 +255,7 @@ func _transform_selection(degrees: float, factor: float) -> void:
 		var offset: Vector2 = (Vector2(part.position) - pivot) * factor
 		var position: Vector2 = pivot + offset.rotated(radians)
 		var vertices: PackedVector2Array = Math.rotate_vertices(Math.scale_vertices(part.vertices, factor), degrees)
-		if not position.is_finite() or not _valid_transform_vertices(vertices, str(part.kind)):
+		if not position.is_finite() or not valid_transform_vertices(vertices, str(part.kind)):
 			return
 		part.position = position
 		part.vertices = vertices
@@ -272,16 +275,30 @@ func transform_selected(vertices: PackedVector2Array, position: Vector2) -> void
 	var selected: Dictionary = get_selected()
 	if selected.is_empty() or get_selected_ids().size() != 1 or not position.is_finite():
 		return
-	if not _valid_transform_vertices(vertices, str(selected.kind)):
+	if selected.vertices == vertices and selected.position == position:
+		return
+	if not valid_transform_vertices(vertices, str(selected.kind)):
 		return
 	var after: Dictionary = _snapshot()
 	var index: int = _shape_index(selected_id)
-	after.shapes[index].vertices = vertices.duplicate()
-	after.shapes[index].position = fitted_position(vertices, position)
+	var local_vertices: PackedVector2Array = vertices.duplicate()
+	var origin: Vector2 = fitted_position(vertices, position)
+	if selected.kind == Math.FREEFORM:
+		# Keep the rotation pivot inside the edited outline without moving any world corner.
+		var center: Vector2 = (vertices[0] + vertices[1] + vertices[2] + vertices[3]) * 0.25
+		if not center.is_zero_approx():
+			for corner: int in range(4):
+				local_vertices[corner] -= center
+			origin += center
+	after.shapes[index].vertices = local_vertices
+	after.shapes[index].position = origin
 	_commit(after)
 
-static func _valid_transform_vertices(vertices: PackedVector2Array, kind: String) -> bool:
-	if not _valid_vertices(vertices, kind):
+static func valid_transform_vertices(vertices: PackedVector2Array, kind: String) -> bool:
+	if kind == Math.FREEFORM:
+		if not Math.is_valid(vertices):
+			return false
+	elif not _valid_vertices(vertices, kind):
 		return false
 	var bounds: Rect2 = Math.bounds(vertices)
 	if bounds.size.x > ARTBOARD.size.x or bounds.size.y > ARTBOARD.size.y:
@@ -404,10 +421,9 @@ func restore(data: Dictionary) -> bool:
 	var restored_work: Variant = data.get("work_msec", 0)
 	if not _integer(restored_work) or float(restored_work) < 0.0 or float(restored_work) > REQUIRED_WORK_MSEC:
 		return false
-	var checked: CharacterDocument = CharacterDocument.new()
-	if not checked.restore(data) or checked.template_id != "robot":
+	var checked: Dictionary = _decode_artwork(data, _valid_saved_vertices)
+	if checked.is_empty() or checked.template_id != "robot":
 		return false
-	var next_id: int = 1
 	var known_ids: Dictionary = {}
 	for part: Dictionary in checked.shapes:
 		if not str(part.slot_id).is_empty():
@@ -416,7 +432,6 @@ func restore(data: Dictionary) -> bool:
 		bounds.position += Vector2(part.position)
 		if not ARTBOARD.grow(0.01).encloses(bounds):
 			return false
-		next_id = maxi(next_id, int(part.id) + 1)
 		known_ids[int(part.id)] = true
 	var restored_groups: Variant = _decode_groups(data.get("groups", []), known_ids)
 	if restored_groups == null:
@@ -441,12 +456,17 @@ func restore(data: Dictionary) -> bool:
 	after.selected_id = checked.selected_id
 	after.selected_ids = _expanded_selection(selection, checked.shapes, groups)
 	after.groups = groups
-	after.next_id = next_id
+	after.next_id = checked.next_id
 	after.background_id = str(scene_data.background_id)
 	after.drawing_mode = str(scene_data.drawing_mode)
 	after.masterpiece_id = str(scene_data.masterpiece_id)
 	_replace_drawing(after, 0 if checked.shapes.is_empty() else int(restored_work))
 	return true
+
+static func _valid_saved_vertices(vertices: PackedVector2Array, kind: String) -> bool:
+	if kind == Math.FREEFORM:
+		return valid_transform_vertices(vertices, kind)
+	return _valid_vertices(vertices, kind)
 
 static func _decode_ids(value: Variant, known_ids: Dictionary) -> Variant:
 	if not value is Array or value.size() > known_ids.size():

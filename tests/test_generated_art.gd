@@ -35,6 +35,7 @@ static func _test_tools(t: Node) -> void:
 	t.assert_true(_disjoint(regions), "Different tool actions do not accidentally reuse or overlap an icon cell")
 
 static func _test_materials(t: Node) -> void:
+	var opening_regions: Array[Rect2] = []
 	for material: Dictionary in Catalog.materials():
 		var id: String = str(material.id)
 		var texture: Texture2D = Art.material_icon(id)
@@ -44,9 +45,25 @@ static func _test_materials(t: Node) -> void:
 		var source_path: String = source.resource_path
 		if int(material.get("brick_count", 0)) > 0:
 			t.assert_true(source_path.ends_with("starfront-v1/brick.webp"), "Counted modules retain the single-brick source: " + id)
+		elif Catalog.is_expansion_material(id):
+			if bool(material.opening):
+				t.assert_eq(source_path, Art.OPENING_SHEET, "New doors and windows show their fitted panels and frames: " + id)
+				if texture is AtlasTexture: opening_regions.append((texture as AtlasTexture).region)
+			else:
+				t.assert_eq(source_path, Art.LIBRARY_SHEET, "New materials use their illustrated finish: " + id)
 		else:
 			t.assert_true(source_path.begins_with(StarfrontArt.HD_ROOT + "materials/"), "Building surfaces use regenerated native-detail textures: " + id)
 		t.assert_true(_valid_uvs(texture), "Material UVs stay finite and inside their source image: " + id)
+	var regions: Array[Rect2] = []
+	for finish: String in Art.LIBRARY_CELLS:
+		var recipe: String = Catalog.Custom.make_id("square", Vector2(80, 80), finish, "plain", "wall")
+		var surface: Texture2D = Art.material_icon(recipe)
+		t.assert_true(_valid_region(surface) and _valid_uvs(surface), "A custom panel can use the new finish: " + finish)
+		if surface is AtlasTexture: regions.append((surface as AtlasTexture).region)
+	t.assert_eq(opening_regions.size(), 6, "All new openings have dedicated artwork")
+	t.assert_true(_disjoint(opening_regions), "Every new door and window has distinct artwork")
+	t.assert_eq(regions.size(), Art.LIBRARY_CELLS.size(), "Every new finish appears in the building palette")
+	t.assert_true(_disjoint(regions), "Different finishes use distinct illustrations")
 
 static func _test_portraits(t: Node) -> void:
 	var regions: Array[Rect2] = []

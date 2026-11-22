@@ -13,8 +13,51 @@ const MATERIAL_IDS: Array[String] = [
 	"panel_trapezoid", "panel", "ornament", "tile_square",
 	"wall_square_large", "wall_rhombus_small", "door_short", "window_small", "window_tall", "window_wide", "window_square_large", "window_rhombus_small",
 	"lintel_long", "roof_medium", "roof_wide", "roof_flat", "roof_trapezoid_small", "roof_trapezoid_metal", "roof_trapezoid_right_left", "roof_trapezoid_right_right", "roof_parallelogram_long",
-	"panel_long", "panel_parallelogram_small", "panel_parallelogram_metal", "panel_trapezoid_wide", "vent_square", "ornament_large", "tile_rhombus", "panel_rhombus_copper"
+	"panel_long", "panel_parallelogram_small", "panel_parallelogram_metal", "panel_trapezoid_wide", "vent_square", "ornament_large", "tile_rhombus", "panel_rhombus_copper",
+	"sandstone_block", "cork_board", "paper_lattice_window", "jade_roof_tile", "stained_flower_window", "shell_tile",
+	"walnut_door", "bamboo_door", "birch_lintel", "basalt_wall", "sea_glass_window", "solar_roof",
+	"reed_roof", "terracotta_roof", "sandstone_pier", "copper_awning", "walnut_lintel", "rattan_basket_panel",
+	"bamboo_beam", "birch_wall", "solar_roof_slope", "cork_sound_panel", "reed_blind", "sea_glass_band",
+	"stained_star_window", "basalt_frame_block", "rattan_vent", "jade_leaf", "shell_flower", "terracotta_roof_scale"
 ]
+## A base supplies the piece's construction role, price reference and mass.
+## Dimensions are game-grid geometry. Stone and wood walls add no brick count.
+const EXPANSION_SPECS: Dictionary = {
+	"sandstone_block": {"base": "wall", "short": "모래돌 블록", "kind": "square", "size": Vector2(80, 80), "texture": "sandstone", "description": "모래가 굳어 된 돌이에요. 네모난 블록을 바닥부터 차곡차곡 쌓아요."},
+	"cork_board": {"base": "panel", "short": "코르크 메모판", "kind": "square", "size": Vector2(60, 60), "texture": "cork", "description": "나무껍질로 만든 메모판이에요. 현관 옆 벽에 붙여 소식을 전해요."},
+	"paper_lattice_window": {"base": "window", "short": "한지 격자창", "kind": "square", "size": Vector2(80, 80), "texture": "paper_lattice", "description": "나무살에 한지를 바른 창이에요. 한 변이 네 칸인 창틀을 벽으로 둘러싸요."},
+	"jade_roof_tile": {"base": "roof", "short": "비취빛 기와", "kind": "square", "size": Vector2(60, 60), "texture": "jade_tile", "description": "초록빛이 도는 작은 기와예요. 가로 받침 위에 나란히 올려요."},
+	"stained_flower_window": {"base": "window", "short": "색유리 꽃창", "kind": "square", "size": Vector2(60, 60), "texture": "stained_glass", "description": "여러 빛깔의 유리를 꽃처럼 이은 창이에요. 세 칸짜리 정사각형 자리를 비워요."},
+	"shell_tile": {"base": "panel", "short": "조개 타일", "kind": "square", "size": Vector2(40, 40), "texture": "shell_mosaic", "description": "조개껍데기 조각이 반짝이는 작은 타일이에요. 벽 위에 여러 장을 이어 붙여요."},
+
+	"walnut_door": {"base": "door", "short": "호두나무 현관문", "kind": "rectangle", "size": Vector2(80, 120), "texture": "walnut", "description": "짙은 나뭇결이 보이는 문이에요. 바닥에 세운 뒤 양옆과 위를 받쳐요."},
+	"bamboo_door": {"base": "door", "short": "대나무 미닫이문", "kind": "rectangle", "size": Vector2(100, 120), "texture": "bamboo", "description": "대나무를 엮어 만든 넓은 문이에요. 바닥에 다섯 칸을 비우고 양끝에 벽을 세워요."},
+	"birch_lintel": {"base": "lintel", "short": "자작나무 가로 받침", "kind": "rectangle", "size": Vector2(200, 20), "texture": "birch", "description": "밝은 나뭇결의 긴 받침이에요. 문이나 창문 위에 걸치고 양끝을 벽 위에 얹어요."},
+	"basalt_wall": {"base": "wall", "short": "현무암 돌담", "kind": "rectangle", "size": Vector2(120, 40), "texture": "basalt", "description": "작은 구멍이 보이는 검은 돌담이에요. 길고 평평한 변을 맞대어 낮은 벽을 쌓아요."},
+	"sea_glass_window": {"base": "window", "short": "바다빛 가로창", "kind": "rectangle", "size": Vector2(120, 60), "texture": "sea_glass", "description": "물빛 유리를 넣은 넓은 창이에요. 아래에 받침을 놓고 네 변을 벽으로 둘러싸요."},
+	"solar_roof": {"base": "roof", "short": "햇빛 발전 지붕", "kind": "rectangle", "size": Vector2(240, 40), "texture": "solar_cell", "description": "햇빛을 전기로 바꾸는 판을 얹은 지붕이에요. 긴 변을 벽 위에 눕혀요."},
+
+	"reed_roof": {"base": "roof", "short": "갈대 지붕", "kind": "trapezoid", "size": Vector2(280, 60), "texture": "reed_thatch", "description": "갈대를 묶어 여러 겹 이은 지붕이에요. 긴 아랫변으로 벽과 창문 위를 덮어요."},
+	"terracotta_roof": {"base": "roof", "short": "붉은 흙기와", "kind": "trapezoid", "size": Vector2(160, 60), "texture": "terracotta", "description": "붉은 흙을 구운 기와 지붕이에요. 짧은 윗변이 하늘로 가게 올려요."},
+	"sandstone_pier": {"base": "wall", "short": "모래돌 받침대", "kind": "trapezoid", "size": Vector2(120, 80), "texture": "sandstone", "description": "아래쪽이 넓은 돌 받침대예요. 바닥에 놓고 평평한 윗면에 가로 받침을 걸쳐요."},
+	"copper_awning": {"base": "roof", "short": "초록 구리 차양", "kind": "trapezoid", "trapezoid_variant": "right_left", "size": Vector2(160, 40), "texture": "patina_copper", "description": "초록빛 구리판으로 햇빛을 가려요. 곧은 왼쪽 변을 벽 쪽에 맞추고 아래를 받쳐요."},
+	"walnut_lintel": {"base": "lintel", "short": "호두나무 문 위 받침", "kind": "trapezoid", "size": Vector2(160, 40), "texture": "walnut", "description": "양끝을 비스듬히 깎은 나무 받침이에요. 긴 아랫변의 양끝을 문 양옆 벽에 얹어요."},
+	"rattan_basket_panel": {"base": "panel", "short": "바구니 무늬판", "kind": "trapezoid", "size": Vector2(80, 60), "texture": "rattan", "description": "등나무 줄기를 바구니처럼 엮었어요. 너른 벽에 붙여 짜임 무늬를 더해요."},
+
+	"bamboo_beam": {"base": "lintel", "short": "대나무 가로 받침", "kind": "parallelogram", "size": Vector2(160, 40), "texture": "bamboo", "description": "대나무를 나란히 묶은 받침이에요. 평평한 아랫변 양끝이 벽에 걸치게 해요."},
+	"birch_wall": {"base": "wall", "short": "자작나무 판벽", "kind": "parallelogram", "size": Vector2(160, 80), "texture": "birch", "description": "밝은 나무판을 이어 만든 벽이에요. 비스듬한 옆면을 맞추면 줄무늬가 이어져요."},
+	"solar_roof_slope": {"base": "roof", "short": "빗면 햇빛 지붕판", "kind": "parallelogram", "size": Vector2(200, 60), "texture": "solar_cell", "description": "양옆이 비스듬한 햇빛 발전판이에요. 가로 받침 위에서 옆 지붕판과 이어 보세요."},
+	"cork_sound_panel": {"base": "panel", "short": "코르크 소리판", "kind": "parallelogram", "size": Vector2(100, 60), "texture": "cork", "description": "소리가 울리는 방에 쓰는 코르크판이에요. 벽 위에 붙여 비스듬한 줄을 만들어요."},
+	"reed_blind": {"base": "panel", "short": "갈대 발 장식", "kind": "parallelogram", "size": Vector2(100, 40), "texture": "reed_thatch", "description": "가느다란 갈대를 엮은 발이에요. 창을 가리지 않도록 창 옆 벽에 붙여요."},
+	"sea_glass_band": {"base": "panel", "short": "바다유리 물결띠", "kind": "parallelogram", "size": Vector2(140, 40), "texture": "sea_glass", "description": "바닷물 색 유리로 만든 긴 장식이에요. 벽을 따라 이어 붙여 물결띠를 만들어요."},
+
+	"stained_star_window": {"base": "window", "short": "색유리 별창", "kind": "rhombus", "size": Vector2(80, 120), "texture": "stained_glass", "description": "위아래가 뾰족한 색유리 창이에요. 같은 크기의 마름모 돌블록으로 네 빗변을 받쳐요."},
+	"basalt_frame_block": {"base": "wall", "short": "별창 옆 돌블록", "kind": "rhombus", "size": Vector2(80, 120), "texture": "basalt", "description": "별창과 빗변 길이가 같은 현무암이에요. 돌 네 개를 창의 네 변에 맞대요."},
+	"rattan_vent": {"base": "panel", "short": "등나무 바람살", "kind": "rhombus", "size": Vector2(60, 100), "texture": "rattan", "description": "바람이 통하는 짜임 무늬예요. 마름모 장식을 벽 위에 붙여요."},
+	"jade_leaf": {"base": "panel", "short": "초록 잎 타일", "kind": "rhombus", "size": Vector2(40, 80), "texture": "jade_tile", "description": "긴 잎을 닮은 초록 타일이에요. 여러 방향으로 돌려 벽에 잎사귀 무늬를 만들어요."},
+	"shell_flower": {"base": "panel", "short": "조개꽃 장식", "kind": "rhombus", "size": Vector2(60, 80), "texture": "shell_mosaic", "description": "조개껍데기를 모아 만든 꽃잎이에요. 꼭짓점을 한데 모아 벽에 꽃을 피워요."},
+	"terracotta_roof_scale": {"base": "roof", "short": "물고기 비늘 기와", "kind": "rhombus", "size": Vector2(80, 120), "texture": "terracotta", "description": "물고기 비늘을 닮은 마름모 기와예요. 같은 크기 돌블록의 빗면에 변을 맞춰 얹어요."}
+}
 ## Representative catalog families are balanced; mathematical classification
 ## remains inclusive and is always derived through QuadrilateralMath.
 const BALANCED_SPECS: Dictionary = {
@@ -118,8 +161,8 @@ static func material(id: String) -> Dictionary:
 	return item
 
 static func _balanced_material(id: String) -> Dictionary:
-	if not BALANCED_SPECS.has(id): return {}
-	var spec: Dictionary = BALANCED_SPECS[id]
+	var spec: Dictionary = EXPANSION_SPECS.get(id, BALANCED_SPECS.get(id, {}))
+	if spec.is_empty(): return {}
 	var result: Dictionary = material(str(spec.base))
 	var original_vertices: PackedVector2Array = Math.create_vertices(str(result.kind), result.dimensions)
 	var trapezoid_variant: String = str(spec.get("trapezoid_variant", "symmetric"))
@@ -128,16 +171,16 @@ static func _balanced_material(id: String) -> Dictionary:
 	var base_label: String = str(result.label)
 	var base_price: int = int(result.price)
 	result.id = id
-	result.label = str(spec.label)
+	result.label = str(spec.get("label", "%s %s" % [Math.kind_name(str(spec.kind)), spec.short]))
 	result.description = str(spec.description)
 	result.kind = str(spec.kind)
 	if spec.has("trapezoid_variant"): result.trapezoid_variant = trapezoid_variant
 	var kinds: Array[String] = [str(spec.kind)]
 	result.kinds = kinds
 	result.dimensions = Vector2(spec.size)
-	result.role = str(spec.role)
-	result.structural = bool(spec.structural)
-	result.opening = str(spec.role) == "window"
+	result.role = str(spec.get("role", result.role))
+	result.structural = bool(spec.get("structural", result.structural))
+	result.opening = result.role in ["window", "door"]
 	result.brick_count = int(spec.get("bricks", 0))
 	result.mass = float(result.mass) * area_ratio
 	result.price = maxi(100, roundi(float(base_price) * area_ratio / 100.0) * 100)
@@ -149,8 +192,12 @@ static func _balanced_material(id: String) -> Dictionary:
 		result.source_note = "벽돌 500원 × 8장 = 4,000원. 여덟 장을 정사각형으로 묶은 학습용 규격이며 유약 표면의 별도 실제 판매가를 뜻하지 않아요."
 	return result
 
+static func is_expansion_material(id: String) -> bool:
+	return EXPANSION_SPECS.has(id)
+
 static func short_label(id: String) -> String:
 	if Custom.is_custom_id(id): return Custom.short_label(id)
+	if is_expansion_material(id): return str(EXPANSION_SPECS[id].short)
 	if BALANCED_SPECS.has(id): return str(BALANCED_SPECS[id].short)
 	return str(SHORT_LABELS.get(id, material(id).get("label", id)))
 
