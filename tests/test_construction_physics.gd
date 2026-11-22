@@ -154,14 +154,18 @@ static func _test_rhombus_opening_frames(t: Node) -> void:
 
 static func _test_balanced_decorations(t: Node) -> void:
 	var decorations: Array[Dictionary] = []
+	var wall_tops: Dictionary = {}
 	var original_decorations: Array[String] = ["panel", "panel_long", "ornament", "ornament_large"]
 	for material: Dictionary in Catalog.materials():
 		if str(material.role) != "decor" or original_decorations.has(str(material.id)): continue
 		var index: int = decorations.size()
-		decorations.append({"material_id": str(material.id), "position": Vector2(140 + (index % 4) * 240, 320 if index < 4 else 480)})
+		var x: int = 140 + (index % 8) * 240
+		var y: int = 480 - floori(index / 8.0) * 160
+		decorations.append({"material_id": str(material.id), "position": Vector2(x, y)})
+		wall_tops[x] = y - ceili(Vector2(material.dimensions).y * 0.5)
 	var items: Array[Dictionary] = []
-	for x: int in [140, 380, 620, 860]:
-		for y: int in [230, 290, 350, 410, 470, 530]:
+	for x: int in wall_tops:
+		for y: int in range(530, int(wall_tops[x]) - 30, -60):
 			items.append({"material_id": "wall", "position": Vector2(x, y)})
 	items.append_array(decorations)
 	var document: Model = Model.new()
