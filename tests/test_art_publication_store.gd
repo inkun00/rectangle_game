@@ -9,6 +9,7 @@ const BOARD: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 static func run(t: Node) -> void:
 	_test_metadata(t)
 	_test_receipt_gating_and_roundtrip(t)
+	_test_exhibition_without_sale(t)
 	_test_invalid_load_and_atomic_update(t)
 
 static func _test_metadata(t: Node) -> void:
@@ -77,6 +78,33 @@ static func _test_receipt_gating_and_roundtrip(t: Node) -> void:
 	published.path = restored.path
 	t.assert_true(published.load_file().ok, "A published queue remains loadable")
 	t.assert_eq(published.pending(receipts).size(), 0, "A restart cannot requeue a confirmed publication")
+	_cleanup(directory)
+
+static func _test_exhibition_without_sale(t: Node) -> void:
+	var directory: String = _directory()
+	DirAccess.make_dir_recursive_absolute(directory)
+	var store: ArtPublicationStore = Store.new()
+	store.path = directory.path_join("queue.json")
+	var bytes: PackedByteArray = _png()
+	var saved: Dictionary = SoldArtStore.save_png(bytes, "새 집", directory.path_join("art"))
+	var offer: Dictionary = {"kind": "drawing", "price": 0, "fingerprint": "a".repeat(64)}
+	var prepared: Dictionary = store.prepare(_metadata(), offer, saved, bytes)
+	t.assert_true(prepared.ok, "A standalone drawing is queued without a sale")
+	if prepared.ok:
+		t.assert_false(store.prepare(_metadata(), offer, saved, bytes).ok, "A repeated exhibition cannot replace the request ID")
+		var restored: ArtPublicationStore = Store.new()
+		restored.path = store.path
+		t.assert_true(restored.load_file().ok, "Independent drawings survive a restart")
+		var pending: Array[Dictionary] = restored.pending([])
+		t.assert_eq(pending.size(), 1, "A drawing exhibition is eligible without a receipt")
+		if not pending.is_empty():
+			t.assert_eq(pending[0].id, prepared.entry.id, "Retries reuse the original request ID")
+		t.assert_true(restored.pending([], true).is_empty(), "Drawing exhibitions stay off the building board")
+		t.assert_true(restored.mark_published(prepared.entry.id, BOARD).ok, "A drawing exhibition can record its publication")
+		t.assert_true(restored.pending([]).is_empty(), "Published exhibitions are not queued again")
+	offer.price = 100
+	offer.fingerprint = "b".repeat(64)
+	t.assert_false(store.prepare(_metadata(), offer, saved, bytes).ok, "An exhibition cannot have a sale amount")
 	_cleanup(directory)
 
 static func _test_invalid_load_and_atomic_update(t: Node) -> void:

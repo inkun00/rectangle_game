@@ -59,9 +59,29 @@ static func _test_building_publication(t: Node) -> void:
 	t.assert_eq(rendered.size(), 0, "An unfinished commission cannot render or queue a publication")
 	var settlement: Dictionary = studio.state.settle(report)
 	t.assert_false(settlement.is_empty(), "The fixture qualifies for real commission settlement")
-	var before: Dictionary = studio.state.serialize()
 	data.document = studio.building_publication_offer().get("document", {})
-	studio.building_publication_requested.emit(data)
+	t.assert_true(studio.state.repeat_contract(), "The builder starts a new project while the completed house remains in the collection")
+	var before: Dictionary = studio.state.serialize()
+	app._show_home()
+	var menu: Button = app._home_screen.find_child("OpenExhibition", true, false) as Button
+	if menu != null: menu.pressed.emit()
+	var buildings: Button = app._home_screen.find_child("ExhibitBuilding", true, false) as Button
+	t.assert_not_null(buildings, "The home exhibition chooser offers the house collection")
+	if buildings != null: buildings.pressed.emit()
+	await t.get_tree().process_frame
+	var record: Button = studio.find_child("SelectBuildingRecord0", true, false) as Button
+	t.assert_true(record != null and record.is_visible_in_tree(), "The home route lists the completed house")
+	if record != null: record.pressed.emit()
+	var submit: Button = studio.find_child("ConfirmBuildingPublication", true, false) as Button
+	t.assert_true(submit != null and submit.is_visible_in_tree(), "Selecting the record opens the existing building registration form")
+	t.assert_eq(requests.size(), 0, "Browsing the saved record does not post it")
+	if submit != null:
+		t.assert_eq(studio.building_publication_offer().document, data.document, "The form uses the selected house snapshot")
+		studio._publication_author.text = metadata.author
+		studio._publication_title.text = metadata.title
+		studio._publication_description.text = metadata.description
+		studio._publication_description.text_changed.emit()
+		submit.pressed.emit()
 	await t.get_tree().process_frame
 	t.assert_eq(rendered.size(), 1, "Publishing renders the settled design exactly once")
 	t.assert_eq(requests.size(), 1, "A finished design and metadata enter the same Padlet transport")
@@ -71,6 +91,7 @@ static func _test_building_publication(t: Node) -> void:
 	t.assert_eq(app._art_publications.pending([]).size(), 0, "The drawing queue excludes building submissions")
 	t.assert_eq(studio.state.serialize(), before, "PNG export and a failed publication preserve the settled building and ledger")
 	if pending.size() == 1 and requests.size() == 1:
+		t.assert_eq(rendered[0], data.document, "The gallery exports the finished house, even though a different project is on the workbench")
 		t.assert_eq(requests[0].price, settlement.total, "The upload carries the actual contract price")
 		t.assert_eq(requests[0].kind, "commission", "The upload identifies the type of building price")
 		var restored: ArtPublicationStore = ArtPublicationStore.new()
@@ -86,6 +107,7 @@ static func _test_building_publication(t: Node) -> void:
 			t.assert_eq(requests[1].author, metadata.author, "The entered author name is retained when retrying")
 			t.assert_eq(studio._upload_post_url, test_post_url, "The building exhibition button opens the shared design")
 		t.assert_eq(restored.pending([], true).size(), 0, "A published building leaves the retry queue")
+		studio._open_building_publication(0, true)
 		await app._publish_building(data)
 		t.assert_eq(requests.size(), 2, "Submitting the same settled design again does not create a duplicate post")
 		t.assert_eq(rendered.size(), 1, "Retry and duplicate detection reuse the saved image")

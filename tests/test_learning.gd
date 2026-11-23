@@ -7,6 +7,7 @@ const Canvas = preload("res://scenes/learning/learning_canvas.gd")
 const Studio = preload("res://scenes/learning/learning_studio.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const Bank = preload("res://scripts/learning/learning_question_bank.gd")
+const StartupSet = preload("res://scripts/learning/startup_question_set.gd")
 const Gate = preload("res://scenes/learning/learning_gate.gd")
 const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
 
@@ -17,6 +18,8 @@ static func run(t: Node) -> void:
 	_test_progress_files(t)
 	await _test_activity_flow(t)
 	_test_startup_question_bank(t)
+	_test_startup_variety(t)
+	await _test_startup_response_controls(t)
 	await _test_startup_learning_gate(t)
 	await _test_touch_and_peaceful(t)
 
@@ -276,8 +279,10 @@ static func _test_startup_question_bank(t: Node) -> void:
 	var blank_grids: int = 0
 	var partial_grids: int = 0
 	for type_id: String in Bank.TYPES:
+		var modes: Dictionary = {}
 		for index: int in range(Bank.PER_TYPE):
 			var question: Dictionary = Bank.question(type_id, index)
+			modes[question.mode] = true
 			t.assert_false(ids.has(question.id), "Every gate variant has a unique question ID")
 			ids[question.id] = true
 			t.assert_eq(question.type_id, type_id, "Every bank item belongs to its requested type")
@@ -308,10 +313,109 @@ static func _test_startup_question_bank(t: Node) -> void:
 					var perimeter: bool = str(question.prompt).contains("네 변")
 					centimeters = Math.side_lengths(question.vertices)[0] * (4.0 if perimeter else 1.0) / 20.0
 				t.assert_eq(question.choices[int(question.answer_index)], "%d cm" % roundi(centimeters), "The answer agrees with the distance or side the learner can measure in the diagram")
+			elif question.mode == "choice":
+				t.assert_true(question.choices.size() >= 3 and question.answer_index >= 0 and question.answer_index < question.choices.size(), "Each concept question offers a valid answer and distractors")
+			elif question.mode == "short":
+				t.assert_true(not question.accepted_answers.is_empty(), "Every short question accepts an answer")
+				for answer: String in question.accepted_answers:
+					t.assert_true(Bank.short_answer_correct(question, " " + answer + " "), "Short answers accept surrounding whitespace")
+				t.assert_false(Bank.short_answer_correct(question, ""), "An empty short answer cannot be correct")
+				t.assert_false(Bank.short_answer_correct(question, "모르겠어요"), "Unrelated text cannot match a short answer")
+			elif question.mode in ["order", "match"]:
+				var matching: bool = question.mode == "match"
+				var mapping: Array = question.answer_pairs if matching else question.answer_order
+				var labels: Array = question.right_items if matching else question.choices
+				t.assert_eq(mapping.size(), labels.size(), "Every visible card appears in the solution")
+				if matching:
+					t.assert_eq(question.left_items.size(), labels.size(), "Matching has the same number of cards on each side")
+				for card: int in range(labels.size()):
+					t.assert_true(mapping.count(card) == 1, "A complete solution uses each card exactly once")
+					t.assert_true(labels.count(labels[card]) == 1, "Cards have distinguishable labels")
+		for required: String in ["choice", "short", "order", "match"]:
+			t.assert_true(modes.has(required), "Each curriculum topic offers " + required)
 	t.assert_eq(Bank.TYPES.size(), 5, "A launch covers five distinct curriculum types")
-	t.assert_eq(ids.size(), 100, "The question bank contains exactly 100 variants")
+	t.assert_eq(ids.size(), 200, "The expanded bank has 200 unique launch questions")
 	t.assert_eq(drawing_kinds.size(), 5, "Grid construction covers all five quadrilateral families")
 	t.assert_true(blank_grids > 0 and partial_grids > 0, "Grid construction includes blank diagrams and given segments")
+
+static func _test_startup_variety(t: Node) -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	var observed_modes: Dictionary = {}
+	for seed_value: int in range(48):
+		rng.seed = seed_value
+		var picks: Array[int] = StartupSet.pick(rng)
+		t.assert_eq(picks.size(), Bank.TYPES.size(), "A launch chooses one question per topic")
+		var modes: Array[String] = []
+		for slot: int in range(picks.size()):
+			var question: Dictionary = Bank.question(Bank.TYPES[slot], picks[slot])
+			t.assert_false(question.is_empty(), "Every planned question exists")
+			if question.is_empty(): return
+			var mode: String = str(question.mode)
+			t.assert_false(modes.has(mode), "Each of the five opening problems has a different interaction")
+			modes.append(mode)
+			observed_modes[mode] = true
+		t.assert_true(modes.has("short") and modes.has("choice"), "Each launch includes writing an answer and choosing one")
+		t.assert_true(modes.has("draw") or modes.has("line"), "Each launch asks the learner to manipulate geometry")
+		t.assert_true(modes.has("order") or modes.has("match"), "Each launch includes arranging or pairing cards")
+	for mode: String in ["line", "select", "draw", "measure", "choice", "short", "order", "match"]:
+		t.assert_true(observed_modes.has(mode), "Repeat launches can reach format " + mode)
+
+static func _fill_card_response(gate: Gate, question: Dictionary, correct: bool) -> void:
+	match str(question.mode):
+		"choice":
+			var option: int = int(question.answer_index)
+			if not correct: option = (option + 1) % question.choices.size()
+			gate._response.option_buttons[option].pressed.emit()
+		"short":
+			gate._response.short_input.text = str(question.accepted_answers[0]) if correct else "모르겠어요"
+		"order":
+			var order: Array = question.answer_order.duplicate()
+			if not correct: order.reverse()
+			for index: int in order: gate._response.option_buttons[index].pressed.emit()
+		"match":
+			for row: int in range(question.answer_pairs.size()):
+				var right: int = int(question.answer_pairs[row])
+				if not correct: right = (right + 1) % question.right_items.size()
+				gate._response.left_buttons[row].pressed.emit()
+				gate._response.right_buttons[right].pressed.emit()
+
+static func _test_startup_response_controls(t: Node) -> void:
+	var gate: Gate = Gate.new()
+	t.add_child(gate)
+	await t.get_tree().process_frame
+	var results: Array[bool] = []
+	gate.answer_submitted.connect(func(correct: bool) -> void: results.append(correct))
+	for index: int in range(20, 24):
+		var question: Dictionary = Bank.question("lines", index)
+		gate.present(question, 1, 5)
+		t.assert_false(gate.canvas.is_visible_in_tree() or gate.grid_canvas.is_visible_in_tree(), "Response cards do not show an unrelated diagram")
+		gate._check.pressed.emit()
+		t.assert_true(results.is_empty() and gate._feedback.visible, "Incomplete input shows guidance and costs no attempt")
+		_fill_card_response(gate, question, false)
+		gate._check.pressed.emit()
+		t.assert_eq(results, [false], "A fully answered but incorrect response emits one failed attempt")
+		gate.present(question, 1, 5)
+		gate._check.pressed.emit()
+		t.assert_eq(results, [false], "A retry clears old input")
+		if question.mode == "order":
+			gate._response.option_buttons[0].pressed.emit()
+			gate._response.option_buttons[0].pressed.emit()
+			t.assert_false(gate._response.option_buttons[0].button_pressed, "An order card can be removed before submission")
+		if question.mode == "match":
+			for row: int in [0, 1]:
+				gate._response.left_buttons[row].pressed.emit()
+				gate._response.right_buttons[0].pressed.emit()
+			gate._check.pressed.emit()
+			t.assert_eq(results, [false], "Reusing a match card leaves the previous row incomplete")
+		_fill_card_response(gate, question, true)
+		if question.mode == "short":
+			gate._response.short_input.text_submitted.emit(gate._response.short_input.text)
+		else:
+			gate._check.pressed.emit()
+		gate._check.pressed.emit()
+		t.assert_eq(results, [false, true], "Correct input succeeds once without the ruler")
+		results.clear()
+	gate.free()
 
 static func _test_startup_learning_gate(t: Node) -> void:
 	var app: QuadrilateralApp = AppScene.instantiate()
@@ -335,6 +439,9 @@ static func _test_startup_learning_gate(t: Node) -> void:
 	app._show_home()
 	t.assert_true(gate.is_visible_in_tree() and not app._home_screen.visible, "Escape and mode navigation cannot close the launch dialog")
 	t.assert_true(not app._drawing_screen.visible and not app._construction_screen.visible and app.world == null, "Gameplay stays hidden before all answers are correct")
+	# Pin the diagram used for this retry so all starting formats can be sampled at launch.
+	app._startup_variants[0] = 0
+	app._present_startup_question()
 	var starting: Dictionary = gate.question
 	gate._check.pressed.emit()
 	t.assert_eq(gate.question.id, starting.id, "Incomplete input prompts observation without using a retry")
@@ -387,6 +494,30 @@ static func _test_startup_learning_gate(t: Node) -> void:
 	t.add_child(next_session)
 	await t.get_tree().process_frame
 	t.assert_true(is_instance_valid(next_session._startup_learning) and next_session._startup_type_index == 0, "A new launch always starts a fresh five-type sequence")
+	var session_modes: Array[String] = []
+	var next_gate: Gate = next_session._startup_learning
+	for step: int in range(Bank.TYPES.size()):
+		var question: Dictionary = next_gate.question
+		var mode: String = str(question.mode)
+		t.assert_eq(question.type_id, Bank.TYPES[step], "The normal launch visits every curriculum topic")
+		t.assert_false(session_modes.has(mode), "The normal entry point presents five distinct formats")
+		session_modes.append(mode)
+		match mode:
+			"line":
+				next_gate._measure.pressed.emit()
+				next_gate.canvas.set_value(90.0 if question.lesson_id == "perpendicular" else 0.0)
+			"measure":
+				next_gate._measure.pressed.emit()
+				next_gate._choice_buttons[int(question.answer_index)].pressed.emit()
+			"select":
+				next_gate._measure.pressed.emit()
+				for choice: int in question.correct_choices: next_gate.canvas.toggle_choice(choice)
+			"draw":
+				for vertex: int in range(question.given.size(), question.draw_solution.size()):
+					next_gate.grid_canvas.place_vertex(question.draw_solution[vertex])
+			_: _fill_card_response(next_gate, question, true)
+		next_gate._check.pressed.emit()
+	t.assert_true(next_session._startup_learning == null and next_session._home_screen.visible, "Solving a naturally generated mixed session unlocks the game")
 	next_session.free()
 	await t.get_tree().process_frame
 

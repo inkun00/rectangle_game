@@ -8,6 +8,7 @@ signal notebook_requested
 signal tutorials_requested
 signal opening_requested
 signal ending_choice_requested
+signal exhibition_requested(kind: String)
 
 const Art = preload("res://scripts/construction_art.gd")
 const MENU_ART: String = "res://assets/generated/home-atlas/"
@@ -24,6 +25,9 @@ var _column: VBoxContainer
 var _section: BoxContainer
 var _footer: HFlowContainer
 var _drawing_button: Button
+var _exhibition_button: Button
+var _exhibition_chooser: ColorRect
+var _exhibit_drawing: Button
 var _ending_card: PanelContainer
 var _ending_progress: Label
 var _ending_choice: Button
@@ -69,6 +73,7 @@ func _ready() -> void:
 	_drawing_button = _build_mode("Drawing", "그림 작업실", "사각형으로 의뢰인의 그림을 완성해요.", _menu_texture("drawing"), "그림 그리기", func(): drawing_requested.emit())
 	_build_mode("Construction", "건축 공방", "재료를 골라 의뢰인이 꿈꾸는 집을 지어요.", _menu_texture("building"), "집 짓기", func(): construction_requested.emit())
 	_build_mode("Adventure", "사각형 마을", "여섯 지역을 탐험하며 주민의 부탁을 들어줘요.", _menu_texture("village"), "마을 주민 심부름하기", func(): adventure_requested.emit())
+	_exhibition_button = _build_mode("Exhibition", "작품 전시장", "완성한 그림이나 집을 골라 전시해요.", _menu_texture("arrival"), "전시하기", _open_exhibition_chooser)
 	_ending_choice = _build_mode("Ending", "사각이의 내일", "지구에 살 집과 사각성으로 갈 우주선 중 하나를 골라요.", _menu_texture("choice"), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
 	_ending_card.hide()
 	_ending_choice.focus_mode = Control.FOCUS_NONE
@@ -86,10 +91,71 @@ func _ready() -> void:
 	saved.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_footer.add_child(saved)
 	resized.connect(_responsive)
+	_build_exhibition_chooser()
 	_responsive()
 
 func focus_primary() -> void:
 	_drawing_button.grab_focus()
+
+func focus_exhibition() -> void:
+	_exhibition_button.grab_focus()
+
+func _build_exhibition_chooser() -> void:
+	_exhibition_chooser = ColorRect.new()
+	_exhibition_chooser.name = "ExhibitChooser"
+	_exhibition_chooser.color = Color(0.03, 0.07, 0.12, 0.84)
+	_exhibition_chooser.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_exhibition_chooser.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_exhibition_chooser)
+	var center: CenterContainer = CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_exhibition_chooser.add_child(center)
+	var panel: PanelContainer = PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", Art.panel(false, 16))
+	center.add_child(panel)
+	var body: VBoxContainer = VBoxContainer.new()
+	body.add_theme_constant_override("separation", 12)
+	panel.add_child(body)
+	body.add_child(_title("어떤 작품을 전시할까요?", 23))
+	var options: HBoxContainer = HBoxContainer.new()
+	options.add_theme_constant_override("separation", 10)
+	body.add_child(options)
+	_exhibit_drawing = QuadTheme.button("그림", _select_exhibition.bind("drawing"), true)
+	_exhibit_drawing.name = "ExhibitDrawing"
+	var building: Button = QuadTheme.button("집", _select_exhibition.bind("building"), true)
+	building.name = "ExhibitBuilding"
+	for option: Button in [_exhibit_drawing, building]:
+		option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		options.add_child(option)
+	var close: Button = QuadTheme.button("닫기", _close_exhibition_chooser)
+	close.name = "ExhibitClose"
+	body.add_child(close)
+	var controls: Array[Button] = [_exhibit_drawing, building, close]
+	for index: int in range(controls.size()):
+		var button: Button = controls[index]
+		button.focus_next = button.get_path_to(controls[(index + 1) % controls.size()])
+		button.focus_previous = button.get_path_to(controls[posmod(index - 1, controls.size())])
+	_exhibition_chooser.hide()
+
+func _open_exhibition_chooser() -> void:
+	_margin.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED
+	_exhibition_chooser.show()
+	_exhibit_drawing.grab_focus()
+
+func _close_exhibition_chooser() -> void:
+	_exhibition_chooser.hide()
+	_margin.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
+	focus_exhibition()
+
+func _select_exhibition(kind: String) -> void:
+	if not _exhibition_chooser.is_visible_in_tree(): return
+	_close_exhibition_chooser()
+	exhibition_requested.emit(kind)
+
+func _input(event: InputEvent) -> void:
+	if is_instance_valid(_exhibition_chooser) and _exhibition_chooser.is_visible_in_tree() and event.is_action_pressed("ui_cancel"):
+		_close_exhibition_chooser()
+		get_viewport().set_input_as_handled()
 
 func _build_hero() -> void:
 	_hero = Control.new()
@@ -174,14 +240,14 @@ func _build_mode(mode: String, title: String, description: String, texture: Text
 func _responsive() -> void:
 	if _ending_card == null: return
 	var narrow: bool = size.x < 600.0
-	var single_column: bool = size.x < 730.0 if _ending_card.visible else size.x < 900.0
+	var single_column: bool = size.x < 730.0
 	var side_by_side: bool = single_column and size.x >= 345.0
 	if single_column:
 		_cards.columns = 1
-	elif _ending_card.visible:
-		_cards.columns = 4 if size.x >= 1200.0 else 2
+	elif _ending_card.visible and size.x >= 1500.0:
+		_cards.columns = 5
 	else:
-		_cards.columns = 3
+		_cards.columns = 4 if size.x >= 1200.0 else 2
 	for index: int in _card_layouts.size():
 		_card_layouts[index].vertical = not side_by_side
 		_previews[index].custom_minimum_size.y = 96.0 if side_by_side else clampf(size.y * 0.19, 115.0, 215.0)

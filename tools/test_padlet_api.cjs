@@ -144,6 +144,21 @@ test('publishes the picture and its display fields without a work number', async
   assert.equal(response.bytes.includes(deps.env.BLOB_READ_WRITE_TOKEN), false);
 });
 
+test('publishes an independent drawing once on the drawing board without pricing it', async () => {
+  const deps = environment();
+  const handler = createSubmissionHandler(deps);
+  const exhibition = { ...base, kind: 'drawing', price: 0 };
+  assert.equal((await call(handler, { ...exhibition, price: 100 })).statusCode, 400);
+  assert.equal((await call(handler, { ...base, price: 0 })).statusCode, 400);
+  assert.equal((await call(handler, exhibition)).statusCode, 200);
+  assert.equal((await call(handler, exhibition)).statusCode, 200);
+  assert.equal(deps.calls.length, 1);
+  assert.equal(deps.calls[0].url, `${drawingBoardApi}/posts`);
+  const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
+  assert.equal(content.body, `작성자: ${base.author}\n\n그림 설명: ${base.description}`);
+  assert.equal(content.attachment.url, publicPngUrl);
+});
+
 test('routes buildings apart from drawings and spaceships while preserving price labels and the original PNG', async () => {
   for (const [kind, price, priceLine, descriptionLabel] of [
     ['commission', 260_000_000, /게임 내 건물 가격: 260,000,000원/, '건물 설명'],

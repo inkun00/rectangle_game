@@ -19,6 +19,7 @@ const BOARD_ID_PATTERN = /^[a-zA-Z0-9]{16,22}$/;
 const BUILDING_KINDS = new Set(['commission', 'my_house', 'earth_house']);
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const DRAWING_PRICE = { minimum: 100, maximum: 8_000_000, label: '게임 내 그림 가격' };
+const EXHIBITION_PRICE = { minimum: 0, maximum: 0 };
 const PROJECT_PRICES = new Map([
   ['commission', { minimum: 100_000_000, maximum: 260_000_000, label: '게임 내 건물 가격' }],
   // 400 parts, each at most 600 × 400, at the highest custom rate and surcharges.
@@ -228,7 +229,7 @@ function textField(value, maximum, label, multiline = false) {
 function validateSubmission(raw) {
   const kind = raw.kind;
   const projectPrice = PROJECT_PRICES.get(kind);
-  if (kind !== undefined && !projectPrice) throw new InputError('작품 종류를 확인해 주세요.');
+  if (kind !== undefined && kind !== 'drawing' && !projectPrice) throw new InputError('작품 종류를 확인해 주세요.');
   const work = kind === 'spaceship' ? '우주선' : projectPrice ? '건물' : '그림';
   if (typeof raw.id !== 'string' || !ID_PATTERN.test(raw.id)) {
     throw new InputError('작품을 확인할 수 없어요. 게임에서 작품을 다시 열어 주세요.');
@@ -237,8 +238,9 @@ function validateSubmission(raw) {
   const nameLabel = kind === 'earth_house' ? '집 이름' : kind === 'spaceship' ? '우주선 이름' : `${work} 제목`;
   const title = textField(raw.title, 80, nameLabel);
   const description = textField(raw.description, 1000, `${work} 설명`, true);
-  const price = projectPrice ?? DRAWING_PRICE;
+  const price = kind === 'drawing' ? EXHIBITION_PRICE : projectPrice ?? DRAWING_PRICE;
   if (!Number.isSafeInteger(raw.price) || raw.price < price.minimum || raw.price > price.maximum) {
+    if (kind === 'drawing') throw new InputError('전시할 그림 정보를 다시 확인해 주세요.');
     throw new InputError(projectPrice ? '작품 금액이 올바르지 않아요. 게임 화면에서 다시 확인해 주세요.' :
       '그림 가격이 올바르지 않아요. 판매 화면에서 다시 확인해 주세요.');
   }
@@ -265,7 +267,7 @@ function validateSubmission(raw) {
   const imageHash = hash(png);
   const payload = [raw.id, author, title, description, raw.price, imageHash];
   // Preserve the payload hash already stored for drawing submissions.
-  if (projectPrice) payload.push(kind);
+  if (kind !== undefined) payload.push(kind);
   const payloadHash = hash(JSON.stringify(payload));
   return { id: raw.id, author, title, description, price: raw.price, png, imageHash, payloadHash, kind };
 }
@@ -322,14 +324,17 @@ function escapeHtml(value) {
 function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
   const projectPrice = PROJECT_PRICES.get(submission.kind);
   const descriptionLabel = submission.kind === 'spaceship' ? '우주선 설명' : projectPrice ? '건물 설명' : '그림 설명';
-  const priceLabel = (projectPrice ?? DRAWING_PRICE).label;
+  const body = [`작성자: ${escapeHtml(submission.author)}`, `${descriptionLabel}: ${escapeHtml(submission.description)}`];
+  if (submission.kind !== 'drawing') {
+    body.push(`${(projectPrice ?? DRAWING_PRICE).label}: ${submission.price.toLocaleString('en-US')}원`);
+  }
   return {
     data: {
       type: 'post',
       attributes: {
         content: {
           subject: `${submission.title} · ${submission.author}`,
-          body: `작성자: ${escapeHtml(submission.author)}\n\n${descriptionLabel}: ${escapeHtml(submission.description)}\n\n${priceLabel}: ${submission.price.toLocaleString('en-US')}원`,
+          body: body.join('\n\n'),
           attachment: { url: imageUrl(submission.id, origin), caption: submission.title },
         },
       },

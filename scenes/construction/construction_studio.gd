@@ -151,6 +151,8 @@ var _publication_description: TextEdit
 var _publication_validation: Label
 var _publication_submit: Button
 var _publication_offer: Dictionary = {}
+var _publication_record: int = -1
+var _share_after_inspection: bool = false
 var _publication_pending: bool = false
 var _upload_row: VBoxContainer
 var _upload_status: Label
@@ -1410,19 +1412,27 @@ func _simplify_visible_text(node: Node) -> void:
 		for index: int in range(node.item_count): node.set_item_text(index, Language.simplify(node.get_item_text(index)))
 	for child: Node in node.get_children(): _simplify_visible_text(child)
 
-func _start_inspection() -> void:
+func _start_inspection(for_publication: bool = false) -> void:
 	if not _is_editable_mode() or canvas.inspection_running: return
 	_close_modal()
 	_last_report.clear()
 	canvas.cancel_gesture()
 	if SoundManager.instance != null:
 		SoundManager.instance.play_click()
-	canvas.start_inspection()
+	_share_after_inspection = for_publication
+	if not canvas.start_inspection():
+		_share_after_inspection = false
+		return
 	_set_status("중력으로 시공을 검사하고 있어요. 떠 있는 벽, 받침 없는 보, 불안정한 창문을 살펴보세요.")
 	_refresh()
 
 func _inspection_finished(report: Dictionary) -> void:
 	_last_report = report.duplicate(true)
+	var share_requested: bool = _share_after_inspection
+	_share_after_inspection = false
+	if share_requested and state.my_house_mode and _building_publication_error().is_empty() and is_visible_in_tree() and not is_instance_valid(_modal):
+		_open_building_publication(-1, true)
+		return
 	if state.my_house_mode:
 		var stable: bool = bool(report.get("stable", false))
 		if stable and earth_ending_unlocked:
@@ -1437,6 +1447,7 @@ func _inspection_finished(report: Dictionary) -> void:
 
 func _return_to_design() -> void:
 	if not _is_editable_mode(): return
+	_share_after_inspection = false
 	canvas.stop_inspection()
 	canvas.cancel_gesture()
 	_set_status("설계로 돌아왔어요. 검사에서 움직인 재료도 원래 설계 위치에서 고칠 수 있어요.")
@@ -1818,15 +1829,42 @@ func _show_ledger() -> void:
 func _add_ledger_row(label: String, amount: int) -> void:
 	_money_line(_modal_body, label, amount, false, true)
 
-func _show_history(page: int = 0, hall_only: bool = false) -> void:
+func open_publication_picker() -> void:
+	if not is_visible_in_tree() or tutorial_blocked or _publication_pending or _exporting: return
+	_show_history(0, false, true)
+
+func _select_personal_publication() -> void:
+	if state.my_house_document.parts.is_empty() or not (state.my_house_mode or earth_ending_unlocked): return
+	open_personal_mode()
+	if _building_publication_error().is_empty():
+		_open_building_publication(-1, true)
+	else:
+		_start_inspection(true)
+
+func _show_history(page: int = 0, hall_only: bool = false, for_publication: bool = false) -> void:
 	_hall_only = hall_only
-	_open_modal("명예의 전당" if hall_only else "내가 지은 집")
+	var title: String = "명예의 전당" if hall_only else "내가 지은 집"
+	_open_modal("패들릿에 올릴 집 고르기" if for_publication else title)
+	var has_personal: bool = not state.my_house_document.parts.is_empty() and (state.my_house_mode or earth_ending_unlocked)
+	if for_publication and has_personal:
+		var ready_to_share: bool = state.my_house_mode and _building_publication_error().is_empty()
+		var personal: Button = _button("나만의 집 올리기" if ready_to_share else "나만의 집 시공 검사하기", _select_personal_publication, true)
+		personal.name = "SelectPersonalBuilding"
+		_modal_body.add_child(personal)
+		if not ready_to_share:
+			_modal_body.add_child(_label("시공 검사를 통과하면 집의 제목과 설명을 적을 수 있어요.", 16, MUTED))
 	var record_indices: Array[int] = []
 	for index: int in range(state.records.size() - 1, -1, -1):
 		if not hall_only or int(state.records[index].get("award", {}).get("tier", 0)) > 0: record_indices.append(index)
 	var count: int = record_indices.size()
 	if count == 0:
-		_modal_body.add_child(_label("3단계 이상에서 멋진 집을 지으면 배지를 받고 여기에 올라와요. 집 모양, 문·창문의 비율, 좌우 배치, 도형·재료의 조합, 지붕의 어울림을 살펴봐요." if hall_only else "첫 집을 완성하면 집 모습과 돈 기록이 여기에 보관돼요.", 18))
+		if for_publication:
+			if not has_personal:
+				var empty: Label = _label("아직 전시할 집이 없어요. 건축 의뢰에서 집을 완성하고 보상을 받으면 여기에 나타나요.", 18)
+				empty.name = "BuildingPublicationEmpty"
+				_modal_body.add_child(empty)
+		else:
+			_modal_body.add_child(_label("3단계 이상에서 멋진 집을 지으면 배지를 받고 여기에 올라와요. 집 모양, 문·창문의 비율, 좌우 배치, 도형·재료의 조합, 지붕의 어울림을 살펴봐요." if hall_only else "첫 집을 완성하면 집 모습과 돈 기록이 여기에 보관돼요.", 18))
 	else:
 		var pages: int = ceili(count / 6.0)
 		page = clampi(page, 0, pages - 1)
@@ -1850,10 +1888,18 @@ func _show_history(page: int = 0, hall_only: bool = false) -> void:
 			card.add_child(_label("%03d · %s 님의 집" % [index + 1, str(record.client)], 20))
 			card.add_child(_label("만족도 %d%% · 이익 %s" % [int(record.score), Catalog.format_won(int(record.profit))], 15, BLUE))
 			if int(record.get("award", {}).get("tier", 0)) > 0: _add_award(card, record.award)
-			card.add_child(_button("완성한 집 보기", func(): _show_record(index)))
-		if page > 0: _modal_body.add_child(_button("최근 집", func(): _show_history(page - 1, hall_only)))
-		if page + 1 < pages: _modal_body.add_child(_button("이전 집", func(): _show_history(page + 1, hall_only)))
+			if for_publication:
+				var publish: Button = _button("이 집 올리기", _open_building_publication.bind(index, true), true)
+				publish.name = "SelectBuildingRecord%d" % index
+				card.add_child(publish)
+			else:
+				card.add_child(_button("완성한 집 보기", func(): _show_record(index)))
+		if page > 0: _modal_body.add_child(_button("최근 집", _show_history.bind(page - 1, hall_only, for_publication)))
+		if page + 1 < pages: _modal_body.add_child(_button("이전 집", _show_history.bind(page + 1, hall_only, for_publication)))
 	_modal_action("작업대로 돌아가기", _close_modal, true)
+	if for_publication:
+		var home: Button = _modal_action("메인으로", _go_home)
+		home.name = "HomeFromBuildingPicker"
 
 func _show_record(index: int) -> void:
 	if index < 0 or index >= state.records.size(): return
@@ -1984,6 +2030,19 @@ func _building_publication_error() -> String:
 	return ""
 
 func building_publication_offer() -> Dictionary:
+	if _publication_record >= 0:
+		return _record_publication_offer(_publication_record)
+	return _live_building_publication_offer()
+
+func _record_publication_offer(index: int) -> Dictionary:
+	if tutorial_blocked or index < 0 or index >= state.records.size():
+		return {"ok": false, "error": "완성한 집 기록을 다시 선택해 주세요."}
+	var record: Dictionary = state.records[index]
+	var snapshot: Dictionary = record.document.duplicate(true)
+	snapshot.selected_id = -1
+	return {"ok": true, "kind": "commission", "document": snapshot, "price": int(record.total), "price_label": "약속한 돈"}
+
+func _live_building_publication_offer() -> Dictionary:
 	var error: String = _building_publication_error()
 	if not error.is_empty():
 		return {"ok": false, "error": error}
@@ -2015,7 +2074,7 @@ func earth_ending_offer() -> Dictionary:
 	if not error.is_empty(): return {"ok": false, "error": error}
 	var facade: Dictionary = ConstructionFacade.inspect(state.my_house_document.parts)
 	if not bool(facade.complete): return {"ok": false, "error": facade.message}
-	var offer: Dictionary = building_publication_offer()
+	var offer: Dictionary = _live_building_publication_offer()
 	offer.kind = "earth_house"
 	return offer
 
@@ -2027,15 +2086,18 @@ func _request_earth_ending() -> void:
 		return
 	earth_ending_requested.emit()
 
-func _open_building_publication() -> void:
+func _open_building_publication(record_index: int = -1, from_picker: bool = false) -> void:
 	if _publication_pending or _exporting or tutorial_blocked or not is_visible_in_tree(): return
-	var offer: Dictionary = building_publication_offer()
+	var offer: Dictionary = _record_publication_offer(record_index) if record_index >= 0 else _live_building_publication_offer()
 	if not bool(offer.ok):
 		_set_status(str(offer.error))
 		return
 	canvas.cancel_gesture()
 	_open_modal("건축물 전시관에 올리기", true)
+	_publication_record = record_index
 	_publication_offer = offer
+	if record_index >= 0:
+		_modal_body.add_child(_label("%03d · %s 님의 집" % [record_index + 1, str(state.records[record_index].client)], 18, BLUE))
 	_money_line(_modal_body, str(offer.price_label), int(offer.price), true)
 	_modal_body.add_child(_label("작성자 이름, 제목, 설명, 금액과 건물 이미지가 전시관에 함께 올라가요.", 16, MUTED))
 	_publication_author = _publication_line("작성자 이름", "전시관에 표시할 이름이나 별명을 적어 주세요", SubmissionMetadata.MAX_AUTHOR_LENGTH)
@@ -2059,6 +2121,9 @@ func _open_building_publication() -> void:
 	_modal_body.add_child(_publication_validation)
 	_publication_submit = _modal_action("PNG 저장하고 올리기", _confirm_building_publication, true)
 	_publication_submit.name = "ConfirmBuildingPublication"
+	if from_picker:
+		var back: Button = _modal_action("다른 집 고르기", open_publication_picker)
+		back.name = "BackToBuildingPicker"
 	_refresh_building_publication_form()
 	if _publication_author.text.strip_edges().is_empty():
 		_publication_author.grab_focus()
@@ -2117,7 +2182,11 @@ func _confirm_building_publication() -> void:
 
 func render_building_publication_png(snapshot: Dictionary) -> PackedByteArray:
 	var model: ConstructionDocument = ConstructionDocument.new()
-	model.budget_limit = _active_doc().budget_limit
+	if _publication_record >= 0:
+		if _publication_record >= state.records.size(): return PackedByteArray()
+		model.budget_limit = int(State.record_contract(state.records[_publication_record]).material_budget)
+	else:
+		model.budget_limit = _active_doc().budget_limit
 	if not model.restore(snapshot): return PackedByteArray()
 	return await Exporter.export_padlet_png(get_tree(), model)
 
@@ -2368,6 +2437,7 @@ func _close_modal(restore_focus: bool = true) -> void:
 	_publication_validation = null
 	_publication_submit = null
 	_publication_offer = {}
+	_publication_record = -1
 	if is_instance_valid(canvas): _refresh()
 	if restore_focus and is_instance_valid(previous_focus) and previous_focus.is_visible_in_tree() and previous_focus.focus_mode != Control.FOCUS_NONE:
 		if not previous_focus is BaseButton or not previous_focus.disabled: previous_focus.grab_focus()
@@ -2386,6 +2456,7 @@ func _go_home() -> void:
 func _on_visibility_changed() -> void:
 	if not is_instance_valid(canvas): return
 	if not is_visible_in_tree():
+		_share_after_inspection = false
 		canvas.cancel_gesture()
 		canvas.stop_inspection()
 		_close_modal()

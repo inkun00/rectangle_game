@@ -52,7 +52,11 @@ static func _test_story_branches(t: Node) -> void:
 	var ledger: ConstructionState = app._economy_state
 	t.assert_false(app._home_screen._ending_card.is_visible_in_tree(), "A new player does not see the final choice card")
 	t.assert_false(app._home_screen._ending_choice.is_visible_in_tree(), "A hidden final choice card keeps its button off screen")
-	t.assert_eq(app._home_screen._cards.columns, 3 if app._home_screen.size.x >= 900.0 else 1, "The locked home grid has no unused column for the final choice")
+	var activity_count: int = 0
+	for card: Control in app._home_screen._cards.get_children():
+		if card.visible: activity_count += 1
+	t.assert_eq(activity_count, 4, "A new player sees drawing, building, adventure and exhibition")
+	t.assert_eq(activity_count % app._home_screen._cards.columns, 0, "The locked home grid has no unused column for the final choice")
 	var quests: Array[String] = []
 	for quest: Dictionary in QuestCatalog.all_quests(): quests.append(str(quest.id))
 	ledger.claim_village_rewards(quests)
@@ -82,7 +86,7 @@ static func _test_story_branches(t: Node) -> void:
 	t.assert_true(ledger.sell_art(drawing.serialize(), "큰 정사각형").ok, "A completed drawing commission is the tenth activity")
 	t.assert_true(app._home_screen._ending_card.is_visible_in_tree(), "The tenth combined completion shows the entire final choice card")
 	t.assert_true(app._home_screen._ending_progress.text.contains("열어 보세요"), "Reaching the target explains how to make the final choice")
-	t.assert_eq(str(app._home_screen._cards.get_child(3).name), "EndingChoice", "The unlocked ending card follows the first three activities")
+	t.assert_eq(app._home_screen._cards.get_child(-1), app._home_screen._ending_card, "The final choice follows the always available activities")
 	t.assert_true(app._home_screen._ending_choice.is_visible_in_tree() and not app._home_screen._ending_choice.disabled, "The tenth combined completion reveals a usable final choice button")
 	t.assert_eq(app._home_screen._ending_choice.text, "최후의 선택", "The unlocked action shows the final choice label")
 	_choose(app, "KeepEarning")

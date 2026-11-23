@@ -1,8 +1,8 @@
 class_name ArtPublicationStore
 extends RefCounted
 
-## Drawing entries become eligible when their sale is committed. Building
-## entries are queued after the completed design and PNG have been checked.
+## A legacy drawing sale needs a matching receipt. Standalone exhibitions
+## can be uploaded as soon as their PNG and metadata have been saved.
 const DEFAULT_PATH: String = "user://art_publications_v1.json"
 const MAX_RECORDS: int = 512
 const ENDING_KINDS: Dictionary = {"earth": "earth_house", "space": "spaceship"}
@@ -48,14 +48,18 @@ func prepare(metadata: Dictionary, offer: Dictionary, saved: Dictionary, bytes: 
 	if not loaded:
 		var restored: Dictionary = load_file()
 		if not bool(restored.ok): return restored
-	var error: String = ArtSubmissionMetadata.validation_error(metadata.get("author"), metadata.get("title"), metadata.get("description"), offer.has("kind"))
+	var exhibition: bool = offer.get("kind") == "drawing"
+	var error: String = ArtSubmissionMetadata.validation_error(metadata.get("author"), metadata.get("title"), metadata.get("description"), offer.has("kind") and not exhibition)
 	if not error.is_empty(): return _failure(error)
+	if exhibition and not _integer_in_range(offer.get("price"), 0, 0): return _failure("전시할 그림 정보를 다시 확인해 주세요.")
 	for branch: String in ENDING_KINDS:
 		if offer.get("kind") == ENDING_KINDS[branch] and not ending_entry(branch).is_empty():
 			return _failure("이미 이 엔딩의 작품을 저장했어요. 등록 상태를 확인해 주세요.")
 	var index: int = -1
 	for cursor: int in range(entries.size()):
 		if str(entries[cursor].fingerprint) == str(offer.get("fingerprint", "")): index = cursor
+	if index >= 0 and (exhibition or entries[index].get("kind") == "drawing"):
+		return _failure("이미 전시를 신청한 그림이에요. 등록 상태를 확인해 주세요.")
 	if index >= 0 and offer.has("kind"): return _failure("이미 패들릿에 보낸 건물이에요. 등록 상태를 확인해 주세요.")
 	if index >= 0 and str(entries[index].status) == "published": return _failure("이미 패들릿에 등록한 그림이에요.")
 	if index < 0 and entries.size() >= MAX_RECORDS: return _failure("패들릿 등록 기록이 가득 찼어요.")
@@ -96,9 +100,10 @@ func ending_entry(branch: String) -> Dictionary:
 func pending(receipts: Array[Dictionary], buildings: bool = false) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for entry: Dictionary in entries:
-		if entry.get("kind", "") in ENDING_KINDS.values(): continue
-		if str(entry.status) != "pending" or entry.has("kind") != buildings: continue
-		if buildings:
+		var kind: String = str(entry.get("kind", ""))
+		if str(entry.status) != "pending" or kind in ENDING_KINDS.values(): continue
+		if buildings != (kind in ["commission", "my_house"]): continue
+		if buildings or kind == "drawing":
 			result.append(entry.duplicate(true))
 			continue
 		for receipt: Dictionary in receipts:
@@ -154,23 +159,26 @@ func _save(candidate: Array[Dictionary]) -> Dictionary:
 	return {"ok": true}
 
 static func _valid_entry(entry: Dictionary) -> bool:
-	var building: bool = entry.has("kind")
+	var typed_entry: bool = entry.has("kind")
 	var rated: bool = entry.has("performance")
 	var has_ports: bool = entry.has("ports")
-	var expected_size: int = 11 + int(building) + int(rated) + int(has_ports)
+	var expected_size: int = 11 + int(typed_entry) + int(rated) + int(has_ports)
 	if entry.size() != expected_size or not entry.has_all(["id", "fingerprint", "author", "title", "description", "price", "png_path", "filename", "png_sha256", "status", "post_url"]): return false
-	if building and entry.kind not in ["commission", "my_house", "earth_house", "spaceship"]: return false
+	if typed_entry and entry.kind not in ["drawing", "commission", "my_house", "earth_house", "spaceship"]: return false
 	for key: String in entry:
 		if key not in ["price", "performance", "ports"] and not entry[key] is String: return false
 	if rated and (entry.get("kind") != "spaceship" or not _integer_in_range(entry.performance, 12, 36)): return false
 	if has_ports and (entry.get("kind") != "spaceship" or not valid_ship_ports(entry.ports)): return false
 	if not _hex(entry.id, 32) or not _hex(entry.fingerprint, 64) or not _hex(entry.png_sha256, 64): return false
-	if not ArtSubmissionMetadata.validation_error(entry.author, entry.title, entry.description, building).is_empty(): return false
+	if not ArtSubmissionMetadata.validation_error(entry.author, entry.title, entry.description, typed_entry and entry.kind != "drawing").is_empty(): return false
 	if not entry.price is int and not entry.price is float: return false
 	var price: float = float(entry.price)
 	var min_price: int = 100
 	var max_price: int = ArtMarket.MAX_PRICE
 	match entry.get("kind", ""):
+		"drawing":
+			min_price = 0
+			max_price = 0
 		"commission":
 			min_price = 100000000
 			max_price = 260000000

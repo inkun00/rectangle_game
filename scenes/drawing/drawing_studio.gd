@@ -45,6 +45,7 @@ signal interaction_context_changed
 signal guide_changed
 signal art_commission_requested(commission_id: String)
 signal art_sale_requested(document_data: Dictionary)
+signal drawing_exhibition_requested(data: Dictionary)
 signal art_upload_retry_requested
 
 var testing: bool = false
@@ -109,6 +110,12 @@ var _sale_button: Button
 var _sale_dialog: ConfirmationDialog
 var _sale_offer: Dictionary = {}
 var _sale_pending: bool = false
+var _exhibition: bool = false
+var _exhibition_allow_personal: bool = false
+var _publication_note: Label
+var _exhibition_switch: Button
+var _form_key: String = ""
+var _metadata_drafts: Dictionary = {}
 var _sale_author: LineEdit
 var _sale_title: LineEdit
 var _sale_description: TextEdit
@@ -145,6 +152,10 @@ func _ready() -> void:
 	visibility_changed.connect(func():
 		if not is_visible_in_tree():
 			_stop_drawing_work()
+			if _exhibition and not _sale_pending:
+				_exhibition = false
+				_refresh()
+				_refresh_sale_button()
 			cancel_gesture())
 	if not testing:
 		load_drawing(false)
@@ -153,14 +164,7 @@ func _ready() -> void:
 func open_workspace(personal: bool) -> bool:
 	if is_personal_drawing == personal: return true
 	if _sale_pending or _exporting: return false
-	if personal and _personal_document == null:
-		var candidate: Model = Model.new()
-		if not testing and FileAccess.file_exists(personal_save_path):
-			var saved: Dictionary = _read_drawing_snapshot(personal_save_path, false)
-			if saved.is_empty() or not candidate.restore(saved.document):
-				_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
-				return false
-		_personal_document = candidate
+	if personal and not _load_personal_workspace(): return false
 	_record_drawing_work(Time.get_ticks_msec())
 	if not testing and not _autosave.is_stopped() and not save_drawing(false): return false
 	cancel_gesture()
@@ -180,6 +184,17 @@ func open_workspace(personal: bool) -> bool:
 	_refresh()
 	_refresh_sale_button()
 	drawing_document_changed.emit()
+	return true
+
+func _load_personal_workspace() -> bool:
+	if _personal_document != null: return true
+	var candidate: Model = Model.new()
+	if not testing and FileAccess.file_exists(personal_save_path):
+		var saved: Dictionary = _read_drawing_snapshot(personal_save_path, false)
+		if saved.is_empty() or not candidate.restore(saved.document):
+			_set_status("저장한 그림을 읽을 수 없어요. 현재 그림은 그대로 두었어요.")
+			return false
+	_personal_document = candidate
 	return true
 
 func _on_artwork_edited() -> void:
@@ -430,7 +445,7 @@ func _build_ui() -> void:
 	_sale_button.name = "SellDrawingButton"
 	_sale_button.custom_minimum_size = Vector2(156, 48)
 	commission_actions.add_child(_sale_button)
-	_commission_brief = _button("의뢰서 보기", _open_commissions)
+	_commission_brief = _button("의뢰서 보기", _secondary_drawing_action)
 	_commission_brief.name = "OpenArtCommissionBrief"
 	commission_actions.add_child(_commission_brief)
 	var status_panel: PanelContainer = PanelContainer.new()
@@ -794,6 +809,9 @@ func _refresh() -> void:
 	Buttons.apply(_mode_masterpiece, document.drawing_mode == "masterpiece", TOOLBAR_FONT_SIZE)
 	_drawing_title.text = "나만의 그림" if is_personal_drawing else "사각형 그림 의뢰"
 	_drawing_tagline.text = "변과 각을 살피며 나만의 작품을 만들어요" if is_personal_drawing else "의뢰인의 부탁에 맞는 작품을 만들어요"
+	if _exhibition:
+		_drawing_title.text = "그림 전시"
+		_drawing_tagline.text = "내가 그린 그림을 패들릿에 전시해요"
 	_mode_free.visible = is_personal_drawing
 	_mode_masterpiece.visible = is_personal_drawing
 	_masterpiece_button.visible = is_personal_drawing
@@ -838,7 +856,7 @@ func _document_changed() -> void:
 	drawing_document_changed.emit()
 
 func _begin_drawing_work(now: int) -> void:
-	if _restoring or is_personal_drawing or tutorial_blocked or not is_visible_in_tree() or economy == null or economy.art_commission_id.is_empty():
+	if _restoring or _exhibition or is_personal_drawing or tutorial_blocked or not is_visible_in_tree() or economy == null or economy.art_commission_id.is_empty():
 		return
 	_record_drawing_work(now)
 	if document.work_msec < Model.REQUIRED_WORK_MSEC:
@@ -904,28 +922,72 @@ func _refresh_sale_button() -> void:
 	if not is_instance_valid(_sale_button): return
 	var commission: Dictionary = _active_commission()
 	var active: bool = not commission.is_empty()
-	_sale_button.visible = not is_personal_drawing
-	_sale_button.disabled = economy == null or _sale_pending
+	_sale_button.visible = _exhibition or not is_personal_drawing
+	_sale_button.disabled = (economy == null and not _exhibition) or _sale_pending
 	_sale_button.text = "완성작 제출" if active else "그림 의뢰 받기"
 	_sale_button.tooltip_text = "제출 조건과 의뢰인의 만족도를 확인해요." if active else "그림을 부탁한 의뢰인을 골라요."
 	_commission_brief.visible = active
+	_commission_brief.text = "의뢰서 보기"
 	_commission_brief.disabled = _sale_pending
 	_commission_summary.visible = active
 	_commission_summary.text = "진행 중 · %s" % str(commission.title) if active else ""
 	_commission_summary.tooltip_text = _commission_summary.text
+	if _exhibition:
+		_sale_button.text = "그림 전시하기"
+		_sale_button.tooltip_text = "작가 이름, 그림 제목과 설명을 적어 전시해요."
+		_commission_brief.visible = _can_switch_exhibit()
+		_commission_brief.text = _switch_exhibit_label()
+		_commission_summary.visible = false
 	_refresh_upload_status()
 
 func _active_commission() -> Dictionary:
 	return {} if economy == null or is_personal_drawing else Commissions.get_commission(economy.art_commission_id)
 
 func _open_commission_action() -> void:
-	if _active_commission().is_empty():
+	if _exhibition:
+		_open_exhibition_form()
+	elif _active_commission().is_empty():
 		_open_commissions()
 	else:
 		_open_sale()
 
-func _can_open_submission_dialog() -> bool:
-	return economy != null and not is_personal_drawing and not _sale_pending and not tutorial_blocked and not _exporting and is_visible_in_tree() \
+func open_exhibition(allow_personal: bool = false) -> void:
+	if not _can_open_submission_dialog(true): return
+	_exhibition_allow_personal = allow_personal and _load_personal_workspace()
+	var use_personal: bool = _exhibition_allow_personal and (is_personal_drawing or _commission_document.shapes.is_empty()) and not _personal_document.shapes.is_empty()
+	if not open_workspace(use_personal): return
+	_record_drawing_work(Time.get_ticks_msec())
+	_stop_drawing_work()
+	_exhibition = true
+	_refresh()
+	_refresh_sale_button()
+	_open_exhibition_form()
+
+func _can_switch_exhibit() -> bool:
+	if not _exhibition_allow_personal or _personal_document == null: return false
+	var other: Model = _commission_document if is_personal_drawing else _personal_document
+	return not other.shapes.is_empty()
+
+func _switch_exhibit_label() -> String:
+	return "의뢰 그림 고르기" if is_personal_drawing else "나만의 그림 고르기"
+
+func _secondary_drawing_action() -> void:
+	if not _exhibition:
+		_open_commissions()
+		return
+	if _sale_pending or not _can_switch_exhibit(): return
+	if is_instance_valid(_sale_dialog): _sale_dialog.hide()
+	if open_workspace(not is_personal_drawing): _open_exhibition_form()
+
+func _open_exhibition_form() -> void:
+	if not _exhibition or not _can_open_submission_dialog(true): return
+	if document.shapes.is_empty():
+		_set_status("도화지에 사각형을 그린 뒤 ‘그림 전시하기’를 눌러 주세요.")
+		return
+	_open_submission_form()
+
+func _can_open_submission_dialog(exhibit: bool = false) -> bool:
+	return (exhibit or (economy != null and not is_personal_drawing)) and not _sale_pending and not tutorial_blocked and not _exporting and is_visible_in_tree() \
 		and not (is_instance_valid(_commission_player_reply) and _commission_dialog.visible) \
 		and not (is_instance_valid(_gallery) and _gallery.visible) \
 		and not (is_instance_valid(_color_dialog) and _color_dialog.visible) and not _color_picker.get_popup().visible
@@ -1113,7 +1175,7 @@ func set_upload_status(message: String, pending_count: int = 0, post_url: String
 
 func _refresh_upload_status() -> void:
 	if not is_instance_valid(_upload_row): return
-	_upload_row.visible = not is_personal_drawing and (not _upload_message.is_empty() or _upload_pending_count > 0 or _upload_busy)
+	_upload_row.visible = (_exhibition or not is_personal_drawing) and (not _upload_message.is_empty() or _upload_pending_count > 0 or _upload_busy)
 	_upload_status.text = _upload_message
 	if _upload_status.text.is_empty() and _upload_pending_count > 0:
 		_upload_status.text = "패들릿에 등록할 그림이 %d개 있어요." % _upload_pending_count
@@ -1123,13 +1185,13 @@ func _refresh_upload_status() -> void:
 	_upload_board.disabled = _sale_pending
 
 func _request_art_upload_retry() -> void:
-	if is_personal_drawing or _upload_busy or _upload_pending_count < 1 or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
+	if (is_personal_drawing and not _exhibition) or _upload_busy or _upload_pending_count < 1 or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
 	_upload_busy = true
 	_refresh_upload_status()
 	art_upload_retry_requested.emit()
 
 func _open_art_board() -> void:
-	if is_personal_drawing or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
+	if (is_personal_drawing and not _exhibition) or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
 	OS.shell_open(_upload_post_url)
 
 static func _safe_padlet_url(value: String) -> String:
@@ -1140,7 +1202,10 @@ static func _safe_padlet_url(value: String) -> String:
 	return value
 
 func _open_sale() -> void:
-	if not _can_open_submission_dialog() or _active_commission().is_empty(): return
+	if _exhibition or not _can_open_submission_dialog() or _active_commission().is_empty(): return
+	_open_submission_form()
+
+func _open_submission_form() -> void:
 	if is_instance_valid(_commission_dialog) and _commission_dialog.visible: return
 	_record_drawing_work(Time.get_ticks_msec())
 	_stop_drawing_work()
@@ -1167,7 +1232,10 @@ func _open_sale() -> void:
 		column.add_child(_sale_price)
 		_sale_details = QuadTheme.paragraph("", 17, QuadTheme.INK)
 		column.add_child(_sale_details)
-		column.add_child(QuadTheme.paragraph("이름, 제목, 설명, 받은 보상과 그림 이미지가 패들릿에 함께 올라가요.", 16, QuadTheme.INK))
+		_exhibition_switch = _button("", _secondary_drawing_action)
+		column.add_child(_exhibition_switch)
+		_publication_note = QuadTheme.paragraph("", 16, QuadTheme.INK)
+		column.add_child(_publication_note)
 		column.add_child(QuadTheme.paragraph("작성자 이름 · 최대 40자", 18, QuadTheme.INK))
 		_sale_author = LineEdit.new()
 		_sale_author.name = "SoldArtAuthor"
@@ -1215,6 +1283,17 @@ func _open_sale() -> void:
 		_sale_dialog.confirmed.connect(_confirm_sale)
 		_sale_dialog.visibility_changed.connect(func(): interaction_context_changed.emit())
 		add_child(_sale_dialog)
+	_sale_dialog.title = "그림 전시" if _exhibition else "그림 의뢰 · 완성작 제출"
+	_publication_note.text = "작가 이름, 제목, 설명, 그림이 패들릿에 올라가요." if _exhibition else "이름, 제목, 설명, 받은 보상과 그림 이미지가 패들릿에 함께 올라가요."
+	_exhibition_switch.visible = _exhibition and _can_switch_exhibit()
+	_exhibition_switch.text = _switch_exhibit_label()
+	var key: String = ("personal_exhibit" if is_personal_drawing else "regular_exhibit") if _exhibition else "commission"
+	if key != _form_key:
+		if not _form_key.is_empty(): _metadata_drafts[_form_key] = [_sale_title.text, _sale_description.text]
+		_form_key = key
+		var draft: Array = _metadata_drafts.get(key, ["", ""])
+		_sale_title.text = str(draft[0])
+		_sale_description.text = str(draft[1])
 	_refresh_sale_dialog()
 	_sale_dialog.popup_centered_clamped(Vector2i(620, 660), 0.9)
 	if _sale_author.text.strip_edges().is_empty():
@@ -1225,7 +1304,18 @@ func _open_sale() -> void:
 	interaction_context_changed.emit()
 
 func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
-	if economy == null or not is_instance_valid(_sale_dialog): return
+	if not is_instance_valid(_sale_dialog): return
+	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
+	_sale_description_count.text = "그림 설명 · %d / %d자" % [_sale_description.text.strip_edges().length(), SubmissionMetadata.MAX_DESCRIPTION_LENGTH]
+	_sale_validation.text = metadata_error
+	_sale_validation.visible = not metadata_error.is_empty()
+	_sale_details.visible = not _exhibition
+	if _exhibition:
+		_sale_price.text = "나만의 그림" if is_personal_drawing else "내가 그린 사각형 그림"
+		_sale_dialog.get_ok_button().text = "패들릿에 전시하기"
+		_sale_dialog.get_ok_button().disabled = _sale_pending or document.shapes.is_empty() or not metadata_error.is_empty()
+		return
+	if economy == null: return
 	if refresh_offer or _sale_offer.is_empty(): _sale_offer = economy.quote_art_commission(document)
 	var commission: Dictionary = _active_commission()
 	var lines: PackedStringArray = ["제출 조건"]
@@ -1237,10 +1327,6 @@ func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 			lines.append("%s %s · %s" % ["[완료]" if bool(requirement.met) else "[보완]", str(requirement.label), str(requirement.detail)])
 	var can_submit: bool = bool(_sale_offer.get("can_sell", false))
 	_sale_price.text = "받을 보상 " + Money.format_won(int(_sale_offer.price)) if can_submit else "아직 제출할 수 없어요"
-	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
-	_sale_description_count.text = "그림 설명 · %d / %d자" % [_sale_description.text.strip_edges().length(), SubmissionMetadata.MAX_DESCRIPTION_LENGTH]
-	_sale_validation.text = metadata_error
-	_sale_validation.visible = not metadata_error.is_empty()
 	var reason: String = str(_sale_offer.get("reason", ""))
 	if not reason.is_empty(): lines.append("\n" + reason)
 	_sale_details.text = "\n".join(lines)
@@ -1248,14 +1334,18 @@ func _refresh_sale_dialog(refresh_offer: bool = true) -> void:
 	_sale_dialog.get_ok_button().disabled = not can_submit or not metadata_error.is_empty() or _sale_pending
 
 func _confirm_sale() -> void:
-	if economy == null or is_personal_drawing or _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
+	if _sale_pending or tutorial_blocked or _exporting or not is_visible_in_tree(): return
 	if not is_instance_valid(_sale_dialog) or not _sale_dialog.visible: return
-	# Recheck the current commission and picture at confirmation.
-	var current: Dictionary = economy.quote_art_commission(document)
 	var metadata_error: String = SubmissionMetadata.validation_error(_sale_author.text, _sale_title.text, _sale_description.text)
-	if not bool(current.get("can_sell", false)) or current != _sale_offer or not metadata_error.is_empty():
+	if not metadata_error.is_empty() or (_exhibition and document.shapes.is_empty()):
 		_refresh_sale_dialog()
 		return
+	if not _exhibition:
+		if economy == null or is_personal_drawing: return
+		var current: Dictionary = economy.quote_art_commission(document)
+		if not bool(current.get("can_sell", false)) or current != _sale_offer:
+			_refresh_sale_dialog()
+			return
 	_sale_pending = true
 	_refresh_sale_button()
 	_sale_dialog.get_ok_button().disabled = true
@@ -1264,6 +1354,7 @@ func _confirm_sale() -> void:
 	_sale_author.editable = false
 	_sale_title.editable = false
 	_sale_description.editable = false
+	_exhibition_switch.disabled = true
 	_sale_dialog.dialog_close_on_escape = false
 	_autosave.stop()
 	if _sale_busy == null:
@@ -1283,18 +1374,22 @@ func _confirm_sale() -> void:
 	_sale_busy.show()
 	# The exclusive dialog keeps edits and navigation blocked while rendering.
 	sale_author_name = _sale_author.text.strip_edges()
-	art_sale_requested.emit({
-		"document": document.serialize(), "commission_revision": economy.art_commission_revision,
+	var submission: Dictionary = {
+		"document": document.serialize(),
 		"author": sale_author_name, "title": _sale_title.text.strip_edges(), "description": _sale_description.text.strip_edges(),
-	})
+	}
+	if _exhibition:
+		drawing_exhibition_requested.emit(submission)
+	else:
+		submission["commission_revision"] = economy.art_commission_revision
+		art_sale_requested.emit(submission)
 
 func render_sale_png(data: Dictionary) -> PackedByteArray:
 	var snapshot: Model = Model.new()
 	if not snapshot.restore(data): return PackedByteArray()
 	return await sale_png_renderer.call(get_tree(), snapshot)
 
-func show_sale_result(result: Dictionary) -> void:
-	if is_personal_drawing: return
+func _release_submission_controls() -> void:
 	_sale_pending = false
 	_refresh_sale_button()
 	if is_instance_valid(_sale_busy): _sale_busy.hide()
@@ -1303,7 +1398,29 @@ func show_sale_result(result: Dictionary) -> void:
 		_sale_author.editable = true
 		_sale_title.editable = true
 		_sale_description.editable = true
+		_exhibition_switch.disabled = false
 		_sale_dialog.dialog_close_on_escape = true
+
+func show_exhibition_result(result: Dictionary) -> void:
+	if not _exhibition or not _sale_pending: return
+	_release_submission_controls()
+	if not testing: _autosave.start()
+	if bool(result.get("ok", false)):
+		_sale_dialog.hide()
+		_sale_title.text = ""
+		_sale_description.text = ""
+		_set_status(str(result.get("message", "전시할 그림을 저장했어요.")))
+		_sale_button.grab_focus()
+	else:
+		_refresh_sale_dialog()
+		_sale_validation.text = str(result.get("error", "전시할 그림을 저장하지 못했어요. 다시 시도해 주세요."))
+		_sale_validation.show()
+		_sale_dialog.get_ok_button().grab_focus()
+
+func show_sale_result(result: Dictionary) -> void:
+	if is_personal_drawing or _exhibition: return
+	_release_submission_controls()
+	if is_instance_valid(_sale_dialog):
 		_sale_dialog.hide()
 	if bool(result.get("ok", false)):
 		if is_instance_valid(_sale_title): _sale_title.text = ""

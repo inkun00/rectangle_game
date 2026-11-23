@@ -2,6 +2,7 @@ class_name QuadrilateralApp
 extends Node
 
 const StartupQuestions = preload("res://scripts/learning/learning_question_bank.gd")
+const StartupQuestionSet = preload("res://scripts/learning/startup_question_set.gd")
 const StartupLearning = preload("res://scenes/learning/learning_gate.gd")
 
 var testing: bool = false
@@ -161,11 +162,9 @@ func _ready() -> void:
 func _start_learning_gate() -> void:
 	_leave_activity()
 	_startup_type_index = 0
-	_startup_variants.clear()
 	var random: RandomNumberGenerator = RandomNumberGenerator.new()
 	random.randomize()
-	for _type: String in StartupQuestions.TYPES:
-		_startup_variants.append(random.randi_range(0, StartupQuestions.PER_TYPE - 1))
+	_startup_variants = StartupQuestionSet.pick(random)
 	_startup_learning = StartupLearning.new()
 	_startup_learning.answer_submitted.connect(_answer_startup_question)
 	_ui.add_child(_startup_learning)
@@ -182,11 +181,11 @@ func _answer_startup_question(correct: bool) -> void:
 	if not correct:
 		var hint: String = str(_startup_question.hint)
 		_startup_variants[_startup_type_index] = StartupQuestions.next_index(_startup_variants[_startup_type_index])
-		_present_startup_question("같은 유형의 새 문제로 다시 해 봐요. 이전 문제의 힌트 · " + hint)
+		_present_startup_question("앞 문제의 힌트 · " + hint + " 같은 주제의 새 문제를 풀어 봐요.")
 		return
 	_startup_type_index += 1
 	if _startup_type_index < StartupQuestions.TYPES.size():
-		_present_startup_question("맞았어요! 다음 유형을 풀어 보세요.")
+		_present_startup_question("맞았어요! 다음 문제를 풀어 보세요.")
 		return
 	_startup_learning.hide()
 	_startup_learning.queue_free()
@@ -216,7 +215,26 @@ func _build_home() -> void:
 	_home_screen.tutorials_requested.connect(_show_tutorials)
 	_home_screen.opening_requested.connect(_show_opening)
 	_home_screen.ending_choice_requested.connect(_show_ending_choices)
+	_home_screen.exhibition_requested.connect(_show_exhibition)
 	_ui.add_child(_home_screen)
+
+func _show_exhibition(kind: String) -> void:
+	if is_instance_valid(_startup_learning) or not _home_screen.is_visible_in_tree(): return
+	match kind:
+		"drawing":
+			if not await _ensure_feature("drawing"): return
+			_build_drawing()
+			_leave_activity()
+			_drawing_screen.show()
+			_responsive()
+			_drawing_screen.open_exhibition(_ending_unlocked())
+		"building":
+			if not await _ensure_feature("construction"): return
+			_build_construction()
+			_leave_activity()
+			_construction_screen.show()
+			_responsive()
+			_construction_screen.open_publication_picker()
 
 func _build_learning() -> void:
 	_learning_screen = LearningStudio.new()
@@ -254,6 +272,7 @@ func _build_drawing() -> void:
 	_drawing_screen.configure_economy(_economy_state)
 	_drawing_screen.art_commission_requested.connect(_accept_art_commission)
 	_drawing_screen.art_sale_requested.connect(_sell_art)
+	_drawing_screen.drawing_exhibition_requested.connect(_exhibit_drawing)
 	_drawing_screen.art_upload_retry_requested.connect(_retry_art_uploads)
 	if not testing:
 		var restored: Dictionary = _load_publications()
@@ -450,6 +469,45 @@ func _sell_art(data: Dictionary) -> void:
 	_drawing_screen.show_sale_result(result)
 	if bool(result.get("ok", false)): _retry_art_uploads()
 
+func _exhibit_drawing(data: Dictionary) -> void:
+	if _art_submission_busy or not is_instance_valid(_drawing_screen) or not _drawing_screen.is_visible_in_tree(): return
+	var error: String = ArtSubmissionMetadata.validation_error(data.get("author"), data.get("title"), data.get("description"))
+	if not error.is_empty():
+		_drawing_screen.show_exhibition_result({"ok": false, "error": error})
+		return
+	if _drawing_screen.document.shapes.is_empty() or data.get("document") != _drawing_screen.document.serialize():
+		_drawing_screen.show_exhibition_result({"ok": false, "error": "전시할 그림을 다시 확인해 주세요."})
+		return
+	var restored: Dictionary = _load_publications()
+	if not bool(restored.ok):
+		_drawing_screen.show_exhibition_result(restored)
+		return
+	_art_submission_busy = true
+	var bytes: PackedByteArray = await _drawing_screen.render_sale_png(data.document)
+	_art_submission_busy = false
+	if not is_instance_valid(_drawing_screen): return
+	if not _drawing_screen.is_visible_in_tree() or data.document != _drawing_screen.document.serialize() or bytes.is_empty():
+		_drawing_screen.show_exhibition_result({"ok": false, "error": "그림을 저장하지 못했어요. 그림을 확인하고 다시 시도해 주세요."})
+		return
+	var fingerprint: String = ("drawing:" + ArtPublicationStore._digest(bytes)).sha256_text()
+	var previous: Dictionary = _art_publications.find_entry(fingerprint)
+	if not previous.is_empty():
+		_drawing_screen.show_exhibition_result({"ok": true, "message": "이 그림의 전시 기록을 찾았어요."})
+		if previous.status == "pending": _retry_art_uploads()
+		else: _drawing_screen.set_upload_status("이미 전시한 그림이에요.", _art_publications.pending(_economy_state.art_sales).size(), str(previous.post_url), _art_upload_busy)
+		return
+	var saved: Dictionary = SoldArtStore.save_png(bytes, str(data.title), _drawing_screen.sold_art_directory)
+	if not bool(saved.ok):
+		_drawing_screen.show_exhibition_result(saved)
+		return
+	var offer: Dictionary = {"kind": "drawing", "price": 0, "fingerprint": fingerprint}
+	var prepared: Dictionary = _art_publications.prepare(data, offer, saved, bytes)
+	if not bool(prepared.ok):
+		_drawing_screen.show_exhibition_result(prepared)
+		return
+	_drawing_screen.show_exhibition_result({"ok": true, "message": "전시할 그림을 PNG로 저장했어요."})
+	_retry_art_uploads()
+
 func _publish_building(data: Dictionary) -> void:
 	if _building_png_busy or not is_instance_valid(_construction_screen) or not _construction_screen.is_visible_in_tree(): return
 	var offer: Dictionary = _construction_screen.building_publication_offer()
@@ -553,7 +611,7 @@ func _retry_publications(buildings: bool) -> void:
 				break
 		if entry.is_empty(): break
 		attempted[entry.id] = true
-		var progress: String = "패들릿에 건물을 등록하고 있어요…" if buildings else "의뢰 완료 · 패들릿에 그림을 등록하고 있어요…"
+		var progress: String = "패들릿에 건물을 등록하고 있어요…" if buildings else "패들릿에 그림을 등록하고 있어요…"
 		_set_publication_status(buildings, progress, pending.size(), "", true)
 		var bytes: PackedByteArray = _art_publications.read_png(entry, directory)
 		if bytes.is_empty():
@@ -582,7 +640,7 @@ func _retry_publications(buildings: bool) -> void:
 	if not error.is_empty():
 		_set_publication_status(buildings, "패들릿 등록 대기 %d개 · %s" % [remaining, error], remaining)
 	else:
-		_set_publication_status(buildings, "패들릿 등록 완료 · 보드 관리자 승인 대기" if moderated else "패들릿 등록 완료 · 이름, 제목, 설명, 가격과 PNG를 올렸어요.", remaining, last_url)
+		_set_publication_status(buildings, "패들릿 등록 완료 · 보드 관리자 승인 대기" if moderated else "패들릿에 작품을 등록했어요.", remaining, last_url)
 
 func _purchase_ship_part(id: String) -> void:
 	if _ending_busy or not is_instance_valid(_space_screen) or not _space_screen.is_visible_in_tree(): return

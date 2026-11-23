@@ -45,6 +45,7 @@ class UploadTransport:
 
 static func run(t: Node) -> void:
 	await _test_drawing_work(t)
+	await _test_home_drawing_exhibition(t)
 	await _test_success_and_undo(t)
 	await _test_failed_png(t, false)
 	await _test_failed_png(t, true)
@@ -108,6 +109,57 @@ static func _test_drawing_work(t: Node) -> void:
 	studio._clear_drawing()
 	t.assert_eq(studio.document.work_msec, 0, "Clearing the drawing ends the previous draft's time")
 	studio.free()
+
+static func _test_home_drawing_exhibition(t: Node) -> void:
+	var directory: String = _directory()
+	var app: QuadrilateralApp = await _app(t, directory, false)
+	var studio: Studio = app._drawing_screen
+	var ledger: State = app._economy_state
+	var uploader: UploadTransport = UploadTransport.new()
+	var renderer: SaleRenderer = _renderer()
+	studio.sale_png_renderer = renderer.render
+	app._art_upload_transport = uploader.upload
+	studio.document.add_shape("rhombus", Vector2(180, 120), Color.CORAL)
+	var original: Dictionary = studio.document.serialize()
+	var balance: int = ledger.balance
+	app._show_home()
+	var entry: Button = app._home_screen.find_child("OpenExhibition", true, false) as Button
+	if entry != null: entry.pressed.emit()
+	var drawing: Button = app._home_screen.find_child("ExhibitDrawing", true, false) as Button
+	t.assert_not_null(drawing, "The home exhibition chooser offers the drawing route")
+	if drawing != null: drawing.pressed.emit()
+	await t.get_tree().process_frame
+	t.assert_true(studio.is_visible_in_tree() and is_instance_valid(studio._sale_dialog) and studio._sale_dialog.visible, "Exhibiting a drawing opens the submission window for the current picture")
+	if is_instance_valid(studio._sale_dialog) and studio._sale_dialog.visible:
+		t.assert_eq(uploader.calls, 0, "Opening the window does not post a drawing")
+		studio._sale_dialog.confirmed.emit()
+		t.assert_eq(uploader.calls, 0, "An empty submission cannot post")
+		_set_title(studio, "나의 마름모")
+		studio._sale_dialog.confirmed.emit()
+		await t.get_tree().process_frame
+		t.assert_eq(uploader.calls, 1, "A confirmed exhibition attempts one upload")
+		if uploader.calls == 1:
+			t.assert_eq(uploader.entries[0].kind, "drawing", "An exhibition is identified separately from a commissioned sale")
+			t.assert_eq(int(uploader.entries[0].price), 0, "A freely exhibited drawing has no sale price")
+			t.assert_eq(uploader.entries[0].title, "나의 마름모", "The exhibition sends the title entered on the form")
+			t.assert_eq(app._art_publications.pending(ledger.art_sales).size(), 1, "The offline drawing remains retryable without a commission receipt")
+			uploader.response = {"ok": true, "post_url": Studio.PADLET_BOARD_URL + "/wish/exhibit-test"}
+			t.assert_true(studio._upload_retry.is_visible_in_tree() and not studio._upload_retry.disabled, "An offline exhibition can be retried from the visible upload action")
+			studio._upload_retry.pressed.emit()
+			await t.get_tree().process_frame
+			t.assert_eq(uploader.calls, 2, "A retry finishes the saved exhibition")
+			if uploader.calls == 2:
+				t.assert_eq(uploader.entries[1].id, uploader.entries[0].id, "Retry reuses the original exhibition request")
+				t.assert_eq(uploader.images[1], renderer.bytes, "Retry reuses the saved drawing PNG")
+			t.assert_eq(app._art_publications.pending(ledger.art_sales).size(), 0, "Successful retry clears the pending exhibition")
+		t.assert_eq(ledger.balance, balance, "Exhibiting never pays the artist")
+		t.assert_true(ledger.art_sales.is_empty(), "An exhibition cannot create a commission receipt")
+		t.assert_eq(studio.document.serialize(), original, "The editable picture survives posting and retry")
+		studio.home_requested.emit()
+		t.assert_true(app._home_screen.visible, "The artist can return home after exhibition")
+	app.free()
+	_cleanup(directory)
+	await t.get_tree().process_frame
 
 static func _test_success_and_undo(t: Node) -> void:
 	var directory: String = _directory()

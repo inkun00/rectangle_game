@@ -4,12 +4,15 @@ extends Control
 const Canvas = preload("res://scenes/learning/learning_canvas.gd")
 const GridCanvas = preload("res://scenes/learning/learning_grid_canvas.gd")
 
+const Response = preload("res://scenes/learning/learning_gate_response.gd")
+
 signal answer_submitted(correct: bool)
 
 var question: Dictionary = {}
 var canvas: Canvas
 var grid_canvas: GridCanvas
 var _mode: String = ""
+var _response: Response
 var _answer: int = -1
 var _clear_feedback_on_edit: bool = false
 var _panel: PanelContainer
@@ -95,6 +98,11 @@ func _ready() -> void:
 	grid_canvas.changed.connect(_interaction_changed)
 	body.add_child(grid_canvas)
 	_build_tools(body)
+	_response = Response.new()
+	_response.hide()
+	_response.changed.connect(_interaction_changed)
+	_response.submit_requested.connect(submit_answer)
+	body.add_child(_response)
 	_metrics = QuadTheme.paragraph("", 16, QuadTheme.MUTED)
 	body.add_child(_metrics)
 	_footer = BoxContainer.new()
@@ -162,18 +170,21 @@ func present(value: Dictionary, step: int, total: int, feedback: String = "") ->
 	_prompt.text = str(question.prompt)
 	_show_feedback(feedback)
 	var drawing: bool = _mode == "draw"
-	canvas.visible = not drawing
-	if drawing: canvas.close_measure_tools()
+	_response.configure(question)
+	canvas.visible = not drawing and not _response.visible
+	if not canvas.visible: canvas.close_measure_tools()
 	grid_canvas.visible = drawing
-	_measure.visible = not drawing
-	_turn.visible = not drawing
+	_tools.visible = not _response.visible
+	_metrics.visible = not _response.visible
+	_measure.visible = canvas.visible
+	_turn.visible = canvas.visible
 	_undo.visible = drawing
 	_reset.visible = drawing
 	_adjustments.visible = _mode == "line"
 	_build_choices()
 	if drawing:
 		grid_canvas.configure(question)
-	else:
+	elif canvas.visible:
 		var distance: bool = str(question.lesson_id) == "distance"
 		_slider.min_value = -100.0 if distance else 0.0
 		_slider.max_value = 100.0 if distance else 180.0
@@ -183,8 +194,12 @@ func present(value: Dictionary, step: int, total: int, feedback: String = "") ->
 	show()
 	_interaction_changed()
 	_scroll.set_deferred("scroll_vertical", 0)
-	var activity: Control = grid_canvas if drawing else canvas
-	activity.grab_focus()
+	if _response.visible:
+		_response.focus_controls()[0].grab_focus()
+	elif drawing:
+		grid_canvas.grab_focus()
+	else:
+		canvas.grab_focus()
 
 func _build_choices() -> void:
 	for button: Button in _choice_buttons:
@@ -218,7 +233,7 @@ func _interaction_changed() -> void:
 		_metrics.text = grid_canvas.measurement_text()
 		_undo.disabled = not grid_canvas.has_edits()
 		_reset.disabled = _undo.disabled
-	else:
+	elif canvas.visible:
 		_slider.set_value_no_signal(canvas.value)
 		_metrics.text = canvas.measurement_text()
 		for index: int in range(_choice_buttons.size()):
@@ -228,7 +243,9 @@ func _interaction_changed() -> void:
 
 func _set_focus_order() -> void:
 	var controls: Array[Control] = []
-	if _mode == "draw":
+	if _response.visible:
+		controls = _response.focus_controls()
+	elif _mode == "draw":
 		controls.append(grid_canvas)
 		if not _undo.disabled: controls.append_array([_undo, _reset])
 	else:
@@ -258,7 +275,7 @@ func submit_answer() -> void:
 	if _mode == "draw" and not grid_canvas.is_complete():
 		_show_feedback("격자에서 꼭짓점 네 개를 이어 사각형을 완성해 주세요.", true)
 		return
-	if _mode != "draw" and not canvas.measured:
+	if canvas.visible and not canvas.measured:
 		_show_feedback("‘재어 보기’에서 자나 각도기를 꺼내 확인해 주세요.", true)
 		return
 	if _mode == "select" and canvas.selected_choices.is_empty():
@@ -268,10 +285,15 @@ func submit_answer() -> void:
 		_show_feedback("재어 본 뒤 답을 하나 골라 주세요.", true)
 		return
 	var correct: bool
-	match _mode:
-		"draw": correct = grid_canvas.construction_correct()
-		"measure": correct = _answer == int(question.answer_index)
-		_: correct = canvas.construction_correct()
+	if _response.visible:
+		var incomplete: String = _response.incomplete_message()
+		if not incomplete.is_empty():
+			_show_feedback(incomplete, true)
+			return
+		correct = _response.answer_correct()
+	elif _mode == "draw": correct = grid_canvas.construction_correct()
+	elif _mode == "measure": correct = _answer == int(question.answer_index)
+	else: correct = canvas.construction_correct()
 	_check.disabled = true
 	answer_submitted.emit(correct)
 
