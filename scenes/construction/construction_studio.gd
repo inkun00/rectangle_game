@@ -29,6 +29,7 @@ signal tutorial_requested
 signal interaction_context_changed
 signal view_changed
 signal building_publication_requested(data: Dictionary)
+signal exhibition_board_requested
 signal building_upload_retry_requested
 signal earth_ending_requested
 
@@ -86,6 +87,7 @@ var _palette_toggle: Button
 var _palette_open: bool = false
 var _header_actions: HFlowContainer
 var _exhibition_button: Button
+var _publish_saved_house: Button
 var _tool_row: BoxContainer
 var _tool_spacer: Control
 var _palette_hint: Label
@@ -394,10 +396,13 @@ func _build_ui() -> void:
 	_header_actions.add_theme_constant_override("v_separation", 4)
 	header.add_child(_header_actions)
 	_header_actions.add_child(_button("저장", func(): save_game(true)))
-	_exhibition_button = _button("집 전시하기", open_publication_picker)
+	_exhibition_button = _button("집 전시장 보기 ↗", func() -> void: exhibition_board_requested.emit())
 	_exhibition_button.name = "OpenBuildingExhibition"
-	_exhibition_button.tooltip_text = "완성한 집을 골라 패들릿에 올려요."
+	_exhibition_button.tooltip_text = "새 창에서 패들릿 집 전시장을 열어요."
 	_header_actions.add_child(_exhibition_button)
+	_publish_saved_house = _button("완성한 집 등록", open_publication_picker)
+	_publish_saved_house.name = "SelectBuildingForPublication"
+	_header_actions.add_child(_publish_saved_house)
 	_header_actions.add_child(_button("도움말", _show_help))
 	_stage_button = _button("집 단계", _show_stages, true)
 	_stage_button.name = "ConstructionStages"
@@ -1378,7 +1383,8 @@ func _refresh() -> void:
 		_earth_ending_button.tooltip_text = ending_error
 	var publication_error: String = _building_publication_error()
 	var publication_blocked: bool = _publication_pending or _exporting or tutorial_blocked or is_instance_valid(_modal)
-	_exhibition_button.disabled = publication_blocked or canvas.inspection_running
+	_publish_saved_house.visible = not state.records.is_empty() or (my_mode and not active_doc.parts.is_empty())
+	_publish_saved_house.disabled = publication_blocked or canvas.inspection_running
 	if is_instance_valid(_my_house_publish):
 		_my_house_publish.visible = my_mode
 		_my_house_publish.disabled = not publication_error.is_empty() or publication_blocked
@@ -2246,6 +2252,7 @@ func _refresh_building_upload_status() -> void:
 	_upload_retry.disabled = _upload_busy or _publication_pending or tutorial_blocked or is_instance_valid(_modal)
 	_upload_retry.text = "등록 중…" if _upload_busy else "등록 다시 시도"
 	_upload_board.disabled = tutorial_blocked or is_instance_valid(_modal)
+	_upload_board.text = "집 전시장 보기 ↗" if _upload_post_url == PadletUploader.BUILDING_BOARD_URL else "등록한 집 보기 ↗"
 
 func _request_building_upload_retry() -> void:
 	if _upload_busy or _publication_pending or _upload_pending_count < 1 or tutorial_blocked or is_instance_valid(_modal) or not is_visible_in_tree(): return
@@ -2255,7 +2262,8 @@ func _request_building_upload_retry() -> void:
 
 func _open_building_board() -> void:
 	if tutorial_blocked or is_instance_valid(_modal) or not is_visible_in_tree(): return
-	OS.shell_open(_upload_post_url)
+	if _upload_post_url == PadletUploader.BUILDING_BOARD_URL: exhibition_board_requested.emit()
+	else: OS.shell_open(_upload_post_url)
 
 func _select_offer(choice: int) -> void:
 	if not state.select_contract(choice):

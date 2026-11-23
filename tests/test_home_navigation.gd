@@ -31,7 +31,7 @@ static func run(t: Node) -> void:
 	t.assert_eq(_button(app._home_screen, "캐릭터 공방"), null, "Home has no custom character workshop entry")
 	t.assert_false(app._world_hud.visible, "World HUD does not overlap the home page")
 	t.assert_false(app._in_world, "Home page starts outside gameplay")
-	t.assert_eq(_button(app._home_screen, "전시하기"), null, "Exhibitions are accessed inside their respective studios")
+	await _test_exhibition_board_links(t, app)
 	var draw_button: Button = _button(app._home_screen, "그림 그리기")
 	var adventure_button: Button = _button(app._home_screen, "마을 주민 심부름하기")
 	var guide_button: Button = _button(app._home_screen, "도형 도감")
@@ -118,6 +118,56 @@ static func _button(root: Node, text: String) -> Button:
 		if button.text == text:
 			return button
 	return null
+
+
+static func _test_exhibition_board_links(t: Node, app: QuadrilateralApp) -> void:
+	var home: HomePage = app._home_screen
+	var entry: Button = home.find_child("OpenExhibition", true, false) as Button
+	t.assert_true(entry != null and entry.is_visible_in_tree(), "The home gallery opens even before the first completed commission")
+	if entry == null: return
+	var opened: Array[String] = []
+	var uploads: Array[Dictionary] = []
+	app.exhibition_board_opener = func(url: String) -> bool:
+		opened.append(url)
+		return true
+	app._art_upload_transport = func(request: Dictionary, _bytes: PackedByteArray) -> Dictionary:
+		uploads.append(request)
+		return {"ok": false}
+	var before: Dictionary = app._economy_state.serialize()
+	entry.pressed.emit()
+	var chooser: Control = home.find_child("ExhibitChooser", true, false) as Control
+	t.assert_true(chooser != null and chooser.is_visible_in_tree(), "The home gallery asks which board to browse")
+	if chooser == null: return
+	var drawing: Button = chooser.find_child("ExhibitDrawing", true, false) as Button
+	var building: Button = chooser.find_child("ExhibitBuilding", true, false) as Button
+	t.assert_true(drawing != null and building != null and drawing.has_focus(), "The drawing and house boards are keyboard-accessible choices")
+	var cancel: InputEventKey = InputEventKey.new()
+	cancel.keycode = KEY_ESCAPE
+	cancel.pressed = true
+	home._input(cancel)
+	await t.get_tree().process_frame
+	t.assert_true(not chooser.is_visible_in_tree() and entry.has_focus() and opened.is_empty(), "Escape returns focus to the home card without opening any board")
+	if drawing == null or building == null: return
+	for selection: Button in [drawing, building]:
+		entry.pressed.emit()
+		selection.pressed.emit()
+		t.assert_true(home.is_visible_in_tree() and not chooser.is_visible_in_tree(), "Browsing leaves the home screen active")
+		t.assert_false(app._drawing_screen.visible or app._construction_screen.visible, "Board links open directly without starting a studio")
+	t.assert_eq(opened, [PadletUploader.BOARD_URL, PadletUploader.BUILDING_BOARD_URL], "Each gallery choice opens its correct public board once")
+	app.exhibition_board_opener = func(_url: String) -> bool: return false
+	entry.pressed.emit()
+	building.pressed.emit()
+	await t.get_tree().process_frame
+	var fallback: AcceptDialog = app.find_child("ExhibitionBoardFallback", true, false) as AcceptDialog
+	t.assert_true(fallback != null and fallback.visible, "A blocked board window has a local fallback")
+	if fallback != null:
+		var address: LineEdit = fallback.find_child("ExhibitionBoardAddress", true, false) as LineEdit
+		t.assert_true(address != null and not address.editable and address.text == PadletUploader.BUILDING_BOARD_URL, "The blocked window offers the same copyable board address")
+		fallback.hide()
+	t.assert_true(uploads.is_empty(), "Viewing an exhibition never submits a player's work")
+	t.assert_eq(app._economy_state.serialize(), before, "Browsing preserves all artwork and commission rewards")
+	app.exhibition_board_opener = Callable()
+	app._art_upload_transport = Callable()
 
 
 static func _key(app: QuadrilateralApp, keycode: Key, control: bool = false) -> void:

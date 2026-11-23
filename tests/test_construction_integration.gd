@@ -10,6 +10,7 @@ const Language = preload("res://scripts/construction/construction_language.gd")
 static func run(t: Node) -> void:
 	await _test_navigation_and_modals(t)
 	await _test_building_publication(t)
+	await _test_automatic_building_resume(t)
 	await _test_save_and_complete_contract(t)
 	await _test_guided_house_and_recovery(t)
 	await _test_inspection_repairs(t)
@@ -52,12 +53,13 @@ static func _test_building_publication(t: Node) -> void:
 	studio._close_modal()
 	var buildings: Button = studio.find_child("OpenBuildingExhibition", true, false) as Button
 	t.assert_true(buildings != null and buildings.is_visible_in_tree() and not buildings.disabled, "The workbench offers a house exhibition before the first completed job")
+	var opened: Array[String] = []
+	app.exhibition_board_opener = func(url: String) -> bool:
+		opened.append(url)
+		return true
 	if buildings != null: buildings.pressed.emit()
-	var empty: Control = studio.find_child("BuildingPublicationEmpty", true, false) as Control
-	t.assert_true(empty != null and empty.is_visible_in_tree(), "The empty gallery explains how to obtain a completed house")
-	var back: Button = studio.find_child("BackFromBuildingPicker", true, false) as Button
-	if back != null: back.pressed.emit()
-	t.assert_true(back != null and not is_instance_valid(studio._modal) and studio.visible, "Leaving the exhibition returns to the same workbench")
+	t.assert_eq(opened, [PadletUploader.BUILDING_BOARD_URL], "An empty workbench can open the public house board")
+	t.assert_true(not is_instance_valid(studio._modal) and studio.visible and requests.is_empty(), "Viewing houses leaves the workbench untouched without opening a form or sending a house")
 	studio._accept_contract()
 	t.assert_true(studio.state.document.replace_parts(ConstructionGuide.plan()), "The publication test builds a real commission design")
 	var ids: Array[int] = []
@@ -73,7 +75,9 @@ static func _test_building_publication(t: Node) -> void:
 	t.assert_true(studio.state.repeat_contract(), "The builder starts a new project while the completed house remains in the collection")
 	var before: Dictionary = studio.state.serialize()
 	studio._close_modal()
-	if buildings != null: buildings.pressed.emit()
+	var register: Button = studio.find_child("SelectBuildingForPublication", true, false) as Button
+	t.assert_true(register != null and register.is_visible_in_tree() and not register.disabled, "Submitting a saved house has a separate explicit action")
+	if register != null: register.pressed.emit()
 	await t.get_tree().process_frame
 	var record: Button = studio.find_child("SelectBuildingRecord0", true, false) as Button
 	t.assert_true(record != null and record.is_visible_in_tree(), "The workbench gallery lists the completed house")
@@ -126,6 +130,58 @@ static func _test_building_publication(t: Node) -> void:
 	for filename: String in DirAccess.get_files_at(directory): DirAccess.remove_absolute(directory.path_join(filename))
 	DirAccess.remove_absolute(directory)
 	await t.get_tree().process_frame
+
+static func _test_automatic_building_resume(t: Node) -> void:
+	var directory: String = "user://test_deferred_publication_%s" % Crypto.new().generate_random_bytes(8).hex_encode()
+	var png_dir: String = directory.path_join("png")
+	var png: Image = Image.create_empty(960, 600, false, Image.FORMAT_RGB8)
+	png.fill(Color.DARK_GREEN)
+	var bytes: PackedByteArray = png.save_png_to_buffer()
+	var saved: Dictionary = SoldArtStore.save_png(bytes, "테스트 집", png_dir)
+	var store: ArtPublicationStore = ArtPublicationStore.new()
+	store.path = directory.path_join("queue.json")
+	var offer: Dictionary = {"kind": "commission", "price": 100000000, "fingerprint": "deferred house".sha256_text()}
+	var metadata: Dictionary = {"author": "건축가", "title": "테스트 집", "description": "평행한 벽을 세웠어요."}
+	var prepared: Dictionary = store.prepare(metadata, offer, saved, bytes)
+	t.assert_true(prepared.ok, "A fully saved house submission exists before the next launch")
+	var app: QuadrilateralApp = AppScene.instantiate()
+	app.testing = true
+	app.defer_feature_screens_for_testing = true
+	app._art_publications.path = store.path
+	app._building_png_directory = png_dir
+	var sent: Array[Dictionary] = []
+	var sent_pngs: Array[PackedByteArray] = []
+	app._art_upload_transport = func(entry: Dictionary, image: PackedByteArray) -> Dictionary:
+		sent.append(entry)
+		sent_pngs.append(image)
+		if sent.size() == 1: return {"ok": false, "error": "잠시 후 다시 시도해 주세요.", "retryable": true}
+		return {"ok": true, "post_url": PadletUploader.BUILDING_BOARD_URL + "/wish/deferred-test"}
+	t.add_child(app)
+	await t.get_tree().process_frame
+	app._resume_pending_publications()
+	await t.get_tree().process_frame
+	t.assert_eq(sent.size(), 1, "Starting a new session resumes the house outbox without opening its workbench")
+	t.assert_false(is_instance_valid(app._construction_screen) or is_instance_valid(app._drawing_screen), "Resuming queued uploads does not create either studio")
+	var timer: Timer = app._publication_retry_timers.get(true) as Timer
+	t.assert_true(is_instance_valid(timer) and not timer.is_stopped(), "A transient house error schedules a timer even without a construction screen")
+	if is_instance_valid(timer) and not timer.is_stopped():
+		timer.start(0.01)
+		await timer.timeout
+	await t.get_tree().process_frame
+	t.assert_eq(sent.size(), 2, "The transient error is retried and succeeds without a click")
+	if sent.size() == 2 and prepared.ok:
+		t.assert_eq(sent[0].id, prepared.entry.id, "Restoring the queue preserves the original publication request ID")
+		t.assert_eq(sent[1].id, sent[0].id, "The automatic retry uses the same house ID")
+		t.assert_eq(sent_pngs[1], bytes, "The original PNG survives reload and automatic retry")
+	app._resume_pending_publications()
+	await t.get_tree().process_frame
+	t.assert_eq(sent.size(), 2, "Resuming an already-published house cannot issue another POST")
+	t.assert_true(app._art_publications.pending([], true).is_empty(), "A successful retry clears the saved building queue")
+	app.free()
+	for filename: String in DirAccess.get_files_at(png_dir): DirAccess.remove_absolute(png_dir.path_join(filename))
+	DirAccess.remove_absolute(png_dir)
+	for filename: String in DirAccess.get_files_at(directory): DirAccess.remove_absolute(directory.path_join(filename))
+	DirAccess.remove_absolute(directory)
 
 static func _test_facade_repair_feedback(t: Node) -> void:
 	var studio: Studio = Studio.new()
@@ -293,7 +349,7 @@ static func _test_expanded_material_library(t: Node) -> void:
 		for control: Control in [studio._scope_buttons.new, studio._material_search, studio._material_count]:
 			t.assert_true(control.is_visible_in_tree() and viewport.encloses(control.get_global_rect()), "New materials and name search stay accessible at %s" % str(dimensions))
 		studio._scope_buttons.new.pressed.emit()
-		t.assert_eq(studio._material_count.text, "30종", "The new shelf reports all thirty ready-made materials")
+		t.assert_eq(studio._material_count.text, "55종", "The new shelf includes the 25 additional illustrated construction materials")
 		t.assert_false(studio._material_buttons.window.visible, "Original materials stay on the full shelf")
 		studio._material_search.text = "자개"
 		studio._material_search.text_changed.emit(studio._material_search.text)

@@ -118,6 +118,7 @@ static func _test_studio_drawing_exhibition(t: Node, personal: bool) -> void:
 	var ledger: State = app._economy_state
 	var uploader: UploadTransport = UploadTransport.new()
 	var renderer: SaleRenderer = _renderer()
+	uploader.response = {"ok": false, "error": "테스트 응답", "retryable": not personal, "retry_after_seconds": 120}
 	studio.sale_png_renderer = renderer.render
 	app._art_upload_transport = uploader.upload
 	if personal:
@@ -127,7 +128,17 @@ static func _test_studio_drawing_exhibition(t: Node, personal: bool) -> void:
 	var balance: int = ledger.balance
 	var drawing: Button = studio.find_child("OpenDrawingExhibition", true, false) as Button
 	t.assert_true(drawing != null and drawing.is_visible_in_tree() and not drawing.disabled, "The artist opens the exhibition directly from the active drawing workspace")
+	var opened: Array[String] = []
+	app.exhibition_board_opener = func(url: String) -> bool:
+		opened.append(url)
+		return true
 	if drawing != null: drawing.pressed.emit()
+	t.assert_eq(opened, [PadletUploader.BOARD_URL], "Viewing the drawing exhibition opens the drawing board")
+	t.assert_false(is_instance_valid(studio._sale_dialog) and studio._sale_dialog.visible, "Viewing the board does not open a registration form")
+	t.assert_eq(uploader.calls, 0, "Visiting the board never sends the current picture")
+	var register: Button = studio.find_child("SubmitDrawingToPadlet", true, false) as Button
+	t.assert_true(register != null and register.is_visible_in_tree() and not register.disabled, "Posting a drawing has a separate explicit action")
+	if register != null: register.pressed.emit()
 	await t.get_tree().process_frame
 	t.assert_true(studio.is_visible_in_tree() and is_instance_valid(studio._sale_dialog) and studio._sale_dialog.visible, "Exhibiting a drawing opens the submission window for the current picture")
 	if is_instance_valid(studio._sale_dialog) and studio._sale_dialog.visible:
@@ -144,14 +155,25 @@ static func _test_studio_drawing_exhibition(t: Node, personal: bool) -> void:
 			t.assert_eq(uploader.entries[0].title, "나의 마름모", "The exhibition sends the title entered on the form")
 			t.assert_eq(app._art_publications.pending(ledger.art_sales).size(), 1, "The offline drawing remains retryable without a commission receipt")
 			uploader.response = {"ok": true, "post_url": Studio.PADLET_BOARD_URL + "/wish/exhibit-test"}
+			app._resume_pending_publications()
+			t.assert_eq(uploader.calls, 1, "Resuming a queue cannot bypass a retry delay or replay a rejected item")
 			t.assert_true(studio._upload_retry.is_visible_in_tree() and not studio._upload_retry.disabled, "An offline exhibition can be retried from the visible upload action")
-			studio._upload_retry.pressed.emit()
+			var retry_timer: Timer = app._publication_retry_timers.get(false) as Timer
+			if personal:
+				t.assert_true(retry_timer == null or retry_timer.is_stopped(), "A permanent rejection does not start an automatic retry")
+				studio._upload_retry.pressed.emit()
+			else:
+				t.assert_true(retry_timer != null and not retry_timer.is_stopped() and retry_timer.wait_time >= 120.0, "A transient network failure schedules a retry respecting the server's delay")
+				if retry_timer != null and not retry_timer.is_stopped():
+					retry_timer.start(0.01)
+					await retry_timer.timeout
 			await t.get_tree().process_frame
 			t.assert_eq(uploader.calls, 2, "A retry finishes the saved exhibition")
 			if uploader.calls == 2:
 				t.assert_eq(uploader.entries[1].id, uploader.entries[0].id, "Retry reuses the original exhibition request")
 				t.assert_eq(uploader.images[1], renderer.bytes, "Retry reuses the saved drawing PNG")
 			t.assert_eq(app._art_publications.pending(ledger.art_sales).size(), 0, "Successful retry clears the pending exhibition")
+			t.assert_true(retry_timer == null or retry_timer.is_stopped(), "Publication success stops automatic retries")
 		t.assert_eq(ledger.balance, balance, "Exhibiting never pays the artist")
 		t.assert_true(ledger.art_sales.is_empty(), "An exhibition cannot create a commission receipt")
 		t.assert_eq(studio.document.serialize(), original, "The editable picture survives posting and retry")
@@ -560,7 +582,7 @@ static func _test_sale_during_upload(t: Node, first_item_error: bool = false) ->
 	uploader.suspended = true
 	uploader.response = {"ok": true, "post_url": "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"}
 	if first_item_error:
-		uploader.responses = [{"ok": false, "item_error": true, "error": "등록 결과 확인 중"}, uploader.response.duplicate(true)]
+		uploader.responses = [{"ok": false, "status": 202, "retryable": true, "retry_after_seconds": 120, "error": "등록 결과 확인 중"}, uploader.response.duplicate(true)]
 	studio.sale_png_renderer = renderer.render
 	app._art_upload_transport = uploader.upload
 	_fill_art(studio.document)
@@ -590,7 +612,11 @@ static func _test_sale_during_upload(t: Node, first_item_error: bool = false) ->
 	if first_item_error:
 		var balance: int = ledger.balance
 		uploader.suspended = false
-		studio.art_upload_retry_requested.emit()
+		var timer: Timer = app._publication_retry_timers[false]
+		t.assert_false(timer.is_stopped(), "A pending receipt schedules reconciliation while the next uploaded painting is already finished")
+		if not timer.is_stopped():
+			timer.start(0.01)
+			await timer.timeout
 		await t.get_tree().process_frame
 		t.assert_eq(uploader.calls, 3, "Retry processes only the one unresolved publication")
 		if uploader.entries.size() == 3:

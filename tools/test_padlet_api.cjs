@@ -32,7 +32,7 @@ const buildingPayloadHash = digest(JSON.stringify([
   base.id, base.author, base.title, base.description, buildingSubmission.price, digest(png), buildingSubmission.kind,
 ]));
 const publicPngUrl = `${PUBLIC_ORIGIN}/api/artwork-image?id=${base.id}`;
-const legacyOrigin = 'https://rectangle-game-snowy.vercel.app';
+const legacyOrigin = 'https://rectangle-game-iota.vercel.app';
 const legacyPngUrl = `${legacyOrigin}/api/artwork-image?id=${base.id}`;
 const post = {
   type: 'post', id: 'post_test_example', attributes: {
@@ -229,6 +229,24 @@ test('attachment URLs stay on an approved production domain', async () => {
     const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
     assert.equal(content.attachment.url, expectedUrl);
   }
+});
+
+test('an exact Vercel-assigned production alias can publish and serve its attachment', async () => {
+  const deps = environment();
+  const host = 'geometry.school.example';
+  const origin = `https://${host}`;
+  Object.assign(deps.env, { VERCEL: '1', VERCEL_PROJECT_PRODUCTION_URL: host, VERCEL_URL: 'game-preview.vercel.app' });
+  const handler = createSubmissionHandler(deps);
+  const denied = await call(handler, base, { headers: { origin: 'https://other.school.example', host: 'other.school.example' } });
+  assert.equal(denied.statusCode, 403);
+  assert.equal((await call(handler, base, { headers: { origin, host } })).statusCode, 200);
+  const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
+  assert.equal(content.attachment.url, `${origin}/api/artwork-image?id=${base.id}`);
+  const imageResponse = await call(createImageHandler(deps), {}, {
+    method: 'GET', url: content.attachment.url, headers: { host },
+  });
+  assert.equal(imageResponse.statusCode, 200);
+  assert.deepEqual(imageResponse.bytes, png);
 });
 
 test('repeated and cold-start submissions reuse the receipt; a changed payload cannot reuse its id', async () => {
@@ -472,7 +490,8 @@ test('missing configuration gives actionable Korean feedback without exposing se
   const deps = environment({ env: { NODE_ENV: 'production' } });
   const response = await call(createSubmissionHandler(deps));
   assert.equal(response.statusCode, 503);
-  assert.equal(response.json.retryable, true);
+  assert.equal(response.json.retryable, false);
+  assert.equal(response.json.code, 'configuration');
   assert.match(response.json.error, /선생님/);
   assert.equal(deps.calls.length, 0);
 });
@@ -509,7 +528,8 @@ test('incomplete or invalid building board overrides leave drawing and spaceship
     const handler = createSubmissionHandler(deps);
     const response = await call(handler, buildingSubmission);
     assert.equal(response.statusCode, 503);
-    assert.equal(response.json.retryable, true);
+    assert.equal(response.json.retryable, false);
+    assert.equal(response.json.code, 'configuration');
     assert.match(response.json.error, /건축물 전시관/);
     assert.equal(deps.calls.length, 0);
     assert.equal(deps.blob.files.has(manifestPath), false);

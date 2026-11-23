@@ -55,8 +55,7 @@ static func _test_story_branches(t: Node) -> void:
 	var activity_count: int = 0
 	for card: Control in app._home_screen._cards.get_children():
 		if card.visible: activity_count += 1
-	t.assert_eq(activity_count, 3, "A new player sees drawing, building and adventure")
-	t.assert_eq(activity_count % app._home_screen._cards.columns, 0, "The locked home grid has no unused column for the final choice")
+	t.assert_eq(activity_count, 5, "A new player can draw, build, explore, design a wall or visit an exhibition")
 	var quests: Array[String] = []
 	for quest: Dictionary in QuestCatalog.all_quests(): quests.append(str(quest.id))
 	ledger.claim_village_rewards(quests)
@@ -87,6 +86,7 @@ static func _test_story_branches(t: Node) -> void:
 	t.assert_true(app._home_screen._ending_card.is_visible_in_tree(), "The tenth combined completion shows the entire final choice card")
 	t.assert_true(app._home_screen._ending_progress.text.contains("열어 보세요"), "Reaching the target explains how to make the final choice")
 	t.assert_eq(app._home_screen._cards.get_child(-1), app._home_screen._ending_card, "The final choice follows the always available activities")
+	t.assert_eq(app._home_screen._cards.get_child_count(), activity_count + 1, "The unlocked ending is the sixth home card")
 	t.assert_true(app._home_screen._ending_choice.is_visible_in_tree() and not app._home_screen._ending_choice.disabled, "The tenth combined completion reveals a usable final choice button")
 	t.assert_eq(app._home_screen._ending_choice.text, "최후의 선택", "The unlocked action shows the final choice label")
 	_choose(app, "KeepEarning")
@@ -116,7 +116,15 @@ static func _test_story_branches(t: Node) -> void:
 	t.assert_true(ledger.my_house_document.replace_parts(ConstructionGuide.plan()), "A closed guide house can be built from the shared funds")
 	var exhibition: Button = studio.find_child("OpenBuildingExhibition", true, false) as Button
 	t.assert_true(exhibition != null and exhibition.is_visible_in_tree() and not exhibition.disabled, "The personal house workbench offers its own exhibition action")
+	var viewed: Array[String] = []
+	app.exhibition_board_opener = func(url: String) -> bool:
+		viewed.append(url)
+		return true
 	if exhibition != null: exhibition.pressed.emit()
+	t.assert_eq(viewed, [PadletUploader.BUILDING_BOARD_URL], "Viewing the house board does not require inspection")
+	t.assert_false(is_instance_valid(studio._modal), "Viewing the board does not open a publication form")
+	var register: Button = studio.find_child("SelectBuildingForPublication", true, false) as Button
+	if register != null: register.pressed.emit()
 	var personal_building: Button = studio.find_child("SelectPersonalBuilding", true, false) as Button
 	t.assert_true(personal_building != null and personal_building.is_visible_in_tree(), "The gallery includes the current personal house")
 	studio._close_modal()

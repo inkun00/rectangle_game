@@ -24,3 +24,8 @@ Use case: illustration-story. Produce one build-ready, landscape game menu illus
 ```text
 Use case: illustration-story. Original landscape very wide 3:2 game menu illustration for the unlocked ending choice in a cozy paper-diorama children's adventure. Use the provided house-building atelier image only as a material and craftsmanship reference, not for layout. Mid-distance view of two equally significant little physical paper models side by side on a workbench: LEFT a completed warm ivory cottage with a jade teal roof and golden light in the windows. RIGHT a small retro ivory spacecraft standing on four squat coral and teal landing feet with a large teal square window and blocky, cream folded sides. Cuboid silhouettes and layered quadrilateral cardstock, artfully curved with cut notches, avoid pointed rocket nose. They represent a playable choice between a home on Earth and a journey back to the stars. Two models must both fit entirely within the CENTER 60% of the image: roof and top of spaceship sit just above horizontal middle, feet just below. Deep indigo star map behind them, specks of warm gold stars, twilight violet light from a circular observatory window; warm side lighting across paper fibres, small contact shadows, beautiful handcrafted tabletop, crisp. Full-bleed image with no frame, no boundaries, no text, no diagrams or symbols, no title, no letterforms, no characters, no buttons, no logo. Continuous composition, enough space above and below to crop to panoramic 2.6:1.
 ```
+
+
+## 타일 공방
+
+wall.svg는 게임의 정사각형 액자 무늬를 표현한 자체 제작 벡터 도해다. 가운데 정사각형과 네 사다리꼴을 이어 만든 타일을 두 색 조합으로 반복했다.

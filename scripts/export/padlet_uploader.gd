@@ -1,7 +1,7 @@
 class_name PadletUploader
 extends RefCounted
 
-const PRODUCTION_ORIGIN: String = "https://rectangle-game-iota.vercel.app"
+const PRODUCTION_ORIGIN: String = "https://rectangle-game-snowy.vercel.app"
 const BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 const BUILDING_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025ilggr7czshhrgkv2"
 
@@ -28,16 +28,29 @@ static func upload(owner: Node, entry: Dictionary, bytes: PackedByteArray) -> Di
 	request.queue_free()
 	if int(response[0]) != HTTPRequest.RESULT_SUCCESS:
 		return _failure("패들릿 응답을 받지 못했어요. 저장한 PNG로 다시 시도해 주세요.")
-	var status: int = int(response[1])
-	var body: PackedByteArray = response[3]
-	var decoded: Variant = JSON.parse_string(body.get_string_from_utf8())
-	if not decoded is Dictionary: return _failure("패들릿 연결을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.")
+	return parse_response(int(response[1]), response[2], response[3])
+
+static func parse_response(status: int, headers: PackedStringArray, body: PackedByteArray) -> Dictionary:
+	var retry_after: int = 60 if status == 429 else (30 if status == 202 else 0)
+	for header: String in headers:
+		if header.get_slice(":", 0).strip_edges().to_lower() == "retry-after":
+			var seconds: String = header.get_slice(":", 1).strip_edges()
+			if seconds.is_valid_int(): retry_after = clampi(seconds.to_int(), 0, 86400)
+	var parser: JSON = JSON.new()
+	var decoded: Dictionary = {}
+	if parser.parse(body.get_string_from_utf8()) == OK and parser.data is Dictionary:
+		decoded = parser.data
 	if status >= 200 and status < 300 and decoded.get("ok") == true:
 		var post_url: String = str(decoded.get("post_url", ""))
 		if not ArtPublicationStore._valid_post_url(post_url): return _failure("패들릿 등록 주소를 확인하지 못했어요.")
 		return {"ok": true, "post_url": post_url, "moderation_pending": decoded.get("moderation_pending", false) == true}
-	var message: String = str(decoded.get("error", "패들릿 등록을 마치지 못했어요. 다시 시도해 주세요.")).left(300)
-	return _failure(message, status in [202, 400, 409, 413, 415, 422])
+	var message: String = str(decoded.get("error", "패들릿 등록 결과를 확인하지 못했어요.")).left(300)
+	var transient: bool = status >= 500 or status in [202, 408, 425, 429] or (status >= 200 and status < 300)
+	return {
+		"ok": false, "error": message, "status": status, "code": str(decoded.get("code", "")),
+		"retryable": decoded.get("retryable", transient) == true, "retry_after_seconds": retry_after,
+		"item_error": status in [202, 400, 409, 413, 415, 422]
+	}
 
-static func _failure(message: String, item_error: bool = false) -> Dictionary:
-	return {"ok": false, "error": message, "item_error": item_error}
+static func _failure(message: String) -> Dictionary:
+	return {"ok": false, "error": message, "retryable": true, "retry_after_seconds": 0, "item_error": false, "status": 0, "code": ""}

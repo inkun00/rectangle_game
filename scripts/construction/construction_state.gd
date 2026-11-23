@@ -12,6 +12,7 @@ const ArtCommissions = preload("res://scripts/economy/art_commission_catalog.gd"
 const Ship = preload("res://scripts/economy/spaceship_catalog.gd")
 const ShipStyle = preload("res://scripts/economy/spaceship_style.gd")
 const VillageQuests = preload("res://scripts/world/quest_catalog.gd")
+const WallDesign = preload("res://scripts/core/wall_tile_design.gd")
 const INITIAL_BALANCE: int = 30000000
 const VILLAGE_WON_PER_REWARD_COIN: int = 3000000
 const MAX_CONTRACTS: int = 1000
@@ -41,6 +42,7 @@ var art_sales: Array[Dictionary] = []
 var art_commission_id: String = ""
 var art_commission_revision: int = 0
 var village_rewards: Array[String] = []
+var wall_design: WallDesign = WallDesign.new()
 var purchased_ship_parts: Array[String] = []
 var ship_design: Dictionary = {}
 var ship_appearance: Dictionary = ShipStyle.defaults()
@@ -84,7 +86,16 @@ static func _custom_parts_registered(parts: Array[Dictionary], registered: Array
 	return true
 
 func saved_balance() -> int:
-	return INITIAL_BALANCE + earned_profit() + art_income() + village_income() - ship_spent()
+	return INITIAL_BALANCE + earned_profit() + art_income() + village_income() + wall_design.total_income() - ship_spent()
+
+func claim_wall_commission() -> Dictionary:
+	var result: Dictionary = wall_design.evaluate()
+	var payment: int = wall_design.claim()
+	if payment == 0: return _economy_error(str(result.feedback))
+	balance += payment
+	my_house_document.budget_limit = my_house_budget()
+	changed.emit()
+	return {"ok": true, "price": payment}
 
 static func village_reward_amount(quest_id: String) -> int:
 	if _village_reward_amounts.is_empty():
@@ -248,6 +259,7 @@ func apply_economy_from(candidate: ConstructionState) -> void:
 	art_commission_id = candidate.art_commission_id
 	art_commission_revision = candidate.art_commission_revision
 	village_rewards.assign(candidate.village_rewards)
+	wall_design.restore(candidate.wall_design.to_dict())
 	purchased_ship_parts.assign(candidate.purchased_ship_parts)
 	ship_design = candidate.ship_design.duplicate(true)
 	ship_appearance = candidate.ship_appearance.duplicate(true)
@@ -479,6 +491,7 @@ func next_contract() -> bool:
 func serialize() -> Dictionary:
 	var result: Dictionary = {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
 	if not village_rewards.is_empty(): result["village_rewards"] = village_rewards.duplicate()
+	result["wall_design"] = wall_design.to_dict()
 	if art_commission_revision > 0:
 		result["art_commission"] = {"id": art_commission_id, "revision": art_commission_revision}
 	var customized_ship: bool = ship_appearance != ShipStyle.defaults()
@@ -521,6 +534,10 @@ func restore(data: Dictionary) -> bool:
 	var checked_records: Array[Dictionary] = []
 	var last_record_document: Document = Document.new()
 	var expected_balance: int = INITIAL_BALANCE
+	var checked_wall: WallDesign = WallDesign.new()
+	if data.has("wall_design"):
+		if not data.wall_design is Dictionary or not checked_wall.restore(data.wall_design): return false
+		expected_balance += checked_wall.total_income()
 	for number: int in range(data.records.size()):
 		var raw: Variant = data.records[number]
 		if not raw is Dictionary or not _valid_record(raw, number, checked_custom_ids, last_record_document): return false
@@ -638,6 +655,7 @@ func restore(data: Dictionary) -> bool:
 	art_commission_id = checked_art_commission
 	art_commission_revision = checked_art_revision
 	village_rewards = checked_rewards
+	wall_design.restore(checked_wall.to_dict())
 	purchased_ship_parts = checked_parts
 	ship_design = checked_ship_design
 	ship_appearance = checked_ship_appearance

@@ -8,8 +8,8 @@ const BOARD_URL = `https://padlet.com/inkun02/padlet-${BOARD_ID}`;
 const DRAWING_BOARD = { board_id: BOARD_ID, board_url: BOARD_URL };
 const BUILDING_BOARD_ID = 's025ilggr7czshhrgkv2';
 const BUILDING_BOARD = { board_id: BUILDING_BOARD_ID, board_url: `https://padlet.com/inkun02/padlet-${BUILDING_BOARD_ID}` };
-const PUBLIC_ORIGIN = 'https://rectangle-game-iota.vercel.app';
-const GAME_ORIGINS = [PUBLIC_ORIGIN, 'https://rectangle-game-snowy.vercel.app'];
+const PUBLIC_ORIGIN = 'https://rectangle-game-snowy.vercel.app';
+const GAME_ORIGINS = [PUBLIC_ORIGIN, 'https://rectangle-game-iota.vercel.app'];
 const MAX_BODY_BYTES = 3300000;
 const MAX_PNG_BYTES = 2400000;
 const REQUEST_TIMEOUT_MS = 15000;
@@ -51,10 +51,24 @@ function header(request, name) {
   return typeof value === 'string' ? value : '';
 }
 
+function projectProductionOrigin(env) {
+  const host = env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (!host) return null;
+  const origin = `https://${host}`;
+  if (GAME_ORIGINS.includes(origin)) return origin;
+  // Vercel sets this to the project's own (possibly custom) production domain.
+  // Only the server's exact system hostname is trusted, never the incoming Host.
+  if (env.VERCEL === '1' && host.length <= 253 &&
+      /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i.test(host)) return origin;
+  return null;
+}
+
 function allowedOrigin(request, env) {
   const origin = header(request, 'origin');
   if (!origin) return true; // Native Godot clients do not send Origin; this is not authentication.
   const allowed = new Set(GAME_ORIGINS);
+  const production = projectProductionOrigin(env);
+  if (production) allowed.add(production);
   if (env.VERCEL_URL) allowed.add(`https://${env.VERCEL_URL}`);
   if (env.NODE_ENV !== 'production') {
     const host = header(request, 'host');
@@ -64,8 +78,8 @@ function allowedOrigin(request, env) {
 }
 
 function publicOrigin(request, env) {
-  const productionOrigin = `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  if (GAME_ORIGINS.includes(productionOrigin)) return productionOrigin;
+  const productionOrigin = projectProductionOrigin(env);
+  if (productionOrigin) return productionOrigin;
   const requestOrigin = `https://${header(request, 'host')}`;
   return GAME_ORIGINS.includes(requestOrigin) ? requestOrigin : PUBLIC_ORIGIN;
 }
@@ -99,7 +113,7 @@ function padletBoardApi(boardId) {
 }
 
 function missingBuildingBoard() {
-  return fail('건축물 전시관 연결을 준비 중이에요. 작품은 저장되어 있어요. 선생님께 알려 주세요.', true, 503);
+  return fail('건축물 전시관 주소를 확인해야 해요. 저장한 작품은 설정을 고친 뒤 다시 보낼 수 있어요.', false, 503, 'configuration');
 }
 
 function sendJson(response, status, data, origin = '') {
@@ -114,8 +128,8 @@ function sendJson(response, status, data, origin = '') {
   response.end(JSON.stringify(data));
 }
 
-function fail(message, retryable = true, status = 503) {
-  return { status, body: { ok: false, error: message, retryable } };
+function fail(message, retryable = true, status = 503, code) {
+  return { status, body: { ok: false, error: message, retryable, ...(code ? { code } : {}) } };
 }
 
 function pending(deps, record) {
@@ -449,8 +463,8 @@ async function processSubmission(deps, submission, origin) {
         ...current.value, state: 'rejected', updated_at: deps.now(),
         retry_after: rateLimited ? deps.now() + 60000 : 0,
       }, current.etag);
-      return fail(rateLimited ? '패들릿에 등록 요청이 많아요. 1분 뒤에 다시 시도해 주세요.' :
-        '패들릿에서 등록을 허용하지 않았어요. 선생님께 패들릿 연결을 확인해 달라고 해 주세요.', true, rateLimited ? 429 : 502);
+      if (rateLimited) return fail('패들릿에 등록 요청이 많아요. 1분 뒤에 다시 시도해 주세요.', true, 429);
+      return fail('패들릿이 등록 요청을 거절했어요. 선생님이 전시관 주소와 게시 권한을 확인한 뒤 다시 보내 주세요.', false, 502, 'configuration');
     }
   } catch { /* Timeouts and lost responses may already have created a post. */ }
 
@@ -478,7 +492,7 @@ function createSubmissionHandler(overrides = {}) {
     }
     if (!deps.env.PADLET_API_KEY || !deps.env.BLOB_READ_WRITE_TOKEN) {
       return sendJson(response, 503, {
-        ok: false, error: '패들릿 연결을 준비 중이에요. 그림은 저장되어 있어요. 선생님께 알려 주세요.', retryable: true,
+        ok: false, error: '전시관 연결 설정이 필요해요. 작품은 저장했어요. 선생님께 알려 주세요.', retryable: false, code: 'configuration',
       }, origin);
     }
     try {

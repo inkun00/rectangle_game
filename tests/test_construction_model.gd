@@ -97,7 +97,7 @@ static func _test_balanced_catalog(t: Node) -> void:
 		var longest: float = 0.0
 		for length: float in Math.side_lengths(vertices): longest = maxf(longest, length)
 		lengths[family][snappedf(longest, 0.001)] = true
-	t.assert_eq(seen.size(), 74, "Construction keeps the original forty-four materials and adds thirty")
+	t.assert_eq(seen.size(), 99, "Construction keeps the prior seventy-four materials and adds twenty-five workshop pieces")
 	for family: String in Math.KINDS:
 		t.assert_ge(int(counts[family]), 8, "Every quadrilateral family retains at least eight catalog choices: " + family)
 		t.assert_gt((roles[family] as Dictionary).size(), 2, "Each family has functional uses beyond a single decoration role: " + family)
@@ -137,8 +137,8 @@ static func _test_balanced_catalog(t: Node) -> void:
 		t.assert_true(restored.restore(JSON.parse_string(JSON.stringify(document.serialize()))), "New material survives validated JSON restoration: " + id)
 		t.assert_eq(restored.material_cost(), document.material_cost(), "Restoring a new material preserves the quoted cost: " + id)
 	for family: String in Math.KINDS:
-		t.assert_eq(expansion_counts.get(family, 0), 6, "The expansion adds six representatives to each chosen family: " + family)
-	t.assert_eq(expansion_surfaces.size(), 16, "The new catalog uses sixteen distinct illustrated surfaces")
+		t.assert_eq(expansion_counts.get(family, 0), 11, "Each geometry family has eleven new shelf pieces: " + family)
+	t.assert_eq(expansion_surfaces.size(), 41, "The new shelf uses sixteen original finishes and twenty-five workshop designs")
 	t.assert_false(Catalog.is_expansion_material("brick"), "The new-material filter excludes the original catalog")
 
 static func _test_expansion_delivery(t: Node) -> void:

@@ -18,8 +18,41 @@ const MATERIAL_IDS: Array[String] = [
 	"walnut_door", "bamboo_door", "birch_lintel", "basalt_wall", "sea_glass_window", "solar_roof",
 	"reed_roof", "terracotta_roof", "sandstone_pier", "copper_awning", "walnut_lintel", "rattan_basket_panel",
 	"bamboo_beam", "birch_wall", "solar_roof_slope", "cork_sound_panel", "reed_blind", "sea_glass_band",
-	"stained_star_window", "basalt_frame_block", "rattan_vent", "jade_leaf", "shell_flower", "terracotta_roof_scale"
+	"stained_star_window", "basalt_frame_block", "rattan_vent", "jade_leaf", "shell_flower", "terracotta_roof_scale",
+	"terrazzo_slab", "glass_block", "compass_tile", "oak_parquet", "indigo_lattice",
+	"barn_door", "factory_window", "glulam_beam", "rammed_earth", "canvas_awning",
+	"slate_scale_roof", "moss_roof", "zinc_canopy", "granite_plinth", "leaded_canopy",
+	"ribbed_amber", "walnut_chevron", "brass_gusset", "driftwood_wall", "enamel_frieze",
+	"crescent_inlay", "honeycomb_window", "clay_rosette", "ice_star_tile", "scrollwork_window"
 ]
+## Each design has its own finish in the five-by-five workshop texture sheet.
+const CRAFT_SPECS: Dictionary = {
+	"terrazzo_slab": {"base": "wall", "short": "테라조 돌판", "kind": "square", "size": Vector2(80, 80), "cell": 0, "description": "여러 색 돌조각을 섞은 판이에요. 바닥에 첫 줄을 놓고 그 위에 벽을 쌓아요."},
+	"glass_block": {"base": "wall", "short": "유리 블록", "kind": "square", "size": Vector2(60, 60), "cell": 1, "description": "도톰한 유리 블록이에요. 여러 개를 맞대어 빛이 드는 벽을 만들어요."},
+	"compass_tile": {"base": "panel", "short": "나침반 도자기 타일", "kind": "square", "size": Vector2(60, 60), "cell": 2, "description": "파란 나침반을 그려 넣은 타일이에요. 현관 옆에 붙여 집의 표지로 삼아요."},
+	"oak_parquet": {"base": "panel", "short": "참나무 쪽매판", "kind": "square", "size": Vector2(100, 100), "cell": 3, "description": "작은 나무 조각을 번갈아 엮은 무늬예요. 여러 장을 이어 벽을 꾸며요."},
+	"indigo_lattice": {"base": "window", "short": "남빛 팔각살창", "kind": "square", "size": Vector2(80, 80), "cell": 4, "description": "남빛 창틀 안에 별처럼 짠 창살이 있어요. 네 변을 벽으로 둘러싸요."},
+	"barn_door": {"base": "door", "short": "빨간 헛간문", "kind": "rectangle", "size": Vector2(100, 120), "cell": 5, "description": "빗장 두 개가 엇갈린 넓은 문이에요. 바닥에 놓고 양쪽에 벽을 세워요."},
+	"factory_window": {"base": "window", "short": "철제 격자 가로창", "kind": "rectangle", "size": Vector2(160, 80), "cell": 6, "description": "가느다란 쇠창살이 유리를 여러 칸으로 나눠요. 넓은 창 아래에 받침을 놓아요."},
+	"glulam_beam": {"base": "lintel", "short": "겹나무 들보", "kind": "rectangle", "size": Vector2(200, 40), "cell": 7, "description": "얇은 나무를 겹겹이 붙인 긴 들보예요. 양끝이 벽 위에 걸치도록 놓아요."},
+	"rammed_earth": {"base": "wall", "short": "층층 흙다짐벽", "kind": "rectangle", "size": Vector2(140, 60), "cell": 8, "description": "서로 다른 빛깔의 흙을 층층이 다졌어요. 옆 블록과 줄무늬를 이어 보세요."},
+	"canvas_awning": {"base": "roof", "short": "줄무늬 천 차양", "kind": "rectangle", "size": Vector2(160, 40), "cell": 9, "description": "빨강과 노랑이 번갈아 나오는 천이에요. 가게 창 위에 달아 그늘을 만들어요."},
+	"slate_scale_roof": {"base": "roof", "short": "너와 모양 돌지붕", "kind": "trapezoid", "size": Vector2(220, 60), "cell": 10, "description": "얇은 돌판을 비늘처럼 겹쳤어요. 긴 밑변을 벽에 걸쳐 지붕을 덮어요."},
+	"moss_roof": {"base": "roof", "short": "이끼 정원 지붕", "kind": "trapezoid", "size": Vector2(180, 60), "cell": 11, "description": "자갈 사이로 작은 풀과 이끼가 자라요. 받침 위에 올려 옥상 정원을 꾸며요."},
+	"zinc_canopy": {"base": "roof", "short": "물결 아연 차양", "kind": "trapezoid", "size": Vector2(140, 40), "cell": 12, "trapezoid_variant": "right_left", "description": "금속판을 물결 모양으로 접었어요. 곧은 왼쪽 변을 벽에 맞춰 붙여요."},
+	"granite_plinth": {"base": "wall", "short": "화강암 주춧돌", "kind": "trapezoid", "size": Vector2(120, 80), "cell": 13, "description": "아래가 넓적한 돌 받침이에요. 바닥에 놓고 평평한 윗면에 다른 재료를 얹어요."},
+	"leaded_canopy": {"base": "roof", "short": "쪽유리 차양", "kind": "trapezoid", "size": Vector2(120, 60), "cell": 14, "trapezoid_variant": "right_right", "description": "물빛 유리 조각을 금속 테두리로 이었어요. 곧은 오른쪽 변을 벽 쪽에 놓아요."},
+	"ribbed_amber": {"base": "window", "short": "호박빛 골유리창", "kind": "parallelogram", "size": Vector2(100, 80), "cell": 15, "description": "세로 홈이 난 유리라서 빛이 여러 줄로 보여요. 기울어진 변에 맞춰 창을 끼워요."},
+	"walnut_chevron": {"base": "panel", "short": "호두나무 화살무늬판", "kind": "parallelogram", "size": Vector2(140, 60), "cell": 16, "description": "짙은 나뭇결의 끝이 화살촉처럼 만나요. 벽을 따라 무늬가 이어지게 붙여요."},
+	"brass_gusset": {"base": "lintel", "short": "황동 이음보", "kind": "parallelogram", "size": Vector2(180, 40), "cell": 17, "description": "금빛 이음판을 징으로 고정한 보예요. 문 위에 걸쳐 양끝을 받쳐요."},
+	"driftwood_wall": {"base": "wall", "short": "물결나무 판벽", "kind": "parallelogram", "size": Vector2(140, 80), "cell": 18, "description": "바닷가에서 닳은 듯한 회색 나무판이에요. 비스듬한 옆면끼리 맞대어 쌓아요."},
+	"enamel_frieze": {"base": "panel", "short": "칠보 지그재그 띠", "kind": "parallelogram", "size": Vector2(140, 40), "cell": 19, "description": "금속 위에 구운 파란 무늬가 있어요. 여러 띠를 이으면 긴 지그재그가 돼요."},
+	"crescent_inlay": {"base": "panel", "short": "자개 초승달 장식", "kind": "rhombus", "size": Vector2(80, 100), "cell": 20, "description": "검은 바탕에 반짝이는 자개 달이 떠 있어요. 꼭짓점을 맞대 밤하늘 벽을 꾸며요."},
+	"honeycomb_window": {"base": "window", "short": "벌집 유리창", "kind": "rhombus", "size": Vector2(80, 100), "cell": 21, "description": "금빛 테 안에 작은 벌집 무늬가 보여요. 마름모 자리를 비우고 창을 끼워요."},
+	"clay_rosette": {"base": "panel", "short": "황토 꽃문양 타일", "kind": "rhombus", "size": Vector2(80, 60), "cell": 22, "description": "황토빛 타일 한가운데 꽃잎이 둘러 있어요. 타일을 번갈아 돌려 꽃밭을 만들어요."},
+	"ice_star_tile": {"base": "panel", "short": "얼음별 유리 장식", "kind": "rhombus", "size": Vector2(60, 80), "cell": 23, "description": "얼음 결정처럼 빛이 갈라지는 장식이에요. 벽 위에 여러 개를 모아 별자리를 꾸며요."},
+	"scrollwork_window": {"base": "window", "short": "소용돌이 철제창", "kind": "rhombus", "size": Vector2(100, 120), "cell": 24, "description": "가느다란 철을 말아 만든 창살이에요. 기울어진 네 변을 따라 창틀 자리를 남겨요."}
+}
 ## A base supplies the piece's construction role, price reference and mass.
 ## Dimensions are game-grid geometry. Stone and wood walls add no brick count.
 const EXPANSION_SPECS: Dictionary = {
@@ -161,7 +194,7 @@ static func material(id: String) -> Dictionary:
 	return item
 
 static func _balanced_material(id: String) -> Dictionary:
-	var spec: Dictionary = EXPANSION_SPECS.get(id, BALANCED_SPECS.get(id, {}))
+	var spec: Dictionary = CRAFT_SPECS.get(id, EXPANSION_SPECS.get(id, BALANCED_SPECS.get(id, {})))
 	if spec.is_empty(): return {}
 	var result: Dictionary = material(str(spec.base))
 	var original_vertices: PackedVector2Array = Math.create_vertices(str(result.kind), result.dimensions)
@@ -184,7 +217,7 @@ static func _balanced_material(id: String) -> Dictionary:
 	result.brick_count = int(spec.get("bricks", 0))
 	result.mass = float(result.mass) * area_ratio
 	result.price = maxi(100, roundi(float(base_price) * area_ratio / 100.0) * 100)
-	result.texture_key = str(spec.texture)
+	result.texture_key = str(spec.get("texture", id))
 	result.unit = "학습용 가공 규격 1개"
 	result.source_note = "기본 %s %s × 게임 도형 면적비 약 %s를 100원 단위로 반올림한 가공 추정가예요. 표면 재질별 실제 판매가나 맞춤 규격 견적이 아니에요." % [base_label, format_won(base_price), format_length(area_ratio)]
 	if id == "wall_square_large":
@@ -193,11 +226,12 @@ static func _balanced_material(id: String) -> Dictionary:
 	return result
 
 static func is_expansion_material(id: String) -> bool:
-	return EXPANSION_SPECS.has(id)
+	return EXPANSION_SPECS.has(id) or CRAFT_SPECS.has(id)
 
 static func short_label(id: String) -> String:
 	if Custom.is_custom_id(id): return Custom.short_label(id)
-	if is_expansion_material(id): return str(EXPANSION_SPECS[id].short)
+	if CRAFT_SPECS.has(id): return str(CRAFT_SPECS[id].short)
+	if EXPANSION_SPECS.has(id): return str(EXPANSION_SPECS[id].short)
 	if BALANCED_SPECS.has(id): return str(BALANCED_SPECS[id].short)
 	return str(SHORT_LABELS.get(id, material(id).get("label", id)))
 

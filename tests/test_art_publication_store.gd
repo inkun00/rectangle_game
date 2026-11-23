@@ -7,10 +7,21 @@ const Samples = preload("res://tests/art_sale_samples.gd")
 const BOARD: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 
 static func run(t: Node) -> void:
+	_test_upload_responses(t)
 	_test_metadata(t)
 	_test_receipt_gating_and_roundtrip(t)
 	_test_exhibition_without_sale(t)
 	_test_invalid_load_and_atomic_update(t)
+
+static func _test_upload_responses(t: Node) -> void:
+	var throttle: Dictionary = PadletUploader.parse_response(429, PackedStringArray(["Retry-After: 91"]), "busy".to_utf8_buffer())
+	t.assert_true(throttle.retryable and throttle.retry_after_seconds == 91, "Rate limit without JSON honors the server delay")
+	var checking: Dictionary = PadletUploader.parse_response(202, PackedStringArray(), '{"ok":false,"retryable":true}'.to_utf8_buffer())
+	t.assert_true(checking.retryable and checking.item_error and checking.retry_after_seconds > 0, "Accepted work can be checked independently")
+	var config: Dictionary = PadletUploader.parse_response(503, PackedStringArray(), '{"ok":false,"retryable":false,"code":"configuration"}'.to_utf8_buffer())
+	t.assert_false(config.retryable, "A configuration problem waits for an explicit retry")
+	var receipt: Dictionary = PadletUploader.parse_response(200, PackedStringArray(), JSON.stringify({"ok":true, "post_url":BOARD, "moderation_pending":true}).to_utf8_buffer())
+	t.assert_true(receipt.ok and receipt.moderation_pending, "Board review means the original upload succeeded")
 
 static func _test_metadata(t: Node) -> void:
 	t.assert_eq(Metadata.validation_error("  네모별  ", "  나의 그림  ", " 설명 첫 줄\n\t다음 줄 "), "", "Korean names and a multiline description remain valid after trimming")

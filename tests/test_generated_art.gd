@@ -36,6 +36,7 @@ static func _test_tools(t: Node) -> void:
 
 static func _test_materials(t: Node) -> void:
 	var opening_regions: Array[Rect2] = []
+	var workshop_regions: Array[Rect2] = []
 	for material: Dictionary in Catalog.materials():
 		var id: String = str(material.id)
 		var texture: Texture2D = Art.material_icon(id)
@@ -45,6 +46,9 @@ static func _test_materials(t: Node) -> void:
 		var source_path: String = source.resource_path
 		if int(material.get("brick_count", 0)) > 0:
 			t.assert_true(source_path.ends_with("starfront-v1/brick.webp"), "Counted modules retain the single-brick source: " + id)
+		elif Catalog.CRAFT_SPECS.has(id):
+			t.assert_eq(source_path, Art.WORKSHOP_SHEET, "Each workshop piece displays its own illustration: " + id)
+			if texture is AtlasTexture: workshop_regions.append((texture as AtlasTexture).region)
 		elif Catalog.is_expansion_material(id):
 			if bool(material.opening):
 				t.assert_eq(source_path, Art.OPENING_SHEET, "New doors and windows show their fitted panels and frames: " + id)
@@ -61,6 +65,8 @@ static func _test_materials(t: Node) -> void:
 		t.assert_true(_valid_region(surface) and _valid_uvs(surface), "A custom panel can use the new finish: " + finish)
 		if surface is AtlasTexture: regions.append((surface as AtlasTexture).region)
 	t.assert_eq(opening_regions.size(), 6, "All new openings have dedicated artwork")
+	t.assert_eq(workshop_regions.size(), 25, "The workshop sheet supplies all twenty-five designs")
+	t.assert_true(_disjoint(workshop_regions), "Each workshop design has its own non-overlapping cell")
 	t.assert_true(_disjoint(opening_regions), "Every new door and window has distinct artwork")
 	t.assert_eq(regions.size(), Art.LIBRARY_CELLS.size(), "Every new finish appears in the building palette")
 	t.assert_true(_disjoint(regions), "Different finishes use distinct illustrations")

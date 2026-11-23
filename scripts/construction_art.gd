@@ -20,6 +20,7 @@ const LINE: Color = Color("42586d")
 const QUIET_PAPER_PATH: String = "res://assets/generated/focused-ui/paper-v1.webp"
 const LIBRARY_SHEET: String = "res://assets/generated/construction-library-v2/surfaces.webp"
 const OPENING_SHEET: String = "res://assets/generated/construction-library-v2/openings.webp"
+const WORKSHOP_SHEET: String = "res://assets/generated/construction-library-v2/workshop.webp"
 const OPENING_CELLS: Array[String] = [
 	"walnut_door", "bamboo_door", "paper_lattice_window",
 	"stained_flower_window", "sea_glass_window", "stained_star_window"
@@ -45,7 +46,7 @@ static func generated_texture(filename: String) -> Texture2D:
 		"construction-cover.png": return preload("res://assets/generated/home-atlas/building.webp")
 		"app-icon.png": return StarfrontArt.cell("items", 23, 4, 6, true)
 	if _textures.has(filename): return _textures[filename] as Texture2D
-	var path: String = filename if filename in [LIBRARY_SHEET, OPENING_SHEET] else GENERATED_ROOT + filename
+	var path: String = filename if filename in [LIBRARY_SHEET, OPENING_SHEET, WORKSHOP_SHEET] else GENERATED_ROOT + filename
 	if GAME_FILES.has(filename) and ResourceLoader.exists(GAME_ROOT + str(GAME_FILES[filename])):
 		path = GAME_ROOT + str(GAME_FILES[filename])
 	if not ResourceLoader.exists(path): return null
@@ -120,6 +121,8 @@ static func quiet_surface_texture(_primary: bool = false) -> Texture2D:
 	return surface_texture()
 
 static func material_icon(material_id: String) -> Texture2D:
+	if Catalog.CRAFT_SPECS.has(material_id):
+		return _atlas(WORKSHOP_SHEET, int(Catalog.CRAFT_SPECS[material_id].cell), 5, 5)
 	var material: Dictionary = Catalog.material(material_id)
 	if material.is_empty(): return null
 	# Counted masonry always uses one generated brick per repeated tile.

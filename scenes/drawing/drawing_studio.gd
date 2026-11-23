@@ -46,6 +46,7 @@ signal guide_changed
 signal art_commission_requested(commission_id: String)
 signal art_sale_requested(document_data: Dictionary)
 signal drawing_exhibition_requested(data: Dictionary)
+signal exhibition_board_requested
 signal art_upload_retry_requested
 
 var testing: bool = false
@@ -113,6 +114,7 @@ var _sale_pending: bool = false
 var _exhibition: bool = false
 var _publication_note: Label
 var _exhibition_button: Button
+var _submit_drawing_button: Button
 var _form_key: String = ""
 var _metadata_drafts: Dictionary = {}
 var _sale_author: LineEdit
@@ -250,9 +252,9 @@ func _build_ui() -> void:
 	toolbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	toolbar.add_theme_constant_override("separation", 6)
 	_tool_scroll.add_child(toolbar)
-	_exhibition_button = _button("그림 전시하기", open_exhibition)
+	_exhibition_button = _button("그림 전시장 보기 ↗", func() -> void: exhibition_board_requested.emit())
 	_exhibition_button.name = "OpenDrawingExhibition"
-	_exhibition_button.tooltip_text = "현재 도화지의 그림을 패들릿에 전시해요."
+	_exhibition_button.tooltip_text = "새 창에서 패들릿 그림 전시장을 열어요."
 	toolbar.add_child(_exhibition_button)
 	var workspace: HBoxContainer = HBoxContainer.new()
 	workspace.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -433,13 +435,18 @@ func _build_ui() -> void:
 	center.add_child(_selection)
 	_sale_footer = BoxContainer.new()
 	_sale_footer.name = "DrawingSaleFooter"
-	var commission_actions: HBoxContainer = HBoxContainer.new()
-	commission_actions.add_theme_constant_override("separation", 8)
+	var commission_actions: HFlowContainer = HFlowContainer.new()
+	commission_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	commission_actions.add_theme_constant_override("h_separation", 8)
+	commission_actions.add_theme_constant_override("v_separation", 4)
 	_sale_footer.add_child(commission_actions)
 	_sale_button = _button("그림 의뢰 받기", _open_commission_action, true)
 	_sale_button.name = "SellDrawingButton"
 	_sale_button.custom_minimum_size = Vector2(156, 48)
 	commission_actions.add_child(_sale_button)
+	_submit_drawing_button = _button("내 그림 등록", open_exhibition)
+	_submit_drawing_button.name = "SubmitDrawingToPadlet"
+	commission_actions.add_child(_submit_drawing_button)
 	_commission_brief = _button("의뢰서 보기", _open_commissions)
 	_commission_brief.name = "OpenArtCommissionBrief"
 	commission_actions.add_child(_commission_brief)
@@ -914,7 +921,7 @@ func _refresh_sale_button() -> void:
 	if not is_instance_valid(_sale_button): return
 	var commission: Dictionary = _active_commission()
 	var active: bool = not commission.is_empty()
-	_exhibition_button.disabled = _sale_pending
+	_submit_drawing_button.disabled = _sale_pending
 	_sale_button.visible = not is_personal_drawing
 	_sale_button.disabled = economy == null or _sale_pending
 	_sale_button.text = "완성작 제출" if active else "그림 의뢰 받기"
@@ -938,7 +945,7 @@ func _open_commission_action() -> void:
 func open_exhibition() -> void:
 	if not _can_open_submission_dialog(true): return
 	if document.shapes.is_empty():
-		_set_status("도화지에 사각형을 그린 뒤 ‘그림 전시하기’를 눌러 주세요.")
+		_set_status("도화지에 사각형을 그린 뒤 ‘내 그림 등록’을 눌러 주세요.")
 		return
 	_open_submission_form(true)
 
@@ -1140,6 +1147,7 @@ func _refresh_upload_status() -> void:
 	_upload_retry.disabled = _upload_busy or _sale_pending
 	_upload_retry.text = "등록 중…" if _upload_busy else "등록 다시 시도"
 	_upload_board.disabled = _sale_pending
+	_upload_board.text = "그림 전시장 보기 ↗" if _upload_post_url == PADLET_BOARD_URL else "등록한 그림 보기 ↗"
 
 func _request_art_upload_retry() -> void:
 	if _upload_busy or _upload_pending_count < 1 or _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
@@ -1149,7 +1157,8 @@ func _request_art_upload_retry() -> void:
 
 func _open_art_board() -> void:
 	if _sale_pending or tutorial_blocked or not is_visible_in_tree(): return
-	OS.shell_open(_upload_post_url)
+	if _upload_post_url == PADLET_BOARD_URL: exhibition_board_requested.emit()
+	else: OS.shell_open(_upload_post_url)
 
 static func _safe_padlet_url(value: String) -> String:
 	if not value.begins_with("https://padlet.com/") or value.contains("\\"): return PADLET_BOARD_URL
@@ -1242,7 +1251,7 @@ func _open_submission_form(exhibit: bool = false) -> void:
 				_exhibition = false
 			interaction_context_changed.emit())
 		add_child(_sale_dialog)
-	_sale_dialog.title = "그림 전시" if _exhibition else "그림 의뢰 · 완성작 제출"
+	_sale_dialog.title = "내 그림 등록" if _exhibition else "그림 의뢰 · 완성작 제출"
 	_publication_note.text = "작가 이름, 제목, 설명, 그림이 패들릿에 올라가요." if _exhibition else "이름, 제목, 설명, 받은 보상과 그림 이미지가 패들릿에 함께 올라가요."
 	var key: String = ("personal_exhibit" if is_personal_drawing else "regular_exhibit") if _exhibition else "commission"
 	if key != _form_key:
@@ -1365,7 +1374,7 @@ func show_exhibition_result(result: Dictionary) -> void:
 		_sale_title.text = ""
 		_sale_description.text = ""
 		_set_status(str(result.get("message", "전시할 그림을 저장했어요.")))
-		_exhibition_button.grab_focus()
+		_submit_drawing_button.grab_focus()
 	else:
 		_refresh_sale_dialog()
 		_sale_validation.text = str(result.get("error", "전시할 그림을 저장하지 못했어요. 다시 시도해 주세요."))

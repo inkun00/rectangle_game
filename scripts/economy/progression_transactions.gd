@@ -13,6 +13,8 @@ static func commit(state: State, action: String, payload: Variant = null, path: 
 		return {"ok": false, "error": "장부를 확인하지 못했어요. 현재 그림과 돈은 그대로예요."}
 	var result: Dictionary
 	match action:
+		"claim_wall_commission":
+			result = candidate.claim_wall_commission()
 		"village_rewards":
 			if not payload is Array: return {"ok": false, "error": "주민의 부탁 기록을 확인해 주세요."}
 			result = candidate.claim_village_rewards(payload)

@@ -480,10 +480,12 @@ static func _test_startup_learning_gate(t: Node) -> void:
 	app._input(escape)
 	app._home_screen.drawing_requested.emit()
 	app._home_screen.construction_requested.emit()
+	app._home_screen.wall_requested.emit()
 	app._home_screen.adventure_requested.emit()
 	app._home_screen.notebook_requested.emit()
 	app._show_home()
 	t.assert_true(gate.is_visible_in_tree() and not app._home_screen.visible, "Escape and mode navigation cannot close the launch dialog")
+	t.assert_false(is_instance_valid(app.wall_studio), "The wall workshop cannot bypass the opening learning gate")
 	t.assert_true(not app._drawing_screen.visible and not app._construction_screen.visible and app.world == null, "Gameplay stays hidden before all answers are correct")
 	# Pin the diagram used for this retry so all starting formats can be sampled at launch.
 	app._startup_variants[0] = 0

@@ -1,5 +1,9 @@
 # ImageGen 에셋 생성 기록
 
+## 2026-11-23 건축 공방 재료 25종
+
+새 [공방 재료 시트](construction-library-v2/workshop.webp)는 재료마다 별도로 그린 5×5 원화다. [행별 생성 내용과 가공 규격](construction-library-v2/GENERATION.md)을 기록했다.
+
 ## 2026-11-22 사각이의 모험 UI
 
 Codex 내장 ImageGen으로 홈, 시작 문제, 작업실, 메뉴와 버튼을 제작했다. 홈과 웹 로딩 화면의 사각이는 오프닝 원화를 참고했다. 각 문서에 생성 프롬프트와 게임에서 사용하는 WebP 파일을 기록했다.
