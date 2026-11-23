@@ -1,15 +1,21 @@
 # 그림과 건물의 패들릿 전시 설정
 
-메인 화면의 **작품 전시장**에서 그림이나 건축물 전시장을 고르면 해당 Padlet 보드가 새 브라우저 탭에서 열립니다. 게임 탭에는 진행하던 활동이 남습니다. 보드 공개 범위는 각 전시장의 Padlet 공유 설정을 따릅니다.
+메인 화면의 **작품 전시장**에서 그림, 건축물, 담장, 우주선 중 하나를 고르면 해당 Padlet 보드가 새 브라우저 탭에서 열립니다. 게임 탭에는 진행하던 활동이 남습니다. 보드 공개 범위는 각 전시장의 Padlet 공유 설정을 따릅니다.
 
 그림 작업실과 건축 공방에서도 전시장을 열어 관람할 수 있습니다. 작품을 등록하면 기기에 작품 번호와 PNG를 저장합니다. 전송 중 네트워크가 끊기면 게임이 같은 번호와 PNG로 재시도하며, 같은 브라우저에서 게임을 다시 열어도 이어집니다. Padlet이 작품을 접수하고 승인 대기 상태를 돌려주면 보드 관리자의 심사를 기다립니다.
 
-그리기 모드의 의뢰 제출 화면에서 작성자 이름, 그림 제목, 그림 설명을 작성합니다. 의뢰 보상과 완성된 그림의 PNG를 [사각형 그림 전시관](https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry)에 등록합니다. 사각성으로 돌아가는 엔딩의 우주선도 이 전시관에 등록합니다.
+그리기 모드의 의뢰 제출 화면에서 작성자 이름, 그림 제목, 그림 설명을 작성합니다. 의뢰 보상과 완성된 그림의 PNG를 [사각형 그림 전시관](https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry)에 등록합니다.
+
+타일 공방에서는 타일로 담장을 채운 뒤 **완성한 담장 등록**을 누릅니다. 학생이 디자인한 타일과 의뢰 장소를 한 장에 담아 [사각형 담장 전시관](https://padlet.com/inkun02/padlet-s025pydws5qowdbbgrdp)에 올립니다.
+
+우주선 제작소에서는 필수 부품 12종을 모두 갖춘 뒤 **완성한 우주선 등록**을 누릅니다. 우주선 이미지와 설명을 [우주선 전시관](https://padlet.com/inkun02/padlet-s025pyexx3eepqe19zum)에 올립니다. 우주선 엔딩도 이 전시관을 사용합니다. 과거에 그림 전시관에 등록한 엔딩은 원래 게시물을 열 수 있습니다.
 
 건축 모드에서는 의뢰 건물의 준공이 끝나거나 나만의 집이 시공 검사를 통과하면 패들릿에 등록할 수 있습니다. 작성자 이름, 건물 제목, 건물 설명을 작성하면 게임이 계산한 계약 금액 또는 실제 사용 재료비와 건물 PNG를 [건축물 전시관](https://padlet.com/inkun02/padlet-s025ilggr7czshhrgkv2)에 등록합니다. 지구에 머무는 엔딩의 집도 이 전시관에 등록합니다.
 
 - 그림 전시관 보드 ID `s025d52oqqhj786g8cry`
 - 건축물 전시관 보드 ID `s025ilggr7czshhrgkv2`
+- 담장 전시관 보드 ID `s025pydws5qowdbbgrdp`
+- 우주선 전시관 보드 ID `s025pyexx3eepqe19zum`
 - [게임](https://rectangle-game-snowy.vercel.app/)
 
 패들릿 게시물 제목은 `작품 제목 · 작성자 이름`으로 표시합니다. 본문에는 작성자와 설명이 표시되고, 의뢰 작품과 건물에는 게임 내 금액도 표시됩니다. 금액의 단위는 게임과 같은 **원**입니다. 첨부 파일은 게임 UI, 격자, 선택 표시를 제외한 960×600 PNG입니다.
@@ -20,12 +26,14 @@ Vercel 프로젝트 `inkun05/rectangle-game`의 **Production 환경**에 다음 
 
 | 환경 변수 | 값 |
 | --- | --- |
-| `PADLET_API_KEY` | 두 전시관 보드에 관리자 권한이 있는 계정의 Padlet API 키 |
+| `PADLET_API_KEY` | 네 전시관 보드에 게시 권한이 있는 계정의 Padlet API 키 |
 | `BLOB_READ_WRITE_TOKEN` | 아래에서 만든 **Private** Vercel Blob 저장소의 읽기·쓰기 토큰 |
 | `PADLET_BUILDING_BOARD_ID` | 선택 항목. 기본 건축물 전시관을 다른 보드로 바꿀 때 사용할 보드 ID |
 | `PADLET_BUILDING_BOARD_URL` | 선택 항목. 다른 건축물 전시관의 주소. `https://padlet.com/`에서 시작하고 주소 끝에 해당 보드 ID가 들어 있는 주소를 사용합니다. |
+| `PADLET_WALL_BOARD_ID`, `PADLET_WALL_BOARD_URL` | 담장 전시관을 바꿀 때 함께 설정할 보드 ID와 주소 |
+| `PADLET_SPACESHIP_BOARD_ID`, `PADLET_SPACESHIP_BOARD_URL` | 우주선 전시관을 바꿀 때 함께 설정할 보드 ID와 주소 |
 
-건축물 전시관을 대체할 때는 두 선택 항목을 함께 설정합니다. 두 항목을 모두 생략하면 위 건축물 전시관을 사용합니다.
+각 전시관은 위의 기본 보드를 사용합니다. 보드를 교체할 때는 서버용 ID와 URL을 함께 설정하고, 관람 버튼이 같은 곳을 열도록 `scripts/export/padlet_uploader.gd`의 보드 주소도 갱신합니다.
 
 Padlet 키는 [개발자 설정](https://padlet.com/dashboard/settings/developers)에서 생성합니다. 공개 API는 유료 개인 계정 또는 유료 Team/School 소속 계정이면서 대상 보드의 관리자일 때 사용할 수 있습니다. [Padlet 인증 안내](https://docs.padlet.dev/reference/authentication)
 
@@ -45,7 +53,7 @@ https://rectangle-game-snowy.vercel.app/api/artwork-image?id=<제출 ID 32자리
 
 이 URL을 패들릿의 이미지 첨부 주소로 보냅니다. 보드에서 그림을 계속 볼 수 있도록 Blob의 PNG와 이미지 제공 주소를 유지해야 합니다. JSON 제출 기록과 환경 변수는 이 주소로 조회할 수 없습니다.
 
-게시물 상단의 Padlet 계정 이름을 숨기려면 두 전시관 각각 **설정 → 게시물 → 작성자 이름과 시간 표시**를 끕니다. 이 설정은 기존 게시물과 새 게시물, 활동 피드에 적용됩니다. 게임에 입력한 작성자 이름은 게시물 제목과 본문에 계속 표시됩니다. [Padlet 작성자 표시 설정](https://padlet.help/l/en/article/h1c2b1h4cv-why-are-posts-showing-up-as-anonymous)
+게시물 상단의 Padlet 계정 이름을 숨기려면 각 전시관의 **설정 → 게시물 → 작성자 이름과 시간 표시**를 끕니다. 이 설정은 기존 게시물과 새 게시물, 활동 피드에 적용됩니다. 게임에 입력한 작성자 이름은 게시물 제목과 본문에 계속 표시됩니다. [Padlet 작성자 표시 설정](https://padlet.help/l/en/article/h1c2b1h4cv-why-are-posts-showing-up-as-anonymous)
 
 Padlet API는 API 키 소유자를 계정 작성자로 기록하며 게시물 생성 시 그 계정을 선택하는 필드는 제공하지 않습니다. API가 돌려주는 `pending_moderation` 상태는 등록 성공과 승인 대기를 구분하여 게임에 전달합니다. [게시물 생성 문서](https://docs.padlet.dev/reference/add-post), [게시물 응답 형식](https://docs.padlet.dev/reference/post-object)
 

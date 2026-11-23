@@ -163,7 +163,7 @@ func measurement_text() -> String:
 	var guidance: String
 	match _measure_tool_kind():
 		"ruler": guidance = "자의 0을 꼭짓점 가까이 가져가 붙인 뒤, 다른 끝의 눈금을 읽어요."
-		"protractor": guidance = "중심을 꼭짓점에 붙이고 한 변에 0°를 맞춰요. 짧은 변은 안쪽 눈금을 읽어요."
+		"protractor": guidance = "중심을 꼭짓점에 놓고 한 변에 0°를 맞춰요. 그 0°에서 시작하는 눈금으로 다른 변이 가리키는 각을 읽어요."
 		_: return "‘재어 보기’를 누르면 투명 자와 각도기를 꺼낼 수 있어요."
 	return guidance + "\n몸체를 끌어 옮기고, 둥근 손잡이로 돌려요. 방향키로 이동하고 Shift+왼쪽·오른쪽 방향키로 돌려요."
 

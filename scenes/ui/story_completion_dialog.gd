@@ -8,12 +8,14 @@ var _title: LineEdit
 var _title_label: Label
 var _description: TextEdit
 var _form: VBoxContainer
+var _publication_details: Label
 var _price: Label
 var _feedback: Label
 var _resume: bool = false
 var _busy: bool = false
 var _work: String = ""
 var _branch: String = ""
+var _exhibition_only: bool = false
 
 func _ready() -> void:
 	exclusive = true
@@ -37,7 +39,8 @@ func _ready() -> void:
 	_form = VBoxContainer.new()
 	_form.add_theme_constant_override("separation", 8)
 	column.add_child(_form)
-	_form.add_child(QuadTheme.paragraph("작성자 이름, 작품 제목과 설명, 금액, 이미지가 패들릿 전시관에 함께 올라가요.", 16, QuadTheme.INK))
+	_publication_details = QuadTheme.paragraph("", 16, QuadTheme.INK)
+	_form.add_child(_publication_details)
 	_author = _line(QuadTheme.paragraph("작성자 이름", 16, QuadTheme.INK), ArtSubmissionMetadata.MAX_AUTHOR_LENGTH)
 	_title_label = QuadTheme.paragraph("", 16, QuadTheme.INK)
 	_title = _line(_title_label, ArtSubmissionMetadata.MAX_TITLE_LENGTH)
@@ -56,10 +59,13 @@ func _ready() -> void:
 	column.add_child(_feedback)
 	confirmed.connect(_submit)
 
-func open_project(branch: String, price: int, author: String, resume: bool = false) -> void:
+func open_project(branch: String, price: int, author: String, resume: bool = false, exhibition_only: bool = false) -> void:
 	_branch = branch
+	_exhibition_only = exhibition_only
 	_work = "우리 집" if branch == "earth" else "우주선"
 	title = "우리 집에서 새 출발" if branch == "earth" else "사각성으로 출발"
+	if _exhibition_only: title = "완성한 우주선 등록"
+	_publication_details.text = "작성자 이름, 작품 제목과 설명, 이미지가 우주선 전시장에 올라가요." if exhibition_only else "작성자 이름, 작품 제목과 설명, 금액, 이미지가 패들릿 전시관에 함께 올라가요."
 	_price.text = ("재료비 " if branch == "earth" else "부품 제작비 ") + ConstructionCatalog.format_won(price)
 	_resume = resume
 	_busy = false
@@ -112,6 +118,7 @@ func _refresh() -> void:
 	var error: String = "" if _resume else _validation_error()
 	get_ok_button().disabled = _busy or not error.is_empty()
 	get_ok_button().text = "등록 중…" if _busy else ("등록 다시 시도" if _resume else "PNG 저장하고 엔딩 보기")
+	if _exhibition_only and not _busy: get_ok_button().text = "우주선 등록"
 	get_cancel_button().disabled = _busy
 	dialog_close_on_escape = not _busy
 	_author.editable = not _busy

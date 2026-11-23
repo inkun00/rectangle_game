@@ -11,6 +11,8 @@ static func run(t: Node) -> void:
 	_test_metadata(t)
 	_test_receipt_gating_and_roundtrip(t)
 	_test_exhibition_without_sale(t)
+	_test_wall_and_ship_exhibitions(t)
+	_test_historical_ship_gallery(t)
 	_test_invalid_load_and_atomic_update(t)
 
 static func _test_upload_responses(t: Node) -> void:
@@ -116,6 +118,69 @@ static func _test_exhibition_without_sale(t: Node) -> void:
 	offer.price = 100
 	offer.fingerprint = "b".repeat(64)
 	t.assert_false(store.prepare(_metadata(), offer, saved, bytes).ok, "An exhibition cannot have a sale amount")
+	_cleanup(directory)
+
+static func _test_wall_and_ship_exhibitions(t: Node) -> void:
+	var directory: String = _directory()
+	var store: Store = Store.new()
+	store.path = directory.path_join("queue.json")
+	var bytes: PackedByteArray = _png()
+	var saved: Dictionary = SoldArtStore.save_png(bytes, "사각형 작품", directory.path_join("art"))
+	var wall_id: String = Store.wall_fingerprint(bytes)
+	var ship_id: String = Store.ship_fingerprint(bytes)
+	t.assert_false(wall_id == ship_id, "Different exhibition categories have independent content identities")
+	for kind: String in ["wall", "ship_exhibit"]:
+		var fingerprint: String = wall_id if kind == "wall" else ship_id
+		var offer: Dictionary = {"kind": kind, "price": 0, "fingerprint": fingerprint}
+		t.assert_false(store.prepare(_metadata(), offer.merged({"price": 100}, true), saved, bytes).ok, "An unpaid exhibit cannot claim a sale price")
+		t.assert_false(store.prepare(_metadata(), offer.merged({"fingerprint": "a".repeat(64)}, true), saved, bytes).ok, "A mismatched image identity cannot enqueue an exhibit")
+		var tiny: PackedByteArray = Image.create(32, 32, false, Image.FORMAT_RGBA8).save_png_to_buffer()
+		var tiny_hash: String = Store.wall_fingerprint(tiny) if kind == "wall" else Store.ship_fingerprint(tiny)
+		t.assert_false(store.prepare(_metadata(), offer.merged({"fingerprint": tiny_hash}, true), saved, tiny).ok, "Both galleries require the standard 960 by 600 export")
+		var queued: Dictionary = store.prepare(_metadata(), offer, saved, bytes)
+		t.assert_true(queued.ok, "A completed work can exhibit without a transaction")
+		if not queued.ok: continue
+		t.assert_false(store.prepare(_metadata(), offer, saved, bytes).ok, "Duplicate submission preserves the original receipt")
+		t.assert_eq(store.find_entry(fingerprint).id, queued.entry.id, "A retry reuses its original request ID")
+		t.assert_eq(store.pending([]).size() + store.pending([], true).size(), 0, "Standalone walls and ships never leak into the drawing or house queue")
+	var restored: Store = Store.new()
+	restored.path = store.path
+	t.assert_true(restored.load_file().ok, "Both new categories survive reloading a real queue")
+	t.assert_eq(restored.pending_walls().size(), 1, "Only a completed wall is eligible for wall upload")
+	t.assert_eq(restored.pending_ships().size(), 1, "Only a completed standalone ship is eligible for ship upload")
+	for fingerprint: String in [wall_id, ship_id]:
+		var entry: Dictionary = restored.find_entry(fingerprint)
+		if entry.is_empty(): continue
+		t.assert_eq(restored.read_png(entry, directory.path_join("art")), bytes, "Exact PNG survives restart")
+		t.assert_true(restored.mark_published(entry.id, "https://padlet.com/test/gallery").ok, "Published receipt is durable")
+		t.assert_eq(restored.find_entry(fingerprint).status, "published", "Exhibiting again can return the existing receipt")
+	t.assert_true(restored.pending_walls().is_empty() and restored.pending_ships().is_empty(), "Published entries cannot retry")
+	_cleanup(directory)
+
+static func _test_historical_ship_gallery(t: Node) -> void:
+	var directory: String = _directory()
+	var bytes: PackedByteArray = _png()
+	var saved: Dictionary = SoldArtStore.save_png(bytes, "우주선", directory.path_join("art"))
+	var store: Store = Store.new()
+	store.path = directory.path_join("queue.json")
+	var ending: Dictionary = store.prepare(_metadata(), {"kind": "spaceship", "price": 1200000000, "fingerprint": "a".repeat(64)}, saved, bytes)
+	t.assert_true(ending.ok, "A new ending ship is prepared for its specific gallery")
+	if not ending.ok:
+		_cleanup(directory)
+		return
+	t.assert_eq(ending.entry.get("gallery"), "ship", "The ending knows which gallery it was prepared for")
+	t.assert_eq(store.find_ship_image(bytes).id, ending.entry.id, "An ending and later standalone registration can reuse their dedicated ship post")
+	var offer: Dictionary = {"kind": "ship_exhibit", "price": 0, "fingerprint": Store.ship_fingerprint(bytes)}
+	t.assert_false(store.prepare(_metadata(), offer, saved, bytes).ok, "A new ending ship never publishes twice")
+	var historical: Dictionary = ending.entry.duplicate(true)
+	historical.erase("gallery")
+	historical.status = "published"
+	historical.post_url = BOARD
+	_write(store.path, JSON.stringify({"version": 1, "entries": [historical]}))
+	t.assert_true(store.load_file().ok, "A historical ending from the drawing board still loads")
+	t.assert_true(store.find_ship_image(bytes).is_empty(), "The original drawing board does not masquerade as the new ship gallery")
+	t.assert_true(store.prepare(_metadata(), offer, saved, bytes).ok, "An earlier ending can explicitly exhibit once in the ship gallery")
+	t.assert_eq(store.ending_entry("space").post_url, BOARD, "Its original ending receipt remains unchanged")
 	_cleanup(directory)
 
 static func _test_invalid_load_and_atomic_update(t: Node) -> void:

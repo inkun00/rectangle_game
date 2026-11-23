@@ -55,6 +55,7 @@ static func run(t: Node) -> void:
 	await _test_stale_render(t, false)
 	await _test_stale_render(t, true)
 	await _test_upload_retry_and_reload(t)
+	await _test_four_publication_lanes(t)
 	await _test_failed_outbox(t)
 	await _test_sale_during_upload(t)
 	await _test_sale_during_upload(t, true)
@@ -158,7 +159,7 @@ static func _test_studio_drawing_exhibition(t: Node, personal: bool) -> void:
 			app._resume_pending_publications()
 			t.assert_eq(uploader.calls, 1, "Resuming a queue cannot bypass a retry delay or replay a rejected item")
 			t.assert_true(studio._upload_retry.is_visible_in_tree() and not studio._upload_retry.disabled, "An offline exhibition can be retried from the visible upload action")
-			var retry_timer: Timer = app._publication_retry_timers.get(false) as Timer
+			var retry_timer: Timer = app._publication_retry_timers.get(&"drawing") as Timer
 			if personal:
 				t.assert_true(retry_timer == null or retry_timer.is_stopped(), "A permanent rejection does not start an automatic retry")
 				studio._upload_retry.pressed.emit()
@@ -526,10 +527,10 @@ static func _test_upload_retry_and_reload(t: Node) -> void:
 	studio.art_upload_retry_requested.emit()
 	studio.art_upload_retry_requested.emit()
 	t.assert_eq(uploader.calls, 2, "Concurrent retry clicks share one in-flight upload")
-	t.assert_true(app._art_upload_busy, "The retry remains visibly busy while awaiting its response")
+	t.assert_true(bool(app._publication_busy.get(&"drawing", false)), "The retry remains visibly busy while awaiting its response")
 	uploader.released.emit()
 	await t.get_tree().process_frame
-	t.assert_false(app._art_upload_busy, "A successful response releases the retry lock")
+	t.assert_false(bool(app._publication_busy.get(&"drawing", false)), "A successful response releases the retry lock")
 	t.assert_eq(reloaded.pending(ledger.art_sales).size(), 0, "A confirmed successful publication leaves the retry queue")
 	if uploader.entries.size() == 2:
 		t.assert_eq(uploader.entries[1].id, uploader.entries[0].id, "Retry after reload preserves the stable server deduplication ID")
@@ -547,6 +548,63 @@ static func _test_upload_retry_and_reload(t: Node) -> void:
 	t.assert_eq(uploader.calls, 2, "An empty retry queue does not call the server again")
 	app.free()
 	await t.get_tree().process_frame
+	_cleanup(directory)
+
+static func _test_four_publication_lanes(t: Node) -> void:
+	var directory: String = _directory()
+	var app: QuadrilateralApp = await _app(t, directory, false)
+	var bytes: PackedByteArray = _renderer().bytes
+	var attempts: Dictionary = {}
+	var identifiers: Dictionary = {}
+	var kinds: Dictionary = {&"drawing": "drawing", &"building": "commission", &"wall": "wall", &"ship": "ship_exhibit"}
+	app._building_png_directory = directory.path_join("building")
+	app._wall_png_directory = directory.path_join("wall")
+	app._ship_exhibit_png_directory = directory.path_join("ship")
+	for lane: StringName in kinds:
+		var kind: String = kinds[lane]
+		var metadata: Dictionary = {"author": "사각이", "title": "전시 작품 " + kind, "description": "사각형으로 만들었어요."}
+		var saved: Dictionary = SoldArtStore.save_png(bytes, metadata.title, app._publication_png_directory(lane))
+		var fingerprint: String = kind.sha256_text()
+		if lane == &"wall": fingerprint = ArtPublicationStore.wall_fingerprint(bytes)
+		if lane == &"ship": fingerprint = ArtPublicationStore.ship_fingerprint(bytes)
+		var offer: Dictionary = {"kind": kind, "price": 100000000 if lane == &"building" else 0, "fingerprint": fingerprint}
+		var prepared: Dictionary = app._art_publications.prepare(metadata, offer, saved, bytes)
+		t.assert_true(prepared.ok, "A durable %s entry is ready in its own PNG directory" % kind)
+		if prepared.ok: identifiers[kind] = prepared.entry.id
+	var transport: Callable = func(entry: Dictionary, png: PackedByteArray) -> Dictionary:
+		var kind: String = entry.kind
+		attempts[kind] = int(attempts.get(kind, 0)) + 1
+		t.assert_eq(entry.id, identifiers.get(kind), "Each %s attempt uses its original request ID" % kind)
+		t.assert_eq(png, bytes, "Each %s attempt uses its own saved PNG" % kind)
+		if kind in ["wall", "ship_exhibit"] and int(attempts[kind]) == 1:
+			return {"ok": false, "retryable": true, "status": 202, "retry_after_seconds": 120}
+		return {"ok": true, "post_url": PadletUploader.BOARD_URL}
+	app._art_upload_transport = transport
+	app._resume_pending_publications()
+	t.assert_eq(attempts, {"drawing": 1, "commission": 1, "wall": 1, "ship_exhibit": 1}, "Startup attempts every gallery independently")
+	for lane: StringName in kinds:
+		var unresolved: bool = lane in [&"wall", &"ship"]
+		t.assert_eq(app._pending_publications(lane).size(), int(unresolved), "%s has only its own unresolved works" % lane)
+		t.assert_eq(not app._publication_retry_timers[lane].is_stopped(), unresolved, "%s has an independent retry schedule" % lane)
+	app.free()
+	await t.get_tree().process_frame
+	app = await _app(t, directory, false)
+	app._wall_png_directory = directory.path_join("wall")
+	app._ship_exhibit_png_directory = directory.path_join("ship")
+	app._art_upload_transport = transport
+	await app._retry_publications(&"ship", true)
+	t.assert_eq(attempts.get("wall"), 1, "Restoring and retrying the ship leaves the wall pending")
+	t.assert_eq(app._pending_publications(&"wall").size(), 1, "The unresolved wall survives a fresh app instance")
+	app._resume_pending_publications()
+	t.assert_eq(attempts, {"drawing": 1, "commission": 1, "wall": 2, "ship_exhibit": 2}, "Only the remaining wall is sent when all queues resume")
+	for lane: StringName in kinds:
+		t.assert_true(app._pending_publications(lane).is_empty(), "%s reaches its own published state" % lane)
+	app.free()
+	await t.get_tree().process_frame
+	for folder: String in ["building", "wall", "ship"]:
+		var png_directory: String = directory.path_join(folder)
+		for filename: String in _images(png_directory): DirAccess.remove_absolute(png_directory.path_join(filename))
+		DirAccess.remove_absolute(png_directory)
 	_cleanup(directory)
 
 static func _test_failed_outbox(t: Node) -> void:
@@ -589,7 +647,7 @@ static func _test_sale_during_upload(t: Node, first_item_error: bool = false) ->
 	_confirm(studio, "먼저 그린 집")
 	await t.get_tree().process_frame
 	t.assert_eq(uploader.calls, 1, "The first painting's upload can remain in flight while the artist continues drawing")
-	t.assert_true(app._art_upload_busy, "The first in-flight upload holds the network queue lock")
+	t.assert_true(bool(app._publication_busy.get(&"drawing", false)), "The first in-flight upload holds the network queue lock")
 	studio._commission_dialog.get_ok_button().pressed.emit()
 	studio._commission_dialog.get_ok_button().pressed.emit()
 	studio.art_commission_requested.emit(ArtSamples.COMMISSION_ID)
@@ -606,13 +664,13 @@ static func _test_sale_during_upload(t: Node, first_item_error: bool = false) ->
 	uploader.released.emit()
 	await t.get_tree().process_frame
 	t.assert_eq(app._art_publications.pending(ledger.art_sales).size(), 1 if first_item_error else 0, "An ambiguous item is retained without blocking a later painting from publishing")
-	t.assert_false(app._art_upload_busy, "Draining the newly queued painting releases the upload lock")
+	t.assert_false(bool(app._publication_busy.get(&"drawing", false)), "Draining the newly queued painting releases the upload lock")
 	t.assert_eq(renderer.calls, 2, "Each sold painting is rendered only once despite queue scheduling")
 	t.assert_eq(ledger.art_sales.size(), 2, "Queue scheduling does not repeat either sale")
 	if first_item_error:
 		var balance: int = ledger.balance
 		uploader.suspended = false
-		var timer: Timer = app._publication_retry_timers[false]
+		var timer: Timer = app._publication_retry_timers[&"drawing"]
 		t.assert_false(timer.is_stopped(), "A pending receipt schedules reconciliation while the next uploaded painting is already finished")
 		if not timer.is_stopped():
 			timer.start(0.01)

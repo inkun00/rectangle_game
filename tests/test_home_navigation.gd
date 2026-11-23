@@ -140,6 +140,9 @@ static func _test_exhibition_board_links(t: Node, app: QuadrilateralApp) -> void
 	if chooser == null: return
 	var drawing: Button = chooser.find_child("ExhibitDrawing", true, false) as Button
 	var building: Button = chooser.find_child("ExhibitBuilding", true, false) as Button
+	var wall: Button = chooser.find_child("ExhibitWall", true, false) as Button
+	var spaceship: Button = chooser.find_child("ExhibitShip", true, false) as Button
+	t.assert_true(wall != null and spaceship != null, "Completed walls and spaceships have dedicated public galleries")
 	t.assert_true(drawing != null and building != null and drawing.has_focus(), "The drawing and house boards are keyboard-accessible choices")
 	var cancel: InputEventKey = InputEventKey.new()
 	cancel.keycode = KEY_ESCAPE
@@ -147,13 +150,13 @@ static func _test_exhibition_board_links(t: Node, app: QuadrilateralApp) -> void
 	home._input(cancel)
 	await t.get_tree().process_frame
 	t.assert_true(not chooser.is_visible_in_tree() and entry.has_focus() and opened.is_empty(), "Escape returns focus to the home card without opening any board")
-	if drawing == null or building == null: return
-	for selection: Button in [drawing, building]:
+	if drawing == null or building == null or wall == null or spaceship == null: return
+	for selection: Button in [drawing, building, wall, spaceship]:
 		entry.pressed.emit()
 		selection.pressed.emit()
 		t.assert_true(home.is_visible_in_tree() and not chooser.is_visible_in_tree(), "Browsing leaves the home screen active")
 		t.assert_false(app._drawing_screen.visible or app._construction_screen.visible, "Board links open directly without starting a studio")
-	t.assert_eq(opened, [PadletUploader.BOARD_URL, PadletUploader.BUILDING_BOARD_URL], "Each gallery choice opens its correct public board once")
+	t.assert_eq(opened, [PadletUploader.BOARD_URL, PadletUploader.BUILDING_BOARD_URL, PadletUploader.WALL_BOARD_URL, PadletUploader.SHIP_BOARD_URL], "Each gallery choice opens its correct public board once")
 	app.exhibition_board_opener = func(_url: String) -> bool: return false
 	entry.pressed.emit()
 	building.pressed.emit()

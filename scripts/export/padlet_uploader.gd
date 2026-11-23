@@ -4,6 +4,8 @@ extends RefCounted
 const PRODUCTION_ORIGIN: String = "https://rectangle-game-snowy.vercel.app"
 const BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025d52oqqhj786g8cry"
 const BUILDING_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025ilggr7czshhrgkv2"
+const WALL_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025pydws5qowdbbgrdp"
+const SHIP_BOARD_URL: String = "https://padlet.com/inkun02/padlet-s025pyexx3eepqe19zum"
 
 static func upload(owner: Node, entry: Dictionary, bytes: PackedByteArray) -> Dictionary:
 	var origin: String = PRODUCTION_ORIGIN

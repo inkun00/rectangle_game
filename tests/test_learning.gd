@@ -21,6 +21,7 @@ static func run(t: Node) -> void:
 	_test_startup_question_bank(t)
 	_test_startup_variety(t)
 	await _test_startup_response_controls(t)
+	await _test_startup_visual_tools(t)
 	_test_daily_completion_storage(t)
 	await _test_startup_learning_gate(t)
 	await _test_touch_and_peaceful(t)
@@ -90,6 +91,7 @@ static func _test_manual_measurement(t: Node) -> void:
 	t.assert_eq(canvas.value, value_before, "Grabbing a ruler on the line diagram leaves the geometry alone")
 	canvas.select_measure_tool("protractor")
 	t.assert_eq(canvas.measure_tools.tool_kind, "protractor", "The alternate measuring tool can be selected on the same diagram")
+	t.assert_true(canvas.measurement_text().contains("그 0°에서 시작하는 눈금"), "Protractor guidance follows the aligned zero regardless of the length of the angle arms")
 	var handle: Vector2 = canvas.measure_tools.rotation_handle_position()
 	var origin: Vector2 = canvas.measure_tools.tool_origin
 	var initial_angle: float = canvas.measure_tools.tool_angle
@@ -418,6 +420,136 @@ static func _test_startup_response_controls(t: Node) -> void:
 		t.assert_eq(results, [false, true], "Correct input succeeds once without the ruler")
 		results.clear()
 	gate.free()
+
+static func _test_startup_visual_tools(t: Node) -> void:
+	var gate: Gate = Gate.new()
+	t.add_child(gate)
+	await t.get_tree().process_frame
+	var results: Array[bool] = []
+	gate.answer_submitted.connect(func(correct: bool) -> void: results.append(correct))
+	var tools_seen: Dictionary = {}
+	for topic: String in Bank.TYPES:
+		for index: int in range(Bank.PER_TYPE):
+			var question: Dictionary = Bank.question(topic, index)
+			var tool: String = str(question.get("visual_tool", ""))
+			if tool.is_empty(): continue
+			tools_seen[question.id] = tool
+			t.assert_true(tool in ["compass", "clock", "rotate_paper"], "Every visual-tool request has a supported renderer: " + str(question.id))
+			gate.present(question, 2, 5)
+			t.assert_true(gate._response.is_visible_in_tree(), "Manipulatives leave the answer cards accessible")
+			if tool == "compass":
+				t.assert_true(gate.compass.is_visible_in_tree() and gate.compass.current_direction() == question.compass_start, "The compass starts facing the direction printed in the question")
+				var points: Array[String] = ["north", "east", "south", "west"]
+				var start: int = points.find(str(question.compass_start))
+				var increment: int = 1 if question.compass_clockwise else -1
+				(gate.compass.find_child("CompassTurn", true, false) as Button).pressed.emit()
+				t.assert_eq(gate.compass.current_direction(), points[posmod(start + increment, 4)], "The tool honors the particular starting direction and turning sense")
+			elif tool == "clock":
+				t.assert_true(gate.clock.is_visible_in_tree(), "The clock question shows a clock")
+				for hour: int in question.clock_hours:
+					var preset: Button = gate.clock.find_child("ClockHour%d" % hour, true, false) as Button
+					t.assert_true(preset != null and preset.is_visible_in_tree(), "Every required hour can be selected")
+					if preset == null: continue
+					preset.pressed.emit()
+					t.assert_eq(gate.clock.hour, hour, "The hour hand reaches the chosen hour")
+					t.assert_eq(gate.clock.minute, 0, "Hour choices show the time on the hour")
+					var degrees: int = mini(hour % 12, 12 - hour % 12) * 30
+					t.assert_float_approx(gate.clock.angle_degrees(), degrees, 0.001, "Clock hands show the corresponding smaller angle")
+			elif tool == "rotate_paper":
+				var paper: Control = gate.rotation_aid
+				t.assert_true(paper.is_visible_in_tree(), "The paper figure is visible with its question")
+				(paper.find_child("RotatePaperTurn", true, false) as Button).pressed.emit()
+				t.assert_eq(gate.rotation_aid.steps, 1, "The learner can turn the figure on the paper")
+				(paper.find_child("RotatePaperReset", true, false) as Button).pressed.emit()
+				t.assert_eq(gate.rotation_aid.steps, 0, "Reset returns the paper to its original angle")
+			gate.submit_answer()
+			t.assert_true(results.is_empty() and gate._feedback.visible, "Exploring a visual never completes an unanswered question")
+			_fill_card_response(gate, question, false)
+			gate.submit_answer()
+			t.assert_eq(results, [false], "A wrong completed response remains incorrect with a tool on screen")
+			gate.present(question, 2, 5)
+			_fill_card_response(gate, question, true)
+			gate.submit_answer()
+			t.assert_eq(results, [false, true], "The original answer key still works alongside the visual tool")
+			results.clear()
+	for id: String in ["lines_31", "lines_40", "right_angles_28", "right_angles_35"]:
+		t.assert_eq(tools_seen.get(id), "compass", "The turning activity includes a live arrow: " + id)
+	t.assert_eq(tools_seen.get("lines_36"), "clock", "The clock matching puzzle has visible hands")
+	for id: String in ["lines_33", "equal_sides_25", "right_angles_29", "right_angles_38"]:
+		t.assert_eq(tools_seen.get(id), "rotate_paper", "Rotating a figure is supported by the corresponding paper model: " + id)
+	if tools_seen.get("lines_40") == "compass": await _test_compass_matching(t, gate, results)
+	_test_geometry_submissions(t, gate, results)
+	gate.free()
+	await t.get_tree().process_frame
+
+static func _test_geometry_submissions(t: Node, gate: Gate, results: Array[bool]) -> void:
+	var tasks: Array = [
+		["lines", 26, "perpendicular", "line"], ["lines", 34, "parallel", "line"], ["distance", 22, "distance", "line"],
+		["parallel_sides", 30, "trapezoid", "draw"], ["equal_sides", 30, "rhombus", "draw"], ["right_angles", 30, "rectangle", "draw"],
+	]
+	for task: Array in tasks:
+		var question: Dictionary = Bank.question(task[0], task[1])
+		t.assert_true(question.mode == task[3] and question.lesson_id == task[2], "This prompt offers the line or grid that the learner is asked to change: " + str(question.id))
+		if question.mode != task[3]: continue
+		gate.present(question, 4, 5)
+		gate.submit_answer()
+		t.assert_true(results.is_empty(), "An untouched construction cannot complete the question")
+		if question.mode == "line":
+			t.assert_true(gate.canvas.is_visible_in_tree() and gate._adjustments.is_visible_in_tree(), "The requested line has usable adjustment controls")
+			gate._measure.pressed.emit()
+			gate._slider.value = 90.0 if task[2] == "perpendicular" else 0.0
+		else:
+			t.assert_true(gate.grid_canvas.is_visible_in_tree(), "The requested shape can be drawn on the grid")
+			for i: int in range(question.given.size(), question.draw_solution.size()):
+				gate.grid_canvas.place_vertex(question.draw_solution[i])
+		gate.submit_answer()
+		t.assert_eq(results, [true], "The gate grades the constructed geometry")
+		results.clear()
+
+static func _test_compass_matching(t: Node, gate: Gate, results: Array[bool]) -> void:
+	var question: Dictionary = Bank.question("lines", 39)
+	gate.present(question, 2, 5)
+	var turn: Button = gate.compass.find_child("CompassTurn", true, false) as Button
+	var reset: Button = gate.compass.find_child("CompassReset", true, false) as Button
+	t.assert_true(turn.is_visible_in_tree() and reset.is_visible_in_tree(), "Turning and resetting are visible actions in the rotation question")
+	var names: Array[String] = ["south", "west", "north", "east"]
+	var labels: Array[String] = ["남쪽", "서쪽", "북쪽"]
+	for step: int in range(names.size()):
+		turn.pressed.emit()
+		t.assert_eq(gate.compass.current_direction(), names[step], "Each press turns the arrow clockwise by exactly one right angle")
+		if step < labels.size():
+			var answer_slot: int = question.right_items.find(labels[step])
+			t.assert_eq(int(question.answer_pairs[step]), answer_slot, "The match key agrees with the direction on the dial")
+			gate._response.left_buttons[step].pressed.emit()
+			gate._response.right_buttons[answer_slot].pressed.emit()
+	reset.pressed.emit()
+	t.assert_eq(gate.compass.current_direction(), "east", "Reset points east again")
+	t.assert_eq(gate.compass.quarter_turns, 0, "Reset removes all prior turns")
+	gate.submit_answer()
+	t.assert_eq(results, [true], "Exploring or resetting after matching leaves all three selected pairs intact")
+	results.clear()
+	await _test_compass_layout(t, gate, question)
+	gate.present(Bank.question("lines", 0), 3, 5)
+	t.assert_false(gate.compass.is_visible_in_tree(), "The compass disappears on the next unrelated construction question")
+
+static func _test_compass_layout(t: Node, gate: Gate, question: Dictionary) -> void:
+	var root: Window = t.get_tree().root
+	var old_size: Vector2i = root.size
+	var old_scale: Vector2i = root.content_scale_size
+	for dimensions: Vector2i in [Vector2i(960, 720), Vector2i(390, 780)]:
+		root.size = dimensions
+		root.content_scale_size = dimensions
+		gate.present(question, 2, 5)
+		for frame: int in range(4): await t.get_tree().process_frame
+		var dial: Control = gate.compass.find_child("CompassDial", true, false) as Control
+		var controls: Array[Control] = [dial, gate._response.left_buttons[0], gate._response.right_buttons[0], gate._check]
+		for control: Control in controls:
+			var bounds: Rect2 = control.get_global_rect()
+			t.assert_true(bounds.size.x > 0 and bounds.position.x >= -1.0 and bounds.end.x <= dimensions.x + 1.0, "Dial and answer controls fit without horizontal scrolling at %s" % str(dimensions))
+		t.assert_false(dial.get_global_rect().intersects(gate._response.get_global_rect()), "The compass does not cover the response cards")
+	root.size = old_size
+	root.content_scale_size = old_scale
+	await t.get_tree().process_frame
 
 static func _test_daily_completion_storage(t: Node) -> void:
 	var path: String = "user://test_gate_date_%d.txt" % Time.get_ticks_usec()

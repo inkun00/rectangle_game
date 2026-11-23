@@ -19,7 +19,7 @@ FORMAT_VERSION = 4
 RELATIVE_FILE_BASE = 2
 HEADER_BYTES = 104
 ALIGNMENT = 32
-FEATURES = ("drawing", "construction", "adventure", "space", "opening")
+FEATURES = ("drawing", "construction", "wall", "adventure", "space", "opening")
 REGION_BACKGROUNDS = frozenset(("forest", "valley", "harbor", "snow", "citadel"))
 
 
@@ -130,6 +130,8 @@ def feature_for_source(path: str) -> str:
     path = _canonical_path(path).removesuffix(".import")
     if path.startswith("assets/generated/drawing/"):
         return "drawing"
+    if path.startswith("assets/generated/wall-commissions/"):
+        return "wall"
     if (path.startswith("assets/generated/starfront-hd/materials/")
             or path.startswith("assets/generated/construction-library-v2/")
             or re.fullmatch(r"assets/generated/construction-game/badge-[1-5]\.webp", path)

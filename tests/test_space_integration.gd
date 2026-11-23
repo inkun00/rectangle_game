@@ -199,6 +199,7 @@ static func _test_story_branches(t: Node) -> void:
 	app._space_screen._confirmation.confirmed.emit()
 	t.assert_eq(ledger.installed_ship_part("hull").get("id"), premium_hull, "The shop installs the purchased premium hull")
 	t.assert_eq(ledger.purchased_ship_parts.size(), SpaceshipCatalog.PART_COUNT, "An upgrade replaces a part in the same slot")
+	await _test_ship_exhibition_before_ending(t, ledger.serialize())
 	var balance: int = ledger.balance
 	app._space_screen.launch_requested.emit()
 	t.assert_eq(app._ending_dialog._title_label.text, "우주선 이름", "Space completion explicitly asks the player to name their spaceship")
@@ -236,6 +237,12 @@ static func _test_story_branches(t: Node) -> void:
 	app._show_home()
 	_choose(app, "OpenShipWorkshop")
 	t.assert_true(app._space_screen.visible, "Players can reopen the workshop after publishing a ship")
+	t.assert_eq(space_entry.get("gallery"), "ship", "A new spaceship ending is recorded in the ship gallery")
+	_submit_hangar_exhibition(t, app._space_screen)
+	await t.get_tree().process_frame
+	t.assert_eq(requests.size(), 3, "Registering the same ship after its gallery-tagged ending reuses that post")
+	t.assert_true(app._space_screen.visible and not is_instance_valid(app._ending_scene), "Registering from the workshop never replays the space ending")
+	t.assert_eq(app._art_publications.entries.size(), 2, "An identical post-ending ship creates no additional queue entry")
 	var changed_style: Dictionary = style.duplicate()
 	changed_style.base = "red"
 	app._space_screen.appearance_requested.emit(changed_style)
@@ -249,6 +256,80 @@ static func _test_story_branches(t: Node) -> void:
 	for name: String in DirAccess.get_files_at(directory): DirAccess.remove_absolute(directory.path_join(name))
 	DirAccess.remove_absolute(directory)
 	await t.get_tree().process_frame
+
+static func _submit_hangar_exhibition(t: Node, hangar: SpaceHangar) -> void:
+	t.assert_true(hangar._publish_button.is_visible_in_tree(), "The completed ship offers its own gallery action")
+	hangar._publish_button.pressed.emit()
+	var form: StoryCompletionDialog = hangar._ship_submission
+	t.assert_true(form.visible, "The ship gallery asks for author, title and description")
+	form._author.text = "우주별"
+	form._title.text = "은하수호"
+	form._description.text = "사각형 날개를 달았어요."
+	form._submit()
+
+static func _test_ship_exhibition_before_ending(t: Node, ledger_data: Dictionary) -> void:
+	var directory: String = "user://test_ship_gallery_%s" % Crypto.new().generate_random_bytes(8).hex_encode()
+	DirAccess.make_dir_recursive_absolute(directory)
+	var app: QuadrilateralApp = AppScene.instantiate()
+	app.testing = true
+	app._art_publications.path = directory.path_join("queue.json")
+	app._ship_exhibit_png_directory = directory.path_join("exhibit")
+	app._ending_png_directory = directory.path_join("ending")
+	var image: Image = Image.create_empty(960, 600, false, Image.FORMAT_RGBA8)
+	image.fill_rect(Rect2i(360, 230, 240, 140), Color.AQUA)
+	var exported: PackedByteArray = image.save_png_to_buffer()
+	var snapshots: Array[Dictionary] = []
+	app._ending_png_renderer = func(branch: String, offer: Dictionary) -> PackedByteArray:
+		t.assert_eq(branch, "space", "Both ship routes render through the space exporter")
+		snapshots.append(offer.duplicate(true))
+		return exported
+	var requests: Array[Dictionary] = []
+	app._art_upload_transport = func(entry: Dictionary, png: PackedByteArray) -> Dictionary:
+		requests.append(entry.duplicate(true))
+		t.assert_eq(png, exported, "The native fake transport receives the original clean ship image")
+		if requests.size() == 1: return {"ok": false, "error": "연결이 끊겼어요."}
+		return {"ok": true, "post_url": PadletUploader.BOARD_URL}
+	t.add_child(app)
+	await t.get_tree().process_frame
+	var ledger: ConstructionState = app._economy_state
+	t.assert_true(ledger.restore(ledger_data), "A saved completed ship with twelve installed parts restores")
+	await app._show_space()
+	var balance: int = ledger.balance
+	_submit_hangar_exhibition(t, app._space_screen)
+	await t.get_tree().process_frame
+	t.assert_eq(requests.size(), 1, "Independent registration attempts one native mock upload")
+	t.assert_eq(app._art_publications.pending_ships().size(), 1, "An offline ship remains in its gallery outbox")
+	if requests.size() == 1:
+		t.assert_eq(requests[0].get("kind"), "ship_exhibit", "The standalone ship uses its own exhibition kind")
+		t.assert_eq(requests[0].get("title"), "은하수호", "The standalone transport receives the player's ship title")
+	t.assert_eq(ledger.balance, balance, "Independent registration does not spend or award coins")
+	t.assert_false(ledger.launched or is_instance_valid(app._ending_scene), "Independent registration leaves launch and story progression untouched")
+	t.assert_true(app._art_publications.ending_entry("space").is_empty(), "Exhibiting a ship does not claim a story ending")
+	var reloaded: ArtPublicationStore = ArtPublicationStore.new()
+	reloaded.path = app._art_publications.path
+	t.assert_true(reloaded.load_file().ok, "A fresh outbox loads the pending independent ship")
+	app._art_publications = reloaded
+	await app._retry_publications(&"ship", true)
+	t.assert_eq(requests.size(), 2, "The saved ship can be retried successfully")
+	if requests.size() == 2:
+		t.assert_eq(requests[1].id, requests[0].id, "The reloaded standalone ship keeps its request ID")
+	t.assert_eq(snapshots.size(), 1, "The retry reuses the saved PNG without rendering again")
+	t.assert_true(reloaded.pending_ships().is_empty(), "The recovered standalone ship is confirmed")
+	app._space_screen.launch_requested.emit()
+	await app._submit_ending_project({"author": "우주별", "title": "우리 우주선", "description": "이제 우주로 출발해요."})
+	t.assert_true(is_instance_valid(app._ending_scene) and app._ending_scene.branch == "space", "The exhibited ship can still complete its story")
+	t.assert_eq(requests.size(), 2, "Completing the same ship's ending reuses the confirmed gallery post")
+	t.assert_eq(reloaded.ending_entry("space").get("price"), ledger.ship_spent(), "The story still records its actual installed component costs")
+	t.assert_eq(ledger.balance, balance, "Reusing the gallery post for the ending never charges another fee")
+	app.free()
+	await t.get_tree().process_frame
+	for folder: String in ["exhibit", "ending"]:
+		var png_directory: String = directory.path_join(folder)
+		if not DirAccess.dir_exists_absolute(png_directory): continue
+		for name: String in DirAccess.get_files_at(png_directory): DirAccess.remove_absolute(png_directory.path_join(name))
+		DirAccess.remove_absolute(png_directory)
+	for name: String in DirAccess.get_files_at(directory): DirAccess.remove_absolute(directory.path_join(name))
+	DirAccess.remove_absolute(directory)
 
 static func _test_shared_ledger(t: Node) -> void:
 	var save_directory: String = "user://test_space_integration_sold_art_%s" % Crypto.new().generate_random_bytes(8).hex_encode()

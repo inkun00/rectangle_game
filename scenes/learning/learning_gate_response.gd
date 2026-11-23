@@ -165,6 +165,22 @@ func incomplete_message() -> String:
 			if _pairs.has(-1): return "모든 카드의 짝을 연결해 주세요."
 	return ""
 
+func focus_missing_answer() -> void:
+	match str(_question.mode):
+		"short":
+			short_input.grab_focus()
+		"match":
+			_active_left = _pairs.find(-1)
+			_refresh_pairs()
+			left_buttons[_active_left].grab_focus()
+		"order":
+			for button: Button in option_buttons:
+				if not button.button_pressed:
+					button.grab_focus()
+					return
+		"choice":
+			option_buttons[0].grab_focus()
+
 func answer_correct() -> bool:
 	match str(_question.mode):
 		"choice": return _selected == int(_question.answer_index)

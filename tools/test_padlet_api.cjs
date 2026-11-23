@@ -25,6 +25,11 @@ const buildingBoardId = 'testbuildingboard001';
 const buildingBoardUrl = `https://padlet.com/test/architecture-${buildingBoardId}`;
 const buildingBoardApi = `https://api.padlet.dev/v1/boards/${buildingBoardId}`;
 const drawingBoardApi = `https://api.padlet.dev/v1/boards/${BOARD_ID}`;
+const wallBoardId = 'testtilewallboard001';
+const wallBoardUrl = `https://padlet.com/test/tiles-${wallBoardId}`;
+const shipBoardId = 'testspaceshipboard01';
+const shipBoardUrl = `https://padlet.com/test/space-${shipBoardId}`;
+const shipBoardApi = `https://api.padlet.dev/v1/boards/${shipBoardId}`;
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const drawingPayloadHash = digest(JSON.stringify([base.id, base.author, base.title, base.description, base.price, digest(png)]));
 const buildingSubmission = { ...base, kind: 'commission', price: 260_000_000 };
@@ -81,6 +86,8 @@ function environment(overrides = {}) {
     env: {
       PADLET_API_KEY: 'test-private-padlet-key', BLOB_READ_WRITE_TOKEN: 'test-private-blob-key', NODE_ENV: 'production',
       PADLET_BUILDING_BOARD_ID: buildingBoardId, PADLET_BUILDING_BOARD_URL: buildingBoardUrl,
+      PADLET_WALL_BOARD_ID: wallBoardId, PADLET_WALL_BOARD_URL: wallBoardUrl,
+      PADLET_SPACESHIP_BOARD_ID: shipBoardId, PADLET_SPACESHIP_BOARD_URL: shipBoardUrl,
     },
     now: () => clock,
     pause: async () => {},
@@ -173,8 +180,8 @@ test('routes buildings apart from drawings and spaceships while preserving price
       deps.calls.push({ url, options });
       return new Response(JSON.stringify({ data: { ...post, attributes: { status: 'pending_moderation' } } }), { status: 201 });
     };
-    const boardApi = kind === 'spaceship' ? drawingBoardApi : buildingBoardApi;
-    const boardUrl = kind === 'spaceship' ? BOARD_URL : buildingBoardUrl;
+    const boardApi = kind === 'spaceship' ? shipBoardApi : buildingBoardApi;
+    const boardUrl = kind === 'spaceship' ? shipBoardUrl : buildingBoardUrl;
     const projectName = kind === 'earth_house' ? '노을이 머무는 집'
       : kind === 'spaceship' ? '사각성으로 가는 푸른 별' : base.title;
     const submission = { ...base, kind, price, title: projectName };
@@ -200,6 +207,106 @@ test('routes buildings apart from drawings and spaceships while preserving price
     if (kind === 'commission') {
       assert.equal((await call(handler, { ...submission, kind: 'my_house' })).statusCode, 409);
     }
+  }
+});
+
+test('unpaid walls and completed ships use their own galleries and recover stable receipts', async () => {
+  for (const [kind, boardId, url, label] of [
+    ['wall', wallBoardId, wallBoardUrl, '담장 설명'],
+    ['ship_exhibit', shipBoardId, shipBoardUrl, '우주선 설명'],
+  ]) {
+    const deps = environment();
+    const submission = { ...base, kind, price: 0 };
+    const result = await call(createSubmissionHandler(deps), submission);
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.json.post_url, url);
+    assert.equal(deps.calls[0].url, `https://api.padlet.dev/v1/boards/${boardId}/posts`);
+    const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
+    assert.ok(content.body.includes(`${label}: ${base.description}`));
+    assert.doesNotMatch(content.body, /가격|재료비|제작비|0원/);
+    assert.deepEqual(deps.blob.files.get(pngPath).bytes, png);
+    assert.equal((await call(createSubmissionHandler(deps), submission)).json.post_url, url);
+    assert.equal((await call(createSubmissionHandler(deps), { ...submission, title: '다른 작품' })).statusCode, 409);
+    assert.equal((await call(createSubmissionHandler(deps), { ...submission, price: 100 })).statusCode, 400);
+    assert.equal(deps.calls.length, 1);
+  }
+});
+
+test('dedicated galleries never post to another artwork category when overridden', async () => {
+  for (const [kind, prefix, otherId, otherUrl] of [
+    ['wall', 'WALL', shipBoardId, shipBoardUrl],
+    ['ship_exhibit', 'SPACESHIP', wallBoardId, wallBoardUrl],
+    ['spaceship', 'SPACESHIP', wallBoardId, wallBoardUrl],
+  ]) {
+    for (const [id, url] of [[otherId, otherUrl], [BOARD_ID, BOARD_URL], [buildingBoardId, buildingBoardUrl], [otherId, undefined]]) {
+      const deps = environment();
+      deps.env[`PADLET_${prefix}_BOARD_ID`] = id;
+      deps.env[`PADLET_${prefix}_BOARD_URL`] = url;
+      const response = await call(createSubmissionHandler(deps), { ...base, kind, price: kind === 'spaceship' ? 1_200_000_000 : 0 });
+      assert.equal(response.statusCode, 503);
+      assert.equal(response.json.code, 'configuration');
+      assert.equal(deps.calls.length, 0);
+      assert.equal(deps.blob.files.has(manifestPath), false);
+    }
+  }
+});
+
+test('production wall and spaceship galleries are available without board overrides', async () => {
+  for (const [kind, prefix, id] of [
+    ['wall', 'WALL', 's025pydws5qowdbbgrdp'],
+    ['ship_exhibit', 'SPACESHIP', 's025pyexx3eepqe19zum'],
+    ['spaceship', 'SPACESHIP', 's025pyexx3eepqe19zum'],
+  ]) {
+    const deps = environment();
+    delete deps.env[`PADLET_${prefix}_BOARD_ID`];
+    delete deps.env[`PADLET_${prefix}_BOARD_URL`];
+    const result = await call(createSubmissionHandler(deps), { ...base, kind, price: kind === 'spaceship' ? 1_200_000_000 : 0 });
+    assert.equal(result.json.post_url, `https://padlet.com/inkun02/padlet-${id}`);
+    assert.deepEqual(deps.calls.map((entry) => entry.url), [`https://api.padlet.dev/v1/boards/${id}/posts`]);
+  }
+});
+
+test('uncertain wall and ship requests stay on the attempted board across configuration changes', async () => {
+  for (const [kind, prefix, id, url] of [
+    ['wall', 'WALL', wallBoardId, wallBoardUrl],
+    ['ship_exhibit', 'SPACESHIP', shipBoardId, shipBoardUrl],
+    ['spaceship', 'SPACESHIP', shipBoardId, shipBoardUrl],
+  ]) {
+    const deps = environment();
+    const submission = { ...base, kind, price: kind === 'spaceship' ? 1_200_000_000 : 0 };
+    let visible = false;
+    deps.fetch = async (requestUrl, options) => {
+      deps.calls.push({ url: requestUrl, options });
+      if (options.method === 'POST') throw new Error('Response lost after remote creation');
+      const remotePost = { ...post, attributes: { ...post.attributes, webUrl: { live: `${url}/wish/21` } } };
+      return Response.json({ included: visible ? [remotePost] : [] });
+    };
+    assert.equal((await call(createSubmissionHandler(deps), submission)).statusCode, 202);
+    delete deps.env[`PADLET_${prefix}_BOARD_ID`];
+    delete deps.env[`PADLET_${prefix}_BOARD_URL`];
+    visible = true;
+    assert.equal((await call(createSubmissionHandler(deps), submission)).json.post_url, `${url}/wish/21`);
+    const original = `https://api.padlet.dev/v1/boards/${id}`;
+    assert.deepEqual(deps.calls.map((entry) => entry.url), [`${original}/posts`, `${original}?include=posts`, `${original}?include=posts`]);
+  }
+});
+
+test('ending ships with historical records preserve receipts and reconcile on the original board', async () => {
+  const ship = { ...base, kind: 'spaceship', price: 1_200_000_000 };
+  const payloadHash = digest(JSON.stringify([base.id, base.author, base.title, base.description, ship.price, digest(png), ship.kind]));
+  for (const state of ['unknown', 'posting', 'published', 'prepared', 'rejected']) {
+    const deps = environment();
+    deps.blob.setJson(manifestPath, {
+      version: 1, id: base.id, payload_hash: payloadHash, state, board_id: BOARD_ID, board_url: BOARD_URL,
+      ...(state === 'published' ? { post_url: post.attributes.webUrl.live } : {}), updated_at: deps.now() - 46000,
+    });
+    const result = await call(createSubmissionHandler(deps), ship);
+    assert.equal(result.statusCode, 200);
+    const unposted = state === 'prepared' || state === 'rejected';
+    assert.equal(result.json.post_url, unposted ? shipBoardUrl : post.attributes.webUrl.live);
+    assert.deepEqual(deps.calls.map((entry) => entry.url), state === 'published' ? [] : [
+      unposted ? `${shipBoardApi}/posts` : `${drawingBoardApi}?include=posts`,
+    ]);
   }
 });
 
@@ -536,7 +643,7 @@ test('incomplete or invalid building board overrides leave drawing and spaceship
 
     assert.equal((await call(handler)).statusCode, 200);
     assert.equal((await call(handler, { ...base, id: 'a'.repeat(32), kind: 'spaceship', price: 1_200_000_000 })).statusCode, 200);
-    assert.deepEqual(deps.calls.map(({ url }) => url), [`${drawingBoardApi}/posts`, `${drawingBoardApi}/posts`]);
+    assert.deepEqual(deps.calls.map(({ url }) => url), [`${drawingBoardApi}/posts`, `${shipBoardApi}/posts`]);
   }
 });
 

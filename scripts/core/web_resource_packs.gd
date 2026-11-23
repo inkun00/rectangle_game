@@ -4,7 +4,7 @@ extends Node
 
 signal request_finished(feature: String, success: bool)
 
-const FEATURES: Array[String] = ["drawing", "construction", "adventure", "space", "opening"]
+const FEATURES: Array[String] = ["drawing", "construction", "wall", "adventure", "space", "opening"]
 const CACHE_DIRECTORY: String = "user://web-resource-packs"
 static var _service: WebResourcePacks
 static var _manifest_cache: Dictionary = {}

@@ -2,19 +2,28 @@ class_name WallStudio
 extends Control
 
 const Design = preload("res://scripts/core/wall_tile_design.gd")
+const Geometry = preload("res://scripts/core/quadrilateral_math.gd")
 const Preview = preload("res://scenes/wall/wall_pattern_preview.gd")
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
+const Metadata = preload("res://scripts/export/art_submission_metadata.gd")
 
 signal home_requested
 signal design_changed
 signal commission_submitted
+signal wall_publication_requested(author: String, title: String, description: String)
+signal exhibition_board_requested
 
 var design: Design = Design.new()
+var free_mode: bool = false
+var free_designs: Dictionary = {}
+var _draft: Design:
+	get: return free_designs[_selected_order] if free_mode else design
 var _balance: int = 0
 var _stage: String = "orders"
 var _selected_order: String = ""
-var _free_mode: bool = false
-var _piece: int = 0
+var _piece: int = -1
+var _kind: String = ""
+var _ink: int = 1
 var _scroll: ScrollContainer
 var _body: VBoxContainer
 var _balance_label: Label
@@ -22,8 +31,14 @@ var _title: Label
 var _preview: Preview
 var _work: BoxContainer
 var _overview: Label
-var _count_labels: Dictionary = {}
+var _note: Label
+var _status: String = ""
 var _controls: Dictionary = {}
+var _form: ConfirmationDialog
+var _author: LineEdit
+var _work_title: LineEdit
+var _description: TextEdit
+var _validation: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -72,6 +87,7 @@ func set_balance(coins: int) -> void:
 		_balance_label.text = "보유 " + Catalog.format_won(_balance)
 
 func _go(stage: String, focus_name: String = "") -> void:
+	if stage == "orders": free_mode = false
 	_stage = stage
 	_build()
 	_scroll.set_deferred("scroll_vertical", 0)
@@ -83,60 +99,56 @@ func _build() -> void:
 		_body.remove_child(node)
 		node.queue_free()
 	_controls.clear()
-	_count_labels.clear()
-	_work = null
-	_preview = null
-	_overview = null
-	var captions: Dictionary = {"orders":"담장을 꾸밀 곳을 골라요", "tile":"1. 타일 한 장 만들기", "wall":"2. 타일로 담장 꾸미기", "review":"내가 꾸민 담장" if _free_mode else "의뢰 확인하기"}
-	_title = QuadTheme.paragraph(str(captions[_stage]), 28, Color("#fff0d5"))
+	_work = BoxContainer.new()
+	_work.add_theme_constant_override("separation", 14)
+	var titles: Dictionary = {"orders": "담장 의뢰", "blank": "꾸미기 전 담장", "tile": "타일 한 장 디자인", "filled": "내 타일로 채운 담장"}
+	var heading: String = "자유 작품 · " + str(titles[_stage]) if free_mode else str(titles[_stage])
+	_title = QuadTheme.paragraph(heading, 26, Color("#fff0d5"))
 	_title.focus_mode = Control.FOCUS_CLICK
 	_body.add_child(_title)
-	if _stage == "orders":
-		var choices: HFlowContainer = _flow(_body)
-		for id: String in Design.COMMISSIONS:
-			var caption: String = str(Design.COMMISSIONS[id].title)
-			if design.completed.has(id): caption += " · 완료"
-			_action(choices, "WallCommission_" + id, caption, _select_order.bind(id), true)
-		_work = BoxContainer.new()
-		_work.add_theme_constant_override("separation", 16)
-		_body.add_child(_work)
-		_preview = Preview.new()
-		_preview.wall = true
-		_preview.name = "WallOrderSample"
-		_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_work.add_child(_preview)
-		var info: VBoxContainer = VBoxContainer.new()
-		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info.alignment = BoxContainer.ALIGNMENT_CENTER
-		info.add_theme_constant_override("separation", 12)
-		_work.add_child(info)
-		_overview = _paragraph(info, "")
-		var actions: HFlowContainer = _flow(info)
-		_action(actions, "WallAccept", "이 의뢰로 만들기", _accept, false, true)
-		if design.completed.size() == Design.COMMISSIONS.size():
+	_body.add_child(_work)
+	_preview = Preview.new()
+	_preview.design = _draft
+	_preview.view_kind = "blank" if _stage in ["orders", "blank"] else _stage
+	_preview.name = {"orders":"WallOrderPreview", "blank":"WallBlankPreview", "tile":"WallTileEditor", "filled":"WallFinishedPreview"}[_stage]
+	_preview.set_location(_selected_order)
+	_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_preview.size_flags_stretch_ratio = 1.4
+	_preview.piece_selected.connect(_select_piece)
+	_preview.piece_placed.connect(_place)
+	_preview.edited.connect(_changed)
+	_work.add_child(_preview)
+	var tools: VBoxContainer = VBoxContainer.new()
+	tools.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tools.add_theme_constant_override("separation", 8)
+	_work.add_child(tools)
+	_overview = _paragraph(tools, "")
+	_note = null
+	match _stage:
+		"orders":
+			var choices: HFlowContainer = _flow(tools)
+			for id: String in Design.COMMISSIONS:
+				var label: String = str(Design.COMMISSIONS[id].title)
+				if id in design.completed: label += " · 완료"
+				_action(choices, "WallCommission_" + id, label, _select_order.bind(id), true)
+			var actions: HFlowContainer = _flow(tools)
+			_action(actions, "WallAccept", "이 담장 꾸미기", _accept, false, true)
 			_action(actions, "WallFreeDesign", "자유롭게 꾸미기", _start_free)
-	else:
-		var order: Dictionary = Design.COMMISSIONS[design.commission_id]
-		if not _free_mode:
-			_paragraph(_body, "%s  ·  %s\n%s" % [order.title, Catalog.format_won(int(order.reward)), order.brief])
-		_work = BoxContainer.new()
-		_work.add_theme_constant_override("separation", 16)
-		_body.add_child(_work)
-		_preview = Preview.new()
-		_preview.design = design
-		_preview.wall = _stage != "tile"
-		_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_preview.size_flags_stretch_ratio = 1.25
-		_preview.piece_selected.connect(_select_piece)
-		_work.add_child(_preview)
-		var tools: VBoxContainer = VBoxContainer.new()
-		tools.add_theme_constant_override("separation", 8)
-		tools.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		_work.add_child(tools)
-		match _stage:
-			"tile": _tile_tools(tools)
-			"wall": _wall_tools(tools)
-			"review": _review_tools(tools)
+		"blank":
+			var choices: HFlowContainer = _flow(tools)
+			_action(choices, "WallStartTile", "타일 디자인하기", _go.bind("tile"), false, true)
+			if design.finished:
+				_action(choices, "WallResume", "완성한 담장 보기", _go.bind("filled"))
+			_action(choices, "WallOrders", "다른 의뢰 보기", _go.bind("orders"))
+		"tile": _tile_tools(tools)
+		"filled":
+			var nav: HFlowContainer = _flow(tools)
+			if not free_mode: _action(nav, "WallSubmit", "의뢰인에게 납품", _submit, false, true)
+			_action(nav, "WallEditTile", "타일 고치기", _go.bind("tile"))
+			_action(nav, "WallPublish", "완성한 담장 등록", _open_form)
+			_action(nav, "WallBrowse", "담장 전시장 보기", func() -> void: exhibition_board_requested.emit())
+			_action(nav, "WallOrders", "다른 장소 보기" if free_mode else "다른 의뢰 보기", _go.bind("orders"))
+			_note = _paragraph(tools, _status)
 	_layout()
 	refresh()
 
@@ -162,121 +174,135 @@ func _action(parent: Control, id: String, label: String, handler: Callable, togg
 
 func _select_order(id: String) -> void:
 	_selected_order = id
+	_preview.set_location(id)
 	refresh()
 
 func _accept() -> void:
-	_free_mode = false
+	free_mode = false
 	if design.commission_id != _selected_order:
 		design.set_commission(_selected_order)
 		design_changed.emit()
-	_piece = 0
-	_go("tile")
+	_piece = -1
+	_kind = ""
+	_status = ""
+	_go("blank")
 
 func _start_free() -> void:
-	_free_mode = true
-	_piece = 0
+	if not free_designs.has(_selected_order):
+		var work: Design = Design.new()
+		work.set_commission(_selected_order)
+		free_designs[_selected_order] = work
+	free_mode = true
+	_piece = -1
+	_kind = ""
+	_status = ""
 	_go("tile")
 
 func _tile_tools(tools: VBoxContainer) -> void:
-	_paragraph(tools, "기본 무늬를 고르세요.")
-	var motifs: HFlowContainer = _flow(tools)
-	for id: String in Design.MOTIFS:
-		_action(motifs, "WallMotif_" + id, str(Design.MOTIFS[id]), _select_motif.bind(id), true)
-	_paragraph(tools, "칠할 조각을 누르고 색을 고르세요.")
-	var pieces: HFlowContainer = _flow(tools)
-	for i: int in range(design.unit_parts().size()):
-		_action(pieces, "WallPiece_%d" % i, "조각 %d" % (i + 1), _select_piece.bind(i), true)
-	var colors: HFlowContainer = _flow(tools)
+	var shapes: HFlowContainer = _flow(tools)
+	var kinds: Array[String] = Geometry.KINDS.duplicate()
+	kinds.append("freeform")
+	for kind: String in kinds:
+		var label: String = "자유 사각형" if kind == "freeform" else Geometry.kind_name(kind)
+		_action(shapes, "WallShape_" + kind, label, _arm.bind(kind), true)
+	var selection: HFlowContainer = _flow(tools)
+	_action(selection, "WallPlaceCenter", "가운데에 놓기", _center_place)
+	_action(selection, "WallPiecePrevious", "이전 조각", _cycle.bind(-1))
+	_action(selection, "WallPieceNext", "다음 조각", _cycle.bind(1))
+	var palette: HFlowContainer = _flow(tools)
 	for i: int in range(Design.PALETTE.size()):
-		var button: Button = _action(colors, "WallColor_%d" % i, str(Design.PALETTE_NAMES[i]), _color.bind(i), true)
+		var button: Button = _action(palette, "WallColor_%d" % i, str(Design.PALETTE_NAMES[i]), _color.bind(i), true)
 		var swatch: GradientTexture2D = GradientTexture2D.new()
 		swatch.gradient = Gradient.new()
 		swatch.gradient.colors = PackedColorArray([Design.PALETTE[i], Design.PALETTE[i]])
-		swatch.width = 18
-		swatch.height = 18
+		swatch.width = 16
+		swatch.height = 16
 		button.icon = swatch
 		button.expand_icon = false
-		button.add_theme_constant_override("icon_max_width", 18)
-	_paragraph(tools, "이 무늬를 반복해서 타일 한 장을 만들어요.")
-	_repeat_controls(tools, true)
-	_action(_flow(tools), "WallRotate", "무늬 90° 돌리기", _rotate)
+	var transforms: HFlowContainer = _flow(tools)
+	_action(transforms, "WallRotate", "15° 돌리기", _edit.bind("rotate"))
+	_action(transforms, "WallMirror", "좌우 뒤집기", _edit.bind("mirror"))
+	_action(transforms, "WallGrow", "키우기", _edit.bind("grow"))
+	_action(transforms, "WallShrink", "줄이기", _edit.bind("shrink"))
+	_action(transforms, "WallDelete", "조각 지우기", _edit.bind("delete"))
+	_action(transforms, "WallUndo", "되돌리기", _history.bind(false))
+	_action(transforms, "WallRedo", "다시 실행", _history.bind(true))
 	var nav: HFlowContainer = _flow(tools)
-	_action(nav, "WallOrders", "의뢰 목록", _go.bind("orders"))
-	_action(nav, "WallFinishTile", "타일 완성 → 담장 꾸미기", _go.bind("wall"), false, true)
+	_action(nav, "WallFinishTile", "타일 완성 · 담장 채우기", _finish, false, true)
+	_action(nav, "WallOrders", "장소 목록" if free_mode else "의뢰 목록", _go.bind("orders"))
+	_note = _paragraph(tools, "")
 
-func _wall_tools(tools: VBoxContainer) -> void:
-	_paragraph(tools, "완성한 타일을 담장에 몇 장씩 붙일까요?")
-	_repeat_controls(tools, false)
-	_paragraph(tools, "타일을 놓을 방향을 골라요.")
-	var layouts: HFlowContainer = _flow(tools)
-	for id: String in Design.LAYOUTS:
-		_action(layouts, "WallLayout_" + id, str(Design.LAYOUTS[id]), _set_layout.bind(id), true)
-	_overview = _paragraph(tools, "")
-	var nav: HFlowContainer = _flow(tools)
-	_action(nav, "WallOrders", "의뢰 목록", _go.bind("orders"))
-	_action(nav, "WallEditTile", "타일 고치기", _go.bind("tile"))
-	_action(nav, "WallReview", "완성한 담장 보기" if _free_mode else "의뢰 확인하기", _go.bind("review"), false, true)
+func _arm(kind: String) -> void:
+	_kind = "" if _kind == kind else kind
+	_piece = -1
+	refresh()
 
-func _repeat_controls(parent: Control, inside_tile: bool) -> void:
-	for axis: String in ["Columns", "Rows"]:
-		var prefix: String = ("WallTile" if inside_tile else "Wall") + axis
-		var row: HBoxContainer = HBoxContainer.new()
-		parent.add_child(row)
-		var count_label: Label = QuadTheme.label("", 17)
-		count_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(count_label)
-		_count_labels[prefix] = count_label
-		for change: int in [-1, 1]:
-			var button: Button = _action(row, prefix + ("Less" if change < 0 else "More"), "−" if change < 0 else "+", _step.bind(inside_tile, axis, change))
-			var direction: String = "가로" if axis == "Columns" else "세로"
-			button.tooltip_text = "%s %s 수 %s" % ["무늬" if inside_tile else "타일", direction, "줄이기" if change < 0 else "늘리기"]
-			button.accessibility_name = button.tooltip_text
+func _place(point: Vector2) -> void:
+	if _kind.is_empty(): return
+	var added: int = _draft.add_piece(_kind, point, _ink)
+	if added < 0:
+		_note.text = "조각 전체가 타일 안에 들어가도록 안쪽을 눌러 주세요."
+		return
+	_kind = ""
+	_piece = added
+	_changed()
 
-func _review_tools(tools: VBoxContainer) -> void:
-	_overview = _paragraph(tools, "")
-	var nav: HFlowContainer = _flow(tools)
-	_action(nav, "WallEditTile", "타일 고치기", _go.bind("tile"))
-	_action(nav, "WallEditWall", "담장 고치기", _go.bind("wall"))
-	if not _free_mode: _action(nav, "WallSubmit", "담장 납품하기", _submit, false, true)
-	_action(nav, "WallOrders", "다른 의뢰 보기", _go.bind("orders"))
-
-func _select_motif(id: String) -> void:
-	if id != design.motif_id:
-		design.select_motif(id)
-		_piece = 0
-		design_changed.emit()
-		_go("tile", "WallMotif_" + id)
-	else: refresh()
+func _center_place() -> void:
+	_place(_draft.tile_size() * 0.5)
 
 func _select_piece(index: int) -> void:
+	_kind = ""
 	_piece = index
+	var parts: Array[Dictionary] = _draft.motif_parts()
+	if index >= 0 and index < parts.size(): _ink = int(parts[index].palette_index)
 	refresh()
+
+func _cycle(step: int) -> void:
+	var count: int = _draft.motif_parts().size()
+	if count: _select_piece(posmod(_piece + step, count))
 
 func _color(index: int) -> void:
-	design.set_color(_piece, index)
-	_updated()
+	_ink = index
+	if _piece >= 0 and _draft.set_color(_piece, index): _changed()
+	else: refresh()
 
-func _step(inside_tile: bool, axis: String, delta: int) -> void:
-	var x: int = delta if axis == "Columns" else 0
-	var y: int = delta if axis == "Rows" else 0
-	if inside_tile: design.set_tile_repeat(design.tile_columns + x, design.tile_rows + y)
-	else: design.set_repeat(design.columns + x, design.rows + y)
-	_updated()
+func _edit(action: String) -> void:
+	if _piece < 0: return
+	var success: bool = false
+	match action:
+		"rotate": success = _draft.rotate_piece(_piece, 15.0)
+		"mirror": success = _draft.mirror_piece(_piece)
+		"grow": success = _draft.resize_piece(_piece, 1.2)
+		"shrink": success = _draft.resize_piece(_piece, 1.0 / 1.2)
+		"delete":
+			success = _draft.remove_piece(_piece)
+			if success: _piece = mini(_piece, _draft.motif_parts().size() - 1)
+	if success: _changed()
+	else: _note.text = "크기나 위치를 바꾼 뒤 다시 해 보세요. 조각은 타일 안에 있어야 해요."
 
-func _rotate() -> void:
-	design.rotate_tile()
-	_updated()
+func _history(redo: bool) -> void:
+	var success: bool = _draft.redo() if redo else _draft.undo()
+	if success:
+		_kind = ""
+		_piece = -1
+		_changed()
 
-func _set_layout(id: String) -> void:
-	design.set_layout(id)
-	_updated()
+func _finish() -> void:
+	if not _draft.finish_tile(): return
+	_kind = ""
+	_piece = -1
+	_changed()
+	_go("filled")
 
 func _submit() -> void:
-	var result: Dictionary = design.evaluate()
-	if result.ok and not result.claimed: commission_submitted.emit()
+	if free_mode: return
+	var report: Dictionary = _draft.evaluate()
+	if _draft.finished and report.ok and not report.claimed:
+		commission_submitted.emit()
 	refresh()
 
-func _updated() -> void:
+func _changed() -> void:
+	_status = ""
 	design_changed.emit()
 	refresh()
 
@@ -284,60 +310,135 @@ func refresh() -> void:
 	if not is_instance_valid(_body): return
 	set_balance(_balance)
 	var order: Dictionary = Design.COMMISSIONS[_selected_order]
-	if _stage == "orders":
-		for id: String in Design.COMMISSIONS:
-			_pressed("WallCommission_" + id, id == _selected_order)
-		var sample: Design = Design.new()
-		sample.set_commission(_selected_order)
-		sample.select_motif(str(order.motif))
-		var colors: Dictionary = {"harbor":[1, 3], "garden":[3, 5, 1, 5, 1], "station":[0, 4, 0, 0, 2, 0]}
-		for i: int in range(sample.unit_parts().size()):
-			sample.set_color(i, colors[_selected_order][i])
-		sample.set_tile_repeat(2, 2 if _selected_order == "garden" else 1)
-		sample.set_repeat(int(order.columns), int(order.rows))
-		if _selected_order == "station": sample.set_layout("mirror")
-		_preview.design = sample
-		_preview.queue_redraw()
-		_overview.text = "%s\n의뢰비 %s" % [order.brief, Catalog.format_won(int(order.reward))]
-		if design.completed.has(_selected_order):
-			_overview.text += "\n이미 납품한 벽이에요. 다시 꾸며 볼 수 있어요."
-		return
+	_preview.placing = not _kind.is_empty()
 	_preview.selected_piece = _piece
-	_preview.queue_redraw()
+	_preview.refresh()
 	match _stage:
+		"orders", "blank":
+			_overview.text = "%s  ·  %s\n%s" % [order.title, Catalog.format_won(int(order.reward)), order.brief]
+			if _stage == "orders":
+				for id: String in Design.COMMISSIONS:
+					_controls["WallCommission_" + id].set_pressed_no_signal(id == _selected_order)
 		"tile":
-			for id: String in Design.MOTIFS: _pressed("WallMotif_" + id, id == design.motif_id)
-			var parts: Array[Dictionary] = design.unit_parts()
-			for i: int in range(parts.size()): _pressed("WallPiece_%d" % i, i == _piece)
-			for i: int in range(Design.PALETTE.size()): _pressed("WallColor_%d" % i, parts[_piece].color == Design.PALETTE[i])
-			_count("WallTileColumns", "가로", design.tile_columns, 1, 3)
-			_count("WallTileRows", "세로", design.tile_rows, 1, 3)
-		"wall":
-			_count("WallColumns", "가로", design.columns, 2, 8)
-			_count("WallRows", "세로", design.rows, 2, 6)
-			for id: String in Design.LAYOUTS: _pressed("WallLayout_" + id, id == design.layout)
-			_overview.text = "타일 %d장 × %d줄 = 모두 %d장" % [design.columns, design.rows, design.columns * design.rows]
-		"review":
-			if _free_mode:
-				_overview.text = "한 장에 무늬 %d개, 담장에 타일 %d장을 놓았어요." % [design.tile_columns * design.tile_rows, design.columns * design.rows]
-				return
-			var check: Dictionary = design.evaluate()
-			_overview.text = str(check.feedback)
-			if check.claimed:
-				_overview.text = "납품 완료 · 받은 의뢰비 %s" % Catalog.format_won(int(order.reward))
-			_controls.WallSubmit.disabled = not check.ok or check.claimed
-
-func _count(prefix: String, direction: String, value: int, minimum: int, maximum: int) -> void:
-	_count_labels[prefix].text = "%s %d" % [direction, value]
-	_controls[prefix + "Less"].disabled = value <= minimum
-	_controls[prefix + "More"].disabled = value >= maximum
-
-func _pressed(id: String, pressed: bool) -> void:
-	var button: Button = _controls[id] as Button
-	button.set_pressed_no_signal(pressed)
+			var parts: Array[Dictionary] = _draft.motif_parts()
+			for kind: String in Geometry.KINDS + ["freeform"]:
+				_controls["WallShape_" + kind].set_pressed_no_signal(_kind == kind)
+			for i: int in range(Design.PALETTE.size()): _controls["WallColor_%d" % i].set_pressed_no_signal(_ink == i)
+			for id: String in ["WallRotate", "WallMirror", "WallGrow", "WallShrink", "WallDelete"]: _controls[id].disabled = _piece < 0
+			for id: String in ["WallPiecePrevious", "WallPieceNext"]: _controls[id].disabled = parts.is_empty()
+			_controls.WallFinishTile.disabled = parts.size() < 2
+			_controls.WallPlaceCenter.disabled = _kind.is_empty()
+			_controls.WallUndo.disabled = not _draft.can_undo()
+			_controls.WallRedo.disabled = not _draft.can_redo()
+			_overview.text = "도형을 고른 뒤 타일에서 놓을 곳을 눌러요. 조각을 두 개 이상 놓고 끌어서 무늬를 만들어요."
+			if _piece >= 0 and _piece < parts.size():
+				var piece: Dictionary = parts[_piece]
+				_note.text = "선택한 조각 %d / %d · %s" % [_piece + 1, parts.size(), "자유 사각형" if piece.kind == "freeform" else Geometry.kind_name(piece.kind)]
+				if piece.kind == "freeform": _note.text += " · 꼭짓점을 끌어 모양을 바꿔요."
+			else: _note.text = ("타일에 놓을 곳을 눌러 주세요." if not _kind.is_empty() else "조각 %d개" % parts.size())
+		"filled":
+			var report: Dictionary = _draft.evaluate()
+			if free_mode:
+				_overview.text = "%s · 자유 작품" % order.title
+			else: _overview.text = "%s\n%s" % [order.title, "납품 완료 · 받은 의뢰비 " + Catalog.format_won(int(order.reward)) if report.claimed else str(report.feedback)]
+			if not free_mode: _controls.WallSubmit.disabled = not _draft.finished or not report.ok or report.claimed
+			_controls.WallPublish.disabled = not _draft.finished
+			_note.text = _status
 
 func _layout() -> void:
-	if is_instance_valid(_work):
-		var compact: bool = size.x < 800.0
-		_work.vertical = compact
-		_preview.custom_minimum_size.y = clampf(size.y * (0.33 if compact else 0.5), 180, 440)
+	if is_instance_valid(_work) and is_instance_valid(_preview):
+		var narrow: bool = size.x < 800.0
+		_work.vertical = narrow
+		_preview.custom_minimum_size.y = clampf(size.y * (0.34 if narrow else 0.55), 160, 500)
+
+func publication_design() -> Dictionary:
+	if _stage != "filled" or not _draft.finished: return {}
+	var snapshot: Dictionary = _draft.to_dict()
+	snapshot.erase("completed")
+	return snapshot
+
+func set_publication_status(message: String) -> void:
+	_status = message
+	if _stage == "filled" and is_instance_valid(_note): _note.text = message
+
+func _open_form() -> void:
+	if _stage != "filled" or not _draft.finished: return
+	if not is_instance_valid(_form): _build_form()
+	_validation.text = ""
+	_form.popup_centered(Vector2i(mini(480, maxi(230, int(size.x) - 28)), mini(420, maxi(200, int(size.y) - 30))))
+	_author.grab_focus()
+
+func _build_form() -> void:
+	_form = ConfirmationDialog.new()
+	_form.name = "WallPublicationForm"
+	_form.title = "완성한 담장 등록"
+	_form.exclusive = true
+	_form.dialog_hide_on_ok = false
+	_form.ok_button_text = "등록하기"
+	_form.cancel_button_text = "취소"
+	_form.get_ok_button().name = "WallPublicationSend"
+	_form.get_cancel_button().name = "WallPublicationCancel"
+	_form.confirmed.connect(_send_form)
+	add_child(_form)
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	_form.add_child(scroll)
+	var fields: VBoxContainer = VBoxContainer.new()
+	fields.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(fields)
+	_paragraph(fields, "작성자")
+	_author = LineEdit.new()
+	_author.name = "WallAuthor"
+	_author.accessibility_name = "작성자 이름"
+	_author.max_length = Metadata.MAX_AUTHOR_LENGTH
+	fields.add_child(_author)
+	_paragraph(fields, "담장 제목")
+	_work_title = LineEdit.new()
+	_work_title.name = "WallPublicationTitle"
+	_work_title.accessibility_name = "담장 제목"
+	_work_title.max_length = Metadata.MAX_TITLE_LENGTH
+	fields.add_child(_work_title)
+	_paragraph(fields, "담장 설명")
+	_description = TextEdit.new()
+	_description.name = "WallDescription"
+	_description.accessibility_name = "담장 설명"
+	_description.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_description.custom_minimum_size.y = 84
+	fields.add_child(_description)
+	_validation = _paragraph(fields, "")
+
+func _send_form() -> void:
+	if _stage != "filled" or not _draft.finished: return
+	var issue: String = Metadata.validation_error(_author.text, _work_title.text, _description.text)
+	if not issue.is_empty():
+		_validation.text = issue.replace("그림", "담장")
+		return
+	_form.hide()
+	wall_publication_requested.emit(_author.text.strip_edges(), _work_title.text.strip_edges(), _description.text.strip_edges())
+
+func render_publication_png() -> PackedByteArray:
+	if publication_design().is_empty() or DisplayServer.get_name() == "headless": return PackedByteArray()
+	var frozen: Design = Design.new()
+	if not frozen.restore(_draft.to_dict()): return PackedByteArray()
+	var capture: SubViewport = SubViewport.new()
+	capture.size = Vector2i(960, 600)
+	capture.disable_3d = true
+	capture.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var illustration: Preview = Preview.new()
+	illustration.design = frozen
+	illustration.view_kind = "filled"
+	illustration.export_only = true
+	illustration.set_location(frozen.commission_id)
+	if illustration.backdrop == null:
+		illustration.free()
+		capture.free()
+		return PackedByteArray()
+	illustration.size = Vector2(capture.size)
+	capture.add_child(illustration)
+	add_child(capture)
+	await RenderingServer.frame_post_draw
+	var picture: Image = capture.get_texture().get_image()
+	capture.queue_free()
+	if picture == null or picture.is_empty(): return PackedByteArray()
+	return picture.save_png_to_buffer()

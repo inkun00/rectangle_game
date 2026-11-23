@@ -5,7 +5,7 @@ signal drawing_requested
 signal adventure_requested
 signal construction_requested
 signal wall_requested
-signal exhibition_board_requested(buildings: bool)
+signal exhibition_board_requested(url: String)
 signal notebook_requested
 signal tutorials_requested
 signal opening_requested
@@ -29,6 +29,7 @@ var _drawing_button: Button
 var _exhibition_button: Button
 var _exhibition_chooser: ColorRect
 var _exhibit_drawing: Button
+var _gallery_choices: GridContainer
 var _ending_card: PanelContainer
 var _ending_progress: Label
 var _ending_choice: Button
@@ -75,7 +76,7 @@ func _ready() -> void:
 	_build_mode("Construction", "건축 공방", "재료를 골라 의뢰인이 꿈꾸는 집을 지어요.", _menu_texture("building"), "집 짓기", func(): construction_requested.emit())
 	_build_mode("Wall", "타일 공방", "사각형으로 만든 타일을 반복해 담장 의뢰를 완성해요.", preload("res://assets/generated/home-atlas/wall.svg"), "담장 꾸미기", func(): wall_requested.emit())
 	_build_mode("Adventure", "사각형 마을", "여섯 지역을 탐험하며 주민의 부탁을 들어줘요.", _menu_texture("village"), "마을 주민 심부름하기", func(): adventure_requested.emit())
-	_exhibition_button = _build_mode("Exhibition", "작품 전시장", "친구들이 만든 그림과 건축물을 패들릿에서 구경해요.", _menu_texture("arrival"), "전시장 보기", _open_exhibition_chooser)
+	_exhibition_button = _build_mode("Exhibition", "작품 전시장", "친구들이 만든 작품을 패들릿에서 구경해요.", _menu_texture("arrival"), "전시장 보기", _open_exhibition_chooser)
 	_ending_choice = _build_mode("Ending", "사각이의 내일", "지구에 살 집과 사각성으로 갈 우주선 중 하나를 골라요.", _menu_texture("choice"), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())
 	_ending_card.hide()
 	_ending_choice.focus_mode = Control.FOCUS_NONE
@@ -116,14 +117,25 @@ func _build_exhibition_chooser() -> void:
 	panel.add_child(column)
 	column.add_child(_title("어떤 전시장을 볼까요?", 23))
 	column.add_child(QuadTheme.paragraph("패들릿이 새 창에서 열려요.", 16))
-	_exhibit_drawing = QuadTheme.button("그림 전시장 보기", _select_board.bind(false), true)
+	_exhibit_drawing = QuadTheme.button("그림 전시장 보기", _select_board.bind(PadletUploader.BOARD_URL), true)
 	_exhibit_drawing.name = "ExhibitDrawing"
-	var buildings: Button = QuadTheme.button("건축물 전시장 보기", _select_board.bind(true), true)
+	var buildings: Button = QuadTheme.button("건축물 전시장 보기", _select_board.bind(PadletUploader.BUILDING_BOARD_URL), true)
 	buildings.name = "ExhibitBuilding"
+	var walls: Button = QuadTheme.button("담장 전시장 보기", _select_board.bind(PadletUploader.WALL_BOARD_URL), true)
+	walls.name = "ExhibitWall"
+	var ships: Button = QuadTheme.button("우주선 전시장 보기", _select_board.bind(PadletUploader.SHIP_BOARD_URL), true)
+	ships.name = "ExhibitShip"
 	var close: Button = QuadTheme.button("닫기", _close_exhibition_chooser)
 	close.name = "ExhibitClose"
-	var controls: Array[Button] = [_exhibit_drawing, buildings, close]
-	for button: Button in controls: column.add_child(button)
+	var controls: Array[Button] = [_exhibit_drawing, buildings, walls, ships, close]
+	_gallery_choices = GridContainer.new()
+	_gallery_choices.add_theme_constant_override("h_separation", 8)
+	_gallery_choices.add_theme_constant_override("v_separation", 8)
+	column.add_child(_gallery_choices)
+	for button: Button in [_exhibit_drawing, buildings, walls, ships]:
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_gallery_choices.add_child(button)
+	column.add_child(close)
 	for index: int in range(controls.size()):
 		var button: Button = controls[index]
 		button.focus_next = button.get_path_to(controls[(index + 1) % controls.size()])
@@ -143,10 +155,10 @@ func _close_exhibition_chooser() -> void:
 	_margin.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_INHERITED
 	if _exhibition_button.is_visible_in_tree(): _exhibition_button.grab_focus()
 
-func _select_board(buildings: bool) -> void:
+func _select_board(url: String) -> void:
 	if not _exhibition_chooser.is_visible_in_tree(): return
 	_close_exhibition_chooser()
-	exhibition_board_requested.emit(buildings)
+	exhibition_board_requested.emit(url)
 
 func _input(event: InputEvent) -> void:
 	if is_instance_valid(_exhibition_chooser) and _exhibition_chooser.is_visible_in_tree() and event.is_action_pressed("ui_cancel"):
@@ -235,6 +247,7 @@ func _build_mode(mode: String, title: String, description: String, texture: Text
 
 func _responsive() -> void:
 	if _ending_card == null: return
+	if is_instance_valid(_gallery_choices): _gallery_choices.columns = 2 if size.x >= 540.0 else 1
 	var narrow: bool = size.x < 600.0
 	var single_column: bool = size.x < 730.0
 	var count: int = 6 if _ending_card.visible else 5

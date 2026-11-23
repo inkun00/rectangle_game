@@ -14,6 +14,11 @@ static func run(t: Node) -> void:
 	var homes: Array[bool] = []
 	var appearances: Array[Dictionary] = []
 	var exports: Array[bool] = []
+	var exhibitions: Array[Dictionary] = []
+	var boards: Array[bool] = []
+	hangar.ship_publication_requested.connect(func(author: String, title: String, description: String) -> void:
+		exhibitions.append({"author": author, "title": title, "description": description}))
+	hangar.exhibition_board_requested.connect(func() -> void: boards.append(true))
 	hangar.purchase_requested.connect(func(id: String): purchases.append(id))
 	hangar.appearance_requested.connect(func(data: Dictionary): appearances.append(data))
 	hangar.export_requested.connect(func(): exports.append(true))
@@ -25,6 +30,11 @@ static func run(t: Node) -> void:
 	t.assert_eq(hangar._variant_buttons.size(), 3, "Three products can be compared for the selected function")
 	t.assert_true(hangar._purchase.disabled, "Starting working capital cannot buy a spaceship part")
 	t.assert_true(hangar._launch.disabled, "An incomplete ship cannot launch")
+	t.assert_false(hangar._publish_button.visible, "Only completed ships offer registration")
+	hangar._open_ship_publication()
+	t.assert_false(hangar._ship_submission.visible, "Incomplete ships cannot open the registration form")
+	(hangar.find_child("ViewShipExhibition", true, false) as Button).pressed.emit()
+	t.assert_eq(boards.size(), 1, "The exhibition can be visited while the ship is still being built")
 	hangar._request_export()
 	t.assert_true(exports.is_empty(), "An incomplete ship cannot export a finished PNG")
 	hangar._appearance_tab.pressed.emit()
@@ -83,6 +93,15 @@ static func run(t: Node) -> void:
 	for item: Dictionary in Catalog.all_parts(): state.purchased_ship_parts.append(str(item.id))
 	state.art_sales.append({"price": 1300000000})
 	hangar.refresh()
+	t.assert_true(hangar._publish_button.visible, "A completed ship can be exhibited before launch")
+	hangar._publish_button.pressed.emit()
+	t.assert_true(hangar._ship_submission.visible and hangar._ship_submission.get_ok_button().disabled, "Publication prompts for complete artwork metadata")
+	hangar._ship_submission._author.text = " 우주별 "
+	hangar._ship_submission._title.text = " 은하수호 "
+	hangar._ship_submission._description.text = " 반짝이는 마름모 창이 있어요. "
+	hangar._ship_submission._submit()
+	t.assert_eq(exhibitions, [{"author": "우주별", "title": "은하수호", "description": "반짝이는 마름모 창이 있어요."}], "The form dispatches the entered metadata exactly once")
+	t.assert_true(launches.is_empty() and not state.launched, "A standalone exhibition does not launch the ship")
 	hangar._select_part("hull")
 	hangar._select_tier(1)
 	t.assert_true(hangar._purchase.text.contains("차액") and not hangar._purchase.disabled, "An equipped part offers a funded upgrade by price difference")

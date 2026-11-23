@@ -43,6 +43,7 @@ var art_commission_id: String = ""
 var art_commission_revision: int = 0
 var village_rewards: Array[String] = []
 var wall_design: WallDesign = WallDesign.new()
+var free_wall_designs: Dictionary[String, WallDesign] = {}
 var purchased_ship_parts: Array[String] = []
 var ship_design: Dictionary = {}
 var ship_appearance: Dictionary = ShipStyle.defaults()
@@ -259,7 +260,7 @@ func apply_economy_from(candidate: ConstructionState) -> void:
 	art_commission_id = candidate.art_commission_id
 	art_commission_revision = candidate.art_commission_revision
 	village_rewards.assign(candidate.village_rewards)
-	wall_design.restore(candidate.wall_design.to_dict())
+	wall_design.completed.assign(candidate.wall_design.completed)
 	purchased_ship_parts.assign(candidate.purchased_ship_parts)
 	ship_design = candidate.ship_design.duplicate(true)
 	ship_appearance = candidate.ship_appearance.duplicate(true)
@@ -492,6 +493,11 @@ func serialize() -> Dictionary:
 	var result: Dictionary = {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
 	if not village_rewards.is_empty(): result["village_rewards"] = village_rewards.duplicate()
 	result["wall_design"] = wall_design.to_dict()
+	if not free_wall_designs.is_empty():
+		var drafts: Dictionary = {}
+		for id: String in free_wall_designs:
+			drafts[id] = free_wall_designs[id].to_dict()
+		result["free_wall_designs"] = drafts
 	if art_commission_revision > 0:
 		result["art_commission"] = {"id": art_commission_id, "revision": art_commission_revision}
 	var customized_ship: bool = ship_appearance != ShipStyle.defaults()
@@ -538,6 +544,14 @@ func restore(data: Dictionary) -> bool:
 	if data.has("wall_design"):
 		if not data.wall_design is Dictionary or not checked_wall.restore(data.wall_design): return false
 		expected_balance += checked_wall.total_income()
+	var raw_drafts: Variant = data.get("free_wall_designs", {})
+	if not raw_drafts is Dictionary or raw_drafts.size() > WallDesign.COMMISSIONS.size(): return false
+	var checked_drafts: Dictionary[String, WallDesign] = {}
+	for id: Variant in raw_drafts:
+		if not id is String or not WallDesign.COMMISSIONS.has(id) or not raw_drafts[id] is Dictionary: return false
+		var draft: WallDesign = WallDesign.new()
+		if not draft.restore(raw_drafts[id]) or draft.commission_id != id or not draft.completed.is_empty(): return false
+		checked_drafts[id] = draft
 	for number: int in range(data.records.size()):
 		var raw: Variant = data.records[number]
 		if not raw is Dictionary or not _valid_record(raw, number, checked_custom_ids, last_record_document): return false
@@ -656,6 +670,13 @@ func restore(data: Dictionary) -> bool:
 	art_commission_revision = checked_art_revision
 	village_rewards = checked_rewards
 	wall_design.restore(checked_wall.to_dict())
+	for id: String in free_wall_designs.keys():
+		if not checked_drafts.has(id): free_wall_designs.erase(id)
+	for id: String in checked_drafts:
+		if free_wall_designs.has(id):
+			free_wall_designs[id].restore(checked_drafts[id].to_dict())
+		else:
+			free_wall_designs[id] = checked_drafts[id]
 	purchased_ship_parts = checked_parts
 	ship_design = checked_ship_design
 	ship_appearance = checked_ship_appearance

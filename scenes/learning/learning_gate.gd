@@ -3,7 +3,9 @@ extends Control
 
 const Canvas = preload("res://scenes/learning/learning_canvas.gd")
 const GridCanvas = preload("res://scenes/learning/learning_grid_canvas.gd")
-
+const Compass = preload("res://scenes/learning/learning_compass.gd")
+const Clock = preload("res://scenes/learning/learning_clock_aid.gd")
+const RotationAid = preload("res://scenes/learning/learning_rotation_aid.gd")
 const Response = preload("res://scenes/learning/learning_gate_response.gd")
 
 signal answer_submitted(correct: bool)
@@ -11,8 +13,13 @@ signal answer_submitted(correct: bool)
 var question: Dictionary = {}
 var canvas: Canvas
 var grid_canvas: GridCanvas
+var compass: Compass
+var clock: Clock
+var rotation_aid: RotationAid
 var _mode: String = ""
 var _response: Response
+var _activity_row: BoxContainer
+var _aid_controls: Array[Control] = []
 var _answer: int = -1
 var _clear_feedback_on_edit: bool = false
 var _panel: PanelContainer
@@ -98,11 +105,15 @@ func _ready() -> void:
 	grid_canvas.changed.connect(_interaction_changed)
 	body.add_child(grid_canvas)
 	_build_tools(body)
+	_activity_row = BoxContainer.new()
+	_activity_row.add_theme_constant_override("separation", 16)
+	body.add_child(_activity_row)
 	_response = Response.new()
 	_response.hide()
+	_response.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_response.changed.connect(_interaction_changed)
 	_response.submit_requested.connect(submit_answer)
-	body.add_child(_response)
+	_activity_row.add_child(_response)
 	_metrics = QuadTheme.paragraph("", 16, QuadTheme.MUTED)
 	body.add_child(_metrics)
 	_footer = BoxContainer.new()
@@ -155,6 +166,8 @@ func _layout() -> void:
 	_footer.vertical = width < 540.0
 	_progress_bar.visible = width >= 470.0
 	var content_width: float = width - _panel.get_theme_stylebox("panel").get_minimum_size().x
+	_activity_row.vertical = content_width < 640.0
+	_response.size_flags_vertical = Control.SIZE_FILL if _activity_row.vertical else Control.SIZE_SHRINK_BEGIN
 	canvas.custom_minimum_size.y = clampf(minf(height * 0.43, content_width * 0.60), 150.0, 290.0)
 	grid_canvas.custom_minimum_size.y = clampf(minf(height * 0.43, content_width * 0.70), 170.0, 290.0)
 	_panel.custom_minimum_size = Vector2(width, height)
@@ -171,6 +184,8 @@ func present(value: Dictionary, step: int, total: int, feedback: String = "") ->
 	_show_feedback(feedback)
 	var drawing: bool = _mode == "draw"
 	_response.configure(question)
+	_activity_row.visible = _response.visible
+	_configure_visual_aid()
 	canvas.visible = not drawing and not _response.visible
 	if not canvas.visible: canvas.close_measure_tools()
 	grid_canvas.visible = drawing
@@ -192,14 +207,43 @@ func present(value: Dictionary, step: int, total: int, feedback: String = "") ->
 		canvas.configure_activity(question)
 	_check.disabled = false
 	show()
-	_interaction_changed()
+	_interaction_changed(true)
 	_scroll.set_deferred("scroll_vertical", 0)
-	if _response.visible:
-		_response.focus_controls()[0].grab_focus()
-	elif drawing:
-		grid_canvas.grab_focus()
-	else:
-		canvas.grab_focus()
+
+func _configure_visual_aid() -> void:
+	_aid_controls.clear()
+	for child: Control in _activity_row.get_children():
+		if child != _response: child.hide()
+	if not _response.visible: return
+	match str(question.get("visual_tool", "")):
+		"compass":
+			if compass == null:
+				compass = Compass.new()
+				_add_visual_aid(compass, "GateLearningCompass")
+			compass.show()
+			compass.configure(question)
+			_aid_controls = compass.focus_controls()
+		"clock":
+			if clock == null:
+				clock = Clock.new()
+				_add_visual_aid(clock, "GateLearningClock")
+			clock.show()
+			clock.configure(question)
+			_aid_controls = clock.focus_controls()
+		"rotate_paper":
+			if rotation_aid == null:
+				rotation_aid = RotationAid.new()
+				_add_visual_aid(rotation_aid, "GateLearningRotation")
+			rotation_aid.show()
+			rotation_aid.configure(question)
+			_aid_controls = rotation_aid.focus_controls()
+
+func _add_visual_aid(aid: Control, node_name: String) -> void:
+	aid.name = node_name
+	aid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	aid.size_flags_stretch_ratio = 0.72
+	_activity_row.add_child(aid)
+	_activity_row.move_child(aid, 0)
 
 func _build_choices() -> void:
 	for button: Button in _choice_buttons:
@@ -226,7 +270,7 @@ func _choose(index: int) -> void:
 		_answer = index
 		_interaction_changed()
 
-func _interaction_changed() -> void:
+func _interaction_changed(focus_first: bool = false) -> void:
 	if question.is_empty(): return
 	if _clear_feedback_on_edit: _show_feedback("")
 	if _mode == "draw":
@@ -239,12 +283,13 @@ func _interaction_changed() -> void:
 		for index: int in range(_choice_buttons.size()):
 			var selected: bool = canvas.selected_choices.has(index) if _mode == "select" else _answer == index
 			_choice_buttons[index].set_pressed_no_signal(selected)
-	_set_focus_order()
+	_set_focus_order(focus_first)
 
-func _set_focus_order() -> void:
+func _set_focus_order(focus_first: bool = false) -> void:
 	var controls: Array[Control] = []
 	if _response.visible:
-		controls = _response.focus_controls()
+		controls.append_array(_aid_controls)
+		controls.append_array(_response.focus_controls())
 	elif _mode == "draw":
 		controls.append(grid_canvas)
 		if not _undo.disabled: controls.append_array([_undo, _reset])
@@ -264,6 +309,8 @@ func _set_focus_order() -> void:
 		control.focus_neighbor_top = control.focus_previous
 		control.focus_neighbor_right = control.focus_next
 		control.focus_neighbor_bottom = control.focus_next
+	if focus_first:
+		controls[0].grab_focus()
 
 func _show_feedback(message: String, clear_on_edit: bool = false) -> void:
 	_clear_feedback_on_edit = clear_on_edit
@@ -289,6 +336,7 @@ func submit_answer() -> void:
 		var incomplete: String = _response.incomplete_message()
 		if not incomplete.is_empty():
 			_show_feedback(incomplete, true)
+			_response.focus_missing_answer()
 			return
 		correct = _response.answer_correct()
 	elif _mode == "draw": correct = grid_canvas.construction_correct()

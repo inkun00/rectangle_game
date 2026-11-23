@@ -1,54 +1,210 @@
 class_name WallTileDesign
 extends RefCounted
 
+const History = preload("res://scripts/core/command_manager.gd")
 const Geometry = preload("res://scripts/core/quadrilateral_math.gd")
-const MOTIFS: Dictionary = {
-	"trapezoid_pair": "사다리꼴 한 쌍", "square_frame": "정사각형 액자", "mirror_stripe": "평행사변형 물결",
-}
 const LAYOUTS: Dictionary = {"straight": "나란히", "alternate": "번갈아 반 바퀴", "mirror": "번갈아 뒤집기"}
 const PALETTE: Array[Color] = [
 	Color("#f4e7ca"), Color("#146e78"), Color("#e76e58"), Color("#e6ae36"),
 	Color("#363e73"), Color("#72ada2"), Color("#995778"), Color("#ffffff"),
 ]
 const PALETTE_NAMES: Array[String] = ["모래색", "청록색", "산호색", "금색", "남색", "옥색", "자주색", "흰색"]
+const GRID_STEP: float = 5.0
+const MAX_PIECES: int = 64
 const COMMISSIONS: Dictionary = {
-	"harbor": {"title": "항구 등대의 물결 벽", "brief": "한 쌍의 사다리꼴을 서로 다른 색으로 칠해요. 이 무늬를 타일 안에 두 번 이상 넣고, 타일을 가로 4장, 세로 2장 이상 놓아 주세요.", "reward": 3000000, "motif": "trapezoid_pair", "columns": 4, "rows": 2},
-	"garden": {"title": "온실의 창문 벽", "brief": "액자 가운데 정사각형은 네 테두리와 다른 색으로 칠해요. 타일 안에 액자를 가로·세로 두 번 이상 넣고, 타일을 가로·세로 3장 이상 놓아 주세요.", "reward": 7000000, "motif": "square_frame", "columns": 3, "rows": 3},
-	"station": {"title": "우주 정거장의 신호 벽", "brief": "위아래로 기운 두 평행사변형을 다른 색으로 칠해요. 타일 안에 무늬를 두 번 이상 넣고, 타일을 번갈아 뒤집어 가로 4장, 세로 3장 이상 놓아 주세요.", "reward": 12000000, "motif": "mirror_stripe", "columns": 4, "rows": 3},
+	"harbor": {"title": "항구 등대의 물결 벽", "brief": "등대로 돌아오는 배들이 멀리서도 알아볼 수 있게 물결을 닮은 타일을 부탁해요. 사각형 2개 이상, 색 2가지 이상으로 꾸민 타일을 가로 4장, 세로 2장 이상 놓아요.", "reward": 3000000, "min_pieces": 2, "min_colors": 2, "columns": 4, "rows": 2},
+	"garden": {"title": "온실의 창문 벽", "brief": "햇빛이 비치는 정원에 놓을 벽이에요. 조각을 이어 나만의 작은 창문을 만들어 주세요. 사각형 3개 이상, 색 2가지 이상으로 꾸민 타일을 가로 3장, 세로 3장 이상 놓아요.", "reward": 7000000, "min_pieces": 3, "min_colors": 2, "columns": 3, "rows": 3},
+	"station": {"title": "우주 정거장의 신호 벽", "brief": "우주선 창밖에서도 눈에 띄는 신호 무늬가 필요해요. 조각에 색을 담아 주세요. 사각형 5개 이상, 색 3가지 이상으로 꾸민 타일을 가로 4장, 세로 3장 이상 놓아요.", "reward": 12000000, "min_pieces": 5, "min_colors": 3, "columns": 4, "rows": 3},
+	"library": {"title": "도서관 책길 담장", "brief": "책을 읽으러 오는 친구들을 맞이하고 싶어요. 책등을 떠올리며 무늬를 꾸며 보세요. 사각형 2개 이상, 색 2가지 이상으로 꾸민 타일을 가로 3장, 세로 3장 이상 놓아요.", "reward": 4000000, "min_pieces": 2, "min_colors": 2, "columns": 3, "rows": 3},
+	"bakery": {"title": "빵집의 아침 담장", "brief": "빵 굽는 냄새가 나는 골목이에요. 가게 앞을 따뜻한 무늬로 꾸며 주세요. 사각형 3개 이상, 색 2가지 이상으로 꾸민 타일을 가로 5장, 세로 2장 이상 놓아요.", "reward": 5000000, "min_pieces": 3, "min_colors": 2, "columns": 5, "rows": 2},
+	"playground": {"title": "놀이터의 놀이길", "brief": "친구들이 뛰놀다 숨을 고르는 자리예요. 즐거운 움직임이 느껴지는 무늬를 부탁해요. 사각형 3개 이상, 색 3가지 이상으로 꾸민 타일을 가로 4장, 세로 3장 이상 놓아요.", "reward": 6000000, "min_pieces": 3, "min_colors": 3, "columns": 4, "rows": 3},
+	"forest": {"title": "숲길의 쉼터", "brief": "숲속 쉼터에 계절을 담은 담장을 세워요. 나뭇잎과 그늘을 떠올려 보세요. 사각형 4개 이상, 색 2가지 이상으로 꾸민 타일을 가로 5장, 세로 3장 이상 놓아요.", "reward": 8000000, "min_pieces": 4, "min_colors": 2, "columns": 5, "rows": 3},
+	"museum": {"title": "박물관의 입구", "brief": "오래된 유물을 만나기 전 지나가는 벽이에요. 조각을 조합해 새로운 문양을 지어 주세요. 사각형 4개 이상, 색 3가지 이상으로 꾸민 타일을 가로 4장, 세로 4장 이상 놓아요.", "reward": 9000000, "min_pieces": 4, "min_colors": 3, "columns": 4, "rows": 4},
+	"orchard": {"title": "과수원의 수확 길", "brief": "열매를 나르는 수레가 지나가요. 알록달록한 수확 풍경을 담장에 담아 주세요. 사각형 5개 이상, 색 3가지 이상으로 꾸민 타일을 가로 6장, 세로 3장 이상 놓아요.", "reward": 10000000, "min_pieces": 5, "min_colors": 3, "columns": 6, "rows": 3},
+	"observatory": {"title": "별빛 관측소", "brief": "밤하늘을 보러 오는 길을 장식해요. 여러 조각으로 나만의 별자리를 만들어 주세요. 사각형 6개 이상, 색 4가지 이상으로 꾸민 타일을 가로 6장, 세로 4장 이상 놓아요.", "reward": 14000000, "min_pieces": 6, "min_colors": 4, "columns": 6, "rows": 4},
 }
 
-var motif_id: String = "trapezoid_pair"
 var layout: String = "straight"
 var commission_id: String = "harbor"
-var turns: int = 0
-var tile_columns: int = 1
-var tile_rows: int = 1
-var columns: int = 3
+var columns: int = 4
 var rows: int = 2
 var completed: Array[String] = []
-var _colors: Dictionary = {"trapezoid_pair": [0, 0], "square_frame": [0, 0, 0, 0, 0], "mirror_stripe": [0, 0, 0, 0, 0, 0]}
+var finished: bool = false
 
-
-func select_motif(id: String) -> bool:
-	if not MOTIFS.has(id):
-		return false
-	motif_id = id
-	return true
+var _size: Vector2 = Vector2(150, 100)
+var _parts: Array[Dictionary] = []
+var _history := History.new()
 
 
 func set_commission(id: String) -> bool:
 	if not COMMISSIONS.has(id):
 		return false
-	commission_id = id
+	if commission_id != id:
+		commission_id = id
+		columns = int(COMMISSIONS[id].columns)
+		rows = int(COMMISSIONS[id].rows)
+		finished = false
 	return true
 
 
-func set_color(piece_index: int, palette_index: int) -> bool:
-	var colors: Array = _colors[motif_id]
-	if piece_index < 0 or piece_index >= colors.size() or palette_index < 0 or palette_index >= PALETTE.size():
+func _apply_parts(state: Dictionary) -> void:
+	_parts.assign(state.parts.duplicate(true))
+	finished = false
+
+
+func finish_tile() -> bool:
+	if _parts.size() < 2:
 		return false
-	colors[piece_index] = palette_index
+	finished = true
 	return true
+
+
+func _record(parts: Array[Dictionary]) -> bool:
+	if parts == _parts:
+		return false
+	_history.push_snapshot(self, &"_apply_parts", {"parts": _parts}, {"parts": parts})
+	return true
+
+
+func can_undo() -> bool:
+	return _history.can_undo()
+
+
+func can_redo() -> bool:
+	return _history.can_redo()
+
+
+func undo() -> bool:
+	if not can_undo():
+		return false
+	_history.undo()
+	return true
+
+
+func redo() -> bool:
+	if not can_redo():
+		return false
+	_history.redo()
+	return true
+
+
+func _index_valid(index: int) -> bool:
+	return index >= 0 and index < _parts.size()
+
+
+static func _known_kind(kind: Variant) -> bool:
+	return kind is String and (kind == Geometry.FREEFORM or Geometry.KINDS.has(kind))
+
+
+static func _world_vertices(part: Dictionary) -> PackedVector2Array:
+	return Transform2D(0.0, part.position) * PackedVector2Array(part.vertices)
+
+
+static func _valid(part: Dictionary, extent: Vector2) -> bool:
+	var vertices: PackedVector2Array = part.vertices
+	if not Geometry.is_valid(vertices) or (part.kind != Geometry.FREEFORM and not Geometry.matches_kind(vertices, part.kind)):
+		return false
+	for p: Vector2 in _world_vertices(part):
+		if not p.is_finite() or p.x < -0.0001 or p.y < -0.0001 or p.x > extent.x + 0.0001 or p.y > extent.y + 0.0001:
+			return false
+	return true
+
+
+static func _from_world(points: PackedVector2Array, kind: String, palette_index: int) -> Dictionary:
+	var center: Vector2 = Vector2.ZERO
+	for p: Vector2 in points:
+		center += p * 0.25
+	return {"position": center, "vertices": Transform2D(0.0, -center) * points, "kind": kind, "palette_index": palette_index}
+
+
+func _clamped_center(local: PackedVector2Array, at: Vector2) -> Vector2:
+	var bounds: Rect2 = Geometry.bounds(local)
+	return at.snappedf(GRID_STEP).clamp(-bounds.position, _size - bounds.end)
+
+
+func add_piece(kind: String, at: Vector2, palette_index: int = 0) -> int:
+	if not _known_kind(kind) or not at.is_finite() or _parts.size() >= MAX_PIECES or not _integer_in(palette_index, 0, PALETTE.size() - 1):
+		return -1
+	var part: Dictionary = _from_world(Geometry.create_vertices(kind, Vector2(34, 25)), kind, palette_index)
+	part.position = _clamped_center(part.vertices, at)
+	if not _valid(part, _size):
+		return -1
+	var next: Array[Dictionary] = _parts.duplicate()
+	next.append(part)
+	_record(next)
+	return next.size() - 1
+
+
+func _replace(index: int, part: Dictionary) -> bool:
+	if not _valid(part, _size):
+		return false
+	var next: Array[Dictionary] = _parts.duplicate()
+	next[index] = part
+	return _record(next)
+
+
+func move_piece(index: int, center: Vector2) -> bool:
+	if not _index_valid(index) or not center.is_finite():
+		return false
+	var part: Dictionary = _parts[index].duplicate()
+	part.position = _clamped_center(part.vertices, center)
+	return _replace(index, part)
+
+
+func rotate_piece(index: int, degrees: float) -> bool:
+	if not _index_valid(index) or not is_finite(degrees):
+		return false
+	var part: Dictionary = _parts[index].duplicate()
+	part.vertices = Geometry.rotate_vertices(part.vertices, fmod(degrees, 360.0))
+	return _replace(index, part)
+
+
+func mirror_piece(index: int) -> bool:
+	if not _index_valid(index):
+		return false
+	var part: Dictionary = _parts[index].duplicate()
+	var mirror: Transform2D = Transform2D(Vector2(-1, 0), Vector2(0, 1), Vector2.ZERO)
+	part.vertices = mirror * PackedVector2Array(part.vertices)
+	return _replace(index, part)
+
+
+func resize_piece(index: int, factor: float) -> bool:
+	if not _index_valid(index) or factor <= 0 or not is_finite(factor):
+		return false
+	var part: Dictionary = _parts[index].duplicate()
+	part.vertices = Geometry.scale_vertices(part.vertices, factor)
+	return _replace(index, part)
+
+
+func set_vertex(index: int, corner: int, point_on_tile: Vector2) -> bool:
+	if not _index_valid(index) or _parts[index].kind != Geometry.FREEFORM or corner < 0 or corner > 3 or not point_on_tile.is_finite():
+		return false
+	var points: PackedVector2Array = _world_vertices(_parts[index])
+	points[corner] = point_on_tile.snappedf(GRID_STEP)
+	return _replace(index, _from_world(points, Geometry.FREEFORM, int(_parts[index].palette_index)))
+
+
+func set_color(index: int, palette_index: int) -> bool:
+	if not _index_valid(index) or not _integer_in(palette_index, 0, PALETTE.size() - 1):
+		return false
+	var part: Dictionary = _parts[index].duplicate()
+	part.palette_index = palette_index
+	return _replace(index, part)
+
+
+func remove_piece(index: int) -> bool:
+	if not _index_valid(index):
+		return false
+	var next: Array[Dictionary] = _parts.duplicate()
+	next.remove_at(index)
+	return _record(next)
+
+
+func hit_test(at: Vector2) -> int:
+	for i: int in range(_parts.size() - 1, -1, -1):
+		if Geometry.contains_point(_world_vertices(_parts[i]), at):
+			return i
+	return -1
 
 
 func set_repeat(wide: int, high: int) -> bool:
@@ -59,14 +215,6 @@ func set_repeat(wide: int, high: int) -> bool:
 	return true
 
 
-func set_tile_repeat(wide: int, high: int) -> bool:
-	if wide < 1 or wide > 3 or high < 1 or high > 3:
-		return false
-	tile_columns = wide
-	tile_rows = high
-	return true
-
-
 func set_layout(id: String) -> bool:
 	if not LAYOUTS.has(id):
 		return false
@@ -74,21 +222,132 @@ func set_layout(id: String) -> bool:
 	return true
 
 
-func rotate_tile() -> bool:
-	turns = (turns + 1) % 4
-	return true
-
-
 func tile_size() -> Vector2:
-	return Vector2(tile_columns, tile_rows) * 100.0
+	return _size
 
 
 func wall_size() -> Vector2:
 	return tile_size() * Vector2(columns, rows)
 
 
-# Ordered corners share edges exactly. Each complete group fills a 100 by 100 unit.
-static func _polygons(id: String) -> Array[PackedVector2Array]:
+func motif_parts() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for part: Dictionary in _parts:
+		result.append({"index": result.size(), "position": part.position, "vertices": _world_vertices(part), "kind": part.kind, "palette_index": part.palette_index, "color": PALETTE[int(part.palette_index)]})
+	return result
+
+
+func wall_parts() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var tile: Array[Dictionary] = motif_parts()
+	var size: Vector2 = tile_size()
+	for row: int in range(rows):
+		for column: int in range(columns):
+			var scale: Vector2 = Vector2.ONE
+			var offset: Vector2 = size * Vector2(column, row)
+			if layout == "alternate" and (row + column) % 2 == 1:
+				scale = Vector2(-1, -1)
+				offset += size
+			elif layout == "mirror" and column % 2 == 1:
+				scale.x = -1
+				offset.x += size.x
+			var transform: Transform2D = Transform2D(Vector2(scale.x, 0), Vector2(0, scale.y), offset)
+			for part: Dictionary in tile:
+				var copy: Dictionary = part.duplicate()
+				copy.vertices = transform * PackedVector2Array(part.vertices)
+				copy.position = transform * Vector2(part.position)
+				copy.column = column
+				copy.row = row
+				result.append(copy)
+	return result
+
+
+func evaluate() -> Dictionary:
+	var order: Dictionary = COMMISSIONS[commission_id]
+	var tones: Dictionary = {}
+	for part: Dictionary in _parts:
+		tones[part.palette_index] = true
+	var feedback: String = ""
+	if _parts.size() < int(order.min_pieces):
+		feedback = "타일 한 장에 원하는 사각형을 %d개 더 놓아 주세요." % (int(order.min_pieces) - _parts.size())
+	elif tones.size() < int(order.min_colors):
+		feedback = "사각형을 서로 다른 색 %d가지 이상으로 칠해 주세요." % int(order.min_colors)
+	elif columns < int(order.columns) or rows < int(order.rows):
+		feedback = "타일을 가로 %d장, 세로 %d장 이상 놓아 주세요." % [int(order.columns), int(order.rows)]
+	elif not finished:
+		feedback = "타일 한 장을 완성해 담장을 채워 주세요."
+	var eligible: bool = feedback.is_empty()
+	var paid: bool = completed.has(commission_id)
+	if eligible:
+		feedback = "이 주문의 대금은 이미 받았어요." if paid else "주문에 맞는 나만의 담장을 완성했어요!"
+	return {"ok": eligible, "claimed": paid, "reward": int(order.reward), "feedback": feedback}
+
+
+func claim() -> int:
+	var result: Dictionary = evaluate()
+	if not bool(result.ok) or bool(result.claimed):
+		return 0
+	completed.append(commission_id)
+	return int(result.reward)
+
+
+func total_income() -> int:
+	var income: int = 0
+	for id: String in COMMISSIONS:
+		if completed.has(id):
+			income += int(COMMISSIONS[id].reward)
+	return income
+
+
+static func _integer_in(value: Variant, low: int, high: int) -> bool:
+	if not (value is float or value is int):
+		return false
+	var number: float = float(value)
+	return is_finite(number) and number == floorf(number) and number >= low and number <= high
+
+
+func to_dict() -> Dictionary:
+	var encoded: Array[Dictionary] = []
+	for part: Dictionary in _parts:
+		var points: Array = []
+		for p: Vector2 in part.vertices:
+			points.append([p.x, p.y])
+		var center: Vector2 = part.position
+		encoded.append({"kind": part.kind, "position": [center.x, center.y], "vertices": points, "palette_index": part.palette_index})
+	return {"version": 2, "commission": commission_id, "columns": columns, "rows": rows, "layout": layout, "completed": completed.duplicate(), "finished": finished, "tile_size": [int(_size.x), int(_size.y)], "parts": encoded}
+
+
+static func _point_pair(raw: Variant) -> bool:
+	if not raw is Array or raw.size() != 2:
+		return false
+	for coord: Variant in raw:
+		if not (coord is int or coord is float) or not is_finite(float(coord)) or absf(float(coord)) > 300.001:
+			return false
+	return true
+
+
+static func _read_part(raw: Variant, extent: Vector2) -> Dictionary:
+	if not raw is Dictionary or not _known_kind(raw.get("kind")) or not _point_pair(raw.get("position")):
+		return {}
+	if not _integer_in(raw.get("palette_index"), 0, PALETTE.size() - 1) or not raw.get("vertices") is Array or raw.vertices.size() != 4:
+		return {}
+	var local: PackedVector2Array = PackedVector2Array()
+	var sum: Vector2 = Vector2.ZERO
+	for pt: Variant in raw.vertices:
+		if not _point_pair(pt):
+			return {}
+		var point: Vector2 = Vector2(pt[0], pt[1])
+		local.append(point)
+		sum += point
+	if sum.length() > 0.01:
+		return {}
+	var part: Dictionary = {"kind": str(raw.kind), "position": Vector2(raw.position[0], raw.position[1]), "vertices": local, "palette_index": int(raw.palette_index)}
+	return part if _valid(part, extent) else {}
+
+
+# Version 1 stored a palette and repeat parameters, rather than individual pieces.
+# Expanding its active motif at the original scale retains every visible shape.
+static func _legacy_polygons(id: String) -> Array[PackedVector2Array]:
 	var result: Array[PackedVector2Array] = []
 	match id:
 		"trapezoid_pair":
@@ -114,162 +373,87 @@ static func _polygons(id: String) -> Array[PackedVector2Array]:
 	return result
 
 
-func unit_parts() -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	var colors: Array = _colors[motif_id]
-	for polygon: PackedVector2Array in _polygons(motif_id):
-		for i: int in range(polygon.size()):
-			var point: Vector2 = polygon[i]
-			for turn: int in range(turns):
-				point = Vector2(100.0 - point.y, point.x)
-			polygon[i] = point
-		var index: int = result.size()
-		result.append({"vertices": polygon, "index": index, "color": PALETTE[int(colors[index])], "palette_index": int(colors[index])})
-	return result
-
-
-func motif_parts() -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	var unit: Array[Dictionary] = unit_parts()
-	for row: int in range(tile_rows):
-		for column: int in range(tile_columns):
-			var offset: Vector2 = Vector2(column, row) * 100.0
-			for part: Dictionary in unit:
-				var copy: Dictionary = part.duplicate()
-				copy.vertices = Transform2D(0.0, offset) * PackedVector2Array(part.vertices)
-				result.append(copy)
-	return result
-
-
-func wall_parts() -> Array[Dictionary]:
-	var result: Array[Dictionary] = []
-	var tile: Array[Dictionary] = motif_parts()
-	var size: Vector2 = tile_size()
-	for row: int in range(rows):
-		for column: int in range(columns):
-			var scale: Vector2 = Vector2.ONE
-			var offset: Vector2 = size * Vector2(column, row)
-			if layout == "alternate" and (row + column) % 2 == 1:
-				scale = Vector2(-1, -1)
-				offset += size
-			elif layout == "mirror" and column % 2 == 1:
-				scale.x = -1
-				offset.x += size.x
-			var transform: Transform2D = Transform2D(Vector2(scale.x, 0), Vector2(0, scale.y), offset)
-			for part: Dictionary in tile:
-				var copy: Dictionary = part.duplicate()
-				copy.vertices = transform * PackedVector2Array(part.vertices)
-				copy.column = column
-				copy.row = row
-				result.append(copy)
-	return result
-
-
-func _color_goal(parts: Array[Dictionary]) -> bool:
-	match commission_id:
-		"harbor":
-			return Geometry.parallel_pair_count(parts[0].vertices) == 1 and Geometry.parallel_pair_count(parts[1].vertices) == 1 and parts[0].color != parts[1].color
-		"garden":
-			if not Geometry.matches_kind(parts[0].vertices, "square"):
-				return false
-			for i: int in range(1, parts.size()):
-				if parts[i].color == parts[0].color:
-					return false
-			return true
-		"station":
-			return Geometry.matches_kind(parts[1].vertices, "parallelogram") and Geometry.matches_kind(parts[4].vertices, "parallelogram") and parts[1].color != parts[4].color
-	return false
-
-
-func evaluate() -> Dictionary:
-	var order: Dictionary = COMMISSIONS[commission_id]
-	var feedback: String = ""
-	if motif_id != str(order.motif):
-		feedback = "이 주문에는 ‘%s’ 무늬가 필요해요." % str(MOTIFS[order.motif])
-	elif not _color_goal(unit_parts()):
-		match commission_id:
-			"harbor": feedback = "맞닿은 사다리꼴 두 개를 서로 다른 색으로 칠해 보세요."
-			"garden": feedback = "가운데 정사각형의 색이 네 테두리 색과 모두 다른지 살펴보세요."
-			"station": feedback = "위와 아래의 기울어진 평행사변형 두 개가 서로 다른 색이어야 해요."
-	elif commission_id == "garden" and (tile_columns < 2 or tile_rows < 2):
-		feedback = "타일 한 장 안에 액자를 가로·세로 두 번 이상 반복해 주세요."
-	elif tile_columns * tile_rows < 2:
-		feedback = "타일 한 장 안에 같은 무늬를 두 번 이상 넣어 주세요."
-	elif columns < int(order.columns) or rows < int(order.rows):
-		feedback = "완성한 타일을 가로 %d장, 세로 %d장 이상 놓아 주세요." % [int(order.columns), int(order.rows)]
-	elif commission_id == "station" and layout != "mirror":
-		feedback = "벽에서 이웃한 타일이 거울처럼 마주 보게 ‘번갈아 뒤집기’를 골라 보세요."
-	var eligible: bool = feedback.is_empty()
-	var claimed: bool = completed.has(commission_id)
-	if eligible:
-		feedback = "이 주문의 보상은 이미 받았어요." if claimed else "주문에 꼭 맞는 벽을 완성했어요!"
-	return {"ok": eligible, "claimed": claimed, "reward": int(order.reward), "feedback": feedback}
-
-
-func claim() -> int:
-	var result: Dictionary = evaluate()
-	if not bool(result.ok) or bool(result.claimed):
-		return 0
-	completed.append(commission_id)
-	return int(result.reward)
-
-
-func to_dict() -> Dictionary:
-	return {"version": 1, "motif": motif_id, "layout": layout, "commission": commission_id, "turns": turns, "tile_columns": tile_columns, "tile_rows": tile_rows, "columns": columns, "rows": rows, "colors": _colors.duplicate(true), "completed": completed.duplicate()}
-
-
-func total_income() -> int:
-	var income: int = 0
-	for id: String in COMMISSIONS:
-		if completed.has(id):
-			income += int(COMMISSIONS[id].reward)
-	return income
-
-
-static func _integer_in(value: Variant, low: int, high: int) -> bool:
-	if not (value is float or value is int):
-		return false
-	var number: float = float(value)
-	return is_finite(number) and number == floorf(number) and number >= low and number <= high
+static func _read_legacy(data: Dictionary) -> Dictionary:
+	var names: Array[String] = ["trapezoid_pair", "square_frame", "mirror_stripe"]
+	if not names.has(data.get("motif")) or not _integer_in(data.get("turns"), 0, 3):
+		return {}
+	if not _integer_in(data.get("tile_columns"), 1, 3) or not _integer_in(data.get("tile_rows"), 1, 3):
+		return {}
+	if not data.get("colors") is Dictionary or data.colors.size() != names.size():
+		return {}
+	for id: String in names:
+		var tones: Variant = data.colors.get(id)
+		if not tones is Array or tones.size() != _legacy_polygons(id).size():
+			return {}
+		for tone: Variant in tones:
+			if not _integer_in(tone, 0, PALETTE.size() - 1):
+				return {}
+	var polygons: Array[PackedVector2Array] = _legacy_polygons(str(data.motif))
+	var parts: Array[Dictionary] = []
+	for y: int in range(int(data.tile_rows)):
+		for x: int in range(int(data.tile_columns)):
+			for i: int in range(polygons.size()):
+				var points: PackedVector2Array = polygons[i].duplicate()
+				for j: int in range(4):
+					var p: Vector2 = points[j]
+					for turn: int in range(int(data.turns)):
+						p = Vector2(100.0 - p.y, p.x)
+					points[j] = p + Vector2(x, y) * 100.0
+				var families: Array[String] = Geometry.classifications(points)
+				var kind: String = str(families.back()) if not families.is_empty() else Geometry.FREEFORM
+				parts.append(_from_world(points, kind, int(data.colors[data.motif][i])))
+	return {"parts": parts, "size": Vector2(int(data.tile_columns), int(data.tile_rows)) * 100.0}
 
 
 func restore(data: Dictionary) -> bool:
-	if not _integer_in(data.get("version"), 1, 1):
+	if not _integer_in(data.get("version"), 1, 2):
 		return false
-	if not MOTIFS.has(data.get("motif")) or not LAYOUTS.has(data.get("layout")) or not COMMISSIONS.has(data.get("commission")):
+	var legacy: bool = int(data.version) == 1
+	var order_ids: Array = ["harbor", "garden", "station"] if legacy else COMMISSIONS.keys()
+	if not order_ids.has(data.get("commission")) or not LAYOUTS.has(data.get("layout")):
 		return false
-	if not _integer_in(data.get("columns"), 2, 8) or not _integer_in(data.get("rows"), 2, 6) or not _integer_in(data.get("turns"), 0, 3):
+	if not _integer_in(data.get("columns"), 2, 8) or not _integer_in(data.get("rows"), 2, 6):
 		return false
-	if not _integer_in(data.get("tile_columns"), 1, 3) or not _integer_in(data.get("tile_rows"), 1, 3):
+	if not data.get("completed") is Array or data.completed.size() > order_ids.size():
 		return false
-	if not data.get("colors") is Dictionary or not data.get("completed") is Array:
-		return false
-	var colors: Dictionary = data.colors
-	if colors.size() != MOTIFS.size():
-		return false
-	var checked_colors: Dictionary = {}
-	for id: String in MOTIFS:
-		if not colors.get(id) is Array or colors[id].size() != _polygons(id).size():
-			return false
-		var indices: Array = []
-		for tone: Variant in colors[id]:
-			if not _integer_in(tone, 0, PALETTE.size() - 1):
-				return false
-			indices.append(int(tone))
-		checked_colors[id] = indices
 	var paid: Array[String] = []
 	for id: Variant in data.completed:
-		if not id is String or not COMMISSIONS.has(id) or paid.has(id):
+		if not id is String or not order_ids.has(id) or paid.has(id):
 			return false
 		paid.append(id)
-	motif_id = str(data.motif)
-	layout = str(data.layout)
+	var extent: Vector2
+	var checked: Array[Dictionary] = []
+	if legacy:
+		var converted: Dictionary = _read_legacy(data)
+		if converted.is_empty():
+			return false
+		extent = converted["size"]
+		checked.assign(converted.parts)
+	else:
+		var raw_size: Variant = data.get("tile_size")
+		if not data.get("finished") is bool:
+			return false
+		if not _point_pair(raw_size) or not _integer_in(raw_size[0], 100, 300) or not _integer_in(raw_size[1], 100, 300):
+			return false
+		extent = Vector2(raw_size[0], raw_size[1])
+		if extent != Vector2(150, 100) and (int(extent.x) % 100 != 0 or int(extent.y) % 100 != 0):
+			return false
+		if not data.get("parts") is Array or data.parts.size() > MAX_PIECES:
+			return false
+		for raw: Variant in data.parts:
+			var part: Dictionary = _read_part(raw, extent)
+			if part.is_empty():
+				return false
+			checked.append(part)
+		if bool(data.finished) and checked.size() < 2:
+			return false
+	_size = extent
+	_parts = checked
 	commission_id = str(data.commission)
-	turns = int(data.turns)
-	tile_columns = int(data.tile_columns)
-	tile_rows = int(data.tile_rows)
 	columns = int(data.columns)
 	rows = int(data.rows)
-	_colors = checked_colors
+	layout = str(data.layout)
 	completed = paid
+	finished = paid.has(commission_id) if legacy else bool(data.finished)
+	_history.clear()
 	return true

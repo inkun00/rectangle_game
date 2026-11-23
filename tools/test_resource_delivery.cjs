@@ -16,12 +16,32 @@ function setup(fetch, extra = {}) {
   return context;
 }
 const decoded = () => new Response(payload, {headers:{'Content-Encoding':'br'}});
-const request = context => new Promise(resolve => context.QuadResourcePacks.download('opening', (...args) => resolve(args)));
+const request = (context, feature = 'opening') => new Promise(resolve => context.QuadResourcePacks.download(feature, (...args) => resolve(args)));
 
 test('startup never downloads an optional pack', () => {
   const calls = [];
   setup((...args) => {calls.push(args);});
   assert.equal(calls.length, 0);
+});
+
+test('wall backdrops stay off the startup network, share a transfer and recover after failure', async () => {
+  const wallUrl = 'feature-wall-bbbbbbbbbbbb.pck';
+  const calls = [];
+  let available = false;
+  const context = setup(async file => {
+    calls.push(file);
+    return available ? decoded() : new Response('', {status:503});
+  }, {QUAD_RESOURCE_PACKS: {version:1, packs:{wall:{url:wallUrl, bytes:payload.length, sha256:'b'.repeat(64)}}}});
+  assert.deepEqual(calls, []);
+  assert.equal((await request(context, 'wall'))[0], false);
+  assert.deepEqual(calls, [wallUrl+'.br', wallUrl+'.gz']);
+  available = true;
+  const retried = await Promise.all([request(context, 'wall'), request(context, 'wall')]);
+  for (const result of retried) {
+    assert.equal(result[0], true);
+    assert.deepEqual(Buffer.from(result[1]), payload);
+  }
+  assert.deepEqual(calls, [wallUrl+'.br', wallUrl+'.gz', wallUrl+'.br']);
 });
 test('Brotli uses the browser-decoded bytes without a second decompression', async () => {
   const calls = [];

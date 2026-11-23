@@ -162,7 +162,7 @@ static func _test_automatic_building_resume(t: Node) -> void:
 	await t.get_tree().process_frame
 	t.assert_eq(sent.size(), 1, "Starting a new session resumes the house outbox without opening its workbench")
 	t.assert_false(is_instance_valid(app._construction_screen) or is_instance_valid(app._drawing_screen), "Resuming queued uploads does not create either studio")
-	var timer: Timer = app._publication_retry_timers.get(true) as Timer
+	var timer: Timer = app._publication_retry_timers.get(&"building") as Timer
 	t.assert_true(is_instance_valid(timer) and not timer.is_stopped(), "A transient house error schedules a timer even without a construction screen")
 	if is_instance_valid(timer) and not timer.is_stopped():
 		timer.start(0.01)

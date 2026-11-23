@@ -1,5 +1,9 @@
 # ImageGen 에셋 생성 기록
 
+## 벽 꾸미기 의뢰 배경
+
+[의뢰별 벽 배경 10장](wall-commissions/GENERATION.md)은 ImageGen으로 장소마다 한 장씩 새로 만들었다. 흰 회벽의 안쪽 좌표를 따로 측정하여 작업 화면과 완성 이미지에서 타일을 같은 자리에 배치한다.
+
 ## 2026-11-23 건축 공방 재료 25종
 
 새 [공방 재료 시트](construction-library-v2/workshop.webp)는 재료마다 별도로 그린 5×5 원화다. [행별 생성 내용과 가공 규격](construction-library-v2/GENERATION.md)을 기록했다.

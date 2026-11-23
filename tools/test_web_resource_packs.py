@@ -15,6 +15,10 @@ import prepare_web_release as release
 from web_resource_packs import PackEntry, ResourcePack, read_pack, split_pack, write_pack
 
 
+WALL_SCENES = ("harbor", "garden", "station", "library", "bakery", "playground", "forest",
+               "museum", "orchard", "observatory")
+
+
 def imported(source: str, cache: str, pixels: bytes) -> tuple[PackEntry, PackEntry]:
     return (
         PackEntry(source + ".import", ('[remap]\nuid="uid://sameidentity"\n'
@@ -45,6 +49,9 @@ def fixture() -> ResourcePack:
         ("assets/generated/opening-v1/planet.webp", "planet"),
     ):
         entries.extend(imported(source, cache, (cache.encode() + b"\0RGBA") * 40))
+    for location in WALL_SCENES:
+        entries.extend(imported(f"assets/generated/wall-commissions/{location}.webp",
+                                f"wall_{location}", location.encode()))
     return ResourcePack((4, 7, 2), tuple(entries))
 
 
@@ -63,6 +70,9 @@ class PackTests(unittest.TestCase):
         self.assertEqual(set(all_paths), {entry.path for entry in original.entries})
         drawing = {entry.path for entry in groups["drawing"].entries}
         adventure = {entry.path for entry in groups["adventure"].entries}
+        self.assertEqual({entry.path for entry in groups["wall"].entries},
+                         {f"assets/generated/wall-commissions/{loc}.webp.import" for loc in WALL_SCENES}
+                         | {f".godot/imported/wall_{loc}.ctex" for loc in WALL_SCENES})
         self.assertIn(".godot/imported/drawingforest.ctex", drawing)
         self.assertNotIn(".godot/imported/adventureforest.ctex", drawing)
         self.assertIn(".godot/imported/adventureforest.ctex", adventure)
@@ -85,7 +95,7 @@ class PackTests(unittest.TestCase):
         ))
         before, after = split_pack(original), split_pack(changed)
         self.assertNotEqual(write_pack(before["core"]), write_pack(after["core"]))
-        for feature in ("drawing", "construction", "adventure", "space", "opening"):
+        for feature in ("drawing", "construction", "wall", "adventure", "space", "opening"):
             self.assertEqual(write_pack(before[feature]), write_pack(after[feature]))
 
     def test_invalid_flags_bounds_checksum_and_duplicate_paths_fail(self):
@@ -134,7 +144,7 @@ class PackTests(unittest.TestCase):
             html = (directory / "index.html").read_text()
             manifest_text = html.split("window.QUAD_RESOURCE_PACKS = ", 1)[1].split(";</script>", 1)[0]
             manifest = json.loads(manifest_text)
-            self.assertEqual(set(manifest["packs"]), {"drawing", "construction", "adventure", "space", "opening"})
+            self.assertEqual(set(manifest["packs"]), {"drawing", "construction", "wall", "adventure", "space", "opening"})
             self.assertIn(f'"mainPack":"{core}"', html)
             self.assertNotIn("window.QUAD_RESOURCE_PACKS = null;", html)
             self.assertFalse((directory / "index.pck").exists())

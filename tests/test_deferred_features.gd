@@ -32,6 +32,7 @@ static func _settle(t: Node) -> void:
 static func run(t: Node) -> void:
 	await _test_lazy_screens_and_shared_ledger(t)
 	await _test_failure_and_retry(t)
+	await _test_wall_entry_and_retry(t)
 	await _test_cancel_and_stale_navigation(t)
 	await _test_world_entry_gate(t)
 	await _test_tutorial_resumes_after_download(t)
@@ -87,6 +88,26 @@ static func _test_failure_and_retry(t: Node) -> void:
 	await app._show_drawing()
 	t.assert_true(app._drawing_screen.visible, "The same feature can be retried successfully")
 	t.assert_eq(gate.calls, ["drawing", "drawing"], "Retry makes a new resource request")
+	await _settle(t)
+	app.free()
+	await t.get_tree().process_frame
+
+static func _test_wall_entry_and_retry(t: Node) -> void:
+	var gate: PackGate = PackGate.new()
+	gate.waiting = true
+	var app: QuadrilateralApp = _app(t, gate)
+	var button: Button = app._home_screen.find_child("OpenWall", true, false) as Button
+	t.assert_true(gate.calls.is_empty() and not is_instance_valid(app.wall_studio), "Fresh home leaves all wall backdrops unloaded")
+	button.pressed.emit()
+	t.assert_eq(gate.calls, ["wall"], "The tile workshop button requests the wall pack once")
+	t.assert_true(app._feature_loading_label.text.contains("담장"), "The loading state identifies the requested wall artwork")
+	gate.completed.emit(false)
+	t.assert_true(app._home_screen.visible and not is_instance_valid(app.wall_studio), "Failed wall art download leaves the home button available")
+	t.assert_true(app._toast.text.contains("다시"), "The player is told how to retry the wall download")
+	button.pressed.emit()
+	gate.completed.emit(true)
+	t.assert_eq(gate.calls, ["wall", "wall"], "Retry requests only the wall pack")
+	t.assert_true(is_instance_valid(app.wall_studio) and app.wall_studio.visible, "The workshop opens after its pack becomes available")
 	await _settle(t)
 	app.free()
 	await t.get_tree().process_frame

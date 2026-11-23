@@ -8,6 +8,10 @@ const BOARD_URL = `https://padlet.com/inkun02/padlet-${BOARD_ID}`;
 const DRAWING_BOARD = { board_id: BOARD_ID, board_url: BOARD_URL };
 const BUILDING_BOARD_ID = 's025ilggr7czshhrgkv2';
 const BUILDING_BOARD = { board_id: BUILDING_BOARD_ID, board_url: `https://padlet.com/inkun02/padlet-${BUILDING_BOARD_ID}` };
+const SPECIAL_GALLERIES = {
+  wall: { prefix: 'PADLET_WALL', label: '담장 전시장', id: 's025pydws5qowdbbgrdp' },
+  ship: { prefix: 'PADLET_SPACESHIP', label: '우주선 전시장', id: 's025pyexx3eepqe19zum' },
+};
 const PUBLIC_ORIGIN = 'https://rectangle-game-snowy.vercel.app';
 const GAME_ORIGINS = [PUBLIC_ORIGIN, 'https://rectangle-game-iota.vercel.app'];
 const MAX_BODY_BYTES = 3300000;
@@ -100,20 +104,39 @@ function boardDestination(boardId, boardUrl) {
   return { board_id: boardId, board_url: url.href };
 }
 
+function specialGallery(kind) {
+  if (kind === 'wall') return SPECIAL_GALLERIES.wall;
+  if (kind === 'spaceship' || kind === 'ship_exhibit') return SPECIAL_GALLERIES.ship;
+  return null;
+}
+
 function submissionBoard(deps, submission) {
+  const gallery = specialGallery(submission.kind);
+  if (gallery) {
+    const env = deps.env;
+    const id = env[`${gallery.prefix}_BOARD_ID`]?.trim();
+    const url = env[`${gallery.prefix}_BOARD_URL`]?.trim();
+    const board = id === undefined && url === undefined
+      ? boardDestination(gallery.id, `https://padlet.com/inkun02/padlet-${gallery.id}`) : boardDestination(id, url);
+    const other = gallery === SPECIAL_GALLERIES.wall ? SPECIAL_GALLERIES.ship : SPECIAL_GALLERIES.wall;
+    const reserved = [BOARD_ID, BUILDING_BOARD_ID, env.PADLET_BUILDING_BOARD_ID?.trim(), other.id, env[`${other.prefix}_BOARD_ID`]?.trim()];
+    return board && !reserved.includes(board.board_id) ? board : null;
+  }
   if (!BUILDING_KINDS.has(submission.kind)) return DRAWING_BOARD;
   const { PADLET_BUILDING_BOARD_ID: boardId, PADLET_BUILDING_BOARD_URL: boardUrl } = deps.env;
   if (boardId === undefined && boardUrl === undefined) return BUILDING_BOARD;
   const board = boardDestination(boardId?.trim(), boardUrl?.trim());
-  return board?.board_id === BOARD_ID ? null : board;
+  const reserved = [BOARD_ID, ...Object.values(SPECIAL_GALLERIES).flatMap((item) => [item.id, deps.env[`${item.prefix}_BOARD_ID`]?.trim()])];
+  return board && !reserved.includes(board.board_id) ? board : null;
 }
 
 function padletBoardApi(boardId) {
   return `https://api.padlet.dev/v1/boards/${boardId}`;
 }
 
-function missingBuildingBoard() {
-  return fail('건축물 전시관 주소를 확인해야 해요. 저장한 작품은 설정을 고친 뒤 다시 보낼 수 있어요.', false, 503, 'configuration');
+function missingBoard(kind) {
+  const gallery = specialGallery(kind)?.label ?? '건축물 전시관';
+  return fail(`${gallery} 주소를 확인해야 해요. 저장한 작품은 설정을 고친 뒤 다시 보낼 수 있어요.`, false, 503, 'configuration');
 }
 
 function sendJson(response, status, data, origin = '') {
@@ -243,8 +266,9 @@ function textField(value, maximum, label, multiline = false) {
 function validateSubmission(raw) {
   const kind = raw.kind;
   const projectPrice = PROJECT_PRICES.get(kind);
-  if (kind !== undefined && kind !== 'drawing' && !projectPrice) throw new InputError('작품 종류를 확인해 주세요.');
-  const work = kind === 'spaceship' ? '우주선' : projectPrice ? '건물' : '그림';
+  const exhibition = kind === 'drawing' || kind === 'wall' || kind === 'ship_exhibit';
+  if (kind !== undefined && !exhibition && !projectPrice) throw new InputError('작품 종류를 확인해 주세요.');
+  const work = kind === 'wall' ? '담장' : specialGallery(kind) === SPECIAL_GALLERIES.ship ? '우주선' : projectPrice ? '건물' : '그림';
   if (typeof raw.id !== 'string' || !ID_PATTERN.test(raw.id)) {
     throw new InputError('작품을 확인할 수 없어요. 게임에서 작품을 다시 열어 주세요.');
   }
@@ -252,9 +276,9 @@ function validateSubmission(raw) {
   const nameLabel = kind === 'earth_house' ? '집 이름' : kind === 'spaceship' ? '우주선 이름' : `${work} 제목`;
   const title = textField(raw.title, 80, nameLabel);
   const description = textField(raw.description, 1000, `${work} 설명`, true);
-  const price = kind === 'drawing' ? EXHIBITION_PRICE : projectPrice ?? DRAWING_PRICE;
+  const price = exhibition ? EXHIBITION_PRICE : projectPrice ?? DRAWING_PRICE;
   if (!Number.isSafeInteger(raw.price) || raw.price < price.minimum || raw.price > price.maximum) {
-    if (kind === 'drawing') throw new InputError('전시할 그림 정보를 다시 확인해 주세요.');
+    if (exhibition) throw new InputError(`전시할 ${work} 정보를 다시 확인해 주세요.`);
     throw new InputError(projectPrice ? '작품 금액이 올바르지 않아요. 게임 화면에서 다시 확인해 주세요.' :
       '그림 가격이 올바르지 않아요. 판매 화면에서 다시 확인해 주세요.');
   }
@@ -337,9 +361,9 @@ function escapeHtml(value) {
 
 function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
   const projectPrice = PROJECT_PRICES.get(submission.kind);
-  const descriptionLabel = submission.kind === 'spaceship' ? '우주선 설명' : projectPrice ? '건물 설명' : '그림 설명';
+  const descriptionLabel = submission.kind === 'wall' ? '담장 설명' : specialGallery(submission.kind) === SPECIAL_GALLERIES.ship ? '우주선 설명' : projectPrice ? '건물 설명' : '그림 설명';
   const body = [`작성자: ${escapeHtml(submission.author)}`, `${descriptionLabel}: ${escapeHtml(submission.description)}`];
-  if (submission.kind !== 'drawing') {
+  if (submission.kind !== 'drawing' && submission.kind !== 'wall' && submission.kind !== 'ship_exhibit') {
     body.push(`${(projectPrice ?? DRAWING_PRICE).label}: ${submission.price.toLocaleString('en-US')}원`);
   }
   return {
@@ -372,8 +396,11 @@ function published(record) {
 }
 
 async function recordSuccess(deps, current, post) {
+  let postUrl = padletUrl(post.attributes?.webUrl?.live)?.href;
+  // A dedicated exhibition stays on its own board even if Padlet returns a different link format.
+  if (specialGallery(current.value.kind) && !postUrl?.startsWith(`${current.value.board_url}/`)) postUrl = current.value.board_url;
   const value = {
-    ...current.value, state: 'published', post_id: post.id, post_url: padletUrl(post.attributes?.webUrl?.live)?.href || current.value.board_url || BOARD_URL,
+    ...current.value, state: 'published', post_id: post.id, post_url: postUrl || current.value.board_url || BOARD_URL,
     post_status: post.attributes?.status || 'approved', updated_at: deps.now(),
   };
   try { await writeManifest(deps, value, current.etag); } catch {
@@ -408,9 +435,10 @@ async function processSubmission(deps, submission, origin) {
   let current = await readManifest(deps, submission.id);
   if (!current) {
     const board = submissionBoard(deps, submission);
-    if (!board) return missingBuildingBoard();
+    if (!board) return missingBoard(submission.kind);
     const value = {
       version: 1, id: submission.id, payload_hash: submission.payloadHash, ...board,
+      ...(specialGallery(submission.kind) ? { kind: submission.kind } : {}),
       state: 'prepared', created_at: deps.now(), updated_at: deps.now(),
     };
     try { current = await writeManifest(deps, value); } catch (error) {
@@ -423,6 +451,7 @@ async function processSubmission(deps, submission, origin) {
   }
   if (current.value.state === 'published') return published(current.value);
   if (current.value.state === 'unknown' || current.value.state === 'posting') {
+    if (!current.value.board_id && ['wall', 'ship_exhibit'].includes(submission.kind)) return missingBoard(submission.kind);
     if (current.value.state === 'posting' && deps.now() - current.value.updated_at < POSTING_GRACE_MS) return pending(deps, current.value);
     return reconcile(deps, current);
   }
@@ -432,13 +461,15 @@ async function processSubmission(deps, submission, origin) {
   }
 
   // Prepared and definitely rejected legacy submissions have no remote post to reconcile.
-  const board = current.value.board_id ? { board_id: current.value.board_id, board_url: current.value.board_url }
+  const migrateUnpostedShip = submission.kind === 'spaceship' && !current.value.kind;
+  const board = current.value.board_id && !migrateUnpostedShip ? { board_id: current.value.board_id, board_url: current.value.board_url }
     : submissionBoard(deps, submission);
-  if (!board) return missingBuildingBoard();
+  if (!board) return missingBoard(submission.kind);
   await ensureImage(deps, submission);
   try {
     current = await writeManifest(deps, {
       ...current.value, ...board, state: 'posting', updated_at: deps.now(), retry_after: 0,
+      ...(specialGallery(submission.kind) ? { kind: submission.kind } : {}),
       attachment_url: imageUrl(submission.id, origin),
     }, current.etag);
   } catch {

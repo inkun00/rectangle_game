@@ -4,6 +4,8 @@ extends Control
 signal purchase_requested(part_id: String)
 signal appearance_requested(appearance: Dictionary)
 signal export_requested
+signal ship_publication_requested(author: String, title: String, description: String)
+signal exhibition_board_requested
 signal launch_requested
 signal home_requested
 signal drawing_requested
@@ -40,6 +42,9 @@ var _progress: Label
 var _detail: Label
 var _purchase: Button
 var _export_button: Button
+var _publish_button: Button
+var _ship_submission: StoryCompletionDialog
+var _last_ship_author: String = ""
 var _launch: Button
 var _status: Label
 var _workspace: BoxContainer
@@ -160,6 +165,13 @@ func _ready() -> void:
 	_export_button = QuadTheme.button("우주선 PNG 저장", _request_export)
 	_export_button.name = "ExportShip"
 	actions.add_child(_export_button)
+	_publish_button = QuadTheme.button("완성한 우주선 등록", _open_ship_publication)
+	_publish_button.name = "PublishCompletedShip"
+	_publish_button.hide()
+	actions.add_child(_publish_button)
+	var board_button: Button = QuadTheme.button("우주선 전시장 보기", func() -> void: exhibition_board_requested.emit())
+	board_button.name = "ViewShipExhibition"
+	actions.add_child(board_button)
 	_launch = QuadTheme.button("모든 부품을 모으면 출발", _request_launch, true)
 	_launch.name = "LaunchShip"
 	_launch.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -173,6 +185,10 @@ func _ready() -> void:
 	_status = QuadTheme.paragraph("필수 부품 12종을 한 개씩 갖추면 사각성으로 출발할 수 있어요.", 15, Art.INK)
 	column.add_child(_status)
 	_build_confirmation()
+	_ship_submission = StoryCompletionDialog.new()
+	_ship_submission.name = "ShipExhibitionForm"
+	_ship_submission.submission_requested.connect(_submit_ship_publication)
+	add_child(_ship_submission)
 	_build_launch_panel()
 	resized.connect(_responsive)
 	visibility_changed.connect(_visibility_changed)
@@ -379,6 +395,7 @@ func refresh() -> void:
 	elif missing > 0: _purchase.text = "%s 더 모으면 구매" % Money.format_won(missing)
 	else: _purchase.text = "선택한 부품 구매" if installed.is_empty() else "차액 내고 교체"
 	_launch.disabled = not state.ship_complete()
+	_publish_button.visible = state.ship_complete()
 	_export_button.disabled = _launch.disabled
 	var replay: bool = ending_saved or state.launched
 	_launch.text = "엔딩 다시 보기" if replay else ("완성하고 엔딩 보기" if state.ship_complete() else "필수 부품 12종을 갖추면 완성")
@@ -497,6 +514,28 @@ func _request_export() -> void:
 	_show_installed_exterior()
 	export_requested.emit()
 
+func _open_ship_publication() -> void:
+	if not _can_finish() or _ship_submission.visible: return
+	_show_installed_exterior()
+	_ship_submission.open_project("space", state.ship_spent(), _last_ship_author, false, true)
+
+func _submit_ship_publication(data: Dictionary) -> void:
+	if not _ship_submission.visible or not _can_finish(): return
+	var author: String = str(data.get("author", "")).strip_edges()
+	var ship_name: String = str(data.get("title", "")).strip_edges()
+	var description: String = str(data.get("description", "")).strip_edges()
+	var error: String = StoryCompletionDialog.validation_error("space", author, ship_name, description)
+	if not error.is_empty():
+		_ship_submission.show_failure(error, false)
+		return
+	_ship_submission.hide()
+	_last_ship_author = author
+	_publish_button.grab_focus()
+	ship_publication_requested.emit(author, ship_name, description)
+
+func set_publication_status(message: String) -> void:
+	_status.text = message
+
 func _can_finish() -> bool:
 	return state != null and state.ship_complete() and is_visible_in_tree() and not _launch_panel.visible
 
@@ -549,6 +588,7 @@ func _finish_launch() -> void:
 
 func cancel_activity() -> void:
 	if is_instance_valid(_confirmation): _confirmation.hide()
+	if is_instance_valid(_ship_submission): _ship_submission.hide()
 	_clear_quote()
 	if is_instance_valid(_launch_panel): _launch_panel.hide()
 	if is_instance_valid(_content): _content.show()
