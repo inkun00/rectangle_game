@@ -1,6 +1,6 @@
 # 사각형 월드 배포
 
-GitHub 저장소는 `inkun00/rectangle_game`, Vercel 프로젝트는 `inkun05/rectangle-game`입니다. 운영 주소는 **https://rectangle-game-iota.vercel.app/**입니다.
+GitHub 저장소는 `inkun00/rectangle_game`, Vercel 운영 프로젝트는 `inkeuns-projects-872d3d68/rectangle-game`입니다. 학생에게는 매번 같은 게임 주소를 안내하세요. 수학 풀이와 게임 진행은 접속한 사이트의 브라우저 저장소에 보관됩니다. [운영 게임](https://rectangle-game-snowy.vercel.app/)
 
 ## 소스만 올려 자동 배포하기
 
@@ -45,7 +45,7 @@ python tools/ci_build.py --godot 'C:\path\to\Godot_v4.7.2-stable_win64_console.e
 
 ```powershell
 npx vercel login
-npx vercel link --project rectangle-game --scope inkun05
+npx vercel link --project rectangle-game --scope inkeuns-projects-872d3d68
 npx vercel --prod
 ```
 

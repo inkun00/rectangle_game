@@ -23,7 +23,9 @@ static func run(t: Node) -> void:
 	await _test_startup_response_controls(t)
 	await _test_startup_visual_tools(t)
 	_test_daily_completion_storage(t)
+	await _test_startup_partial_resume(t)
 	await _test_startup_learning_gate(t)
+	await _test_startup_completion_in_another_tab(t)
 	await _test_touch_and_peaceful(t)
 
 static func _test_examples_and_measurements(t: Node) -> void:
@@ -558,6 +560,11 @@ static func _test_daily_completion_storage(t: Node) -> void:
 	t.assert_eq(DailyCompletion.korean_date(before_midnight), "2026-11-23", "23:59:59 in Korea still belongs to the current school day")
 	t.assert_eq(DailyCompletion.korean_date(midnight), "2026-11-24", "The daily gate resets at midnight in Korea")
 	t.assert_false(DailyCompletion.completed_today(path, before_midnight), "A new browser profile has no completion date")
+	var legacy: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	legacy.store_string("2026-11-23")
+	legacy.close()
+	t.assert_true(DailyCompletion.completed_today(path, before_midnight), "An existing v1 plain-date record still unlocks its Korean day")
+	t.assert_false(DailyCompletion.completed_today(path, midnight), "A restored v1 record expires at the same midnight as a new one")
 	t.assert_true(DailyCompletion.mark_completed(path, before_midnight), "Completing a day saves its date")
 	t.assert_true(DailyCompletion.completed_today(path, before_midnight), "Completion reloads before midnight")
 	t.assert_false(DailyCompletion.completed_today(path, midnight), "Yesterday's entry cannot unlock the next day")
@@ -574,6 +581,28 @@ static func _test_daily_completion_storage(t: Node) -> void:
 	t.assert_false(DailyCompletion.mark_completed(impossible, midnight), "A failed disk write is reported")
 	t.assert_false(DailyCompletion.completed_today(impossible, midnight), "Failure cannot manufacture a completed day")
 	DirAccess.remove_absolute(path)
+	var random: RandomNumberGenerator = RandomNumberGenerator.new()
+	random.seed = 23
+	var variants: Array[int] = StartupSet.pick(random)
+	t.assert_true(DailyCompletion.save_progress(2, variants, path, before_midnight), "An unfinished quiz is saved on the day its answers are submitted")
+	DailyCompletion.save_progress(1, StartupSet.pick(random), path, before_midnight)
+	t.assert_eq(DailyCompletion.load_progress(path, before_midnight).get("index"), 2, "A fresh read restores the number of solved questions")
+	t.assert_eq(DailyCompletion.load_progress(path, before_midnight).get("variants"), variants, "A late write from an earlier question cannot replace a more advanced tab's work")
+	t.assert_true(DailyCompletion.load_progress(path, midnight).is_empty(), "Yesterday's partial session cannot carry solved questions into the next day")
+	var progress_path: String = path + ".progress.json"
+	var invalid_records: Array[Dictionary] = [
+		{"version": 1, "date": "2026-11-23", "index": 5, "variants": variants},
+		{"version": 1, "date": "2026-11-23", "index": 2, "variants": [999, 0, 0, 0, 0]},
+		{"version": true, "date": "2026-11-23", "index": 2, "variants": variants},
+		{"version": 1, "date": {}, "index": 2, "variants": variants}
+	]
+	for invalid: Dictionary in invalid_records:
+		var partial: FileAccess = FileAccess.open(progress_path, FileAccess.WRITE)
+		partial.store_string(JSON.stringify(invalid))
+		partial.close()
+		t.assert_true(DailyCompletion.load_progress(path, before_midnight).is_empty(), "Damaged partial progress cannot inject a completed quiz or invalid question")
+		t.assert_false(DailyCompletion.completed_today(path, before_midnight), "An invalid progress file cannot create a completion record")
+	DirAccess.remove_absolute(progress_path)
 
 static func _launch_gate_app(t: Node, path: String) -> QuadrilateralApp:
 	var app: QuadrilateralApp = AppScene.instantiate()
@@ -586,21 +615,8 @@ static func _launch_gate_app(t: Node, path: String) -> QuadrilateralApp:
 
 static func _test_startup_learning_gate(t: Node) -> void:
 	var path: String = "user://test_gate_session_%d.txt" % Time.get_ticks_usec()
-	var partial: QuadrilateralApp = await _launch_gate_app(t, path)
-	var partial_gate: Gate = partial._startup_learning
-	t.assert_not_null(partial_gate, "First visit opens the math gate")
-	if partial_gate == null:
-		partial.free()
-		return
-	partial._startup_variants[0] = 20
-	partial._present_startup_question()
-	_fill_card_response(partial_gate, partial_gate.question, true)
-	partial_gate._check.pressed.emit()
-	t.assert_eq(partial._startup_type_index, 1, "Answering one problem advances the current visit")
-	t.assert_false(DailyCompletion.completed_today(path), "Partial progress cannot exempt a future visit")
-	partial.free()
 	var app: QuadrilateralApp = await _launch_gate_app(t, path)
-	t.assert_eq(app._startup_type_index, 0, "Reloading before all five answers starts a fresh quiz")
+	t.assert_eq(app._startup_type_index, 0, "A new day starts with the first question")
 	var gate: Gate = app._startup_learning
 	t.assert_not_null(gate, "The launch opens the required math dialog")
 	if gate == null:
@@ -621,6 +637,7 @@ static func _test_startup_learning_gate(t: Node) -> void:
 	t.assert_true(not app._drawing_screen.visible and not app._construction_screen.visible and app.world == null, "Gameplay stays hidden before all answers are correct")
 	# Pin the diagram used for this retry so all starting formats can be sampled at launch.
 	app._startup_variants[0] = 0
+	DailyCompletion.save_progress(app._startup_type_index, app._startup_variants, path)
 	app._present_startup_question()
 	var starting: Dictionary = gate.question
 	gate._check.pressed.emit()
@@ -636,6 +653,8 @@ static func _test_startup_learning_gate(t: Node) -> void:
 	app._startup_variants[2] = 0
 	app._startup_variants[3] = 12
 	app._startup_variants[4] = 13
+	DailyCompletion.save_progress(app._startup_type_index, app._startup_variants, path)
+	var coins_before: int = app.journal.coins
 	for step: int in range(Bank.TYPES.size()):
 		t.assert_eq(gate.question.type_id, Bank.TYPES[step], "A correct answer advances to the next distinct curriculum type")
 		t.assert_true(gate.visible and not app._home_screen.visible, "The home screen stays locked while any type remains")
@@ -658,7 +677,11 @@ static func _test_startup_learning_gate(t: Node) -> void:
 		if question.mode != "draw":
 			gate._measure_buttons[3].pressed.emit()
 			t.assert_true(gate.canvas.measure_tools.tool_kind.is_empty(), "The learner can put away the tool before checking")
+		if step == Bank.TYPES.size() - 1:
+			t.assert_false(DailyCompletion.completed_today(path), "The final question must be graded before the day is marked complete")
 		gate._check.pressed.emit()
+	t.assert_true(DailyCompletion.completed_today(path), "The fifth answer persists before the next frame, opening or home interaction")
+	t.assert_eq(app.journal.coins, coins_before, "Finishing the daily gate preserves the game balance")
 	await t.get_tree().process_frame
 	t.assert_true(app._startup_learning == null and app._home_screen.visible, "The fifth correct type opens the game")
 	t.assert_true(app._home_screen._drawing_button.has_focus(), "Keyboard focus returns to the first game activity")
@@ -697,6 +720,67 @@ static func _test_startup_learning_gate(t: Node) -> void:
 	DirAccess.remove_absolute(path)
 	await t.get_tree().process_frame
 
+static func _test_startup_partial_resume(t: Node) -> void:
+	var path: String = "user://test_gate_partial_%d.txt" % Time.get_ticks_usec()
+	var first: QuadrilateralApp = await _launch_gate_app(t, path)
+	var chosen: Array[int] = first._startup_variants.duplicate()
+	_solve_gate_question(first._startup_learning)
+	_solve_gate_question(first._startup_learning)
+	t.assert_eq(first._startup_type_index, 2, "Answering two questions advances the current visit to the third")
+	t.assert_false(DailyCompletion.completed_today(path), "An unfinished session cannot bypass the rest of today's questions")
+	first.free()
+	var revisit: QuadrilateralApp = await _launch_gate_app(t, path)
+	t.assert_not_null(revisit._startup_learning, "A same-day return can continue the remaining questions")
+	if is_instance_valid(revisit._startup_learning):
+		t.assert_eq(revisit._startup_type_index, 2, "A fresh instance resumes at the first unanswered question")
+		t.assert_eq(revisit._startup_variants, chosen, "The same-day return retains every selected question")
+		t.assert_eq(revisit._startup_learning.question.id, Bank.question(Bank.TYPES[2], chosen[2]).id, "The resumed screen presents the original third question")
+		for remaining: int in range(3):
+			if is_instance_valid(revisit._startup_learning): _solve_gate_question(revisit._startup_learning)
+		t.assert_true(revisit._startup_learning == null and DailyCompletion.completed_today(path), "Solving the remaining three questions completes the original session")
+	revisit.free()
+	DirAccess.remove_absolute(path)
+	var yesterday: int = int(Time.get_unix_time_from_system()) - 86400
+	t.assert_true(DailyCompletion.save_progress(2, chosen, path, yesterday), "An earlier day can hold unfinished work")
+	var next_day: QuadrilateralApp = await _launch_gate_app(t, path)
+	t.assert_eq(next_day._startup_type_index, 0, "An unfinished quiz from another Korean date cannot unlock the first two questions today")
+	t.assert_eq(next_day._startup_learning.question.type_id, Bank.TYPES[0], "The new day's quiz opens on its first curriculum topic")
+	next_day.free()
+	DirAccess.remove_absolute(path + ".progress.json")
+	await t.get_tree().process_frame
+
+static func _test_startup_completion_in_another_tab(t: Node) -> void:
+	for action: String in ["focus", "answer"]:
+		var path: String = "user://test_gate_open_tab_%s_%d.txt" % [action, Time.get_ticks_usec()]
+		var app: QuadrilateralApp = await _launch_gate_app(t, path)
+		var gate: Gate = app._startup_learning
+		t.assert_not_null(gate, "A tab opened before completion initially shows today's questions")
+		if gate != null:
+			app._startup_variants[0] = 20
+			DailyCompletion.save_progress(app._startup_type_index, app._startup_variants, path)
+			app._present_startup_question()
+			_fill_card_response(gate, gate.question, true)
+			if action == "answer":
+				var replacement: Array[int] = app._startup_variants.duplicate()
+				replacement[0] = 21
+				DailyCompletion.save_progress(0, replacement, path)
+				gate._check.pressed.emit()
+				t.assert_eq(app._startup_type_index, 0, "An answer from an old tab cannot grade a replaced question")
+				t.assert_eq(gate.question.id, Bank.question(Bank.TYPES[0], 21).id, "The tab switches to the current variant before accepting input")
+				_fill_card_response(gate, gate.question, true)
+			t.assert_true(DailyCompletion.mark_completed(path), "A different tab has just completed the same day")
+			var coins_before: int = app.journal.coins
+			if action == "focus":
+				app.get_window().focus_entered.emit()
+			else:
+				gate._check.pressed.emit()
+			t.assert_true(app._startup_learning == null and app._home_screen.visible, "An already-open tab unlocks on " + action + " after completion elsewhere")
+			t.assert_eq(app._startup_type_index, 0, "The stale tab does not grade another question on " + action)
+			t.assert_eq(app.journal.coins, coins_before, "Resuming another tab's daily completion preserves coins")
+		app.free()
+		DirAccess.remove_absolute(path)
+		await t.get_tree().process_frame
+
 static func _finish_mixed_session(t: Node, next_gate: Gate) -> void:
 	var session_modes: Array[String] = []
 	for step: int in range(Bank.TYPES.size()):
@@ -705,21 +789,25 @@ static func _finish_mixed_session(t: Node, next_gate: Gate) -> void:
 		t.assert_eq(question.type_id, Bank.TYPES[step], "The normal launch visits every curriculum topic")
 		t.assert_false(session_modes.has(mode), "The normal entry point presents five distinct formats")
 		session_modes.append(mode)
-		match mode:
-			"line":
-				next_gate._measure.pressed.emit()
-				next_gate.canvas.set_value(90.0 if question.lesson_id == "perpendicular" else 0.0)
-			"measure":
-				next_gate._measure.pressed.emit()
-				next_gate._choice_buttons[int(question.answer_index)].pressed.emit()
-			"select":
-				next_gate._measure.pressed.emit()
-				for choice: int in question.correct_choices: next_gate.canvas.toggle_choice(choice)
-			"draw":
-				for vertex: int in range(question.given.size(), question.draw_solution.size()):
-					next_gate.grid_canvas.place_vertex(question.draw_solution[vertex])
-			_: _fill_card_response(next_gate, question, true)
-		next_gate._check.pressed.emit()
+		_solve_gate_question(next_gate)
+
+static func _solve_gate_question(gate: Gate) -> void:
+	var question: Dictionary = gate.question
+	match str(question.mode):
+		"line":
+			gate._measure.pressed.emit()
+			gate.canvas.set_value(90.0 if question.lesson_id == "perpendicular" else 0.0)
+		"measure":
+			gate._measure.pressed.emit()
+			gate._choice_buttons[int(question.answer_index)].pressed.emit()
+		"select":
+			gate._measure.pressed.emit()
+			for choice: int in question.correct_choices: gate.canvas.toggle_choice(choice)
+		"draw":
+			for vertex: int in range(question.given.size(), question.draw_solution.size()):
+				gate.grid_canvas.place_vertex(question.draw_solution[vertex])
+		_: _fill_card_response(gate, question, true)
+	gate._check.pressed.emit()
 
 static func _test_touch_and_peaceful(t: Node) -> void:
 	var app: QuadrilateralApp = AppScene.instantiate()

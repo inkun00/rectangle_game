@@ -59,6 +59,7 @@ var _startup_learning: StartupLearning
 var _startup_question: Dictionary = {}
 var _startup_variants: Array[int] = []
 var _startup_type_index: int = 0
+var _startup_date: String = ""
 var journal: QuestJournal
 var adventure: AdventureState
 var world: QuadrilateralWorld
@@ -201,15 +202,48 @@ func _ready() -> void:
 
 func _start_learning_gate() -> void:
 	_leave_activity()
-	_startup_type_index = 0
-	var random: RandomNumberGenerator = RandomNumberGenerator.new()
-	random.randomize()
-	_startup_variants = StartupQuestionSet.pick(random)
 	_startup_learning = StartupLearning.new()
 	_startup_learning.answer_submitted.connect(_answer_startup_question)
 	_ui.add_child(_startup_learning)
+	get_window().focus_entered.connect(_resume_completed_startup)
 	_responsive()
+	_load_startup_session(int(Time.get_unix_time_from_system()))
+
+func _load_startup_session(now: int) -> void:
+	_startup_date = StartupDailyCompletion.korean_date(now)
+	var progress: Dictionary = StartupDailyCompletion.load_progress(startup_completion_path, now)
+	if not progress.is_empty():
+		_restore_startup_progress(progress)
+		return
+	var random: RandomNumberGenerator = RandomNumberGenerator.new()
+	random.randomize()
+	_startup_variants = StartupQuestionSet.pick(random)
+	_startup_type_index = 0
+	StartupDailyCompletion.save_progress(_startup_type_index, _startup_variants, startup_completion_path, now)
 	_present_startup_question()
+
+func _restore_startup_progress(progress: Dictionary) -> void:
+	_startup_type_index = int(progress.index)
+	_startup_variants.assign(progress.variants)
+	_present_startup_question("오늘 풀던 문제를 이어서 풀어 보세요." if _startup_type_index > 0 else "")
+
+func _resume_completed_startup(now: int = -1) -> bool:
+	if not is_instance_valid(_startup_learning): return false
+	if now == -1: now = int(Time.get_unix_time_from_system())
+	if StartupDailyCompletion.completed_today(startup_completion_path, now):
+		_finish_startup_learning()
+		return true
+	if StartupDailyCompletion.korean_date(now) != _startup_date:
+		_load_startup_session(now)
+		return true
+	var progress: Dictionary = StartupDailyCompletion.load_progress(startup_completion_path, now)
+	if not progress.is_empty():
+		var advanced: bool = progress.index > _startup_type_index
+		var replaced: bool = progress.index == _startup_type_index and progress.variants != _startup_variants
+		if advanced or replaced:
+			_restore_startup_progress(progress)
+			return true
+	return false
 
 func _present_startup_question(feedback: String = "") -> void:
 	var type_id: String = StartupQuestions.TYPES[_startup_type_index]
@@ -218,22 +252,30 @@ func _present_startup_question(feedback: String = "") -> void:
 
 func _answer_startup_question(correct: bool) -> void:
 	if not is_instance_valid(_startup_learning): return
+	var now: int = int(Time.get_unix_time_from_system())
+	if _resume_completed_startup(now): return
 	if not correct:
 		var hint: String = str(_startup_question.hint)
 		_startup_variants[_startup_type_index] = StartupQuestions.next_index(_startup_variants[_startup_type_index])
+		StartupDailyCompletion.save_progress(_startup_type_index, _startup_variants, startup_completion_path, now)
 		_present_startup_question("앞 문제의 힌트 · " + hint + " 같은 주제의 새 문제를 풀어 봐요.")
 		return
 	_startup_type_index += 1
 	if _startup_type_index < StartupQuestions.TYPES.size():
+		StartupDailyCompletion.save_progress(_startup_type_index, _startup_variants, startup_completion_path, now)
 		_present_startup_question("맞았어요! 다음 문제를 풀어 보세요.")
 		return
-	var saved: bool = StartupDailyCompletion.mark_completed(startup_completion_path)
+	var saved: bool = StartupDailyCompletion.mark_completed(startup_completion_path, now)
+	_finish_startup_learning()
+	if not saved:
+		_show_toast("오늘의 풀이 기록을 저장하지 못했어요. 다음에 열면 문제가 다시 나올 수 있어요.")
+
+func _finish_startup_learning() -> void:
+	get_window().focus_entered.disconnect(_resume_completed_startup)
 	_startup_learning.hide()
 	_startup_learning.queue_free()
 	_startup_learning = null
 	_start_game_session()
-	if not saved:
-		_show_toast("오늘의 풀이 기록을 저장하지 못했어요. 다음에 열면 문제가 다시 나올 수 있어요.")
 
 func _start_game_session() -> void:
 	_show_home()

@@ -71,6 +71,116 @@ function shell(options = {}) {
 
 async function flush() { await Promise.resolve(); await Promise.resolve(); }
 
+const dailyQuizScript = [...exported.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
+  .map(match => match[1]).find(source => source.includes('window.QuadDailyQuiz ='));
+
+function quizPage(profile, options = {}) {
+  const window = {
+    location: {protocol: 'https:'},
+    get localStorage() {
+      if (options.storageBlocked) throw new Error('Storage is unavailable');
+      return {
+        getItem: key => profile.storage.get(key) ?? null,
+        setItem: (key, value) => profile.storage.set(key, value),
+        removeItem: key => profile.storage.delete(key),
+      };
+    },
+  };
+  const document = {
+    get cookie() { return options.cookiesBlocked ? '' : profile.cookie; },
+    set cookie(value) {
+      if (options.cookiesBlocked) return;
+      assert.match(value, /; Path=\/; Max-Age=(?:172800; SameSite=Lax; Secure|0; SameSite=Lax)$/);
+      const entry = value.split(';', 1)[0];
+      const prefix = entry.slice(0, entry.indexOf('=') + 1);
+      const others = profile.cookie.split('; ').filter(item => item && !item.startsWith(prefix));
+      profile.cookie = (value.includes('Max-Age=0;') ? others : [...others, entry]).join('; ');
+    },
+  };
+  vm.runInNewContext(dailyQuizScript, {window, document});
+  return window.QuadDailyQuiz;
+}
+
+test('daily completion survives reloads, reopening and overlapping tabs, and expires by the next Korean date', () => {
+  const profile = {storage: new Map(), cookie: ''};
+  const first = quizPage(profile);
+  const otherTab = quizPage(profile);
+  const today = '2026-11-23', tomorrow = '2026-11-24';
+  assert.equal(first.completedToday(today), false);
+  assert.equal(first.markCompleted(today), true);
+  assert.equal(otherTab.completedToday(today), true);
+  assert.equal(quizPage(profile).completedToday(today), true);
+  assert.equal(quizPage(profile).completedToday(tomorrow), false);
+  assert.equal(otherTab.markCompleted(tomorrow), true);
+  assert.equal(first.markCompleted(today), true);
+  assert.equal(first.completedToday(tomorrow), true);
+  assert.equal(first.completedToday(today), false);
+});
+
+test('legacy completions migrate and the daily cookie survives localStorage rejection', () => {
+  const key = 'quadrilateral_world.startup_completion.v1';
+  const date = '2026-11-23';
+  const profile = {storage: new Map([[key, date]]), cookie: ''};
+  assert.equal(quizPage(profile).completedToday(date), true);
+  profile.storage.clear();
+  const restricted = {storageBlocked: true};
+  assert.equal(quizPage(profile, restricted).completedToday(date), true);
+  const next = '2026-11-24';
+  assert.equal(quizPage(profile, restricted).markCompleted(next), true);
+  assert.equal(quizPage(profile, restricted).completedToday(next), true);
+  assert.equal(quizPage(profile).completedToday(next), true);
+  assert.equal(profile.storage.get(key), next);
+});
+
+test('daily completion still uses local storage when cookies are blocked and reports total storage failure', () => {
+  const date = '2026-11-23';
+  const profile = {storage: new Map(), cookie: ''};
+  const noCookies = {cookiesBlocked: true};
+  assert.equal(quizPage(profile, noCookies).markCompleted(date), true);
+  assert.equal(quizPage(profile, noCookies).completedToday(date), true);
+  const blocked = quizPage(profile, {cookiesBlocked: true, storageBlocked: true});
+  assert.equal(blocked.markCompleted(date), false);
+  assert.equal(blocked.completedToday(date), false);
+  assert.equal(quizPage(profile).markCompleted('invalid; SameSite=None'), false);
+});
+
+test('daily progress restores the same variants on the same date without moving a later tab backward', () => {
+  const day = '2026-11-23', nextDay = '2026-11-24';
+  const json = (date, index, variants = [1, 2, 3, 4, 5]) => JSON.stringify({version: 1, date, index, variants});
+  const profile = {storage: new Map(), cookie: ''};
+  const first = quizPage(profile);
+  const other = quizPage(profile);
+  assert.equal(first.readProgress(day), '');
+  assert.equal(first.saveProgress(day, json(day, 2)), true);
+  assert.equal(other.saveProgress(day, json(day, 1)), true);
+  assert.equal(quizPage(profile).readProgress(day), json(day, 2));
+  const retry = json(day, 2, [1, 2, 9, 4, 5]);
+  assert.equal(other.saveProgress(day, retry), true);
+  assert.equal(quizPage(profile, {storageBlocked: true}).readProgress(day), retry);
+  assert.equal(other.readProgress(nextDay), '');
+  assert.equal(first.markCompleted(day), true);
+  assert.equal(profile.storage.has('quadrilateral_world.startup_progress.v1'), false);
+  assert.doesNotMatch(profile.cookie, /quad_quiz_progress_v1=/);
+  assert.equal(other.saveProgress(day, json(day, 3)), true);
+  assert.equal(other.readProgress(day), '');
+  assert.equal(other.saveProgress(nextDay, json(nextDay, 0)), true);
+  assert.equal(first.saveProgress(day, json(day, 4)), true);
+  assert.equal(other.readProgress(nextDay), json(nextDay, 0));
+});
+
+test('invalid partial sessions are rejected and a newer valid session survives a stale write', () => {
+  const day = '2026-11-23', nextDay = '2026-11-24';
+  const profile = {storage: new Map(), cookie: ''};
+  const tab = quizPage(profile);
+  const raw = JSON.stringify({version: 1, date: nextDay, index: 0, variants: [1, 2, 3, 4, 5]});
+  assert.equal(tab.saveProgress(nextDay, raw), true);
+  assert.equal(tab.saveProgress(day, raw.replace(nextDay, day)), true);
+  assert.equal(tab.saveProgress(nextDay, raw.replace('[1,', '[41,')), false);
+  assert.equal(tab.saveProgress(nextDay, 'broken'), false);
+  assert.equal(tab.saveProgress(day, raw), false);
+  assert.equal(tab.readProgress(nextDay), raw);
+});
+
 test('the shell preserves Godot export and asset fingerprinting contracts', () => {
   for (const macro of ['$GODOT_HEAD_INCLUDE', '$GODOT_URL', '$GODOT_THREADS_ENABLED', '$GODOT_CONFIG']) {
     assert.equal(html.split(macro).length - 1, 1, macro);

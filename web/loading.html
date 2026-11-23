@@ -178,6 +178,95 @@ noscript { display: block; margin-top: 14px; color: var(--coral); font-size: 14p
 </section>
 <script>window.QUAD_RESOURCE_PACKS = null;</script>
 <script>
+window.QuadDailyQuiz = (() => {
+  const completionKey = 'quadrilateral_world.startup_completion.v1';
+  const progressKey = 'quadrilateral_world.startup_progress.v1';
+  const completionCookie = 'quad_quiz_completed_v1';
+  const progressCookie = 'quad_quiz_progress_v1';
+  const validDate = date => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
+
+  function readLocal(key) {
+    try { return window.localStorage.getItem(key); } catch { return null; }
+  }
+
+  function readCookie(name) {
+    try {
+      const prefix = name + '=';
+      const match = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(prefix));
+      return match ? decodeURIComponent(match.slice(prefix.length)) : null;
+    } catch { return null; }
+  }
+
+  function store(key, cookie, value) {
+    try { window.localStorage.setItem(key, value); } catch {}
+    try {
+      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = cookie + '=' + encodeURIComponent(value) + '; Path=/; Max-Age=172800; SameSite=Lax' + secure;
+    } catch {}
+    return readLocal(key) === value || readCookie(cookie) === value;
+  }
+
+  function markCompleted(date) {
+    if (!validDate(date)) return false;
+    const dates = [readLocal(completionKey), readCookie(completionCookie)];
+    if (dates.some(saved => validDate(saved) && saved > date)) return true;
+    if (!store(completionKey, completionCookie, date)) return false;
+    if (parseProgress(readLocal(progressKey))?.date === date) {
+      try { window.localStorage.removeItem(progressKey); } catch {}
+    }
+    if (parseProgress(readCookie(progressCookie))?.date === date) {
+      try { document.cookie = progressCookie + '=; Path=/; Max-Age=0; SameSite=Lax'; } catch {}
+    }
+    return true;
+  }
+
+  function completedToday(date) {
+    if (!validDate(date)) return false;
+    const stored = readLocal(completionKey) === date;
+    const cookie = readCookie(completionCookie) === date;
+    if (stored !== cookie) markCompleted(date);
+    return stored || cookie;
+  }
+
+  function parseProgress(raw) {
+    try {
+      const p = JSON.parse(raw);
+      if (p && p.version === 1 && validDate(p.date) &&
+          Array.isArray(p.variants) && p.variants.length === 5 &&
+          p.variants.every(n => Number.isInteger(n) && n >= 0 && n < 40) &&
+          Number.isInteger(p.index) && p.index >= 0 && p.index < p.variants.length) return p;
+    } catch {}
+    return null;
+  }
+
+  function latestProgress() {
+    const a = parseProgress(readLocal(progressKey));
+    const b = parseProgress(readCookie(progressCookie));
+    if (!a) return b;
+    if (!b) return a;
+    if (a.date === b.date) return a.index >= b.index ? a : b;
+    return a.date > b.date ? a : b;
+  }
+
+  function readProgress(date) {
+    if (!validDate(date) || completedToday(date)) return '';
+    const p = latestProgress();
+    return p && p.date === date ? JSON.stringify(p) : '';
+  }
+
+  function saveProgress(date, raw) {
+    const p = parseProgress(raw);
+    if (!p || p.date !== date) return false;
+    if (completedToday(date)) return true;
+    const latest = latestProgress();
+    if (latest && (latest.date > date || latest.date === date && latest.index > p.index)) return true;
+    return store(progressKey, progressCookie, JSON.stringify(p));
+  }
+
+  return {completedToday, markCompleted, readProgress, saveProgress};
+})();
+</script>
+<script>
 (() => {
   'use strict';
   const canvas = document.getElementById('canvas');
