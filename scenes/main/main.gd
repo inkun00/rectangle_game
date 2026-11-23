@@ -3,6 +3,7 @@ extends Node
 
 const StartupQuestions = preload("res://scripts/learning/learning_question_bank.gd")
 const StartupQuestionSet = preload("res://scripts/learning/startup_question_set.gd")
+const StartupDailyCompletion = preload("res://scripts/learning/startup_daily_completion.gd")
 const StartupLearning = preload("res://scenes/learning/learning_gate.gd")
 
 var testing: bool = false
@@ -94,6 +95,7 @@ var _space_screen: SpaceHangar
 ## Production web builds mount each feature before its first screen is built.
 var defer_feature_screens_for_testing: bool = false
 var show_startup_learning_for_testing: bool = false
+var startup_completion_path: String = StartupDailyCompletion.SAVE_PATH
 var _resource_pack_loader: Callable = Callable()
 var _defer_features: bool = false
 var _economy_state: ConstructionState
@@ -154,7 +156,7 @@ func _ready() -> void:
 	_journal_changed()
 	_adventure_changed()
 	learning_progress.changed.connect(_learning_changed)
-	if not testing or show_startup_learning_for_testing:
+	if (not testing or show_startup_learning_for_testing) and not StartupDailyCompletion.completed_today(startup_completion_path):
 		_start_learning_gate()
 	else:
 		_start_game_session()
@@ -187,10 +189,13 @@ func _answer_startup_question(correct: bool) -> void:
 	if _startup_type_index < StartupQuestions.TYPES.size():
 		_present_startup_question("맞았어요! 다음 문제를 풀어 보세요.")
 		return
+	var saved: bool = StartupDailyCompletion.mark_completed(startup_completion_path)
 	_startup_learning.hide()
 	_startup_learning.queue_free()
 	_startup_learning = null
 	_start_game_session()
+	if not saved:
+		_show_toast("오늘의 풀이 기록을 저장하지 못했어요. 다음에 열면 문제가 다시 나올 수 있어요.")
 
 func _start_game_session() -> void:
 	_show_home()
@@ -215,26 +220,7 @@ func _build_home() -> void:
 	_home_screen.tutorials_requested.connect(_show_tutorials)
 	_home_screen.opening_requested.connect(_show_opening)
 	_home_screen.ending_choice_requested.connect(_show_ending_choices)
-	_home_screen.exhibition_requested.connect(_show_exhibition)
 	_ui.add_child(_home_screen)
-
-func _show_exhibition(kind: String) -> void:
-	if is_instance_valid(_startup_learning) or not _home_screen.is_visible_in_tree(): return
-	match kind:
-		"drawing":
-			if not await _ensure_feature("drawing"): return
-			_build_drawing()
-			_leave_activity()
-			_drawing_screen.show()
-			_responsive()
-			_drawing_screen.open_exhibition(_ending_unlocked())
-		"building":
-			if not await _ensure_feature("construction"): return
-			_build_construction()
-			_leave_activity()
-			_construction_screen.show()
-			_responsive()
-			_construction_screen.open_publication_picker()
 
 func _build_learning() -> void:
 	_learning_screen = LearningStudio.new()

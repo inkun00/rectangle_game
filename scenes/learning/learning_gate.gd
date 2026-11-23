@@ -61,7 +61,7 @@ func _ready() -> void:
 	var header: HBoxContainer = HBoxContainer.new()
 	header.add_theme_constant_override("separation", 12)
 	column.add_child(header)
-	var heading: Label = QuadTheme.paragraph("모험 준비 · 수학 문제", 16, QuadTheme.TEAL)
+	var heading: Label = QuadTheme.paragraph("오늘의 수학 문제", 16, QuadTheme.TEAL)
 	heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	header.add_child(heading)
 	_progress = QuadTheme.label("", 16, QuadTheme.INK)

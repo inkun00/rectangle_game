@@ -48,6 +48,16 @@ static func _test_building_publication(t: Node) -> void:
 	await t.get_tree().process_frame
 	await app._show_construction()
 	var studio: Studio = app._construction_screen
+	app._tutorial.cancel()
+	studio._close_modal()
+	var buildings: Button = studio.find_child("OpenBuildingExhibition", true, false) as Button
+	t.assert_true(buildings != null and buildings.is_visible_in_tree() and not buildings.disabled, "The workbench offers a house exhibition before the first completed job")
+	if buildings != null: buildings.pressed.emit()
+	var empty: Control = studio.find_child("BuildingPublicationEmpty", true, false) as Control
+	t.assert_true(empty != null and empty.is_visible_in_tree(), "The empty gallery explains how to obtain a completed house")
+	var back: Button = studio.find_child("BackFromBuildingPicker", true, false) as Button
+	if back != null: back.pressed.emit()
+	t.assert_true(back != null and not is_instance_valid(studio._modal) and studio.visible, "Leaving the exhibition returns to the same workbench")
 	studio._accept_contract()
 	t.assert_true(studio.state.document.replace_parts(ConstructionGuide.plan()), "The publication test builds a real commission design")
 	var ids: Array[int] = []
@@ -62,15 +72,11 @@ static func _test_building_publication(t: Node) -> void:
 	data.document = studio.building_publication_offer().get("document", {})
 	t.assert_true(studio.state.repeat_contract(), "The builder starts a new project while the completed house remains in the collection")
 	var before: Dictionary = studio.state.serialize()
-	app._show_home()
-	var menu: Button = app._home_screen.find_child("OpenExhibition", true, false) as Button
-	if menu != null: menu.pressed.emit()
-	var buildings: Button = app._home_screen.find_child("ExhibitBuilding", true, false) as Button
-	t.assert_not_null(buildings, "The home exhibition chooser offers the house collection")
+	studio._close_modal()
 	if buildings != null: buildings.pressed.emit()
 	await t.get_tree().process_frame
 	var record: Button = studio.find_child("SelectBuildingRecord0", true, false) as Button
-	t.assert_true(record != null and record.is_visible_in_tree(), "The home route lists the completed house")
+	t.assert_true(record != null and record.is_visible_in_tree(), "The workbench gallery lists the completed house")
 	if record != null: record.pressed.emit()
 	var submit: Button = studio.find_child("ConfirmBuildingPublication", true, false) as Button
 	t.assert_true(submit != null and submit.is_visible_in_tree(), "Selecting the record opens the existing building registration form")

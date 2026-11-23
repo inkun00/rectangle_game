@@ -31,7 +31,7 @@ static func run(t: Node) -> void:
 	t.assert_eq(_button(app._home_screen, "캐릭터 공방"), null, "Home has no custom character workshop entry")
 	t.assert_false(app._world_hud.visible, "World HUD does not overlap the home page")
 	t.assert_false(app._in_world, "Home page starts outside gameplay")
-	await _test_exhibition_chooser(t, app)
+	t.assert_eq(_button(app._home_screen, "전시하기"), null, "Exhibitions are accessed inside their respective studios")
 	var draw_button: Button = _button(app._home_screen, "그림 그리기")
 	var adventure_button: Button = _button(app._home_screen, "마을 주민 심부름하기")
 	var guide_button: Button = _button(app._home_screen, "도형 도감")
@@ -118,39 +118,6 @@ static func _button(root: Node, text: String) -> Button:
 		if button.text == text:
 			return button
 	return null
-
-
-static func _test_exhibition_chooser(t: Node, app: QuadrilateralApp) -> void:
-	var home: HomePage = app._home_screen
-	var launch: Button = _button(home, "전시하기")
-	t.assert_not_null(launch, "The home page offers a direct exhibition entry")
-	if launch == null: return
-	launch.pressed.emit()
-	var chooser: Control = home.find_child("ExhibitChooser", true, false) as Control
-	t.assert_true(chooser != null and chooser.is_visible_in_tree(), "The exhibition entry opens a chooser over the home page")
-	if chooser == null: return
-	var drawing: Button = _button(chooser, "그림")
-	var building: Button = _button(chooser, "집")
-	t.assert_true(drawing != null and building != null, "The chooser displays both exhibition destinations")
-	var cancel: InputEventKey = InputEventKey.new()
-	cancel.keycode = KEY_ESCAPE
-	cancel.pressed = true
-	home._input(cancel)
-	await t.get_tree().process_frame
-	t.assert_true(home.visible and (not is_instance_valid(chooser) or not chooser.is_visible_in_tree()), "Escape closes the chooser without leaving home")
-	t.assert_true(launch.has_focus(), "Closing the chooser restores focus to the exhibition entry")
-	launch.pressed.emit()
-	building = home.find_child("ExhibitBuilding", true, false) as Button
-	if building == null: return
-	building.pressed.emit()
-	await t.get_tree().process_frame
-	var studio: ConstructionStudio = app._construction_screen
-	var empty: Control = studio.find_child("BuildingPublicationEmpty", true, false) as Control
-	t.assert_true(studio.is_visible_in_tree() and empty != null and empty.is_visible_in_tree(), "A new builder can see why there is no house available for exhibition")
-	var back: Button = studio.find_child("HomeFromBuildingPicker", true, false) as Button
-	t.assert_not_null(back, "The empty building picker has a route back home")
-	if back != null: back.pressed.emit()
-	t.assert_true(home.visible and not studio.visible, "The empty exhibition path returns to the main menu")
 
 
 static func _key(app: QuadrilateralApp, keycode: Key, control: bool = false) -> void:

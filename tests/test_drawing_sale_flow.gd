@@ -45,7 +45,8 @@ class UploadTransport:
 
 static func run(t: Node) -> void:
 	await _test_drawing_work(t)
-	await _test_home_drawing_exhibition(t)
+	await _test_studio_drawing_exhibition(t, false)
+	await _test_studio_drawing_exhibition(t, true)
 	await _test_success_and_undo(t)
 	await _test_failed_png(t, false)
 	await _test_failed_png(t, true)
@@ -110,7 +111,7 @@ static func _test_drawing_work(t: Node) -> void:
 	t.assert_eq(studio.document.work_msec, 0, "Clearing the drawing ends the previous draft's time")
 	studio.free()
 
-static func _test_home_drawing_exhibition(t: Node) -> void:
+static func _test_studio_drawing_exhibition(t: Node, personal: bool) -> void:
 	var directory: String = _directory()
 	var app: QuadrilateralApp = await _app(t, directory, false)
 	var studio: Studio = app._drawing_screen
@@ -119,14 +120,13 @@ static func _test_home_drawing_exhibition(t: Node) -> void:
 	var renderer: SaleRenderer = _renderer()
 	studio.sale_png_renderer = renderer.render
 	app._art_upload_transport = uploader.upload
+	if personal:
+		t.assert_true(studio.open_workspace(true), "The artist can enter the personal workspace")
 	studio.document.add_shape("rhombus", Vector2(180, 120), Color.CORAL)
 	var original: Dictionary = studio.document.serialize()
 	var balance: int = ledger.balance
-	app._show_home()
-	var entry: Button = app._home_screen.find_child("OpenExhibition", true, false) as Button
-	if entry != null: entry.pressed.emit()
-	var drawing: Button = app._home_screen.find_child("ExhibitDrawing", true, false) as Button
-	t.assert_not_null(drawing, "The home exhibition chooser offers the drawing route")
+	var drawing: Button = studio.find_child("OpenDrawingExhibition", true, false) as Button
+	t.assert_true(drawing != null and drawing.is_visible_in_tree() and not drawing.disabled, "The artist opens the exhibition directly from the active drawing workspace")
 	if drawing != null: drawing.pressed.emit()
 	await t.get_tree().process_frame
 	t.assert_true(studio.is_visible_in_tree() and is_instance_valid(studio._sale_dialog) and studio._sale_dialog.visible, "Exhibiting a drawing opens the submission window for the current picture")
@@ -155,6 +155,7 @@ static func _test_home_drawing_exhibition(t: Node) -> void:
 		t.assert_eq(ledger.balance, balance, "Exhibiting never pays the artist")
 		t.assert_true(ledger.art_sales.is_empty(), "An exhibition cannot create a commission receipt")
 		t.assert_eq(studio.document.serialize(), original, "The editable picture survives posting and retry")
+		t.assert_eq(studio.is_personal_drawing, personal, "Exhibiting keeps the artist in the original workspace")
 		studio.home_requested.emit()
 		t.assert_true(app._home_screen.visible, "The artist can return home after exhibition")
 	app.free()

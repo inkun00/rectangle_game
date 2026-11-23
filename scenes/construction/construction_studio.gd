@@ -84,7 +84,8 @@ var _palette: PanelContainer
 var _center_panel: PanelContainer
 var _palette_toggle: Button
 var _palette_open: bool = false
-var _header_actions: HBoxContainer
+var _header_actions: HFlowContainer
+var _exhibition_button: Button
 var _tool_row: BoxContainer
 var _tool_spacer: Control
 var _palette_hint: Label
@@ -386,10 +387,17 @@ func _build_ui() -> void:
 		_refresh())
 	_palette_toggle.name = "ToggleConstructionMaterials"
 	header.add_child(_palette_toggle)
-	_header_actions = HBoxContainer.new()
-	_header_actions.add_theme_constant_override("separation", 6)
+	_header_actions = HFlowContainer.new()
+	_header_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header_actions.alignment = FlowContainer.ALIGNMENT_END
+	_header_actions.add_theme_constant_override("h_separation", 6)
+	_header_actions.add_theme_constant_override("v_separation", 4)
 	header.add_child(_header_actions)
 	_header_actions.add_child(_button("저장", func(): save_game(true)))
+	_exhibition_button = _button("집 전시하기", open_publication_picker)
+	_exhibition_button.name = "OpenBuildingExhibition"
+	_exhibition_button.tooltip_text = "완성한 집을 골라 패들릿에 올려요."
+	_header_actions.add_child(_exhibition_button)
 	_header_actions.add_child(_button("도움말", _show_help))
 	_stage_button = _button("집 단계", _show_stages, true)
 	_stage_button.name = "ConstructionStages"
@@ -1370,6 +1378,7 @@ func _refresh() -> void:
 		_earth_ending_button.tooltip_text = ending_error
 	var publication_error: String = _building_publication_error()
 	var publication_blocked: bool = _publication_pending or _exporting or tutorial_blocked or is_instance_valid(_modal)
+	_exhibition_button.disabled = publication_blocked or canvas.inspection_running
 	if is_instance_valid(_my_house_publish):
 		_my_house_publish.visible = my_mode
 		_my_house_publish.disabled = not publication_error.is_empty() or publication_blocked
@@ -1830,12 +1839,11 @@ func _add_ledger_row(label: String, amount: int) -> void:
 	_money_line(_modal_body, label, amount, false, true)
 
 func open_publication_picker() -> void:
-	if not is_visible_in_tree() or tutorial_blocked or _publication_pending or _exporting: return
+	if not is_visible_in_tree() or tutorial_blocked or _publication_pending or _exporting or canvas.inspection_running: return
 	_show_history(0, false, true)
 
 func _select_personal_publication() -> void:
-	if state.my_house_document.parts.is_empty() or not (state.my_house_mode or earth_ending_unlocked): return
-	open_personal_mode()
+	if not state.my_house_mode or state.my_house_document.parts.is_empty(): return
 	if _building_publication_error().is_empty():
 		_open_building_publication(-1, true)
 	else:
@@ -1845,9 +1853,9 @@ func _show_history(page: int = 0, hall_only: bool = false, for_publication: bool
 	_hall_only = hall_only
 	var title: String = "명예의 전당" if hall_only else "내가 지은 집"
 	_open_modal("패들릿에 올릴 집 고르기" if for_publication else title)
-	var has_personal: bool = not state.my_house_document.parts.is_empty() and (state.my_house_mode or earth_ending_unlocked)
+	var has_personal: bool = state.my_house_mode and not state.my_house_document.parts.is_empty()
 	if for_publication and has_personal:
-		var ready_to_share: bool = state.my_house_mode and _building_publication_error().is_empty()
+		var ready_to_share: bool = _building_publication_error().is_empty()
 		var personal: Button = _button("나만의 집 올리기" if ready_to_share else "나만의 집 시공 검사하기", _select_personal_publication, true)
 		personal.name = "SelectPersonalBuilding"
 		_modal_body.add_child(personal)
@@ -1860,7 +1868,8 @@ func _show_history(page: int = 0, hall_only: bool = false, for_publication: bool
 	if count == 0:
 		if for_publication:
 			if not has_personal:
-				var empty: Label = _label("아직 전시할 집이 없어요. 건축 의뢰에서 집을 완성하고 보상을 받으면 여기에 나타나요.", 18)
+				var message: String = "나만의 집에 재료를 놓고 시공 검사를 통과하면 이곳에서 전시할 수 있어요." if state.my_house_mode else "아직 전시할 집이 없어요. 건축 의뢰에서 집을 완성하고 보상을 받으면 여기에 나타나요."
+				var empty: Label = _label(message, 18)
 				empty.name = "BuildingPublicationEmpty"
 				_modal_body.add_child(empty)
 		else:
@@ -1896,10 +1905,9 @@ func _show_history(page: int = 0, hall_only: bool = false, for_publication: bool
 				card.add_child(_button("완성한 집 보기", func(): _show_record(index)))
 		if page > 0: _modal_body.add_child(_button("최근 집", _show_history.bind(page - 1, hall_only, for_publication)))
 		if page + 1 < pages: _modal_body.add_child(_button("이전 집", _show_history.bind(page + 1, hall_only, for_publication)))
-	_modal_action("작업대로 돌아가기", _close_modal, true)
+	var back: Button = _modal_action("작업대로 돌아가기", _close_modal, true)
 	if for_publication:
-		var home: Button = _modal_action("메인으로", _go_home)
-		home.name = "HomeFromBuildingPicker"
+		back.name = "BackFromBuildingPicker"
 
 func _show_record(index: int) -> void:
 	if index < 0 or index >= state.records.size(): return

@@ -55,7 +55,7 @@ static func _test_story_branches(t: Node) -> void:
 	var activity_count: int = 0
 	for card: Control in app._home_screen._cards.get_children():
 		if card.visible: activity_count += 1
-	t.assert_eq(activity_count, 4, "A new player sees drawing, building, adventure and exhibition")
+	t.assert_eq(activity_count, 3, "A new player sees drawing, building and adventure")
 	t.assert_eq(activity_count % app._home_screen._cards.columns, 0, "The locked home grid has no unused column for the final choice")
 	var quests: Array[String] = []
 	for quest: Dictionary in QuestCatalog.all_quests(): quests.append(str(quest.id))
@@ -114,6 +114,12 @@ static func _test_story_branches(t: Node) -> void:
 	t.assert_true(studio.visible and ledger.my_house_mode, "Choosing Earth opens the personal house directly")
 	t.assert_false(is_instance_valid(studio._modal), "Choosing Earth does not open a commission briefing")
 	t.assert_true(ledger.my_house_document.replace_parts(ConstructionGuide.plan()), "A closed guide house can be built from the shared funds")
+	var exhibition: Button = studio.find_child("OpenBuildingExhibition", true, false) as Button
+	t.assert_true(exhibition != null and exhibition.is_visible_in_tree() and not exhibition.disabled, "The personal house workbench offers its own exhibition action")
+	if exhibition != null: exhibition.pressed.emit()
+	var personal_building: Button = studio.find_child("SelectPersonalBuilding", true, false) as Button
+	t.assert_true(personal_building != null and personal_building.is_visible_in_tree(), "The gallery includes the current personal house")
+	studio._close_modal()
 	var house_parts: Array[Dictionary] = ledger.my_house_document.parts.duplicate(true)
 	app._show_home()
 	app._home_screen.construction_requested.emit()
