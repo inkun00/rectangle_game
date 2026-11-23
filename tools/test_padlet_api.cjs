@@ -603,6 +603,17 @@ test('missing configuration gives actionable Korean feedback without exposing se
   assert.equal(deps.calls.length, 0);
 });
 
+test('connected private stores can use Vercel OIDC without a static Blob token', async () => {
+  const deps = environment();
+  delete deps.env.BLOB_READ_WRITE_TOKEN;
+  deps.env.BLOB_STORE_ID = 'store_private-classroom';
+  const response = await call(createSubmissionHandler(deps));
+  assert.equal(response.statusCode, 200);
+  assert.ok(deps.blob.writes.length > 0);
+  assert.ok(deps.blob.writes.every(({ options }) =>
+    options.storeId === deps.env.BLOB_STORE_ID && !options.token && options.access === 'private'));
+});
+
 test('uses the production building gallery when no override is configured', async () => {
   const deps = environment();
   delete deps.env.PADLET_BUILDING_BOARD_ID;

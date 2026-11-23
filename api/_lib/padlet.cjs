@@ -40,10 +40,13 @@ class InputError extends Error {
 }
 
 function dependencies(overrides) {
+  const env = overrides.env || process.env;
+  const blobAuth = env.BLOB_READ_WRITE_TOKEN ? { token: env.BLOB_READ_WRITE_TOKEN }
+    : env.BLOB_STORE_ID ? { storeId: env.BLOB_STORE_ID } : null;
   return {
     blob: overrides.blob || require('@vercel/blob'),
     fetch: globalThis.fetch,
-    env: process.env,
+    env, blobAuth,
     now: Date.now,
     pause: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     ...overrides,
@@ -183,7 +186,7 @@ async function consumeRateBucket(deps, name, maximum) {
   const started = Date.now();
   for (let attempt = 0; attempt < 8 && Date.now() - started < 5000; attempt += 1) {
     const stored = await deps.blob.get(pathname, {
-      access: 'private', useCache: false, token: deps.env.BLOB_READ_WRITE_TOKEN,
+      access: 'private', useCache: false, ...deps.blobAuth,
       abortSignal: AbortSignal.timeout(4000),
     });
     const previous = stored ? JSON.parse((await boundedStream(stored.stream, 1024)).toString('utf8')) : null;
@@ -192,7 +195,7 @@ async function consumeRateBucket(deps, name, maximum) {
     if (count >= maximum) return false;
     try {
       await deps.blob.put(pathname, JSON.stringify({ window, count: count + 1 }), {
-        access: 'private', token: deps.env.BLOB_READ_WRITE_TOKEN, contentType: 'application/json',
+        access: 'private', ...deps.blobAuth, contentType: 'application/json',
         addRandomSuffix: false, allowOverwrite: Boolean(stored),
         ...(stored ? { ifMatch: stored.blob.etag } : {}), cacheControlMaxAge: 60,
         abortSignal: AbortSignal.timeout(4000),
@@ -312,7 +315,7 @@ function validateSubmission(raw) {
 
 async function readManifest(deps, id) {
   const stored = await deps.blob.get(manifestPath(id), {
-    access: 'private', useCache: false, token: deps.env.BLOB_READ_WRITE_TOKEN,
+    access: 'private', useCache: false, ...deps.blobAuth,
     abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (!stored) return null;
@@ -328,7 +331,7 @@ async function readManifest(deps, id) {
 
 async function writeManifest(deps, value, etag) {
   const result = await deps.blob.put(manifestPath(value.id), JSON.stringify(value), {
-    access: 'private', token: deps.env.BLOB_READ_WRITE_TOKEN,
+    access: 'private', ...deps.blobAuth,
     addRandomSuffix: false, allowOverwrite: Boolean(etag), ...(etag ? { ifMatch: etag } : {}),
     contentType: 'application/json', cacheControlMaxAge: 60,
     abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -339,14 +342,14 @@ async function writeManifest(deps, value, etag) {
 async function ensureImage(deps, submission) {
   try {
     await deps.blob.put(imagePath(submission.id), submission.png, {
-      access: 'private', token: deps.env.BLOB_READ_WRITE_TOKEN,
+      access: 'private', ...deps.blobAuth,
       addRandomSuffix: false, allowOverwrite: false, contentType: 'image/png',
       abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     // The upload may have succeeded before its response was lost, or a concurrent request won.
     const existing = await deps.blob.get(imagePath(submission.id), {
-      access: 'private', useCache: false, token: deps.env.BLOB_READ_WRITE_TOKEN,
+      access: 'private', useCache: false, ...deps.blobAuth,
       abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!existing || hash(await boundedStream(existing.stream, MAX_PNG_BYTES)) !== submission.imageHash) throw error;
@@ -521,7 +524,7 @@ function createSubmissionHandler(overrides = {}) {
       response.setHeader('Allow', 'POST, OPTIONS');
       return sendJson(response, 405, { ok: false, error: '그림 등록 버튼을 눌러 주세요.', retryable: false }, origin);
     }
-    if (!deps.env.PADLET_API_KEY || !deps.env.BLOB_READ_WRITE_TOKEN) {
+    if (!deps.env.PADLET_API_KEY || !deps.blobAuth) {
       return sendJson(response, 503, {
         ok: false, error: '전시관 연결 설정이 필요해요. 작품은 저장했어요. 선생님께 알려 주세요.', retryable: false, code: 'configuration',
       }, origin);
@@ -553,10 +556,10 @@ function createImageHandler(overrides = {}) {
     }
     const id = new URL(request.url, PUBLIC_ORIGIN).searchParams.get('id');
     if (!id || !ID_PATTERN.test(id)) return sendJson(response, 404, { ok: false, error: '그림을 찾을 수 없어요.' });
-    if (!deps.env.BLOB_READ_WRITE_TOKEN) return sendJson(response, 503, { ok: false, error: '그림 보관함을 준비 중이에요.' });
+    if (!deps.blobAuth) return sendJson(response, 503, { ok: false, error: '그림 보관함을 준비 중이에요.' });
     try {
       const stored = await deps.blob.get(imagePath(id), {
-        access: 'private', token: deps.env.BLOB_READ_WRITE_TOKEN,
+        access: 'private', ...deps.blobAuth,
         abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       if (!stored) return sendJson(response, 404, { ok: false, error: '그림을 찾을 수 없어요.' });

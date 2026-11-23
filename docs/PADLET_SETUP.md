@@ -27,7 +27,7 @@ Vercel 프로젝트 `inkun05/rectangle-game`의 **Production 환경**에 다음 
 | 환경 변수 | 값 |
 | --- | --- |
 | `PADLET_API_KEY` | 네 전시관 보드에 게시 권한이 있는 계정의 Padlet API 키 |
-| `BLOB_READ_WRITE_TOKEN` | 아래에서 만든 **Private** Vercel Blob 저장소의 읽기·쓰기 토큰 |
+| `BLOB_STORE_ID` 또는 `BLOB_READ_WRITE_TOKEN` | 연결한 **Private** Vercel Blob 저장소의 ID(OIDC 인증) 또는 기존 방식의 읽기·쓰기 토큰 |
 | `PADLET_BUILDING_BOARD_ID` | 선택 항목. 기본 건축물 전시관을 다른 보드로 바꿀 때 사용할 보드 ID |
 | `PADLET_BUILDING_BOARD_URL` | 선택 항목. 다른 건축물 전시관의 주소. `https://padlet.com/`에서 시작하고 주소 끝에 해당 보드 ID가 들어 있는 주소를 사용합니다. |
 | `PADLET_WALL_BOARD_ID`, `PADLET_WALL_BOARD_URL` | 담장 전시관을 바꿀 때 함께 설정할 보드 ID와 주소 |
