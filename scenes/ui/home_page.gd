@@ -237,16 +237,18 @@ func _responsive() -> void:
 	if _ending_card == null: return
 	var narrow: bool = size.x < 600.0
 	var single_column: bool = size.x < 730.0
-	var side_by_side: bool = single_column and size.x >= 345.0
+	var count: int = 6 if _ending_card.visible else 5
 	if single_column:
 		_cards.columns = 1
 	else:
-		var count: int = 6 if _ending_card.visible else 5
-		_cards.columns = count if size.x >= count * 280.0 else (3 if size.x >= 1000 else 2)
+		_cards.columns = count if size.x >= count * 240.0 else (3 if size.x >= 1000 else 2)
+	# Wrapped rows use a thumbnail beside the description so actions stay near the fold.
+	var wrapped: bool = not single_column and _cards.columns < count
+	var side_by_side: bool = size.x >= 345.0 and (single_column or wrapped)
 	for index: int in _card_layouts.size():
 		_card_layouts[index].vertical = not side_by_side
 		_previews[index].custom_minimum_size.y = 96.0 if side_by_side else clampf(size.y * 0.19, 115.0, 215.0)
-		_previews[index].size_flags_stretch_ratio = 0.48 if narrow else 1.0
+		_previews[index].size_flags_stretch_ratio = 0.48 if side_by_side else 1.0
 	var gutter: int = int(clampf(size.x * 0.034, 12.0, 80.0))
 	for edge: String in ["left", "right"]:
 		_margin.add_theme_constant_override("margin_" + edge, gutter)
@@ -255,6 +257,7 @@ func _responsive() -> void:
 	_column.add_theme_constant_override("separation", 12 if narrow else (16 if size.y < 800.0 else 22))
 	_section.vertical = narrow
 	var hero_height: float = clampf(size.x * 0.183, 96.0, 330.0)
+	if wrapped: hero_height = minf(hero_height, maxf(118.0, size.y * 0.22))
 	_hero.custom_minimum_size.y = hero_height
 	_hero_copy.anchor_right = 0.64 if narrow else 0.55
 	_hero_copy.offset_left = clampf(size.x * 0.035, 12.0, 64.0)

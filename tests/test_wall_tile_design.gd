@@ -97,6 +97,7 @@ static func _test_restore(t: Node) -> void:
 	var data: Dictionary = JSON.parse_string(JSON.stringify(design.to_dict()))
 	var restored := Design.new()
 	t.assert_true(restored.restore(data), "A save survives the JSON number conversion")
+	t.assert_eq(restored.to_dict(), design.to_dict(), "Reloading keeps the complete ledger representation stable")
 	restored.select_motif("trapezoid_pair")
 	t.assert_eq(restored.unit_parts()[1].palette_index, 1, "Paint is retained per motif")
 	t.assert_eq(restored.claim(), 0, "Reloading does not repay a completed order")

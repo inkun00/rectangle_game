@@ -247,12 +247,16 @@ func restore(data: Dictionary) -> bool:
 	var colors: Dictionary = data.colors
 	if colors.size() != MOTIFS.size():
 		return false
+	var checked_colors: Dictionary = {}
 	for id: String in MOTIFS:
 		if not colors.get(id) is Array or colors[id].size() != _polygons(id).size():
 			return false
+		var indices: Array = []
 		for tone: Variant in colors[id]:
 			if not _integer_in(tone, 0, PALETTE.size() - 1):
 				return false
+			indices.append(int(tone))
+		checked_colors[id] = indices
 	var paid: Array[String] = []
 	for id: Variant in data.completed:
 		if not id is String or not COMMISSIONS.has(id) or paid.has(id):
@@ -266,6 +270,6 @@ func restore(data: Dictionary) -> bool:
 	tile_rows = int(data.tile_rows)
 	columns = int(data.columns)
 	rows = int(data.rows)
-	_colors = colors.duplicate(true)
+	_colors = checked_colors
 	completed = paid
 	return true

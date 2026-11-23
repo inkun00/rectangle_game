@@ -254,6 +254,7 @@ func _build_ui() -> void:
 	_tool_scroll.add_child(toolbar)
 	_exhibition_button = _button("그림 전시장 보기 ↗", func() -> void: exhibition_board_requested.emit())
 	_exhibition_button.name = "OpenDrawingExhibition"
+	_exhibition_button.accessibility_name = "그림 전시장 보기, 새 창"
 	_exhibition_button.tooltip_text = "새 창에서 패들릿 그림 전시장을 열어요."
 	toolbar.add_child(_exhibition_button)
 	var workspace: HBoxContainer = HBoxContainer.new()
@@ -486,6 +487,7 @@ func _build_ui() -> void:
 func _responsive_drawing() -> void:
 	if not is_instance_valid(canvas): return
 	var narrow: bool = size.x < 620.0
+	_exhibition_button.text = "전시장↗" if narrow else "그림 전시장 보기 ↗"
 	_drawing_header.vertical = narrow
 	_sale_footer.vertical = narrow
 	_sale_footer.add_theme_constant_override("separation", 5 if narrow else 14)
