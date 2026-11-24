@@ -4,8 +4,10 @@ extends RefCounted
 const Math: GDScript = preload("res://scripts/core/quadrilateral_math.gd")
 const PART_COUNT: int = 12
 const VARIANT_COUNT: int = 3
-const MIN_TOTAL_PRICE: int = 1200000000
-const MAX_TOTAL_PRICE: int = 1800000000
+const MIN_TOTAL_PRICE: int = 120000000
+const MAX_TOTAL_PRICE: int = 180000000
+const LEGACY_MIN_TOTAL_PRICE: int = 1200000000
+const LEGACY_MAX_TOTAL_PRICE: int = 1800000000
 const TIER_NAMES: Array[String] = ["기본형", "강화형", "최고급형"]
 const _SUFFIXES: Array[String] = ["", "_advanced", "_elite"]
 const _PALETTES: Array[String] = ["dce3e8", "58bbd1", "ebb374"]
@@ -45,73 +47,73 @@ const _ANGLES: Dictionary = {
 const _SLOTS: Array[Dictionary] = [
 	{
 		"id": "hull", "name": "몸체", "description": "탑승 공간과 우주선의 뼈대를 지켜요.",
-		"price": 20000000, "position": Vector2(0, 0), "layer": 4,
+		"legacy_price": 20000000, "position": Vector2(0, 0), "layer": 4,
 		"names": ["경량 선체", "광폭 선체", "대형 장갑 선체"],
 		"kinds": ["rectangle", "rectangle", "trapezoid"], "sizes": [Vector2(150, 224), Vector2(168, 235), Vector2(194, 248)],
 	},
 	{
 		"id": "nose", "name": "기수", "description": "앞쪽에서 우주 먼지를 가르고 길을 열어요.",
-		"price": 30000000, "position": Vector2(0, -130), "layer": 3,
+		"legacy_price": 30000000, "position": Vector2(0, -130), "layer": 3,
 		"names": ["유선형 기수", "쐐기형 기수", "마름모 장갑 기수"],
 		"kinds": ["trapezoid", "trapezoid", "rhombus"], "sizes": [Vector2(150, 90), Vector2(176, 106), Vector2(188, 144)],
 	},
 	{
 		"id": "window", "name": "조종석", "description": "별빛 항로를 살피는 창이에요.",
-		"price": 40000000, "position": Vector2(0, -39), "layer": 8,
+		"legacy_price": 40000000, "position": Vector2(0, -39), "layer": 8,
 		"names": ["기본 유리 조종석", "광각 조종석", "마름모 전망 조종석"],
 		"kinds": ["rectangle", "trapezoid", "rhombus"], "sizes": [Vector2(86, 62), Vector2(105, 76), Vector2(130, 97)],
 	},
 	{
 		"id": "left_wing", "name": "왼쪽 날개", "description": "왼쪽으로 기울어질 때 균형을 잡아요.",
-		"price": 50000000, "position": Vector2(-92, 53), "layer": 0,
+		"legacy_price": 50000000, "position": Vector2(-92, 53), "layer": 0,
 		"names": ["왼쪽 균형 날개", "왼쪽 후퇴익", "왼쪽 대형 날개"],
 		"kinds": ["parallelogram", "trapezoid", "parallelogram"], "sizes": [Vector2(110, 148), Vector2(168, 140), Vector2(168, 184)],
 	},
 	{
 		"id": "right_wing", "name": "오른쪽 날개", "description": "오른쪽으로 기울어질 때 균형을 잡아요.",
-		"price": 60000000, "position": Vector2(92, 53), "layer": 1,
+		"legacy_price": 60000000, "position": Vector2(92, 53), "layer": 1,
 		"names": ["오른쪽 균형 날개", "오른쪽 후퇴익", "오른쪽 대형 날개"],
 		"kinds": ["parallelogram", "trapezoid", "parallelogram"], "sizes": [Vector2(110, 148), Vector2(168, 140), Vector2(168, 184)],
 	},
 	{
 		"id": "left_tank", "name": "왼쪽 연료통", "description": "멀리 날아갈 연료를 왼쪽에 보관해요.",
-		"price": 70000000, "position": Vector2(-81, -37), "layer": 2,
+		"legacy_price": 70000000, "position": Vector2(-81, -37), "layer": 2,
 		"names": ["왼쪽 기본 연료통", "왼쪽 고압 연료통", "왼쪽 대용량 연료통"],
 		"kinds": ["rectangle", "parallelogram", "trapezoid"], "sizes": [Vector2(50, 128), Vector2(65, 150), Vector2(83, 171)],
 	},
 	{
 		"id": "right_tank", "name": "오른쪽 연료통", "description": "멀리 날아갈 연료를 오른쪽에 보관해요.",
-		"price": 90000000, "position": Vector2(81, -37), "layer": 2,
+		"legacy_price": 90000000, "position": Vector2(81, -37), "layer": 2,
 		"names": ["오른쪽 기본 연료통", "오른쪽 고압 연료통", "오른쪽 대용량 연료통"],
 		"kinds": ["rectangle", "parallelogram", "trapezoid"], "sizes": [Vector2(50, 128), Vector2(65, 150), Vector2(83, 171)],
 	},
 	{
 		"id": "engine", "name": "추진기", "description": "연료의 힘으로 우주선을 앞으로 움직여요.",
-		"price": 110000000, "position": Vector2(0, 133), "layer": 5,
+		"legacy_price": 110000000, "position": Vector2(0, 133), "layer": 5,
 		"names": ["정사각 추진기", "강력 추진기", "대형 추진기"],
 		"kinds": ["square", "rectangle", "trapezoid"], "sizes": [Vector2(92, 92), Vector2(124, 103), Vector2(150, 121)],
 	},
 	{
 		"id": "nozzle", "name": "분사구", "description": "추진기에서 나온 기체를 뒤로 내보내요.",
-		"price": 130000000, "position": Vector2(0, 184), "layer": 6,
+		"legacy_price": 130000000, "position": Vector2(0, 184), "layer": 6,
 		"names": ["기본 분사구", "확장 분사구", "고출력 분사구"],
 		"kinds": ["rectangle", "trapezoid", "rectangle"], "sizes": [Vector2(104, 39), Vector2(128, 52), Vector2(151, 59)],
 	},
 	{
 		"id": "core", "name": "에너지 핵", "description": "조종 장치가 쓸 에너지를 모아 둬요.",
-		"price": 160000000, "position": Vector2(0, 45), "layer": 9,
+		"legacy_price": 160000000, "position": Vector2(0, 45), "layer": 9,
 		"names": ["마름모 에너지 핵", "사각 에너지 핵", "대용량 에너지 핵"],
 		"kinds": ["rhombus", "square", "rhombus"], "sizes": [Vector2(42, 57), Vector2(56, 56), Vector2(73, 82)],
 	},
 	{
 		"id": "navigation", "name": "항법 장치", "description": "사각성으로 가는 길을 찾아요.",
-		"price": 200000000, "position": Vector2(0, -123), "layer": 10,
+		"legacy_price": 200000000, "position": Vector2(0, -123), "layer": 10,
 		"names": ["기본 사각성 항법 장치", "별지도 장치", "정밀 항법 장치"],
 		"kinds": ["square", "rhombus", "square"], "sizes": [Vector2(32, 32), Vector2(42, 49), Vector2(48, 48)],
 	},
 	{
 		"id": "shield", "name": "보호 장치", "description": "작은 운석과 우주 먼지로부터 우주선을 지켜요.",
-		"price": 240000000, "position": Vector2(0, 93), "layer": 11,
+		"legacy_price": 240000000, "position": Vector2(0, 93), "layer": 11,
 		"names": ["기본 보호판", "충격 흡수판", "장갑 보호판"],
 		"kinds": ["rectangle", "parallelogram", "trapezoid"], "sizes": [Vector2(128, 24), Vector2(152, 29), Vector2(37, 176)],
 	},
@@ -119,8 +121,7 @@ const _SLOTS: Array[Dictionary] = [
 
 static var _parts: Dictionary = {}
 
-## The base product IDs are also the required slot IDs. Keeping them stable
-## preserves all previously paid purchases and their exact prices.
+## The base product IDs are also the required slot IDs in existing saves.
 static func all_parts() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for slot: Dictionary in _SLOTS:
@@ -131,6 +132,15 @@ static func part(id: String) -> Dictionary:
 	_ensure_parts()
 	var item: Dictionary = _parts.get(id, {})
 	return item.duplicate(true)
+
+static func legacy_part_price(id: String) -> int:
+	_ensure_parts()
+	var item: Dictionary = _parts.get(id, {})
+	if item.is_empty(): return 0
+	return _legacy_tier_price(_SLOTS[int(item.slot_index)], int(item.tier))
+
+static func _legacy_tier_price(slot: Dictionary, tier: int) -> int:
+	return roundi(int(slot.legacy_price) * _PRICE_PERCENT[tier] / 100.0)
 
 static func variants(slot_id: String) -> Array[Dictionary]:
 	if part(slot_id).get("tier", -1) != 0: return []
@@ -166,7 +176,7 @@ static func _ensure_parts() -> void:
 			else:
 				vertices = Math.create_vertices(kind, dimensions)
 			if not is_zero_approx(angle): vertices = Math.rotate_vertices(vertices, angle)
-			var price: int = roundi(int(slot.price) * _PRICE_PERCENT[tier] / 100.0)
+			var price: int = roundi(float(_legacy_tier_price(slot, tier)) / 10.0)
 			_parts[id] = {
 				"id": id, "slot_id": slot_id, "slot_index": slot_index, "slot_name": slot.name,
 				"tier": tier, "name": slot.names[tier], "description": slot.description,

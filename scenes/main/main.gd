@@ -1834,7 +1834,9 @@ func _show_quest_dialog(quest: Dictionary) -> void:
 	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	portrait_row.add_child(identity)
 	identity.add_child(QuadTheme.label(String(quest["npc_name"]), 23, QuadTheme.TEAL))
-	var reward_won: String = ConstructionCatalog.format_won(ConstructionState.village_reward_amount(id))
+	var paid_won: int = _economy_state.paid_village_reward_amount(id)
+	var offered_won: int = paid_won if paid_won > 0 else ConstructionState.village_reward_amount(id)
+	var reward_won: String = ConstructionCatalog.format_won(offered_won)
 	identity.add_child(QuadTheme.paragraph("심부름 보상 %s · %d 코인 · %d 경험치" % [reward_won, int(quest["reward"]), int(quest["reward"]) * 2], 15))
 	body.add_child(portrait_row)
 	body.add_child(QuadTheme.label(String(quest["title"]), 25))
@@ -1904,7 +1906,8 @@ func _show_quest_success(quest: Dictionary, answer: Dictionary) -> void:
 	body.add_child(QuadTheme.paragraph(String(answer["message"]), 18, QuadTheme.INK))
 	body.add_child(QuadTheme.label("+ %d 코인  ·  도와준 친구 %d / %d" % [int(answer["reward"]), journal.completed_count(), QuestCatalog.all_quests().size()], 20, QuadTheme.TEAL))
 	if bool(paid.get("ok", false)):
-		body.add_child(QuadTheme.paragraph("집 짓기와 우주선 제작에 쓸 돈이 들어왔어요. +%s" % ConstructionCatalog.format_won(ConstructionState.village_reward_amount(str(quest.id))), 17, QuadTheme.INK))
+		var paid_won: int = _economy_state.paid_village_reward_amount(str(quest.id))
+		body.add_child(QuadTheme.paragraph("집 짓기와 우주선 제작에 쓸 돈이 들어왔어요. +%s" % ConstructionCatalog.format_won(paid_won), 17, QuadTheme.INK))
 	else:
 		body.add_child(QuadTheme.paragraph("자금 기록을 저장하지 못했어요. 저장 공간을 확인하고 메뉴에서 다시 저장해 주세요.", 17, QuadTheme.INK))
 	var chapter: Dictionary = QuestCatalog.region_story(str(quest["region"]))

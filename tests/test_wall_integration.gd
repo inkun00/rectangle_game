@@ -4,6 +4,7 @@ const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
 const Saves = preload("res://scripts/construction/construction_save_store.gd")
 const Transactions = preload("res://scripts/economy/progression_transactions.gd")
 const Studio = preload("res://scenes/wall/wall_studio.gd")
+const Preview = preload("res://scenes/wall/wall_pattern_preview.gd")
 const Design = preload("res://scripts/core/wall_tile_design.gd")
 const Art = preload("res://scenes/wall/wall_art.gd")
 const SaleTests = preload("res://tests/test_drawing_sale_flow.gd")
@@ -82,6 +83,8 @@ static func run(t: Node) -> void:
 	app.free()
 	await t.get_tree().process_frame
 	await _test_free_workspace(t, directory)
+	await _test_tile_context(t, directory)
+	_test_fitted_wall_grid(t)
 	var images_directory: String = directory.path_join("images")
 	if DirAccess.dir_exists_absolute(images_directory):
 		for file: String in DirAccess.get_files_at(images_directory): DirAccess.remove_absolute(images_directory.path_join(file))
@@ -168,6 +171,194 @@ static func _paid_state(state: ConstructionState) -> Dictionary:
 	var saved: Dictionary = state.serialize()
 	saved.erase("free_wall_designs")
 	return saved
+
+static func _test_tile_context(t: Node, directory: String) -> void:
+	var app: QuadrilateralApp = await _new_app(t, directory)
+	if not await _press(t, app._home_screen, "OpenWall"):
+		app.free()
+		return
+	var studio: Studio = app.wall_studio
+	if not await _press(t, studio, "WallFreeDesign"):
+		app.free()
+		return
+	var canvas: Preview = studio._preview
+	var design: Design = canvas.design
+	await _press(t, studio, "WallShape_square")
+	canvas.place_at(Vector2(45, 35))
+	await _press(t, studio, "WallShape_rhombus")
+	canvas.place_at(Vector2(78, 52))
+	await _press(t, studio, "WallShape_trapezoid")
+	canvas.place_at(Vector2(125, 80))
+	await t.get_tree().process_frame
+	var original: Dictionary = design.to_dict()
+	var parts: Array[Dictionary] = design.motif_parts()
+	t.assert_eq(parts.size(), 3, "The context menu fixture places three distinct tile pieces")
+	if parts.size() != 3:
+		app.free()
+		return
+	var first: Vector2 = _tile_point(canvas, parts[0].position)
+	var blank: Vector2 = _tile_point(canvas, Vector2(10, 10))
+	_tile_button(canvas, first, MOUSE_BUTTON_LEFT, true)
+	_tile_button(canvas, first, MOUSE_BUTTON_LEFT, false)
+	var menu: PopupMenu = _open_wall_menu(studio, first)
+	t.assert_true(menu != null and menu.visible, "Right-clicking a selected tile piece opens the edit popup")
+	if menu == null or not menu.visible:
+		app.free()
+		return
+	for label: String in ["복제", "삭제", "회전", "크기 조절"]:
+		t.assert_ge(_menu_item(menu, label), 0, "The selected piece menu offers " + label)
+	t.assert_eq(_menu_item(menu, "그룹"), -1, "One independent piece does not offer grouping")
+	t.assert_eq(_menu_item(menu, "그룹 해제"), -1, "One independent piece does not offer ungrouping")
+	t.assert_eq(design.to_dict(), original, "Opening the menu changes no artwork")
+	if _choose_wall_item(t, menu, "회전"):
+		var rotated: Vector2 = first + (canvas._transform_handle() - first).rotated(deg_to_rad(37))
+		_drag_wall_transform(t, canvas, rotated, original)
+		var expected: Vector2 = Vector2(parts[0].position) + (Vector2(parts[0].vertices[0]) - Vector2(parts[0].position)).rotated(deg_to_rad(37))
+		t.assert_true(Vector2(design.motif_parts()[0].vertices[0]).distance_to(expected) < 0.02, "The handle follows a free 37-degree angle")
+		await _press(t, studio, "WallUndo")
+		t.assert_eq(design.to_dict(), original, "One undo restores the entire rotate gesture")
+
+	menu = _open_wall_menu(studio, first)
+	if _choose_wall_item(t, menu, "크기 조절"):
+		var larger: Vector2 = first + (canvas._transform_handle() - first) * 1.24
+		_drag_wall_transform(t, canvas, larger, original)
+		var sides: PackedFloat32Array = QuadrilateralMath.side_lengths(design.motif_parts()[0].vertices)
+		var original_sides: PackedFloat32Array = QuadrilateralMath.side_lengths(parts[0].vertices)
+		for corner: int in range(4):
+			t.assert_float_approx(sides[corner], original_sides[corner] * 1.24, 0.02, "Dragging the resize handle proportionally changes every side")
+		await _press(t, studio, "WallUndo")
+		t.assert_eq(design.to_dict(), original, "One undo restores the entire resize gesture")
+
+	var left_edge: float = QuadrilateralMath.bounds(parts[0].vertices).position.x
+	var near_border: Vector2 = _tile_point(canvas, Vector2(parts[0].position) + Vector2(0.75 - left_edge, 0.0))
+	_tile_button(canvas, first, MOUSE_BUTTON_LEFT, true)
+	_tile_motion(canvas, near_border)
+	t.assert_eq(design.to_dict(), original, "The live magnetic move remains a temporary preview")
+	_tile_button(canvas, near_border, MOUSE_BUTTON_LEFT, false)
+	t.assert_float_approx(QuadrilateralMath.bounds(design.motif_parts()[0].vertices).position.x, 0.0, 0.001, "Releasing near the left tile edge attaches the piece with no gap")
+	await _press(t, studio, "WallUndo")
+	t.assert_eq(design.to_dict(), original, "One undo restores the tile before magnet snapping")
+
+	menu = _open_wall_menu(studio, first)
+	if _choose_wall_item(t, menu, "복제"):
+		parts = design.motif_parts()
+		t.assert_eq(parts.size(), 4, "Context duplication makes one new piece")
+		if parts.size() == 4:
+			t.assert_eq(parts[3].color, parts[0].color, "Context duplication keeps the selected color")
+			menu = _open_wall_menu(studio, _tile_point(canvas, parts[3].position))
+			_choose_wall_item(t, menu, "삭제")
+			t.assert_eq(design.to_dict(), original, "Context deletion removes only the selected duplicate")
+
+	var far_corner: Vector2 = _tile_point(canvas, Vector2(105, 70))
+	_tile_button(canvas, blank, MOUSE_BUTTON_LEFT, true)
+	_tile_motion(canvas, far_corner)
+	_tile_button(canvas, far_corner, MOUSE_BUTTON_LEFT, false)
+	t.assert_eq(canvas.selected_indices, [0, 1], "A drag rectangle selects the two enclosed pieces")
+	menu = _open_wall_menu(studio, first)
+	t.assert_eq(_menu_item(menu, "그룹 해제"), -1, "A marquee over independent shapes does not offer ungrouping")
+	if _choose_wall_item(t, menu, "그룹"):
+		t.assert_eq(design.expand_selection([0]), [0, 1], "Grouping applies to both marquee-selected members")
+		t.assert_eq(design.expand_selection([2]), [2], "Grouping leaves the outside shape independent")
+		var grouped: Dictionary = design.to_dict()
+		var original_group: Array[Dictionary] = design.motif_parts()
+		var offset: Vector2 = Vector2(5.5, 6.5)
+		var moved_group: Vector2 = _tile_point(canvas, Vector2(original_group[0].position) + offset)
+		_tile_button(canvas, first, MOUSE_BUTTON_LEFT, true)
+		_tile_motion(canvas, moved_group)
+		_tile_button(canvas, moved_group, MOUSE_BUTTON_LEFT, false)
+		var translated: Array[Dictionary] = design.motif_parts()
+		for idx: int in [0, 1]:
+			t.assert_true(Vector2(translated[idx].position).is_equal_approx(Vector2(original_group[idx].position) + offset), "Dragging either grouped member moves both by the same amount")
+		t.assert_eq(translated[2], original_group[2], "Group movement does not affect the rest of the design")
+		await _press(t, studio, "WallUndo")
+		t.assert_eq(design.to_dict(), grouped, "Undo restores the complete grouped move")
+		menu = _open_wall_menu(studio, first)
+		t.assert_eq(_menu_item(menu, "그룹"), -1, "A selected group only offers ungrouping")
+		if _choose_wall_item(t, menu, "그룹 해제"):
+			t.assert_eq(design.to_dict(), original, "Ungrouping preserves geometry and colors")
+			await _press(t, studio, "WallUndo")
+			t.assert_eq(design.to_dict(), grouped, "One undo restores group membership from the menu")
+			await _press(t, studio, "WallRedo")
+			t.assert_eq(design.to_dict(), original, "One redo dissolves the group again")
+	app.free()
+	await t.get_tree().process_frame
+
+static func _drag_wall_transform(t: Node, canvas: Preview, destination: Vector2, original: Dictionary) -> void:
+	var handle: Vector2 = canvas._transform_handle()
+	_tile_button(canvas, handle, MOUSE_BUTTON_LEFT, true)
+	_tile_motion(canvas, handle.lerp(destination, 0.5))
+	_tile_motion(canvas, destination)
+	t.assert_eq(canvas.design.to_dict(), original, "A live transform drag leaves the saved geometry intact until release")
+	_tile_button(canvas, destination, MOUSE_BUTTON_LEFT, false)
+	t.assert_true(canvas.design.to_dict() != original, "Releasing the handle commits the visible gesture")
+
+static func _tile_point(canvas: Preview, point: Vector2) -> Vector2:
+	var tile: Rect2 = canvas._sheet_rect()
+	return tile.position + point * (tile.size.x / canvas.design.tile_size().x)
+
+static func _tile_button(canvas: Preview, point: Vector2, button: MouseButton, pressed: bool) -> void:
+	var event: InputEventMouseButton = InputEventMouseButton.new()
+	event.position = point
+	event.global_position = canvas.get_global_transform_with_canvas() * point
+	event.button_index = button
+	event.pressed = pressed
+	canvas._gui_input(event)
+
+static func _tile_motion(canvas: Preview, point: Vector2) -> void:
+	var event: InputEventMouseMotion = InputEventMouseMotion.new()
+	event.position = point
+	event.global_position = canvas.get_global_transform_with_canvas() * point
+	event.button_mask = MOUSE_BUTTON_MASK_LEFT
+	canvas._gui_input(event)
+
+static func _open_wall_menu(studio: Studio, point: Vector2) -> PopupMenu:
+	_tile_button(studio._preview, point, MOUSE_BUTTON_RIGHT, true)
+	return studio.find_child("WallPieceMenu", true, false) as PopupMenu
+
+static func _menu_item(menu: PopupMenu, label: String) -> int:
+	if menu != null:
+		for index: int in range(menu.item_count):
+			if menu.get_item_text(index) == label: return index
+	return -1
+
+static func _choose_wall_item(t: Node, menu: PopupMenu, label: String) -> bool:
+	var item: int = _menu_item(menu, label)
+	var available: bool = item >= 0 and not menu.is_item_disabled(item)
+	t.assert_true(available, "The popup allows " + label)
+	if available: menu.id_pressed.emit(menu.get_item_id(item))
+	return available
+
+static func _test_fitted_wall_grid(t: Node) -> void:
+	var design: Design = Design.new()
+	design.set_commission("bakery")
+	design.add_piece("rectangle", Vector2.ZERO, 1)
+	design.add_piece("square", design.tile_size(), 3)
+	t.assert_true(design.finish_tile(), "A finished five-by-two wall can include pieces at the full tile edges")
+	var preview: Preview = Preview.new()
+	preview.design = design
+	preview.view_kind = "filled"
+	preview.set_location("bakery")
+	var backdrop_size: Vector2 = preview.backdrop.get_size() if preview.backdrop != null else Vector2(16, 10)
+	var backdrop_rect: Rect2 = preview._fit(backdrop_size, Rect2(0, 0, 960, 570))
+	var normalized: Rect2 = Art.wall_rect("bakery")
+	var panel: Rect2 = Rect2(backdrop_rect.position + normalized.position * backdrop_rect.size, normalized.size * backdrop_rect.size)
+	var grid: Rect2 = preview._wall_grid_rect(panel)
+	var expected_scale: float = minf(panel.size.x / design.wall_size().x, panel.size.y / design.wall_size().y)
+	t.assert_true(panel.grow(0.001).encloses(grid), "The real bakery panel contains every row and column of the tile grid")
+	t.assert_true(grid.get_center().is_equal_approx(panel.get_center()), "The finished grid is centered on an aspect-mismatched panel")
+	t.assert_true(grid.size.is_equal_approx(design.wall_size() * expected_scale), "The uniform fit uses the available space without stretching the quadrilaterals")
+	var cells: Dictionary[Vector2i, bool] = {}
+	var rendered_points: PackedVector2Array = PackedVector2Array()
+	for part: Dictionary in design.wall_parts():
+		cells[Vector2i(part.column, part.row)] = true
+		for corner: Vector2 in part.vertices:
+			rendered_points.append(grid.position + corner * expected_scale)
+	t.assert_eq(cells.size(), 10, "All five columns and two rows land inside the same fitted grid")
+	t.assert_true(cells.has(Vector2i.ZERO) and cells.has(Vector2i(4, 1)), "The two outside corner tiles are both included")
+	t.assert_true(QuadrilateralMath.bounds(rendered_points).is_equal_approx(grid), "Pieces touching the first and last tile boundaries remain fully visible")
+	preview.export_only = true
+	t.assert_eq(preview._wall_grid_rect(panel), grid, "Export and preview fit the wall to the same rectangle")
+	preview.free()
 
 static func _test_gallery(t: Node, app: QuadrilateralApp, studio: Studio, directory: String) -> void:
 	var ledger: Dictionary = app._economy_state.serialize()

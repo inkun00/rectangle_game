@@ -24,12 +24,13 @@ const BUILDING_KINDS = new Set(['commission', 'my_house', 'earth_house']);
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const DRAWING_PRICE = { minimum: 100, maximum: 8_000_000, label: '게임 내 그림 가격' };
 const EXHIBITION_PRICE = { minimum: 0, maximum: 0 };
+const LEGACY_SHIP_PRICE = { minimum: 1_200_000_000, maximum: 1_800_000_000 };
 const PROJECT_PRICES = new Map([
   ['commission', { minimum: 100_000_000, maximum: 260_000_000, label: '게임 내 건물 가격' }],
   // 400 parts, each at most 600 × 400, at the highest custom rate and surcharges.
   ['my_house', { minimum: 100, maximum: 1_250_000_000, label: '게임 내 재료비' }],
   ['earth_house', { minimum: 100, maximum: 1_250_000_000, label: '게임 내 재료비' }],
-  ['spaceship', { minimum: 1_200_000_000, maximum: 1_800_000_000, label: '게임 내 우주선 제작비' }],
+  ['spaceship', { minimum: 120_000_000, maximum: 180_000_000, label: '게임 내 우주선 제작비' }],
 ]);
 
 class InputError extends Error {
@@ -280,7 +281,12 @@ function validateSubmission(raw) {
   const title = textField(raw.title, 80, nameLabel);
   const description = textField(raw.description, 1000, `${work} 설명`, true);
   const price = exhibition ? EXHIBITION_PRICE : projectPrice ?? DRAWING_PRICE;
-  if (!Number.isSafeInteger(raw.price) || raw.price < price.minimum || raw.price > price.maximum) {
+  // Pending submissions keep the original price because it is part of the request hash.
+  const validPrice = Number.isSafeInteger(raw.price) && (
+    (raw.price >= price.minimum && raw.price <= price.maximum) ||
+    (kind === 'spaceship' && raw.price >= LEGACY_SHIP_PRICE.minimum && raw.price <= LEGACY_SHIP_PRICE.maximum)
+  );
+  if (!validPrice) {
     if (exhibition) throw new InputError(`전시할 ${work} 정보를 다시 확인해 주세요.`);
     throw new InputError(projectPrice ? '작품 금액이 올바르지 않아요. 게임 화면에서 다시 확인해 주세요.' :
       '그림 가격이 올바르지 않아요. 판매 화면에서 다시 확인해 주세요.');

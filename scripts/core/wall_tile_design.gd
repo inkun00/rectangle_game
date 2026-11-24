@@ -33,7 +33,7 @@ var finished: bool = false
 
 var _size: Vector2 = Vector2(150, 100)
 var _parts: Array[Dictionary] = []
-var _history := History.new()
+var _history: History = History.new()
 
 
 func set_commission(id: String) -> bool:
@@ -92,6 +92,313 @@ func _index_valid(index: int) -> bool:
 	return index >= 0 and index < _parts.size()
 
 
+func expand_selection(indices: Array[int]) -> Array[int]:
+	var selected: Dictionary[int, bool] = {}
+	var groups: Dictionary[int, bool] = {}
+	for index: int in indices:
+		if not _index_valid(index):
+			return []
+		selected[index] = true
+		var group_id: int = int(_parts[index].get("group_id", 0))
+		if group_id > 0:
+			groups[group_id] = true
+	var expanded: Array[int] = []
+	for index: int in range(_parts.size()):
+		if selected.has(index) or groups.has(int(_parts[index].get("group_id", 0))):
+			expanded.append(index)
+	return expanded
+
+
+func selection_group(indices: Array[int]) -> int:
+	var selection: Array[int] = expand_selection(indices)
+	if selection.size() < 2:
+		return 0
+	var group_id: int = int(_parts[selection[0]].get("group_id", 0))
+	if group_id == 0:
+		return 0
+	for index: int in selection:
+		if int(_parts[index].get("group_id", 0)) != group_id:
+			return 0
+	return group_id
+
+
+func _used_groups() -> Dictionary[int, bool]:
+	var used: Dictionary[int, bool] = {}
+	for part: Dictionary in _parts:
+		var group_id: int = int(part.get("group_id", 0))
+		if group_id > 0:
+			used[group_id] = true
+	return used
+
+
+static func _allocate_group(used: Dictionary[int, bool]) -> int:
+	for group_id: int in range(1, MAX_PIECES + 1):
+		if not used.has(group_id):
+			used[group_id] = true
+			return group_id
+	return 0
+
+
+func group_pieces(indices: Array[int]) -> bool:
+	var selection: Array[int] = expand_selection(indices)
+	if selection.size() < 2 or selection_group(selection) > 0:
+		return false
+	var group_id: int = _allocate_group(_used_groups())
+	var next: Array[Dictionary] = _parts.duplicate(true)
+	for index: int in selection:
+		next[index]["group_id"] = group_id
+	return _record(next)
+
+
+func ungroup_pieces(indices: Array[int]) -> bool:
+	var selection: Array[int] = expand_selection(indices)
+	if selection_group(selection) == 0:
+		return false
+	var next: Array[Dictionary] = _parts.duplicate(true)
+	for index: int in selection:
+		next[index].erase("group_id")
+	return _record(next)
+
+
+func _selection_bounds(selection: Array[int]) -> Rect2:
+	var bounds: Rect2 = Geometry.bounds(_world_vertices(_parts[selection[0]]))
+	for index: int in selection:
+		bounds = bounds.merge(Geometry.bounds(_world_vertices(_parts[index])))
+	return bounds
+
+
+func _nearby_polygons(excluded: Array[int], area: Rect2) -> Array[PackedVector2Array]:
+	var nearby: Array[PackedVector2Array] = []
+	for index: int in range(_parts.size()):
+		if index in excluded:
+			continue
+		var points: PackedVector2Array = _world_vertices(_parts[index])
+		if area.intersects(Geometry.bounds(points), true):
+			nearby.append(points)
+	return nearby
+
+
+static func _border_delta(low_gap: float, high_gap: float, tolerance: float) -> float:
+	if minf(low_gap, high_gap) > tolerance:
+		return INF
+	return -low_gap if low_gap <= high_gap else high_gap
+
+
+func _border_alignment(bounds: Rect2, tolerance: float) -> Vector2:
+	return Vector2(
+		_border_delta(bounds.position.x, _size.x - bounds.end.x, tolerance),
+		_border_delta(bounds.position.y, _size.y - bounds.end.y, tolerance)
+	)
+
+
+static func _snap_projection(point: Vector2, start: Vector2, end: Vector2, lock_x: bool, lock_y: bool) -> Vector2:
+	if not lock_x and not lock_y:
+		return Geometry2D.get_closest_point_to_segment(point, start, end)
+	var axis: int = 0 if lock_x else 1
+	var span: float = end[axis] - start[axis]
+	if is_zero_approx(span):
+		return Geometry2D.get_closest_point_to_segment(point, start, end) if is_equal_approx(point[axis], start[axis]) else Vector2.INF
+	var progress: float = (point[axis] - start[axis]) / span
+	if progress < 0.0 or progress > 1.0:
+		return Vector2.INF
+	var projected: Vector2 = start.lerp(end, progress)
+	projected[axis] = point[axis]
+	return projected
+
+
+static func _closer_snap(best: Vector2, candidate: Vector2, low: Vector2, high: Vector2, limit: float) -> Vector2:
+	if not candidate.is_finite():
+		return best
+	var distance: float = candidate.length_squared()
+	if distance > limit or distance >= best.length_squared() or not candidate.is_equal_approx(candidate.clamp(low, high)):
+		return best
+	return candidate.clamp(low, high)
+
+
+func _snap_polygons(pieces: Array[PackedVector2Array], excluded: Array[int], bounds: Rect2, offset: Vector2, tolerance: float) -> Vector2:
+	var clamped: Vector2 = offset.clamp(-bounds.position, _size - bounds.end)
+	if not is_finite(tolerance) or tolerance <= 0.0:
+		return clamped
+	var border: Vector2 = _border_alignment(Rect2(bounds.position + clamped, bounds.size), tolerance)
+	var lock_x: bool = is_finite(border.x)
+	var lock_y: bool = is_finite(border.y)
+	clamped += Vector2(border.x if lock_x else 0.0, border.y if lock_y else 0.0)
+	if lock_x and lock_y:
+		return clamped
+	var moved_bounds: Rect2 = Rect2(bounds.position + clamped, bounds.size)
+	var low: Vector2 = Vector2(0.0 if lock_x else -moved_bounds.position.x, 0.0 if lock_y else -moved_bounds.position.y)
+	var high: Vector2 = Vector2(0.0 if lock_x else _size.x - moved_bounds.end.x, 0.0 if lock_y else _size.y - moved_bounds.end.y)
+	var closest: Vector2 = Vector2.INF
+	var corner_snap: Vector2 = Vector2.INF
+	var limit: float = tolerance * tolerance
+	var corner_limit: float = limit * 0.25
+	var fixed: Array[PackedVector2Array] = _nearby_polygons(excluded, moved_bounds.grow(tolerance))
+	for points: PackedVector2Array in pieces:
+		var moving: PackedVector2Array = Transform2D(0.0, clamped) * points
+		var near_moving: Rect2 = Geometry.bounds(moving).grow(tolerance)
+		for target: PackedVector2Array in fixed:
+			if not near_moving.intersects(Geometry.bounds(target), true):
+				continue
+			for first: int in range(moving.size()):
+				var point: Vector2 = moving[first]
+				var next_point: Vector2 = moving[(first + 1) % moving.size()]
+				for second: int in range(target.size()):
+					var vertex: Vector2 = target[second]
+					corner_snap = _closer_snap(corner_snap, vertex - point, low, high, corner_limit)
+					var edge_point: Vector2 = _snap_projection(point, vertex, target[(second + 1) % target.size()], lock_x, lock_y)
+					closest = _closer_snap(closest, edge_point - point, low, high, limit)
+					# Check both directions so a short neighboring edge can align
+					# against the middle of a longer edge even when their corners differ.
+					var moved_edge_point: Vector2 = _snap_projection(vertex, point, next_point, lock_x, lock_y)
+					closest = _closer_snap(closest, vertex - moved_edge_point, low, high, limit)
+	if corner_snap.is_finite():
+		return clamped + corner_snap
+	return clamped + closest if closest.is_finite() else clamped
+
+
+func snap_translation(indices: Array[int], offset: Vector2, tolerance: float) -> Vector2:
+	var selection: Array[int] = expand_selection(indices)
+	if selection.is_empty() or not offset.is_finite():
+		return Vector2.ZERO
+	var pieces: Array[PackedVector2Array] = []
+	for index: int in selection:
+		pieces.append(_world_vertices(_parts[index]))
+	return _snap_polygons(pieces, selection, _selection_bounds(selection), offset, tolerance)
+
+
+func snap_vertex(index: int, point: Vector2, tolerance: float) -> Vector2:
+	if not point.is_finite():
+		return Vector2.ZERO
+	var clamped: Vector2 = point.clamp(Vector2.ZERO, _size)
+	if not _index_valid(index) or not is_finite(tolerance) or tolerance <= 0.0:
+		return clamped
+	var border: Vector2 = _border_alignment(Rect2(clamped, Vector2.ZERO), tolerance)
+	var lock_x: bool = is_finite(border.x)
+	var lock_y: bool = is_finite(border.y)
+	clamped += Vector2(border.x if lock_x else 0.0, border.y if lock_y else 0.0)
+	if lock_x and lock_y:
+		return clamped
+	var low: Vector2 = Vector2(0.0 if lock_x else -clamped.x, 0.0 if lock_y else -clamped.y)
+	var high: Vector2 = Vector2(0.0 if lock_x else _size.x - clamped.x, 0.0 if lock_y else _size.y - clamped.y)
+	var closest: Vector2 = Vector2.INF
+	var corner_snap: Vector2 = Vector2.INF
+	var limit: float = tolerance * tolerance
+	var selection: Array[int] = expand_selection([index])
+	for target: PackedVector2Array in _nearby_polygons(selection, Rect2(clamped, Vector2.ZERO).grow(tolerance)):
+		for cursor: int in range(target.size()):
+			var vertex: Vector2 = target[cursor]
+			corner_snap = _closer_snap(corner_snap, vertex - clamped, low, high, limit * 0.25)
+			var edge_point: Vector2 = _snap_projection(clamped, vertex, target[(cursor + 1) % target.size()], lock_x, lock_y)
+			closest = _closer_snap(closest, edge_point - clamped, low, high, limit)
+	if corner_snap.is_finite():
+		return clamped + corner_snap
+	return clamped + closest if closest.is_finite() else clamped
+
+
+func duplicate_pieces(indices: Array[int]) -> Array[int]:
+	var selection: Array[int] = expand_selection(indices)
+	if selection.is_empty() or _parts.size() + selection.size() > MAX_PIECES:
+		return []
+	var bounds: Rect2 = _selection_bounds(selection)
+	var shift: Vector2 = Vector2.ONE * GRID_STEP
+	var positive: Vector2 = shift.clamp(-bounds.position, _size - bounds.end)
+	var negative: Vector2 = (-shift).clamp(-bounds.position, _size - bounds.end)
+	var offset: Vector2 = positive if positive.length_squared() >= negative.length_squared() else negative
+	var used: Dictionary[int, bool] = _used_groups()
+	var replacements: Dictionary[int, int] = {}
+	var next: Array[Dictionary] = _parts.duplicate()
+	var copies: Array[int] = []
+	for index: int in selection:
+		var copy: Dictionary = _parts[index].duplicate()
+		copy.position = Vector2(copy.position) + offset
+		if not _valid(copy, _size):
+			return []
+		var group_id: int = int(copy.get("group_id", 0))
+		if group_id > 0:
+			if not replacements.has(group_id):
+				replacements[group_id] = _allocate_group(used)
+			copy["group_id"] = replacements[group_id]
+		copies.append(next.size())
+		next.append(copy)
+	_record(next)
+	return copies
+
+
+func remove_pieces(indices: Array[int]) -> bool:
+	var selection: Array[int] = expand_selection(indices)
+	if selection.is_empty():
+		return false
+	var next: Array[Dictionary] = _parts.duplicate()
+	for cursor: int in range(selection.size() - 1, -1, -1):
+		next.remove_at(selection[cursor])
+	return _record(next)
+
+
+func _transformed(selection: Array[int], motion: Transform2D) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var basis: Transform2D = Transform2D(motion.x, motion.y, Vector2.ZERO)
+	for index: int in selection:
+		var part: Dictionary = _parts[index].duplicate()
+		part.position = motion * Vector2(part.position)
+		part.vertices = basis * PackedVector2Array(part.vertices)
+		if not _valid(part, _size):
+			return []
+		result.append(part)
+	return result
+
+
+func _similarity(selection: Array[int], pivot: Vector2, degrees: float, scale: float, offset: Vector2) -> Array[Dictionary]:
+	if not pivot.is_finite() or not offset.is_finite() or not is_finite(degrees) or not is_finite(scale) or scale <= 0.0:
+		return []
+	var motion: Transform2D = Transform2D(deg_to_rad(fmod(degrees, 360.0)), Vector2.ONE * scale, 0.0, Vector2.ZERO)
+	motion.origin = pivot + offset - motion.basis_xform(pivot)
+	return _transformed(selection, motion)
+
+
+func _replace_selection(selection: Array[int], replacements: Array[Dictionary]) -> bool:
+	if replacements.is_empty():
+		return false
+	var next: Array[Dictionary] = _parts.duplicate()
+	for cursor: int in range(selection.size()):
+		next[selection[cursor]] = replacements[cursor]
+	return _record(next)
+
+
+func transform_pieces(indices: Array[int], pivot: Vector2, degrees: float, scale: float, offset: Vector2 = Vector2.ZERO) -> bool:
+	var selection: Array[int] = expand_selection(indices)
+	return _replace_selection(selection, _similarity(selection, pivot, degrees, scale, offset))
+
+
+func preview_transform(indices: Array[int], pivot: Vector2, degrees: float, scale: float, offset: Vector2 = Vector2.ZERO) -> Array[Dictionary]:
+	var selection: Array[int] = expand_selection(indices)
+	var transformed: Array[Dictionary] = _similarity(selection, pivot, degrees, scale, offset)
+	var result: Array[Dictionary] = []
+	for cursor: int in range(transformed.size()):
+		result.append(_rendered_part(transformed[cursor], selection[cursor]))
+	return result
+
+
+func mirror_pieces(indices: Array[int]) -> bool:
+	var selection: Array[int] = expand_selection(indices)
+	if selection.is_empty():
+		return false
+	if selection.size() == 1:
+		return mirror_piece(selection[0])
+	var pivot: Vector2 = _selection_bounds(selection).get_center()
+	var motion: Transform2D = Transform2D(Vector2.LEFT, Vector2.DOWN, Vector2(pivot.x * 2.0, 0.0))
+	return _replace_selection(selection, _transformed(selection, motion))
+
+
+func color_pieces(indices: Array[int], palette_index: int) -> bool:
+	var selection: Array[int] = expand_selection(indices)
+	if selection.is_empty() or not _integer_in(palette_index, 0, PALETTE.size() - 1):
+		return false
+	var next: Array[Dictionary] = _parts.duplicate(true)
+	for index: int in selection:
+		next[index].palette_index = palette_index
+	return _record(next)
+
+
 static func _known_kind(kind: Variant) -> bool:
 	return kind is String and (kind == Geometry.FREEFORM or Geometry.KINDS.has(kind))
 
@@ -122,11 +429,15 @@ func _clamped_center(local: PackedVector2Array, at: Vector2) -> Vector2:
 	return at.snappedf(GRID_STEP).clamp(-bounds.position, _size - bounds.end)
 
 
-func add_piece(kind: String, at: Vector2, palette_index: int = 0) -> int:
+func add_piece(kind: String, at: Vector2, palette_index: int = 0, snap_tolerance: float = 0.0) -> int:
 	if not _known_kind(kind) or not at.is_finite() or _parts.size() >= MAX_PIECES or not _integer_in(palette_index, 0, PALETTE.size() - 1):
 		return -1
 	var part: Dictionary = _from_world(Geometry.create_vertices(kind, Vector2(34, 25)), kind, palette_index)
 	part.position = _clamped_center(part.vertices, at)
+	if snap_tolerance > 0.0 and is_finite(snap_tolerance):
+		var points: PackedVector2Array = _world_vertices(part)
+		var pieces: Array[PackedVector2Array] = [points]
+		part.position = Vector2(part.position) + _snap_polygons(pieces, [], Geometry.bounds(points), Vector2.ZERO, snap_tolerance)
 	if not _valid(part, _size):
 		return -1
 	var next: Array[Dictionary] = _parts.duplicate()
@@ -176,12 +487,15 @@ func resize_piece(index: int, factor: float) -> bool:
 	return _replace(index, part)
 
 
-func set_vertex(index: int, corner: int, point_on_tile: Vector2) -> bool:
+func set_vertex(index: int, corner: int, point_on_tile: Vector2, snap_grid: bool = true) -> bool:
 	if not _index_valid(index) or _parts[index].kind != Geometry.FREEFORM or corner < 0 or corner > 3 or not point_on_tile.is_finite():
 		return false
 	var points: PackedVector2Array = _world_vertices(_parts[index])
-	points[corner] = point_on_tile.snappedf(GRID_STEP)
-	return _replace(index, _from_world(points, Geometry.FREEFORM, int(_parts[index].palette_index)))
+	points[corner] = point_on_tile.snappedf(GRID_STEP) if snap_grid else point_on_tile
+	var piece: Dictionary = _from_world(points, Geometry.FREEFORM, int(_parts[index].palette_index))
+	if _parts[index].has("group_id"):
+		piece["group_id"] = _parts[index].group_id
+	return _replace(index, piece)
 
 
 func set_color(index: int, palette_index: int) -> bool:
@@ -193,11 +507,7 @@ func set_color(index: int, palette_index: int) -> bool:
 
 
 func remove_piece(index: int) -> bool:
-	if not _index_valid(index):
-		return false
-	var next: Array[Dictionary] = _parts.duplicate()
-	next.remove_at(index)
-	return _record(next)
+	return remove_pieces([index])
 
 
 func hit_test(at: Vector2) -> int:
@@ -233,8 +543,15 @@ func wall_size() -> Vector2:
 func motif_parts() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for part: Dictionary in _parts:
-		result.append({"index": result.size(), "position": part.position, "vertices": _world_vertices(part), "kind": part.kind, "palette_index": part.palette_index, "color": PALETTE[int(part.palette_index)]})
+		result.append(_rendered_part(part, result.size()))
 	return result
+
+
+static func _rendered_part(part: Dictionary, index: int) -> Dictionary:
+	return {
+		"index": index, "position": part.position, "vertices": _world_vertices(part), "kind": part.kind,
+		"palette_index": part.palette_index, "color": PALETTE[int(part.palette_index)], "group_id": part.get("group_id", 0)
+	}
 
 
 func wall_parts() -> Array[Dictionary]:
@@ -313,7 +630,10 @@ func to_dict() -> Dictionary:
 		for p: Vector2 in part.vertices:
 			points.append([p.x, p.y])
 		var center: Vector2 = part.position
-		encoded.append({"kind": part.kind, "position": [center.x, center.y], "vertices": points, "palette_index": part.palette_index})
+		var record: Dictionary = {"kind": part.kind, "position": [center.x, center.y], "vertices": points, "palette_index": part.palette_index}
+		if part.has("group_id"):
+			record["group_id"] = part.group_id
+		encoded.append(record)
 	return {"version": 2, "commission": commission_id, "columns": columns, "rows": rows, "layout": layout, "completed": completed.duplicate(), "finished": finished, "tile_size": [int(_size.x), int(_size.y)], "parts": encoded}
 
 
@@ -342,6 +662,10 @@ static func _read_part(raw: Variant, extent: Vector2) -> Dictionary:
 	if sum.length() > 0.01:
 		return {}
 	var part: Dictionary = {"kind": str(raw.kind), "position": Vector2(raw.position[0], raw.position[1]), "vertices": local, "palette_index": int(raw.palette_index)}
+	if raw.has("group_id"):
+		if not _integer_in(raw.group_id, 1, MAX_PIECES):
+			return {}
+		part["group_id"] = int(raw.group_id)
 	return part if _valid(part, extent) else {}
 
 
@@ -440,11 +764,18 @@ func restore(data: Dictionary) -> bool:
 			return false
 		if not data.get("parts") is Array or data.parts.size() > MAX_PIECES:
 			return false
+		var group_sizes: Dictionary[int, int] = {}
 		for raw: Variant in data.parts:
 			var part: Dictionary = _read_part(raw, extent)
 			if part.is_empty():
 				return false
+			if part.has("group_id"):
+				var group_id: int = int(part.group_id)
+				group_sizes[group_id] = group_sizes.get(group_id, 0) + 1
 			checked.append(part)
+		for count: int in group_sizes.values():
+			if count < 2:
+				return false
 		if bool(data.finished) and checked.size() < 2:
 			return false
 	_size = extent

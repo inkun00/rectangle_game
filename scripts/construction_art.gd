@@ -5,7 +5,7 @@ extends RefCounted
 ## Geometry, text, focus rings and live construction measurements stay independent.
 const GENERATED_ROOT: String = "res://assets/generated/revision/"
 const GAME_ROOT: String = "res://assets/generated/construction-game/"
-const GAME_FILES: Dictionary = {"construction-cover.png": "worksite.png", "client-portraits.png": "client-portraits.png", "construction-materials.png": "material-base.png", "construction-materials-expanded.png": "material-expanded.png", "ui-icons.png": "tool-icons.png"}
+const GAME_FILES: Dictionary = {"construction-cover.png": "worksite.png", "client-portraits.png": "client-portraits.png", "ui-icons.png": "tool-icons.png"}
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Math = preload("res://scripts/core/quadrilateral_math.gd")
 const INK: Color = Color("edf5fc")
@@ -18,9 +18,14 @@ const GOLD: Color = Color("ffd18a")
 const SLATE_DARK: Color = Color("101a27")
 const LINE: Color = Color("42586d")
 const QUIET_PAPER_PATH: String = "res://assets/generated/focused-ui/paper-v1.webp"
-const LIBRARY_SHEET: String = "res://assets/generated/construction-library-v2/surfaces.webp"
-const OPENING_SHEET: String = "res://assets/generated/construction-library-v2/openings.webp"
-const WORKSHOP_SHEET: String = "res://assets/generated/construction-library-v2/workshop.webp"
+const MATERIAL_ROOT: String = "res://assets/generated/construction-library-v2/"
+const CORE_SHEET: String = MATERIAL_ROOT + "core-a.webp"
+const CORE_DETAIL_SHEET: String = MATERIAL_ROOT + "core-b.webp"
+const LIBRARY_SHEET: String = MATERIAL_ROOT + "surfaces.webp"
+const OPENING_SHEET: String = MATERIAL_ROOT + "openings.webp"
+const WORKSHOP_SHEET: String = MATERIAL_ROOT + "workshop.webp"
+const CORE_SHEET_CELL_COUNT: int = 12
+const FACE_STEPS: int = 8
 const OPENING_CELLS: Array[String] = [
 	"walnut_door", "bamboo_door", "paper_lattice_window",
 	"stained_flower_window", "sea_glass_window", "stained_star_window"
@@ -32,21 +37,28 @@ const LIBRARY_CELLS: Array[String] = [
 	"paper_lattice", "walnut", "shell_mosaic", "rattan"
 ]
 const TOOL_CELLS: Dictionary = {"select": 0, "undo": 1, "redo": 2, "delete": 3, "rotate": 4, "zoom": 5, "fit": 6, "inspect": 7, "receipt": 8, "home": 9, "save": 10, "help": 11, "duplicate": 12, "draw": 13, "adventure": 14, "book": 15}
-const EXPANDED_MATERIAL_CELLS: Dictionary = {"stone": 0, "concrete": 1, "plaster": 2, "green_brick": 3, "frosted_glass": 4, "amber_glass": 5, "teal_glass": 6, "grille": 7, "zinc_roof": 8, "clay_roof": 9, "slate_roof": 10, "metal_roof": 11, "cedar": 12, "louver": 13, "mosaic": 14, "copper": 15}
+const CORE_FINISH_CELLS: Dictionary[String, int] = {
+	"stone": 8, "concrete": 9, "plaster": 10, "green_brick": 11,
+	"frosted_glass": 12, "amber_glass": 13, "teal_glass": 14, "grille": 15,
+	"zinc_roof": 16, "clay_roof": 17, "slate_roof": 18, "metal_roof": 19,
+	"cedar": 20, "louver": 21, "mosaic": 22, "copper": 23
+}
 static var _textures: Dictionary = {}
 static var _regions: Dictionary = {}
+static var _face_indices: PackedInt32Array = _build_face_indices()
 
 static func generated_texture(filename: String) -> Texture2D:
 	match filename:
 		"client-portraits.png": return StarfrontArt.sheet("crew")
-		"construction-materials.png", "construction-materials-expanded.png": return StarfrontArt.hd_sheet("materials/details-a")
+		"construction-materials.png": return generated_texture(CORE_SHEET)
+		"construction-materials-expanded.png": return generated_texture(CORE_DETAIL_SHEET)
 		"ui-icons.png": return StarfrontArt.sheet("tools")
 		"ui-surfaces.png": return StarfrontArt.sheet("skin")
 		"drawing-cover.png": return preload("res://assets/generated/home-atlas/drawing.webp")
 		"construction-cover.png": return preload("res://assets/generated/home-atlas/building.webp")
 		"app-icon.png": return StarfrontArt.cell("items", 23, 4, 6, true)
 	if _textures.has(filename): return _textures[filename] as Texture2D
-	var path: String = filename if filename in [LIBRARY_SHEET, OPENING_SHEET, WORKSHOP_SHEET] else GENERATED_ROOT + filename
+	var path: String = filename if filename.begins_with(MATERIAL_ROOT) else GENERATED_ROOT + filename
 	if GAME_FILES.has(filename) and ResourceLoader.exists(GAME_ROOT + str(GAME_FILES[filename])):
 		path = GAME_ROOT + str(GAME_FILES[filename])
 	if not ResourceLoader.exists(path): return null
@@ -56,8 +68,6 @@ static func generated_texture(filename: String) -> Texture2D:
 
 static func _atlas(filename: String, cell: int, columns: int, rows: int) -> Texture2D:
 	match filename:
-		"construction-materials.png": return StarfrontArt.material(cell)
-		"construction-materials-expanded.png": return StarfrontArt.material(cell + 8)
 		"client-portraits.png": return StarfrontArt.cell("crew", cell, 4, 4, true)
 		"ui-icons.png": return StarfrontArt.cell("tools", cell, 4, 4, true)
 	var key: String = "%s:%d:%d:%d" % [filename, cell, columns, rows]
@@ -120,23 +130,28 @@ static func button_style(primary: bool = false, state: String = "normal", paddin
 static func quiet_surface_texture(_primary: bool = false) -> Texture2D:
 	return surface_texture()
 
+static func _core_material(cell: int) -> Texture2D:
+	var sheet: String = CORE_SHEET if cell < CORE_SHEET_CELL_COUNT else CORE_DETAIL_SHEET
+	return _atlas(sheet, cell % CORE_SHEET_CELL_COUNT, 3, 4)
+
 static func material_icon(material_id: String) -> Texture2D:
 	if Catalog.CRAFT_SPECS.has(material_id):
 		return _atlas(WORKSHOP_SHEET, int(Catalog.CRAFT_SPECS[material_id].cell), 5, 5)
 	var material: Dictionary = Catalog.material(material_id)
 	if material.is_empty(): return null
+	var texture_key: String = str(material.get("texture_key", ""))
 	# Counted masonry always uses one generated brick per repeated tile.
-	if int(material.get("brick_count", 0)) > 0: return _atlas("construction-materials.png", 0, 4, 2)
+	if int(material.get("brick_count", 0)) > 0:
+		return _core_material(CORE_FINISH_CELLS["green_brick"] if texture_key == "green_brick" else 0)
 	var opening_cell: int = OPENING_CELLS.find(material_id)
 	if opening_cell >= 0:
 		return _atlas(OPENING_SHEET, opening_cell, 3, 2)
-	var texture_key: String = str(material.get("texture_key", ""))
 	var library_cell: int = LIBRARY_CELLS.find(texture_key)
 	if library_cell >= 0:
 		return _atlas(LIBRARY_SHEET, library_cell, 4, 4)
-	if texture_key == "brick": return StarfrontArt.material(0)
-	if EXPANDED_MATERIAL_CELLS.has(texture_key):
-		return _atlas("construction-materials-expanded.png", int(EXPANDED_MATERIAL_CELLS[texture_key]), 4, 4)
+	if texture_key == "brick": return _core_material(0)
+	if CORE_FINISH_CELLS.has(texture_key):
+		return _core_material(CORE_FINISH_CELLS[texture_key])
 	var cell: int = 0
 	match str(material.role):
 		"wall": cell = 0
@@ -145,7 +160,7 @@ static func material_icon(material_id: String) -> Texture2D:
 		"beam": cell = 4
 		"roof": cell = 5
 		"decor": cell = 7 if str(material.kind) == "rhombus" else 6
-	return _atlas("construction-materials.png", cell, 4, 2)
+	return _core_material(cell)
 
 static func tool_icon(tool: String) -> Texture2D:
 	if tool == "pan":
@@ -219,6 +234,37 @@ static func texture_uvs(texture: Texture2D) -> PackedVector2Array:
 static func quad_point(vertices: PackedVector2Array, uv: Vector2) -> Vector2:
 	return vertices[0].lerp(vertices[1], uv.x).lerp(vertices[3].lerp(vertices[2], uv.x), uv.y)
 
+static func draw_material_face(canvas: CanvasItem, points: PackedVector2Array, texture: Texture2D, tint: Color = Color.WHITE) -> void:
+	_draw_textured_quad(canvas, points, texture_uvs(texture), texture_source(texture), tint)
+
+static func _build_face_indices() -> PackedInt32Array:
+	var indices: PackedInt32Array = PackedInt32Array()
+	var stride: int = FACE_STEPS + 1
+	for row: int in range(FACE_STEPS):
+		for column: int in range(FACE_STEPS):
+			var top: int = row * stride + column
+			var bottom: int = top + stride
+			indices.append_array(PackedInt32Array([top, top + 1, bottom + 1, top, bottom + 1, bottom]))
+	return indices
+
+static func _draw_textured_quad(canvas: CanvasItem, points: PackedVector2Array, uvs: PackedVector2Array, source: Texture2D, tint: Color) -> void:
+	# Affine mapping is exact for parallelograms. A subdivided face keeps
+	# stripes and panes from bending across one diagonal in a trapezoid.
+	if (points[1] - points[0]).is_equal_approx(points[2] - points[3]):
+		canvas.draw_polygon(points, PackedColorArray([tint]), uvs, source)
+		return
+	var mesh_points: PackedVector2Array = PackedVector2Array()
+	var mesh_uvs: PackedVector2Array = PackedVector2Array()
+	for row: int in range(FACE_STEPS + 1):
+		for column: int in range(FACE_STEPS + 1):
+			var position: Vector2 = Vector2(column, row) / float(FACE_STEPS)
+			mesh_points.append(quad_point(points, position))
+			mesh_uvs.append(quad_point(uvs, position))
+	var colors: PackedColorArray = PackedColorArray()
+	colors.resize(mesh_points.size())
+	colors.fill(tint)
+	RenderingServer.canvas_item_add_triangle_array(canvas.get_canvas_item(), _face_indices, mesh_points, colors, mesh_uvs, PackedInt32Array(), PackedFloat32Array(), source.get_rid())
+
 ## Masks reveal tinted copies of the generated surface, never replace it with
 ## procedural artwork. UV-space quads stay inside every valid convex part.
 static func pattern_uv_polygons(pattern_id: String) -> Array[PackedVector2Array]:
@@ -257,7 +303,7 @@ static func draw_material_pattern(canvas: CanvasItem, material: Dictionary, scre
 		for uv: Vector2 in mask:
 			points.append(quad_point(screen_points, uv))
 			uvs.append(quad_point(surface_uvs, uv))
-		canvas.draw_polygon(points, PackedColorArray([paint]), uvs, texture_source(texture))
+		_draw_textured_quad(canvas, points, uvs, texture_source(texture), paint)
 
 static func portrait(index: int) -> Control:
 	var result: ClientPortrait = ClientPortrait.new()
@@ -330,7 +376,7 @@ class MaterialSample extends Control:
 				var corners: PackedVector2Array = PackedVector2Array([area.position, Vector2(area.end.x, area.position.y), area.end, Vector2(area.position.x, area.end.y)])
 				var points: PackedVector2Array = PackedVector2Array()
 				for corner: Vector2 in corners: points.append((ConstructionArt.quad_point(vertices, corner) - bounds.get_center()) * scale + center_pt)
-				draw_polygon(points, PackedColorArray([Color.WHITE]), ConstructionArt.texture_uvs(sample), ConstructionArt.texture_source(sample))
+				ConstructionArt.draw_material_face(self, points, sample)
 		var outline: PackedVector2Array = PackedVector2Array()
 		for vertex: Vector2 in vertices:
 			outline.append((vertex - bounds.get_center()) * scale + center_pt)

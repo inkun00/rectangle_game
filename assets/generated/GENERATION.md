@@ -4,9 +4,13 @@
 
 [의뢰별 벽 배경 10장](wall-commissions/GENERATION.md)은 ImageGen으로 장소마다 한 장씩 새로 만들었다. 흰 회벽의 안쪽 좌표를 따로 측정하여 작업 화면과 완성 이미지에서 타일을 같은 자리에 배치한다.
 
+## 2026-11-24 집 짓기 재료 일러스트
+
+기본 재료, 공방 재료, 문과 창문, 주문 제작 표면을 홈의 종이 모형 집에 맞춰 정면 과슈 일러스트로 다시 그렸다. [사용 중인 시트와 ImageGen 프롬프트](construction-library-v2/GENERATION.md)에 재료 순서와 가공 규격을 기록했다.
+
 ## 2026-11-23 건축 공방 재료 25종
 
-새 [공방 재료 시트](construction-library-v2/workshop.webp)는 재료마다 별도로 그린 5×5 원화다. [행별 생성 내용과 가공 규격](construction-library-v2/GENERATION.md)을 기록했다.
+이전 공방 재료 25종은 5×5 원화로 제작했다. [이전 버전과 재작업 기록](construction-library-v2/GENERATION.md)에 행별 생성 내용을 남겼다.
 
 ## 2026-11-22 사각이의 모험 UI
 

@@ -6,6 +6,9 @@ const Geometry = preload("res://scripts/core/quadrilateral_math.gd")
 const Preview = preload("res://scenes/wall/wall_pattern_preview.gd")
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Metadata = preload("res://scripts/export/art_submission_metadata.gd")
+const Buttons = preload("res://scripts/ui/button_art.gd")
+
+enum PieceAction { DUPLICATE, DELETE, ROTATE, RESIZE, GROUP, UNGROUP }
 
 signal home_requested
 signal design_changed
@@ -21,7 +24,9 @@ var _draft: Design:
 var _balance: int = 0
 var _stage: String = "orders"
 var _selected_order: String = ""
-var _piece: int = -1
+var _selection: Array[int] = []
+var _menu_selection: Array[int] = []
+var _piece_menu: PopupMenu
 var _kind: String = ""
 var _ink: int = 1
 var _scroll: ScrollContainer
@@ -77,6 +82,9 @@ func _ready() -> void:
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 10)
 	_scroll.add_child(_body)
+	_build_piece_menu()
+	visibility_changed.connect(func() -> void:
+		if not is_visible_in_tree(): _piece_menu.hide())
 	_selected_order = design.commission_id
 	resized.connect(_layout)
 	_build()
@@ -87,6 +95,7 @@ func set_balance(coins: int) -> void:
 		_balance_label.text = "보유 " + Catalog.format_won(_balance)
 
 func _go(stage: String, focus_name: String = "") -> void:
+	_piece_menu.hide()
 	if stage == "orders": free_mode = false
 	_stage = stage
 	_build()
@@ -114,7 +123,8 @@ func _build() -> void:
 	_preview.set_location(_selected_order)
 	_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_preview.size_flags_stretch_ratio = 1.4
-	_preview.piece_selected.connect(_select_piece)
+	_preview.selection_changed.connect(_select_pieces)
+	_preview.context_requested.connect(_show_piece_menu)
 	_preview.piece_placed.connect(_place)
 	_preview.edited.connect(_changed)
 	_work.add_child(_preview)
@@ -182,7 +192,7 @@ func _accept() -> void:
 	if design.commission_id != _selected_order:
 		design.set_commission(_selected_order)
 		design_changed.emit()
-	_piece = -1
+	_selection.clear()
 	_kind = ""
 	_status = ""
 	_go("blank")
@@ -193,7 +203,7 @@ func _start_free() -> void:
 		work.set_commission(_selected_order)
 		free_designs[_selected_order] = work
 	free_mode = true
-	_piece = -1
+	_selection.clear()
 	_kind = ""
 	_status = ""
 	_go("tile")
@@ -209,6 +219,7 @@ func _tile_tools(tools: VBoxContainer) -> void:
 	_action(selection, "WallPlaceCenter", "가운데에 놓기", _center_place)
 	_action(selection, "WallPiecePrevious", "이전 조각", _cycle.bind(-1))
 	_action(selection, "WallPieceNext", "다음 조각", _cycle.bind(1))
+	_action(selection, "WallPieceActions", "조각 편집", _show_piece_tools)
 	var palette: HFlowContainer = _flow(tools)
 	for i: int in range(Design.PALETTE.size()):
 		var button: Button = _action(palette, "WallColor_%d" % i, str(Design.PALETTE_NAMES[i]), _color.bind(i), true)
@@ -234,63 +245,157 @@ func _tile_tools(tools: VBoxContainer) -> void:
 
 func _arm(kind: String) -> void:
 	_kind = "" if _kind == kind else kind
-	_piece = -1
+	_selection.clear()
+	_preview.clear_transform()
 	refresh()
 
-func _place(point: Vector2) -> void:
+func _place(point: Vector2, snap: bool = true) -> void:
 	if _kind.is_empty(): return
-	var added: int = _draft.add_piece(_kind, point, _ink)
+	var tolerance: float = _preview.snap_tolerance() if snap else 0.0
+	var added: int = _draft.add_piece(_kind, point, _ink, tolerance)
 	if added < 0:
 		_note.text = "조각 전체가 타일 안에 들어가도록 안쪽을 눌러 주세요."
 		return
 	_kind = ""
-	_piece = added
+	_selection = [added]
 	_changed()
 
 func _center_place() -> void:
-	_place(_draft.tile_size() * 0.5)
+	_place(_draft.tile_size() * 0.5, false)
 
-func _select_piece(index: int) -> void:
+func _select_pieces(indices: Array[int]) -> void:
 	_kind = ""
-	_piece = index
+	_selection = _draft.expand_selection(indices)
 	var parts: Array[Dictionary] = _draft.motif_parts()
-	if index >= 0 and index < parts.size(): _ink = int(parts[index].palette_index)
+	if not _selection.is_empty(): _ink = int(parts[_selection[0]].palette_index)
 	refresh()
 
 func _cycle(step: int) -> void:
 	var count: int = _draft.motif_parts().size()
-	if count: _select_piece(posmod(_piece + step, count))
+	if count == 0: return
+	_preview.clear_transform()
+	var start: int = (-1 if step > 0 else 0) if _selection.is_empty() else (_selection.back() if step > 0 else _selection.front())
+	for distance: int in range(1, count + 1):
+		var index: int = posmod(start + distance * step, count)
+		if _selection.has(index): continue
+		_select_pieces([index])
+		return
 
 func _color(index: int) -> void:
 	_ink = index
-	if _piece >= 0 and _draft.set_color(_piece, index): _changed()
+	if not _selection.is_empty() and _draft.color_pieces(_selection, index): _changed()
 	else: refresh()
 
+func _selection_center() -> Vector2:
+	var points: PackedVector2Array = PackedVector2Array()
+	var parts: Array[Dictionary] = _draft.motif_parts()
+	for index: int in _selection: points.append_array(parts[index].vertices)
+	return Geometry.bounds(points).get_center()
+
 func _edit(action: String) -> void:
-	if _piece < 0: return
+	if _selection.is_empty(): return
+	_preview.clear_transform()
 	var success: bool = false
 	match action:
-		"rotate": success = _draft.rotate_piece(_piece, 15.0)
-		"mirror": success = _draft.mirror_piece(_piece)
-		"grow": success = _draft.resize_piece(_piece, 1.2)
-		"shrink": success = _draft.resize_piece(_piece, 1.0 / 1.2)
+		"rotate": success = _draft.transform_pieces(_selection, _selection_center(), 15.0, 1.0)
+		"mirror": success = _draft.mirror_pieces(_selection)
+		"grow": success = _draft.transform_pieces(_selection, _selection_center(), 0.0, 1.2)
+		"shrink": success = _draft.transform_pieces(_selection, _selection_center(), 0.0, 1.0 / 1.2)
 		"delete":
-			success = _draft.remove_piece(_piece)
-			if success: _piece = mini(_piece, _draft.motif_parts().size() - 1)
+			success = _draft.remove_pieces(_selection)
+			if success: _selection.clear()
 	if success: _changed()
 	else: _note.text = "크기나 위치를 바꾼 뒤 다시 해 보세요. 조각은 타일 안에 있어야 해요."
+
+func _build_piece_menu() -> void:
+	_piece_menu = PopupMenu.new()
+	_piece_menu.name = "WallPieceMenu"
+	_piece_menu.add_theme_font_override("font", QuadTheme.FONT)
+	_piece_menu.add_theme_font_size_override("font_size", 18)
+	_piece_menu.add_theme_constant_override("v_separation", 10)
+	_piece_menu.add_theme_stylebox_override("panel", GameArt.panel(0, 10))
+	_piece_menu.add_theme_stylebox_override("hover", Buttons.style(false, "hover", 8))
+	_piece_menu.add_theme_color_override("font_color", QuadTheme.INK)
+	_piece_menu.add_theme_color_override("font_hover_color", Color.WHITE)
+	_piece_menu.add_theme_color_override("font_disabled_color", QuadTheme.MUTED)
+	_piece_menu.id_pressed.connect(_piece_menu_action)
+	add_child(_piece_menu)
+
+func _show_piece_tools() -> void:
+	var button: Control = _controls.WallPieceActions
+	var button_position: Vector2 = button.get_global_transform_with_canvas() * Vector2(0, button.size.y)
+	_show_piece_menu(_selection, button_position)
+
+func _show_piece_menu(indices: Array[int], viewport_position: Vector2) -> void:
+	if _stage != "tile" or not is_visible_in_tree() or indices.is_empty(): return
+	_select_pieces(indices)
+	_menu_selection = _selection.duplicate()
+	_piece_menu.clear()
+	_piece_menu.add_item("복제", PieceAction.DUPLICATE)
+	_piece_menu.set_item_disabled(0, _draft.motif_parts().size() + _selection.size() > Design.MAX_PIECES)
+	_piece_menu.add_item("삭제", PieceAction.DELETE)
+	_piece_menu.add_item("회전", PieceAction.ROTATE)
+	_piece_menu.add_item("크기 조절", PieceAction.RESIZE)
+	if _selection.size() > 1:
+		_piece_menu.add_separator()
+		if _draft.selection_group(_selection) > 0:
+			_piece_menu.add_item("그룹 해제", PieceAction.UNGROUP)
+		else:
+			_piece_menu.add_item("그룹", PieceAction.GROUP)
+	var point: Vector2 = viewport_position
+	var bounds: Rect2 = get_viewport().get_visible_rect()
+	if not _piece_menu.is_embedded():
+		var local: Vector2 = _preview.get_global_transform_with_canvas().affine_inverse() * viewport_position
+		point = _preview.get_screen_transform() * local
+		bounds = Rect2(Vector2(get_window().position), Vector2(get_window().size))
+	_piece_menu.reset_size()
+	_piece_menu.popup(Rect2i(Vector2i(point), Vector2i.ZERO))
+	var maximum: Vector2 = (bounds.end - Vector2(_piece_menu.size)).max(bounds.position)
+	_piece_menu.position = Vector2i(point.clamp(bounds.position, maximum))
+
+func _piece_menu_action(action: int) -> void:
+	if _stage != "tile" or not is_visible_in_tree() or _selection != _menu_selection: return
+	_piece_menu.hide()
+	_preview.grab_focus()
+	if action == PieceAction.ROTATE:
+		_preview.begin_transform("rotate")
+		_note.text = "회전 손잡이를 끌어 각도를 바꿔요. Esc로 도구를 닫아요."
+		return
+	if action == PieceAction.RESIZE:
+		_preview.begin_transform("resize")
+		_note.text = "크기 손잡이를 끌어 크기를 바꿔요. Esc로 도구를 닫아요."
+		return
+	_preview.clear_transform()
+	var success: bool = false
+	match action:
+		PieceAction.DUPLICATE:
+			var copies: Array[int] = _draft.duplicate_pieces(_selection)
+			success = not copies.is_empty()
+			if success: _selection = copies
+		PieceAction.DELETE:
+			success = _draft.remove_pieces(_selection)
+			if success: _selection.clear()
+		PieceAction.GROUP:
+			success = _draft.group_pieces(_selection)
+		PieceAction.UNGROUP:
+			success = _draft.ungroup_pieces(_selection)
+	if success:
+		_changed()
+	elif action == PieceAction.DUPLICATE:
+		_note.text = "복제할 자리를 확보하거나 타일의 조각 수를 확인해 주세요."
 
 func _history(redo: bool) -> void:
 	var success: bool = _draft.redo() if redo else _draft.undo()
 	if success:
 		_kind = ""
-		_piece = -1
+		_selection.clear()
+		_preview.clear_transform()
 		_changed()
 
 func _finish() -> void:
 	if not _draft.finish_tile(): return
 	_kind = ""
-	_piece = -1
+	_selection.clear()
 	_changed()
 	_go("filled")
 
@@ -311,7 +416,8 @@ func refresh() -> void:
 	set_balance(_balance)
 	var order: Dictionary = Design.COMMISSIONS[_selected_order]
 	_preview.placing = not _kind.is_empty()
-	_preview.selected_piece = _piece
+	if _stage == "tile": _selection = _draft.expand_selection(_selection)
+	_preview.selected_indices = _selection.duplicate()
 	_preview.refresh()
 	match _stage:
 		"orders", "blank":
@@ -324,16 +430,20 @@ func refresh() -> void:
 			for kind: String in Geometry.KINDS + ["freeform"]:
 				_controls["WallShape_" + kind].set_pressed_no_signal(_kind == kind)
 			for i: int in range(Design.PALETTE.size()): _controls["WallColor_%d" % i].set_pressed_no_signal(_ink == i)
-			for id: String in ["WallRotate", "WallMirror", "WallGrow", "WallShrink", "WallDelete"]: _controls[id].disabled = _piece < 0
+			for id: String in ["WallRotate", "WallMirror", "WallGrow", "WallShrink", "WallDelete", "WallPieceActions"]:
+				_controls[id].disabled = _selection.is_empty()
 			for id: String in ["WallPiecePrevious", "WallPieceNext"]: _controls[id].disabled = parts.is_empty()
 			_controls.WallFinishTile.disabled = parts.size() < 2
 			_controls.WallPlaceCenter.disabled = _kind.is_empty()
 			_controls.WallUndo.disabled = not _draft.can_undo()
 			_controls.WallRedo.disabled = not _draft.can_redo()
-			_overview.text = "도형을 고른 뒤 타일에서 놓을 곳을 눌러요. 조각을 두 개 이상 놓고 끌어서 무늬를 만들어요."
-			if _piece >= 0 and _piece < parts.size():
-				var piece: Dictionary = parts[_piece]
-				_note.text = "선택한 조각 %d / %d · %s" % [_piece + 1, parts.size(), "자유 사각형" if piece.kind == "freeform" else Geometry.kind_name(piece.kind)]
+			_overview.text = "빈 곳에서 끌어 여러 조각을 골라요. 우클릭이나 ‘조각 편집’으로 메뉴를 열어요. 조각을 옮기면 가까운 변이나 타일 테두리에 붙어요."
+			if _selection.size() > 1:
+				_note.text = "그룹 · 조각 %d개" % _selection.size() if _draft.selection_group(_selection) > 0 else "조각 %d개 선택" % _selection.size()
+			elif _selection.size() == 1:
+				var index: int = _selection[0]
+				var piece: Dictionary = parts[index]
+				_note.text = "선택한 조각 %d / %d · %s" % [index + 1, parts.size(), "자유 사각형" if piece.kind == "freeform" else Geometry.kind_name(piece.kind)]
 				if piece.kind == "freeform": _note.text += " · 꼭짓점을 끌어 모양을 바꿔요."
 			else: _note.text = ("타일에 놓을 곳을 눌러 주세요." if not _kind.is_empty() else "조각 %d개" % parts.size())
 		"filled":

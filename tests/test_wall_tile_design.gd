@@ -6,6 +6,8 @@ const Geometry = preload("res://scripts/core/quadrilateral_math.gd")
 
 static func run(t: Node) -> void:
 	_test_free_editor(t)
+	_test_group_editor(t)
+	_test_snapping(t)
 	_test_repetition(t)
 	_test_commissions(t)
 	_test_legacy(t)
@@ -92,6 +94,126 @@ static func _test_free_editor(t: Node) -> void:
 	copy[free].vertices[0] = Vector2(-100, -100)
 	t.assert_true(Geometry.is_valid(design.motif_parts()[free].vertices), "Reference geometries cannot mutate the live drawing")
 	t.assert_eq(design.motif_parts()[free].vertices, moved.vertices, "Rendering receives a detached polygon")
+
+
+static func _test_group_editor(t: Node) -> void:
+	var design: Design = Design.new()
+	var first: int = design.add_piece("square", Vector2(40, 35), 1)
+	var second: int = design.add_piece("trapezoid", Vector2(70, 45), 3)
+	var outsider: int = design.add_piece("rhombus", Vector2(120, 75), 5)
+	var members: Array[int] = [first, second]
+	var ungrouped: Dictionary = design.to_dict()
+	t.assert_true(design.group_pieces(members), "A pair of tile pieces can be grouped")
+	var group: int = design.selection_group([first])
+	t.assert_gt(group, 0, "Selecting either member finds the whole group")
+	t.assert_eq(design.expand_selection([second]), members, "Group selection preserves the original drawing order")
+	t.assert_eq(design.expand_selection([outsider, first]), [first, second, outsider], "A wider selection includes all the affected group members")
+	t.assert_eq(design.selection_group([first, outsider]), 0, "A mixed selection is not identified as one group")
+	t.assert_true(design.undo(), "One undo dissolves the newly created group")
+	t.assert_eq(design.to_dict(), ungrouped, "Grouping changes no positions, vertices, or colors")
+	t.assert_true(design.redo(), "Redo restores group membership")
+
+	var grouped: Dictionary = design.to_dict()
+	var original: Array[Dictionary] = design.motif_parts()
+	var pivot: Vector2 = Vector2(55, 40)
+	var offset: Vector2 = Vector2(3, 1)
+	var preview: Array[Dictionary] = design.preview_transform(members, pivot, 37.0, 1.17, offset)
+	t.assert_eq(preview.size(), members.size(), "The group transform previews every selected member")
+	t.assert_eq(design.to_dict(), grouped, "A live preview never changes the motif or save data")
+	if preview.size() != members.size(): return
+	var transform: Transform2D = Transform2D(deg_to_rad(37.0), Vector2.ONE * 1.17, 0.0, Vector2.ZERO)
+	for preview_part: Dictionary in preview:
+		var old: Dictionary = original[int(preview_part.index)]
+		for corner: int in range(4):
+			var expected: Vector2 = pivot + transform * (Vector2(old.vertices[corner]) - pivot) + offset
+			t.assert_true(Vector2(preview_part.vertices[corner]).is_equal_approx(expected), "Every corner follows the same group pivot, angle and size")
+		t.assert_true(Geometry.matches_kind(preview_part.vertices, str(old.kind)), "All previewed outlines preserve their selected families")
+	t.assert_true(design.transform_pieces(members, pivot, 37.0, 1.17, offset), "An arbitrary in-bounds group transform commits")
+	t.assert_eq(design.motif_parts()[outsider], original[outsider], "The group transform leaves the third piece alone")
+	var adjusted: Dictionary = design.to_dict()
+	t.assert_true(design.preview_transform(members, pivot, 0.0, 100.0).is_empty(), "Oversized groups cannot preview outside the tile")
+	t.assert_false(design.transform_pieces(members, pivot, 0.0, 100.0), "Oversized group transforms fail without a partial edit")
+	t.assert_eq(design.to_dict(), adjusted, "An invalid group transform preserves all geometry and the save")
+	t.assert_true(design.undo(), "One undo restores all transformed group members")
+	t.assert_eq(design.to_dict(), grouped, "Undo restores the exact geometry and IDs for the whole group")
+	t.assert_true(design.redo(), "One redo restores the complete transform")
+	t.assert_eq(design.to_dict(), adjusted, "Redo reapplies the complete group transform")
+
+	var copies: Array[int] = design.duplicate_pieces([first])
+	t.assert_eq(copies, [3, 4], "Duplicating one group member copies the group to the top of the tile")
+	if copies.size() != members.size(): return
+	var copy_group: int = design.selection_group(copies)
+	t.assert_true(copy_group > 0 and copy_group != group, "The duplicated pair has independent group membership")
+	var pieces: Array[Dictionary] = design.motif_parts()
+	for i: int in range(copies.size()):
+		var source: Dictionary = pieces[members[i]]
+		var copy: Dictionary = pieces[copies[i]]
+		t.assert_eq(copy.kind, source.kind, "A duplicate keeps its authored family")
+		t.assert_eq(copy.color, source.color, "A duplicate keeps its original color")
+		var translation: Vector2 = Vector2(copy.position) - Vector2(source.position)
+		for corner: int in range(4):
+			t.assert_true(Vector2(copy.vertices[corner]).is_equal_approx(Vector2(source.vertices[corner]) + translation), "Duplicating translates every authored corner intact")
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(design.to_dict()))
+	var restored: Design = Design.new()
+	t.assert_true(restored.restore(saved), "Saved groups survive an actual JSON round trip")
+	t.assert_eq(restored.expand_selection([4]), copies, "A loaded copy retains its own group")
+	t.assert_eq(restored.expand_selection([0]), members, "A loaded original retains its own group")
+	var malformed: Dictionary = saved.duplicate(true)
+	malformed.parts[1].erase("group_id")
+	t.assert_false(restored.restore(malformed), "A dangling one-member group is rejected during restore")
+	t.assert_eq(restored.to_dict(), design.to_dict(), "A malformed group fails before changing the loaded tile")
+	t.assert_true(restored.ungroup_pieces(copies), "The copied group can be dissolved independently")
+	t.assert_eq(restored.expand_selection([4]), [4], "Ungrouped pieces are independently selectable")
+	t.assert_eq(restored.expand_selection([0]), members, "Dissolving the copy leaves the old group alone")
+	t.assert_true(restored.undo(), "Undo restores the copied group membership")
+	t.assert_true(restored.remove_pieces([4]), "Removing a selected group member removes its whole group")
+	t.assert_eq(restored.motif_parts().size(), original.size(), "Deleting a group leaves the three original shapes")
+	t.assert_true(restored.undo(), "One undo restores the entire removed group")
+	t.assert_eq(restored.to_dict(), design.to_dict(), "Deletion undo restores group membership and drawing order")
+
+	var old_design: Design = Design.new()
+	t.assert_true(old_design.restore(ungrouped), "A v2 save without group fields remains loadable")
+	t.assert_eq(old_design.expand_selection([second]), [second], "A historical shape with no group fields stays independent")
+
+
+static func _test_snapping(t: Node) -> void:
+	var design: Design = Design.new()
+	var moving: int = design.add_piece("square", Vector2(35, 45), 1)
+	var neighbor: int = design.add_piece("square", Vector2(90, 45), 3)
+	var before: Dictionary = design.to_dict()
+	var selected: Array[int] = [moving]
+	var original: Array[Dictionary] = design.motif_parts()
+	var moving_bounds: Rect2 = Geometry.bounds(original[moving].vertices)
+	var neighbor_bounds: Rect2 = Geometry.bounds(original[neighbor].vertices)
+	var contact: float = neighbor_bounds.position.x - moving_bounds.end.x
+	var almost_touching: Vector2 = Vector2(contact - 2.0, 0.0)
+	var attached: Vector2 = design.snap_translation(selected, almost_touching, 3.0)
+	t.assert_true(attached.is_equal_approx(Vector2(contact, 0.0)), "A nearby pair of sides magnetically meet without a gap")
+	var near_corner: Vector2 = Vector2(contact - 0.5, 0.5)
+	t.assert_true(design.snap_translation(selected, near_corner, 3.0).is_equal_approx(Vector2(contact, 0.0)), "Very close corners line up on both axes")
+	t.assert_eq(design.snap_translation(selected, almost_touching, 0.0), almost_touching, "Disabling the magnet allows the original in-bounds motion")
+	t.assert_eq(design.to_dict(), before, "Moving close to a snap target changes no saved geometry")
+	t.assert_true(design.transform_pieces(selected, Vector2.ZERO, 0.0, 1.0, attached), "Snap translation can commit without grid rounding")
+	t.assert_float_approx(Geometry.bounds(design.motif_parts()[moving].vertices).end.x, neighbor_bounds.position.x, 0.001, "Committed polygon edges still touch exactly")
+	t.assert_true(design.undo(), "Undo restores the exact geometry before snapping")
+	t.assert_eq(design.to_dict(), before, "Snapping is part of one movement command")
+	var tile_edge: float = -moving_bounds.position.x
+	var aligned: Vector2 = design.snap_translation(selected, Vector2(tile_edge + 2.0, 0.0), 3.0)
+	t.assert_true(aligned.is_equal_approx(Vector2(tile_edge, 0.0)), "A nearby outside edge snaps the whole piece to the tile border")
+
+	var free: int = design.add_piece("freeform", Vector2(65, 65), 5)
+	var original_free: PackedVector2Array = design.motif_parts()[free].vertices
+	var contact_point: Vector2 = Vector2(neighbor_bounds.position.x, neighbor_bounds.get_center().y + 2.5)
+	var corner: Vector2 = design.snap_vertex(free, contact_point + Vector2(1.6, 0.0), 3.0)
+	t.assert_true(corner.is_equal_approx(contact_point), "A freeform corner snaps to the nearby piece edge")
+	t.assert_true(design.set_vertex(free, 1, corner, false), "An attached freeform corner stays on the other edge after release")
+	var changed: PackedVector2Array = design.motif_parts()[free].vertices
+	t.assert_true(changed[1].is_equal_approx(contact_point), "A snapped vertex preserves its exact non-grid position")
+	for i: int in [0, 2, 3]:
+		t.assert_true(changed[i].is_equal_approx(original_free[i]), "The other freeform corners remain fixed during a snap")
+	t.assert_true(Geometry.is_valid(changed), "Vertex snapping preserves a valid convex quadrilateral")
+	var edge_point: Vector2 = Vector2(design.tile_size().x, 88)
+	t.assert_true(design.snap_vertex(free, edge_point - Vector2(2, 0), 3.0).is_equal_approx(edge_point), "A freeform corner can also attach to the outside border")
 
 
 static func _test_repetition(t: Node) -> void:

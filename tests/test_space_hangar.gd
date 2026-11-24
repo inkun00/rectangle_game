@@ -72,7 +72,7 @@ static func run(t: Node) -> void:
 	t.assert_eq(state.serialize(), before, "Browsing the hangar never mutates the economic model")
 	# A price-only receipt is sufficient for this UI fixture. Receipt integrity is
 	# exercised by the economy tests; the UI must only emit an approved intent.
-	state.art_sales.append({"price": 300000000})
+	state.art_sales.append({"price": 30000000})
 	hangar.refresh()
 	hangar._ask_purchase()
 	t.assert_true(hangar._confirmation.visible, "Affordable purchases require a second confirmation")
@@ -91,7 +91,7 @@ static func run(t: Node) -> void:
 	t.assert_eq(purchases.size(), 1, "An outdated confirmation cannot overspend")
 	# The fixture bypasses funding and receipt creation for these UI checks.
 	for item: Dictionary in Catalog.all_parts(): state.purchased_ship_parts.append(str(item.id))
-	state.art_sales.append({"price": 1300000000})
+	state.art_sales.append({"price": 130000000})
 	hangar.refresh()
 	t.assert_true(hangar._publish_button.visible, "A completed ship can be exhibited before launch")
 	hangar._publish_button.pressed.emit()
@@ -107,7 +107,7 @@ static func run(t: Node) -> void:
 	t.assert_true(hangar._purchase.text.contains("차액") and not hangar._purchase.disabled, "An equipped part offers a funded upgrade by price difference")
 	t.assert_eq(str(state.installed_ship_part("hull").id), "hull", "Trying an upgrade leaves the purchased part in the ledger")
 	hangar._ask_purchase()
-	t.assert_eq(hangar._pending_price, 4000000, "The confirmation quotes the exact cost difference")
+	t.assert_eq(hangar._pending_price, 400000, "The confirmation quotes the exact cost difference")
 	hangar._confirm_purchase()
 	t.assert_eq(purchases, ["core_advanced", "hull_advanced"], "The upgrade emits a single exact product ID")
 	state.purchased_ship_parts[0] = "hull_advanced"

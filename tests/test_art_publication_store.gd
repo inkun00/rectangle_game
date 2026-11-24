@@ -163,7 +163,9 @@ static func _test_historical_ship_gallery(t: Node) -> void:
 	var saved: Dictionary = SoldArtStore.save_png(bytes, "우주선", directory.path_join("art"))
 	var store: Store = Store.new()
 	store.path = directory.path_join("queue.json")
-	var ending: Dictionary = store.prepare(_metadata(), {"kind": "spaceship", "price": 1200000000, "fingerprint": "a".repeat(64)}, saved, bytes)
+	var ending_offer: Dictionary = {"kind": "spaceship", "price": 120000000, "fingerprint": "a".repeat(64)}
+	t.assert_false(store.prepare(_metadata(), ending_offer.merged({"price": 180000001}, true), saved, bytes).ok, "A price between the current and historical tiers cannot be queued")
+	var ending: Dictionary = store.prepare(_metadata(), ending_offer, saved, bytes)
 	t.assert_true(ending.ok, "A new ending ship is prepared for its specific gallery")
 	if not ending.ok:
 		_cleanup(directory)
@@ -174,10 +176,12 @@ static func _test_historical_ship_gallery(t: Node) -> void:
 	t.assert_false(store.prepare(_metadata(), offer, saved, bytes).ok, "A new ending ship never publishes twice")
 	var historical: Dictionary = ending.entry.duplicate(true)
 	historical.erase("gallery")
+	historical.price = 1200000000
 	historical.status = "published"
 	historical.post_url = BOARD
 	_write(store.path, JSON.stringify({"version": 1, "entries": [historical]}))
 	t.assert_true(store.load_file().ok, "A historical ending from the drawing board still loads")
+	t.assert_eq(int(store.ending_entry("space").get("price", 0)), int(historical.price), "An existing publication retains its historical price")
 	t.assert_true(store.find_ship_image(bytes).is_empty(), "The original drawing board does not masquerade as the new ship gallery")
 	t.assert_true(store.prepare(_metadata(), offer, saved, bytes).ok, "An earlier ending can explicitly exhibit once in the ship gallery")
 	t.assert_eq(store.ending_entry("space").post_url, BOARD, "Its original ending receipt remains unchanged")

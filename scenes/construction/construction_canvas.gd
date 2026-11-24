@@ -1355,7 +1355,7 @@ func _draw_part(part: Dictionary, pose: Transform2D, selected: bool, tint: Color
 		if int(material.get("brick_count", 0)) > 1:
 			_draw_wall_texture(vertices, pose, material_texture, paint)
 		else:
-			draw_polygon(points, PackedColorArray([paint]), Art.texture_uvs(material_texture), Art.texture_source(material_texture))
+			Art.draw_material_face(self, points, material_texture, paint)
 		Art.draw_material_pattern(self, material, points, paint)
 	if points.size() == 4 and tint.a > 0.85:
 		draw_line(points[0], points[1], Color(1.0, 1.0, 0.94, 0.42), maxf(1.4, 2.0 * scale_f), true)

@@ -16,6 +16,7 @@ const ArtSamples = preload("res://tests/art_sale_samples.gd")
 static func run(t: Node) -> void:
 	_test_legacy_migration(t)
 	_test_village_income(t)
+	_test_legacy_village_and_ship_prices(t)
 	_test_art_income(t)
 	_test_art_titles(t)
 	_test_titled_transactions(t)
@@ -29,6 +30,7 @@ static func _test_village_income(t: Node) -> void:
 	var state: State = State.new()
 	var first: String = "rhombus_chocolates"
 	var reward: int = State.village_reward_amount(first)
+	t.assert_eq(reward, 400000, "The first errand adds 400,000 won alongside its normal coin reward")
 	var initial: Dictionary = state.serialize()
 	var missing_path: String = "user://missing_village_save_%s/ledger.json" % Crypto.new().generate_random_bytes(8).hex_encode()
 	t.assert_false(Transactions.commit(state, "village_rewards", [first], missing_path).ok, "A failed won ledger save does not credit village funds")
@@ -40,11 +42,11 @@ static func _test_village_income(t: Node) -> void:
 	t.assert_eq(int(paid.price), reward, "A village reward is paid once even if the same ID is repeated")
 	var first_part: Dictionary = Ship.all_parts()[0]
 	var bought: Dictionary = Transactions.commit(state, "purchase_part", str(first_part.id), missing_path, false)
-	t.assert_true(bool(bought.ok), "The first village mission alone can pay for a ship part")
-	t.assert_eq(state.ship_available_funds(), reward - int(first_part.price), "The ship spends the same won balance that the village earned")
-	t.assert_eq(state.my_house_budget(), State.INITIAL_BALANCE + reward - int(first_part.price), "The house budget shares the post-purchase balance")
+	t.assert_false(bool(bought.ok), "The first village mission alone cannot buy the first ship part")
+	t.assert_eq(state.ship_available_funds(), reward, "Village savings can still supplement future parts")
+	t.assert_eq(state.my_house_budget(), State.INITIAL_BALANCE + reward, "The private-house budget also includes the reward")
 	var restored: State = State.new()
-	t.assert_true(restored.restore(_json_copy(state.serialize())), "Save restoration includes village income and the purchased part")
+	t.assert_true(restored.restore(_json_copy(state.serialize())), "The current village reward rate survives a JSON reload")
 	var replay: Dictionary = Transactions.commit(restored, "village_rewards", [first], missing_path, false)
 	t.assert_eq(int(replay.price), 0, "A reloaded ledger will not pay the mission again")
 	var tampered: Dictionary = _json_copy(state.serialize())
@@ -52,19 +54,51 @@ static func _test_village_income(t: Node) -> void:
 	tampered.balance = int(tampered.balance) + reward
 	t.assert_false(restored.restore(tampered), "Duplicate mission receipts cannot inflate the restored balance")
 	var all_ids: Array[String] = []
-	for quest: Dictionary in QuestCatalog.all_quests(): all_ids.append(str(quest.id))
+	for quest: Dictionary in QuestCatalog.all_quests():
+		all_ids.append(str(quest.id))
+		var quest_reward: int = State.village_reward_amount(str(quest.id))
+		t.assert_true(quest_reward >= 400000 and quest_reward <= 1000000, "New errands grant supplementary construction funds")
 	var all_rewards: Dictionary = Transactions.commit(restored, "village_rewards", all_ids, missing_path, false)
 	t.assert_true(bool(all_rewards.ok), "All mission receipts fit the reward ledger")
-	t.assert_ge(restored.village_income(), Ship.total_price(), "All village errands can fund the complete spaceship")
-	for slot: Dictionary in Ship.all_parts():
-		var upgrade: Dictionary = Ship.variants(str(slot.id))[1]
-		t.assert_true(restored.purchase_ship_part(str(upgrade.id)).ok, "Village earnings can fund every advanced component")
-	t.assert_true(restored.ship_complete(), "Twelve distinct slots unlock departure even when every base part was replaced")
-	t.assert_eq(restored.ship_performance(), Ship.PART_COUNT * 2, "All installed advanced models contribute their performance")
-	t.assert_eq(restored.ship_spent(), 1440000000, "The complete advanced ship costs exactly the combined model prices")
-	t.assert_true(restored.launch_ship().ok, "A complete advanced ship can launch")
-	t.assert_true(state.restore(_json_copy(restored.serialize())), "A launched advanced ship restores from its ledger")
-	t.assert_true(state.launched and state.ship_complete(), "Reload preserves the advanced build and its completed ending")
+	t.assert_eq(restored.village_income(), 9900000, "All sixteen errands together pay 9.9 million won")
+	t.assert_true(restored.ship_available_funds() * 10 < Ship.total_price(), "The complete village covers less than ten percent of a basic ship")
+	t.assert_true(restored.purchase_ship_part(str(first_part.id)).ok, "Finishing several errands can help pay for a smaller part")
+	t.assert_false(restored.ship_complete(), "Additional work is needed to complete the ship")
+
+static func _test_legacy_village_and_ship_prices(t: Node) -> void:
+	var first: String = "rhombus_chocolates"
+	var second: String = "square_puppy"
+	var hull_id: String = "hull_advanced"
+	var old_reward: int = 60000000
+	var old_price: int = Ship.legacy_part_price(hull_id)
+	var new_price: int = int(Ship.part(hull_id).price)
+	var legacy: Dictionary = State.new().serialize()
+	legacy["village_rewards"] = [first]
+	legacy["space_economy"] = {"version": 1, "purchased_parts": [hull_id], "art_sales": [], "launched": false}
+	legacy["balance"] = State.INITIAL_BALANCE + old_reward - old_price
+	var restored: State = State.new()
+	t.assert_true(restored.restore(_json_copy(legacy)), "ID-only errand receipts and parts paid at the old price migrate together")
+	t.assert_eq(restored.paid_village_reward_amount(first), old_reward, "A paid historical errand keeps its original amount")
+	t.assert_eq(restored.balance, int(legacy.balance) + old_price - new_price, "Migration credits exactly the difference for an owned part")
+	t.assert_eq(restored.my_house_document.budget_limit, restored.saved_balance(), "The credited difference is available for the private house too")
+	t.assert_eq(restored.purchased_ship_parts, [hull_id], "Migration keeps the paid model in its slot")
+
+	var past: Dictionary = restored.serialize()
+	var tampered: Dictionary = past.duplicate(true)
+	tampered["legacy_village_rewards"] = [second]
+	t.assert_false(restored.restore(tampered), "Unpaid errands cannot appear in the historical list")
+	tampered = past.duplicate(true)
+	tampered["legacy_village_rewards"] = [first, first]
+	t.assert_false(restored.restore(tampered), "Duplicate old receipts are rejected")
+	t.assert_eq(restored.serialize(), past, "Malformed receipts do not alter the live economy")
+	var paid: Dictionary = Transactions.commit(restored, "village_rewards", [first, second], "", false)
+	t.assert_eq(paid.get("price"), 600000, "Only the new errand pays when it is submitted with an old receipt")
+	t.assert_eq(restored.paid_village_reward_amount(second), 600000, "New errands use the current rate after loading an old save")
+	t.assert_eq(restored.village_income(), old_reward + 600000, "The ledger adds the historical and current payouts")
+	var round_trip: State = State.new()
+	t.assert_true(round_trip.restore(_json_copy(restored.serialize())), "Both rates and the repriced purchase survive reload")
+	t.assert_eq(round_trip.balance, restored.balance, "The price difference is credited just once")
+	t.assert_eq(round_trip.claim_village_rewards([first, second]).price, 0, "Both historical and current errands remain paid after reload")
 
 static func _test_legacy_migration(t: Node) -> void:
 	var original: State = State.new()
@@ -513,7 +547,7 @@ static func _test_complete_ship(t: Node) -> void:
 	t.assert_false(state.launch_ship().ok, "A fresh game cannot launch an unbuilt spaceship")
 	t.assert_false(state.launched, "Premature launch does not set the ending flag")
 	t.assert_true(_earn_construction(state, Ship.total_price()), "Repeated legal construction work can eventually pay for all twelve expensive parts")
-	t.assert_gt(state.records.size(), 12, "Finishing the spaceship requires substantial play rather than one contract per part")
+	t.assert_true(state.records.size() >= 10 and state.records.size() <= 16, "A construction-only route can fund the basic ship within a few commissions of unlocking the final choice")
 	var earned: int = state.earned_profit()
 	var stages: Dictionary = state.stage_unlock_status(9)
 	var spent: int = 0

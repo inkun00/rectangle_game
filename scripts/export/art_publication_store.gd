@@ -207,8 +207,6 @@ static func _valid_entry(entry: Dictionary) -> bool:
 	if not _hex(entry.id, 32) or not _hex(entry.fingerprint, 64) or not _hex(entry.png_sha256, 64): return false
 	if entry.get("kind") in ["wall", "ship_exhibit"] and entry.fingerprint != (str(entry.kind) + ":" + str(entry.png_sha256)).sha256_text(): return false
 	if not ArtSubmissionMetadata.validation_error(entry.author, entry.title, entry.description, typed_entry and entry.kind != "drawing").is_empty(): return false
-	if not entry.price is int and not entry.price is float: return false
-	var price: float = float(entry.price)
 	var min_price: int = 100
 	var max_price: int = ArtMarket.MAX_PRICE
 	match entry.get("kind", ""):
@@ -222,7 +220,11 @@ static func _valid_entry(entry: Dictionary) -> bool:
 		"spaceship":
 			min_price = SpaceshipCatalog.MIN_TOTAL_PRICE
 			max_price = SpaceshipCatalog.MAX_TOTAL_PRICE
-	if not is_finite(price) or floorf(price) != price or price < min_price or price > max_price: return false
+	# Existing outbox entries must retry with their original price and request identity.
+	var valid_price: bool = _integer_in_range(entry.price, min_price, max_price)
+	if entry.get("kind") == "spaceship":
+		valid_price = valid_price or _integer_in_range(entry.price, SpaceshipCatalog.LEGACY_MIN_TOTAL_PRICE, SpaceshipCatalog.LEGACY_MAX_TOTAL_PRICE)
+	if not valid_price: return false
 	var filename: String = str(entry.filename)
 	if filename.is_empty() or filename != filename.get_file() or not filename.ends_with(".png"): return false
 	if str(entry.png_path).length() > 2048 or str(entry.png_path).is_empty(): return false

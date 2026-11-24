@@ -14,14 +14,17 @@ const ShipStyle = preload("res://scripts/economy/spaceship_style.gd")
 const VillageQuests = preload("res://scripts/world/quest_catalog.gd")
 const WallDesign = preload("res://scripts/core/wall_tile_design.gd")
 const INITIAL_BALANCE: int = 30000000
-const VILLAGE_WON_PER_REWARD_COIN: int = 3000000
+const VILLAGE_WON_PER_REWARD_COIN: int = 20000
+const LEGACY_VILLAGE_WON_PER_REWARD_COIN: int = 3000000
+const LEGACY_SHIP_PRICE_VERSION: int = 1
+const SHIP_PRICE_VERSION: int = 2
 const MAX_CONTRACTS: int = 1000
 const GRADING_VERSION: int = 6
 const LEGACY_PAYMENT_VERSION: int = 1
 const PAYMENT_VERSION: int = 2
 const MAX_ART_COMMISSION_REVISION: int = 2147483647
 
-static var _village_reward_amounts: Dictionary = {}
+static var _village_reward_coins: Dictionary[String, int] = {}
 
 signal changed
 
@@ -42,6 +45,7 @@ var art_sales: Array[Dictionary] = []
 var art_commission_id: String = ""
 var art_commission_revision: int = 0
 var village_rewards: Array[String] = []
+var legacy_village_rewards: Array[String] = []
 var wall_design: WallDesign = WallDesign.new()
 var free_wall_designs: Dictionary[String, WallDesign] = {}
 var purchased_ship_parts: Array[String] = []
@@ -98,15 +102,21 @@ func claim_wall_commission() -> Dictionary:
 	changed.emit()
 	return {"ok": true, "price": payment}
 
-static func village_reward_amount(quest_id: String) -> int:
-	if _village_reward_amounts.is_empty():
+static func village_reward_amount(quest_id: String, legacy: bool = false) -> int:
+	if _village_reward_coins.is_empty():
 		for quest: Dictionary in VillageQuests.all_quests():
-			_village_reward_amounts[str(quest.id)] = int(quest.reward) * VILLAGE_WON_PER_REWARD_COIN
-	return int(_village_reward_amounts.get(quest_id, 0))
+			_village_reward_coins[str(quest.id)] = int(quest.reward)
+	var rate: int = LEGACY_VILLAGE_WON_PER_REWARD_COIN if legacy else VILLAGE_WON_PER_REWARD_COIN
+	return _village_reward_coins.get(quest_id, 0) * rate
+
+func paid_village_reward_amount(quest_id: String) -> int:
+	if not village_rewards.has(quest_id): return 0
+	return village_reward_amount(quest_id, legacy_village_rewards.has(quest_id))
 
 func village_income() -> int:
 	var income: int = 0
-	for id: String in village_rewards: income += village_reward_amount(id)
+	for id: String in village_rewards:
+		income += village_reward_amount(id, legacy_village_rewards.has(id))
 	return income
 
 ## Only completed QuestJournal IDs may be supplied by the application.
@@ -260,6 +270,7 @@ func apply_economy_from(candidate: ConstructionState) -> void:
 	art_commission_id = candidate.art_commission_id
 	art_commission_revision = candidate.art_commission_revision
 	village_rewards.assign(candidate.village_rewards)
+	legacy_village_rewards.assign(candidate.legacy_village_rewards)
 	wall_design.completed.assign(candidate.wall_design.completed)
 	purchased_ship_parts.assign(candidate.purchased_ship_parts)
 	ship_design = candidate.ship_design.duplicate(true)
@@ -491,7 +502,9 @@ func next_contract() -> bool:
 
 func serialize() -> Dictionary:
 	var result: Dictionary = {"version": 1, "progression_version": 1, "balance": balance, "contract_index": contract_index, "contract_choice": contract_choice, "contract_grading_version": contract_grading_version, "phase": phase, "records": records.duplicate(true), "document": document.serialize()}
-	if not village_rewards.is_empty(): result["village_rewards"] = village_rewards.duplicate()
+	if not village_rewards.is_empty():
+		result["village_rewards"] = village_rewards.duplicate()
+		result["legacy_village_rewards"] = legacy_village_rewards.duplicate()
 	result["wall_design"] = wall_design.to_dict()
 	if not free_wall_designs.is_empty():
 		var drafts: Dictionary = {}
@@ -502,7 +515,7 @@ func serialize() -> Dictionary:
 		result["art_commission"] = {"id": art_commission_id, "revision": art_commission_revision}
 	var customized_ship: bool = ship_appearance != ShipStyle.defaults()
 	if not art_sales.is_empty() or not purchased_ship_parts.is_empty() or launched or customized_ship:
-		result["space_economy"] = {"version": 1, "art_sales": art_sales.duplicate(true), "purchased_parts": purchased_ship_parts.duplicate(), "launched": launched}
+		result["space_economy"] = {"version": SHIP_PRICE_VERSION, "art_sales": art_sales.duplicate(true), "purchased_parts": purchased_ship_parts.duplicate(), "launched": launched}
 		if not ship_design.is_empty(): result.space_economy["design"] = ship_design.duplicate(true)
 		if customized_ship: result.space_economy["appearance"] = ship_appearance.duplicate(true)
 	if not custom_material_ids.is_empty(): result["custom_materials"] = custom_material_ids.duplicate()
@@ -564,20 +577,29 @@ func restore(data: Dictionary) -> bool:
 		if not data.village_rewards is Array or data.village_rewards.size() > VillageQuests.all_quests().size(): return false
 		for id: Variant in data.village_rewards:
 			if not id is String or checked_rewards.has(id): return false
-			var reward: int = village_reward_amount(id)
-			if reward <= 0: return false
+			if village_reward_amount(id) <= 0: return false
 			checked_rewards.append(id)
-			expected_balance += reward
+	# Old saves only recorded the IDs, and every payment used the old rate.
+	var raw_legacy_rewards: Variant = data.get("legacy_village_rewards", checked_rewards)
+	if not raw_legacy_rewards is Array or raw_legacy_rewards.size() > checked_rewards.size(): return false
+	var checked_legacy_rewards: Array[String] = []
+	for id: Variant in raw_legacy_rewards:
+		if not id is String or not checked_rewards.has(id) or checked_legacy_rewards.has(id): return false
+		checked_legacy_rewards.append(id)
+	for id: String in checked_rewards:
+		expected_balance += village_reward_amount(id, checked_legacy_rewards.has(id))
 	var checked_sales: Array[Dictionary] = []
 	var completed_art_commissions: int = 0
 	var checked_parts: Array[String] = []
 	var checked_ship_design: Dictionary = {}
 	var checked_ship_appearance: Dictionary = ShipStyle.defaults()
 	var checked_launched: bool = false
+	var ship_rebate: int = 0
 	if data.has("space_economy"):
 		if not data.space_economy is Dictionary: return false
 		var economy: Dictionary = data.space_economy
-		if not Document._integer(economy.get("version"), 1, 1): return false
+		if not Document._integer(economy.get("version"), LEGACY_SHIP_PRICE_VERSION, SHIP_PRICE_VERSION): return false
+		var legacy_ship_prices: bool = int(economy.version) == LEGACY_SHIP_PRICE_VERSION
 		if not economy.get("art_sales") is Array or economy.art_sales.size() > Market.MAX_SALES: return false
 		if not economy.get("purchased_parts") is Array or economy.purchased_parts.size() > Ship.all_parts().size(): return false
 		if not economy.get("launched") is bool: return false
@@ -600,7 +622,10 @@ func restore(data: Dictionary) -> bool:
 			if purchased.is_empty() or checked_slots.has(purchased.slot_id): return false
 			checked_slots[purchased.slot_id] = true
 			checked_parts.append(raw_part)
-			expected_balance -= int(purchased.price)
+			var price: int = int(purchased.price)
+			var paid_price: int = Ship.legacy_part_price(raw_part) if legacy_ship_prices else price
+			expected_balance -= paid_price
+			ship_rebate += paid_price - price
 		if economy.has("design"):
 			if not Ship.validate_design(economy.design, checked_parts): return false
 			checked_ship_design = economy.design.duplicate(true)
@@ -669,6 +694,7 @@ func restore(data: Dictionary) -> bool:
 	art_commission_id = checked_art_commission
 	art_commission_revision = checked_art_revision
 	village_rewards = checked_rewards
+	legacy_village_rewards = checked_legacy_rewards
 	wall_design.restore(checked_wall.to_dict())
 	for id: String in free_wall_designs.keys():
 		if not checked_drafts.has(id): free_wall_designs.erase(id)
@@ -681,7 +707,9 @@ func restore(data: Dictionary) -> bool:
 	ship_design = checked_ship_design
 	ship_appearance = checked_ship_appearance
 	launched = checked_launched
-	balance = expected_balance
+	# Verify the old ledger balance first, then credit the difference once.
+	balance = expected_balance + ship_rebate
+	my_house_document.budget_limit = expected_saved_balance + ship_rebate
 	contract_index = index
 	contract_choice = checked_choice
 	contract_grading_version = int(checked_grading)

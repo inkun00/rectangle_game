@@ -8,7 +8,7 @@ const Assembly: GDScript = preload("res://scripts/economy/spaceship_assembly.gd"
 static func run(t: Node) -> void:
 	var parts: Array[Dictionary] = Catalog.all_parts()
 	t.assert_eq(parts.size(), 12, "The homecoming ship has twelve individually purchasable components")
-	t.assert_eq(Catalog.total_price(), 1200000000, "The ship requires 1.2 billion won of earned progress")
+	t.assert_eq(Catalog.total_price(), 120000000, "The basic ship costs 120 million won")
 	var ids: Dictionary = {}
 	var families: Dictionary = {}
 	var previous_price: int = 0
@@ -27,13 +27,16 @@ static func run(t: Node) -> void:
 		t.assert_true(Math.matches_kind(transformed, str(item.kind)), "Launch rotation and scaling preserve every ship family")
 		t.assert_gt(int(item.price), previous_price, "Part prices form an expensive increasing progression")
 		previous_price = int(item.price)
-		t.assert_ge(int(item.price), 20000000, "Even the first component requires substantial earned funds")
+		t.assert_ge(int(item.price), 2000000, "Even the first component requires earned funds")
 		t.assert_eq(Catalog.part(str(item.id)).price, item.price, "Catalog lookup agrees with the displayed price")
 	t.assert_eq(families.size(), 5, "The complete ship contains all five selectable quadrilateral families")
 	t.assert_true(Catalog.part("missing").is_empty(), "Unknown component identifiers cannot be purchased")
+	t.assert_eq(Catalog.legacy_part_price("missing"), 0, "An unknown component cannot contribute historical spending")
 	parts[0].vertices[0] = Vector2(99999, 99999)
 	t.assert_true(Math.is_valid(Catalog.part("hull").vertices), "Catalog consumers cannot corrupt future ship geometry")
-	var elite_total: int = 0
+	var tier_totals: Array[int] = [0, 0, 0]
+	var legacy_bases: Array[int] = [20000000, 30000000, 40000000, 50000000, 60000000, 70000000, 90000000, 110000000, 130000000, 160000000, 200000000, 240000000]
+	var legacy_rate: Array[float] = [1.0, 1.2, 1.5]
 	var elite_ids: Array[String] = []
 	var variant_ids: Dictionary = {}
 	for index: int in range(parts.size()):
@@ -49,6 +52,10 @@ static func run(t: Node) -> void:
 			t.assert_eq(model.slot_id, id, "Variants share one required slot")
 			t.assert_eq(model.slot_index, index, "Models in one slot share the same atlas cell index")
 			t.assert_eq(model.tier, tier, "Each model has its own sprite sheet and price tier")
+			var old_price: int = roundi(legacy_bases[index] * legacy_rate[tier])
+			t.assert_eq(Catalog.legacy_part_price(str(model.id)), old_price, "The exact old price is available to reconcile historical purchases")
+			t.assert_eq(int(model.price) * 10, old_price, "The new price preserves slot and tier proportions")
+			tier_totals[tier] += int(model.price)
 			t.assert_true(Math.is_valid(vertices) and Math.matches_kind(vertices, str(model.kind)), "Every variant has its advertised quadrilateral shape")
 			var transformed: PackedVector2Array = Math.scale_vertices(Math.rotate_vertices(vertices, 31.0), 0.65)
 			t.assert_true(Math.matches_kind(transformed, str(model.kind)), "Rotating and scaling a model preserves its family")
@@ -60,10 +67,9 @@ static func run(t: Node) -> void:
 				t.assert_gt(int(model.price), int(previous.price), "A larger model costs more than the prior tier")
 				t.assert_gt(int(model.performance), int(previous.performance), "A higher tier gives a stronger ship")
 				t.assert_true(model.name != previous.name and model.vertices != previous.vertices, "A higher tier changes both the label and the outline")
-		elite_total += int(models.back().price)
 		elite_ids.append(str(models.back().id))
 	t.assert_eq(variant_ids.size(), 36, "The catalog offers thirty-six unique products")
-	t.assert_eq(elite_total, Catalog.MAX_TOTAL_PRICE, "The top-tier price bound matches a real complete ship")
+	t.assert_eq(tier_totals, [Catalog.MIN_TOTAL_PRICE, 144000000, Catalog.MAX_TOTAL_PRICE], "Complete builds cost 120, 144, or 180 million won at consistent tiers")
 	var installed: Array[Dictionary] = Catalog.installed_parts(elite_ids)
 	t.assert_eq(installed.size(), 12, "The renderer resolves all twelve equipped models")
 	t.assert_eq(installed.front().id, "left_wing_elite", "The wings render underneath the installed body")

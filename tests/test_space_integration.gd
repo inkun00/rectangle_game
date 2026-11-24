@@ -4,15 +4,24 @@ extends RefCounted
 const AppScene: PackedScene = preload("res://scenes/main/main.tscn")
 const ArtSamples = preload("res://tests/art_sale_samples.gd")
 
-static func settle_commissions(ledger: ConstructionState, count: int) -> bool:
+static func settle_commissions(ledger: ConstructionState, count: int, choice: int = 0) -> bool:
 	for index: int in range(count):
-		if ledger.phase != "building" and not (ledger.select_contract(0) and ledger.accept_contract()): return false
+		if ledger.phase != "building" and not (ledger.select_contract(choice) and ledger.accept_contract()): return false
 		if not ledger.document.replace_parts(ConstructionGuide.example_for_contract(ledger.current_contract())): return false
 		var ids: Array[int] = []
 		for part: Dictionary in ledger.document.parts: ids.append(int(part.id))
 		var inspection: Dictionary = {"stable": true, "stable_ids": ids, "unsupported_ids": [], "revision": ledger.document.revision}
 		if ledger.settle(inspection).is_empty(): return false
 	return true
+
+static func _settle_ship_funding(ledger: ConstructionState, target: int) -> bool:
+	for attempt: int in range(16):
+		if ledger.ship_available_funds() >= target: return true
+		var choice: int = 0
+		for index: int in range(1, ConstructionCatalog.contract_count()):
+			if bool(ledger.stage_unlock_status(index + 1).unlocked): choice = index
+		if not settle_commissions(ledger, 1, choice): return false
+	return ledger.ship_available_funds() >= target
 
 static func _choose(app: QuadrilateralApp, button_name: String) -> void:
 	app._home_screen._ending_choice.pressed.emit()
@@ -58,8 +67,11 @@ static func _test_story_branches(t: Node) -> void:
 	t.assert_eq(activity_count, 5, "A new player can draw, build, explore, design a wall or visit an exhibition")
 	var quests: Array[String] = []
 	for quest: Dictionary in QuestCatalog.all_quests(): quests.append(str(quest.id))
+	var next_stage: Dictionary = ledger.stage_unlock_status(2)
 	ledger.claim_village_rewards(quests)
 	t.assert_false(app._home_screen._ending_card.is_visible_in_tree(), "Village earnings leave the whole final choice card hidden")
+	t.assert_eq(ledger.stage_unlock_status(2), next_stage, "Village earnings leave construction stages tied to construction results")
+	t.assert_true(ledger.ship_available_funds() < SpaceshipCatalog.MIN_TOTAL_PRICE, "All errands together cannot fund a basic ship")
 	t.assert_true(ledger.accept_contract(), "Accepting the first commission opens a building draft")
 	t.assert_true(app._home_screen._ending_progress.text.contains("0/10"), "An unfinished commission does not count")
 	t.assert_true(settle_commissions(ledger, 9), "The fixture settles nine construction commissions")
@@ -189,9 +201,12 @@ static func _test_story_branches(t: Node) -> void:
 	style.tail = "boosters"
 	app._space_screen.appearance_requested.emit(style)
 	t.assert_eq(ledger.ship_appearance, style, "The workshop applies exterior choices to the shared ledger")
-	for part: Dictionary in SpaceshipCatalog.all_parts():
-		t.assert_true(ledger.purchase_ship_part(str(part.id)).ok, "Village earnings can buy the %s part" % str(part.id))
 	var premium_hull: String = str(SpaceshipCatalog.variants("hull")[2].id)
+	var upgrade_cost: int = int(SpaceshipCatalog.part(premium_hull).price) - int(SpaceshipCatalog.part("hull").price)
+	var funding_target: int = SpaceshipCatalog.MIN_TOTAL_PRICE + upgrade_cost
+	t.assert_true(_settle_ship_funding(ledger, funding_target), "Construction commissions can earn the remainder of the ship and upgrade budget")
+	for part: Dictionary in SpaceshipCatalog.all_parts():
+		t.assert_true(ledger.purchase_ship_part(str(part.id)).ok, "Shared earnings can buy the %s part" % str(part.id))
 	app._space_screen._select_part("hull")
 	app._space_screen._select_tier(2)
 	app._space_screen._purchase.pressed.emit()
