@@ -79,7 +79,18 @@ static func run(t: Node) -> void:
 	await _press(t, studio, "WallHome")
 	t.assert_true(app._home_screen.visible and not studio.visible, "The wall artist can return to the home menu")
 	await _press(t, app._home_screen, "OpenWall")
-	t.assert_eq(app.wall_design.to_dict(), completed, "Reopening the wall workbench preserves the submitted design and its receipt")
+	t.assert_true(studio._preview.view_kind == "blank", "Reentering the wall workbench starts at the location list")
+	await _press(t, studio, "WallAccept")
+	await _press(t, studio, "WallResume")
+	t.assert_eq(app.wall_design.to_dict(), completed, "The explicit finished-wall viewer preserves its design and receipt")
+	await _press(t, studio, "WallEditTile")
+	t.assert_eq(app.wall_design.to_dict(), completed, "Deliberately editing the visible finished wall keeps its pieces")
+	await _press(t, studio, "WallOrders")
+	await _press(t, studio, "WallAccept")
+	await _press(t, studio, "WallStartTile")
+	t.assert_true(app.wall_design.motif_parts().is_empty() and not app.wall_design.can_undo(), "Starting a new commission tile clears the previous geometry and its history")
+	t.assert_eq(app.wall_design.completed, completed.completed, "Starting a new tile preserves the previous commission receipt")
+	t.assert_eq(app._economy_state.balance, initial_balance + reward, "Starting a new tile keeps the paid reward in the wallet")
 	app.free()
 	await t.get_tree().process_frame
 	await _test_free_workspace(t, directory)
@@ -146,6 +157,12 @@ static func _test_free_workspace(t: Node, directory: String) -> void:
 	t.assert_true(uploader.calls == 1 and uploader.entries[0].kind == "wall" and uploader.images[0] == bytes, "Free registration sends exactly one wall image")
 	t.assert_eq(_paid_state(app._economy_state), paid, "Registering a free wall cannot pay out a commission")
 	var saved: Dictionary = free_design.to_dict()
+	var path: String = directory.path_join("free-wall.json")
+	var recovered: ConstructionState = ConstructionState.new()
+	t.assert_true(Saves.save(path, app._economy_state).ok and Saves.load_into(path, recovered).ok, "An existing free workspace remains readable from a saved ledger")
+	t.assert_true(recovered.free_wall_designs.has("garden") and recovered.free_wall_designs.garden.to_dict() == saved, "The loaded ledger contains the exact old free tile for this location")
+	t.assert_eq(_paid_state(recovered), paid, "Loading previous free work preserves the independent paid ledger")
+	t.assert_true(app._economy_state.restore(recovered.serialize()), "The live game can load a ledger made before starting a new tile")
 	await _press(t, studio, "WallOrders")
 	await _press(t, studio, "WallCommission_station")
 	await _press(t, studio, "WallFreeDesign")
@@ -153,17 +170,12 @@ static func _test_free_workspace(t: Node, directory: String) -> void:
 	await _press(t, studio, "WallOrders")
 	await _press(t, studio, "WallCommission_garden")
 	await _press(t, studio, "WallFreeDesign")
-	t.assert_eq(studio._preview.design.to_dict(), saved, "Returning to the garden recovers the artist's free tile")
+	t.assert_true(studio._preview.design.motif_parts().is_empty() and not studio._preview.design.can_undo(), "Starting in the same garden after loading its old draft opens a blank tile")
 	await _press(t, studio, "WallOrders")
 	await _press(t, studio, "WallCommission_harbor")
 	await _press(t, studio, "WallAccept")
 	await _press(t, studio, "WallStartTile")
-	t.assert_true(studio._preview.design == app.wall_design and _paid_state(app._economy_state) == paid, "The paid studio reopens its original tile and money")
-	var path: String = directory.path_join("free-wall.json")
-	var recovered: ConstructionState = ConstructionState.new()
-	t.assert_true(Saves.save(path, app._economy_state).ok and Saves.load_into(path, recovered).ok, "The free workspace survives a real ledger save and reload")
-	t.assert_true(recovered.free_wall_designs.has("garden") and recovered.free_wall_designs.garden.to_dict() == saved, "A fresh ledger recovers the exact free tile under the chosen location")
-	t.assert_eq(_paid_state(recovered), paid, "Reloading free work preserves the independent paid ledger")
+	t.assert_true(studio._preview.design == app.wall_design and _paid_state(app._economy_state) == paid, "Switching from a free workspace keeps the independent paid ledger")
 	app.free()
 	await t.get_tree().process_frame
 
@@ -183,6 +195,8 @@ static func _test_tile_context(t: Node, directory: String) -> void:
 		return
 	var canvas: Preview = studio._preview
 	var design: Design = canvas.design
+	var reset: Button = studio.find_child("WallReset", true, false) as Button
+	t.assert_true(reset != null and reset.disabled, "A blank canvas has a visible reset button that is disabled")
 	await _press(t, studio, "WallShape_square")
 	canvas.place_at(Vector2(45, 35))
 	await _press(t, studio, "WallShape_rhombus")
@@ -280,6 +294,16 @@ static func _test_tile_context(t: Node, directory: String) -> void:
 			t.assert_eq(design.to_dict(), grouped, "One undo restores group membership from the menu")
 			await _press(t, studio, "WallRedo")
 			t.assert_eq(design.to_dict(), original, "One redo dissolves the group again")
+	if design.group_pieces([0, 1]): studio.refresh()
+	var before_reset: Dictionary = design.to_dict()
+	if await _press(t, studio, "WallReset"):
+		t.assert_true(reset.disabled and design.motif_parts().is_empty() and canvas.selected_indices.is_empty(), "Reset removes every placed piece, including a group, and clears selection")
+		var finish: Button = studio.find_child("WallFinishTile", true, false) as Button
+		t.assert_true(finish != null and finish.disabled, "The cleared tile cannot be applied to the wall yet")
+		await _press(t, studio, "WallUndo")
+		t.assert_eq(design.to_dict(), before_reset, "One undo restores the exact tile arrangement and grouping")
+		await _press(t, studio, "WallRedo")
+		t.assert_true(design.motif_parts().is_empty(), "One redo clears all the pieces again")
 	app.free()
 	await t.get_tree().process_frame
 
@@ -329,36 +353,70 @@ static func _choose_wall_item(t: Node, menu: PopupMenu, label: String) -> bool:
 	return available
 
 static func _test_fitted_wall_grid(t: Node) -> void:
-	var design: Design = Design.new()
-	design.set_commission("bakery")
+	var preview: Preview = Preview.new()
+	preview.view_kind = "filled"
+	for location: String in Design.COMMISSIONS:
+		var design: Design = Design.new()
+		design.set_commission(location)
+		_place_edge_pieces(t, preview, design)
+		for viewport_size: Vector2 in [Vector2(960, 600), Vector2(680, 500), Vector2(320, 500)]:
+			_check_wall_layout(t, preview, viewport_size)
+	var legacy: Design = Design.new()
+	var snapshot: Dictionary = legacy.to_dict()
+	snapshot.tile_size = [100, 300]
+	snapshot.columns = 2
+	snapshot.rows = 6
+	snapshot.layout = "mirror"
+	t.assert_true(legacy.restore(snapshot), "An older exceptionally tall tile remains a valid design")
+	_place_edge_pieces(t, preview, legacy)
+	_check_wall_layout(t, preview, Vector2(960, 600))
+	preview.free()
+
+static func _place_edge_pieces(t: Node, preview: Preview, design: Design) -> void:
 	design.add_piece("rectangle", Vector2.ZERO, 1)
 	design.add_piece("square", design.tile_size(), 3)
-	t.assert_true(design.finish_tile(), "A finished five-by-two wall can include pieces at the full tile edges")
-	var preview: Preview = Preview.new()
+	t.assert_true(design.finish_tile(), "The fixture has artwork touching both corners of its tile")
 	preview.design = design
-	preview.view_kind = "filled"
-	preview.set_location("bakery")
-	var backdrop_size: Vector2 = preview.backdrop.get_size() if preview.backdrop != null else Vector2(16, 10)
-	var backdrop_rect: Rect2 = preview._fit(backdrop_size, Rect2(0, 0, 960, 570))
-	var normalized: Rect2 = Art.wall_rect("bakery")
-	var panel: Rect2 = Rect2(backdrop_rect.position + normalized.position * backdrop_rect.size, normalized.size * backdrop_rect.size)
-	var grid: Rect2 = preview._wall_grid_rect(panel)
-	var expected_scale: float = minf(panel.size.x / design.wall_size().x, panel.size.y / design.wall_size().y)
-	t.assert_true(panel.grow(0.001).encloses(grid), "The real bakery panel contains every row and column of the tile grid")
-	t.assert_true(grid.get_center().is_equal_approx(panel.get_center()), "The finished grid is centered on an aspect-mismatched panel")
-	t.assert_true(grid.size.is_equal_approx(design.wall_size() * expected_scale), "The uniform fit uses the available space without stretching the quadrilaterals")
+	preview.set_location(design.commission_id)
+
+static func _check_wall_layout(t: Node, preview: Preview, size: Vector2) -> void:
+	var design: Design = preview.design
+	var picture: Rect2 = preview._fit(preview.backdrop.get_size(), Rect2(Vector2.ZERO, size))
+	var normalized: Rect2 = Art.wall_rect(design.commission_id)
+	var panel: Rect2 = Rect2(picture.position + normalized.position * picture.size, normalized.size * picture.size)
+	var grid: Rect2 = preview._wall_grid_rect(panel, picture)
+	var scale_factor: float = grid.size.x / design.wall_size().x
+	var label: String = "%s at %s" % [design.commission_id, size]
+	t.assert_true(picture.encloses(grid), "The adjusted panel fits entirely within the illustration for " + label)
+	t.assert_true(grid.get_center().is_equal_approx(panel.get_center()), "The adjusted wall remains centered on the original panel for " + label)
+	t.assert_true(grid.size.is_equal_approx(design.wall_size() * scale_factor), "Wall tiles use one uniform scale in both directions for " + label)
+	var regions: Array[Dictionary] = preview._wall_regions(picture, grid)
+	t.assert_eq(regions.size(), 9, "The illustration has an adjusted center and eight surrounding regions for " + label)
+	if regions.size() != 9: return
+	var painted_panel: Rect2 = regions[4].destination
+	t.assert_true(painted_panel.is_equal_approx(grid), "The painted panel and the tile grid share all four edges for " + label)
+	var rendered_area: float = 0.0
+	for i: int in range(regions.size()):
+		var region: Rect2 = regions[i].destination
+		rendered_area += region.get_area()
+		t.assert_true(picture.grow(0.001).encloses(region), "A backdrop region stays within the picture for " + label)
+		if i % 3 < 2:
+			t.assert_float_approx(region.end.x, regions[i + 1].destination.position.x, 0.001, "Columns abut without an unused strip for " + label)
+		if i < 6:
+			t.assert_float_approx(region.end.y, regions[i + 3].destination.position.y, 0.001, "Rows abut without an unused strip for " + label)
+	t.assert_float_approx(rendered_area, picture.get_area(), 0.25, "The backdrop fully covers the resized illustration for " + label)
 	var cells: Dictionary[Vector2i, bool] = {}
 	var rendered_points: PackedVector2Array = PackedVector2Array()
 	for part: Dictionary in design.wall_parts():
 		cells[Vector2i(part.column, part.row)] = true
 		for corner: Vector2 in part.vertices:
-			rendered_points.append(grid.position + corner * expected_scale)
-	t.assert_eq(cells.size(), 10, "All five columns and two rows land inside the same fitted grid")
-	t.assert_true(cells.has(Vector2i.ZERO) and cells.has(Vector2i(4, 1)), "The two outside corner tiles are both included")
-	t.assert_true(QuadrilateralMath.bounds(rendered_points).is_equal_approx(grid), "Pieces touching the first and last tile boundaries remain fully visible")
+			rendered_points.append(grid.position + corner * scale_factor)
+	t.assert_eq(cells.size(), design.columns * design.rows, "Every whole row and column is included for " + label)
+	t.assert_true(cells.has(Vector2i.ZERO) and cells.has(Vector2i(design.columns - 1, design.rows - 1)), "The two outside corner tiles are both included for " + label)
+	t.assert_true(QuadrilateralMath.bounds(rendered_points).is_equal_approx(grid), "Pieces touching the first and last tile boundaries remain fully visible for " + label)
 	preview.export_only = true
-	t.assert_eq(preview._wall_grid_rect(panel), grid, "Export and preview fit the wall to the same rectangle")
-	preview.free()
+	t.assert_eq(preview._wall_regions(picture, preview._wall_grid_rect(panel, picture)), regions, "PNG and preview fit the wall to the same illustration for " + label)
+	preview.export_only = false
 
 static func _test_gallery(t: Node, app: QuadrilateralApp, studio: Studio, directory: String) -> void:
 	var ledger: Dictionary = app._economy_state.serialize()

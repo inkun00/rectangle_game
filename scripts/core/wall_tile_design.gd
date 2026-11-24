@@ -11,6 +11,7 @@ const PALETTE: Array[Color] = [
 const PALETTE_NAMES: Array[String] = ["모래색", "청록색", "산호색", "금색", "남색", "옥색", "자주색", "흰색"]
 const GRID_STEP: float = 5.0
 const MAX_PIECES: int = 64
+const DEFAULT_TILE_SIZE: Vector2 = Vector2(150, 100)
 const COMMISSIONS: Dictionary = {
 	"harbor": {"title": "항구 등대의 물결 벽", "brief": "등대로 돌아오는 배들이 멀리서도 알아볼 수 있게 물결을 닮은 타일을 부탁해요. 사각형 2개 이상, 색 2가지 이상으로 꾸민 타일을 가로 4장, 세로 2장 이상 놓아요.", "reward": 3000000, "min_pieces": 2, "min_colors": 2, "columns": 4, "rows": 2},
 	"garden": {"title": "온실의 창문 벽", "brief": "햇빛이 비치는 정원에 놓을 벽이에요. 조각을 이어 나만의 작은 창문을 만들어 주세요. 사각형 3개 이상, 색 2가지 이상으로 꾸민 타일을 가로 3장, 세로 3장 이상 놓아요.", "reward": 7000000, "min_pieces": 3, "min_colors": 2, "columns": 3, "rows": 3},
@@ -31,7 +32,7 @@ var rows: int = 2
 var completed: Array[String] = []
 var finished: bool = false
 
-var _size: Vector2 = Vector2(150, 100)
+var _size: Vector2 = DEFAULT_TILE_SIZE
 var _parts: Array[Dictionary] = []
 var _history: History = History.new()
 
@@ -45,6 +46,25 @@ func set_commission(id: String) -> bool:
 		rows = int(COMMISSIONS[id].rows)
 		finished = false
 	return true
+
+
+func start_tile(id: String) -> bool:
+	if not COMMISSIONS.has(id):
+		return false
+	var commission: Dictionary = COMMISSIONS[id]
+	commission_id = id
+	columns = int(commission.columns)
+	rows = int(commission.rows)
+	layout = "straight"
+	_size = DEFAULT_TILE_SIZE
+	_parts.clear()
+	_history.clear()
+	finished = false
+	return true
+
+
+func clear_pieces() -> bool:
+	return _record([])
 
 
 func _apply_parts(state: Dictionary) -> void:
@@ -760,7 +780,7 @@ func restore(data: Dictionary) -> bool:
 		if not _point_pair(raw_size) or not _integer_in(raw_size[0], 100, 300) or not _integer_in(raw_size[1], 100, 300):
 			return false
 		extent = Vector2(raw_size[0], raw_size[1])
-		if extent != Vector2(150, 100) and (int(extent.x) % 100 != 0 or int(extent.y) % 100 != 0):
+		if extent != DEFAULT_TILE_SIZE and (int(extent.x) % 100 != 0 or int(extent.y) % 100 != 0):
 			return false
 		if not data.get("parts") is Array or data.parts.size() > MAX_PIECES:
 			return false

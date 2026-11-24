@@ -545,7 +545,7 @@ func _open_wall() -> void:
 		_ui.add_child(wall_studio)
 	wall_studio.set_balance(_economy_state.saved_balance())
 	wall_studio.show()
-	wall_studio.refresh()
+	wall_studio.open_orders()
 	_responsive()
 	_restore_publication_status(&"wall")
 
@@ -1302,7 +1302,7 @@ func _request_return_to_main() -> void:
 		_exit_activity_dialog = ConfirmationDialog.new()
 		_exit_activity_dialog.name = "ExitActivityDialog"
 		_exit_activity_dialog.title = "활동 종료"
-		_exit_activity_dialog.dialog_text = "현재 활동을 끝내고 메인 메뉴로 돌아갈까요?"
+		_exit_activity_dialog.dialog_text = "현재 활동을 끝내고\n메인 메뉴로 돌아갈까요?"
 		_exit_activity_dialog.ok_button_text = "메인 메뉴로"
 		_exit_activity_dialog.cancel_button_text = "계속하기"
 		_exit_activity_dialog.transient = true
@@ -1320,7 +1320,7 @@ func _request_return_to_main() -> void:
 		_ui.add_child(_exit_activity_dialog)
 	_exit_focus_before = get_viewport().gui_get_focus_owner()
 	_clear_touch_inputs()
-	_exit_activity_dialog.popup_centered_clamped(Vector2i(455, 170), 0.9)
+	_exit_activity_dialog.popup_centered_clamped(_scale_exit_dialog(), 0.9)
 	_exit_activity_dialog.get_cancel_button().grab_focus()
 	_restore_feature_controls()
 	if _tutorial != null: _tutorial.refresh.call_deferred()
@@ -1335,6 +1335,13 @@ func _cancel_return_to_main() -> void:
 	_exit_focus_before = null
 	_restore_feature_controls()
 	if _tutorial != null: _tutorial.refresh.call_deferred()
+
+func _scale_exit_dialog() -> Vector2i:
+	# Embedded windows inherit the game viewport's stretch, outside the HUD layer.
+	var scale: float = maxf(1.0, _ui_scale) if get_viewport().gui_embed_subwindows else 1.0
+	_exit_activity_dialog.content_scale_factor = scale
+	_exit_activity_dialog.add_theme_font_size_override("title_font_size", roundi(16.0 * scale))
+	return Vector2i((Vector2(455, 170) * scale).round())
 
 func _show_opening() -> void:
 	if is_instance_valid(_startup_learning): return
@@ -2356,6 +2363,10 @@ func _responsive() -> void:
 	_layout_hud(_ui.size)
 	_layout_modal()
 	_layout_toast()
+	if _exit_dialog_visible() and window.gui_embed_subwindows:
+		var viewport_rect: Rect2 = get_viewport().get_visible_rect()
+		_exit_activity_dialog.size = _scale_exit_dialog().min(Vector2i(viewport_rect.size * 0.9))
+		_exit_activity_dialog.position = Vector2i(viewport_rect.get_center() - Vector2(_exit_activity_dialog.size) * 0.5)
 	_journal_changed()
 	_refresh_world_guidance()
 	if _tutorial != null: _tutorial.refresh.call_deferred()

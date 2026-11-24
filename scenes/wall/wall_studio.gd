@@ -96,6 +96,12 @@ func set_balance(coins: int) -> void:
 	if is_instance_valid(_balance_label):
 		_balance_label.text = "보유 " + Catalog.format_won(_balance)
 
+func open_orders() -> void:
+	_selected_order = design.commission_id
+	_reset_tile_tools()
+	_status = ""
+	_go("orders")
+
 func _go(stage: String, focus_name: String = "") -> void:
 	_piece_menu.hide()
 	if stage == "orders": free_mode = false
@@ -148,8 +154,8 @@ func _build() -> void:
 			_action(actions, "WallFreeDesign", "자유롭게 꾸미기", _start_free)
 		"blank":
 			var choices: HFlowContainer = _flow(tools)
-			_action(choices, "WallStartTile", "타일 디자인하기", _go.bind("tile"), false, true)
-			if design.finished:
+			_action(choices, "WallStartTile", "타일 디자인하기", _start_tile, false, true)
+			if design.finished and design.commission_id == _selected_order:
 				_action(choices, "WallResume", "완성한 담장 보기", _go.bind("filled"))
 			_action(choices, "WallOrders", "다른 의뢰 보기", _go.bind("orders"))
 		"tile": _tile_tools(tools)
@@ -190,25 +196,32 @@ func _select_order(id: String) -> void:
 	refresh()
 
 func _accept() -> void:
-	free_mode = false
-	if design.commission_id != _selected_order:
-		design.set_commission(_selected_order)
-		design_changed.emit()
-	_selection.clear()
-	_kind = ""
+	_reset_tile_tools()
 	_status = ""
 	_go("blank")
 
+func _start_tile() -> void:
+	if design.start_tile(_selected_order):
+		_open_new_tile()
+
 func _start_free() -> void:
 	if not free_designs.has(_selected_order):
-		var work: Design = Design.new()
-		work.set_commission(_selected_order)
-		free_designs[_selected_order] = work
+		free_designs[_selected_order] = Design.new()
 	free_mode = true
-	_selection.clear()
-	_kind = ""
+	if _draft.start_tile(_selected_order):
+		_open_new_tile()
+
+func _open_new_tile() -> void:
+	_reset_tile_tools()
+	_ink = 1
 	_status = ""
 	_go("tile")
+	design_changed.emit()
+
+func _reset_tile_tools() -> void:
+	_selection.clear()
+	_menu_selection.clear()
+	_kind = ""
 
 func _tile_tools(tools: VBoxContainer) -> void:
 	var shapes: HFlowContainer = _flow(tools)
@@ -238,6 +251,8 @@ func _tile_tools(tools: VBoxContainer) -> void:
 	_action(transforms, "WallGrow", "키우기", _edit.bind("grow"))
 	_action(transforms, "WallShrink", "줄이기", _edit.bind("shrink"))
 	_action(transforms, "WallDelete", "조각 지우기", _edit.bind("delete"))
+	var reset: Button = _action(transforms, "WallReset", "초기화", _reset_tile)
+	reset.tooltip_text = "타일 위의 조각을 모두 지워요."
 	_action(transforms, "WallUndo", "되돌리기", _history.bind(false))
 	_action(transforms, "WallRedo", "다시 실행", _history.bind(true))
 	var nav: HFlowContainer = _flow(tools)
@@ -394,6 +409,14 @@ func _history(redo: bool) -> void:
 		_preview.clear_transform()
 		_changed()
 
+func _reset_tile() -> void:
+	if not _draft.clear_pieces(): return
+	_reset_tile_tools()
+	_piece_menu.hide()
+	_preview.clear_transform()
+	_changed()
+	_note.text = "조각을 모두 지웠어요. 되돌리기로 다시 가져올 수 있어요."
+
 func _finish() -> void:
 	if not _draft.finish_tile(): return
 	_kind = ""
@@ -435,6 +458,7 @@ func refresh() -> void:
 			for id: String in ["WallRotate", "WallMirror", "WallGrow", "WallShrink", "WallDelete", "WallPieceActions"]:
 				_controls[id].disabled = _selection.is_empty()
 			for id: String in ["WallPiecePrevious", "WallPieceNext"]: _controls[id].disabled = parts.is_empty()
+			_controls.WallReset.disabled = parts.is_empty()
 			_controls.WallFinishTile.disabled = parts.size() < 2
 			_controls.WallPlaceCenter.disabled = _kind.is_empty()
 			_controls.WallUndo.disabled = not _draft.can_undo()

@@ -208,16 +208,18 @@ static func _test_return_to_main(t: Node) -> void:
 			await t.get_tree().process_frame
 			t.assert_false(_exit_dialog_open(app), "Escape dismisses the native confirmation dialog")
 			t.assert_true(studio.visible and not app._home_screen.visible, "Cancelling leaves the wall workbench active")
+			t.assert_eq(studio._draft.to_dict(), tile, "Cancelling preserves the current editable tile")
 			app._request_return_to_main()
 			t.assert_true(_exit_dialog_open(app), "The browser shortcut entry point uses the same confirmation")
 			if _exit_dialog_open(app):
 				app._exit_activity_dialog.get_ok_button().pressed.emit()
 				await t.get_tree().process_frame
 				t.assert_true(app._home_screen.visible and not studio.visible, "Confirming from the workbench returns to the main menu")
-				t.assert_eq(studio._draft.to_dict(), tile, "Returning to the main menu preserves the editable draft")
 				app._home_screen.wall_requested.emit()
 				await t.get_tree().process_frame
-				t.assert_true(studio.visible and studio._draft.to_dict() == tile, "Reopening the workbench restores the same tile")
+				t.assert_true(studio.visible and studio._preview.view_kind == "blank", "Reopening the workbench opens the location list")
+				studio._start_free()
+				t.assert_true(studio._draft.motif_parts().is_empty() and not studio._draft.can_undo(), "Starting another tile at the same location opens a fresh canvas")
 
 	app._show_home()
 	app._home_screen.drawing_requested.emit()

@@ -81,11 +81,18 @@ func _draw() -> void:
 		return
 	var image_size: Vector2 = backdrop.get_size() if backdrop != null else Vector2(16, 10)
 	var picture: Rect2 = _fit(image_size, Rect2(Vector2.ZERO, size))
-	if backdrop != null: draw_texture_rect(backdrop, picture, false)
-	var normalized: Rect2 = WallArt.wall_rect(location)
-	var area: Rect2 = Rect2(picture.position + normalized.position * picture.size, normalized.size * picture.size)
-	if backdrop == null: draw_rect(area, Color("#d4c6ad"))
-	if view_kind == "filled": _draw_wall(area)
+	var area: Rect2 = _paintable_wall_rect(picture)
+	if view_kind == "filled":
+		var grid: Rect2 = _wall_grid_rect(area, picture)
+		if backdrop != null:
+			for region: Dictionary in _wall_regions(picture, grid):
+				var source: Rect2 = region.source
+				draw_texture_rect_region(backdrop, region.destination, Rect2(source.position * image_size, source.size * image_size))
+		_draw_wall(grid)
+	elif backdrop != null:
+		draw_texture_rect(backdrop, picture, false)
+	else:
+		draw_rect(area, Color("#d4c6ad"))
 
 func _draw_tile() -> void:
 	var area: Rect2 = _sheet_rect()
@@ -157,19 +164,45 @@ func _draw_transform_handle(bounds: Rect2, stroke: Color) -> void:
 		draw_rect(Rect2(top_left, metrics + Vector2(12, 8)), Color("#152b37"))
 		draw_string(font, top_left + Vector2(6, 4 + font.get_ascent(15)), measure, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.WHITE)
 
-func _wall_grid_rect(area: Rect2) -> Rect2:
-	var dimensions: Vector2 = design.wall_size()
-	var factor: float = minf(area.size.x / dimensions.x, area.size.y / dimensions.y)
-	var extent: Vector2 = dimensions * factor
-	return Rect2(area.get_center() - extent * 0.5, extent)
+func _paintable_wall_rect(picture: Rect2) -> Rect2:
+	var normalized: Rect2 = WallArt.wall_rect(location)
+	return Rect2(picture.position + normalized.position * picture.size, normalized.size * picture.size)
 
-func _draw_wall(area: Rect2) -> void:
-	if area.size.x < 1.0 or area.size.y < 1.0: return
-	# Fit the entire row/column layout at the same scale on both axes.
-	var grid: Rect2 = _wall_grid_rect(area)
+func _wall_grid_rect(area: Rect2, picture: Rect2) -> Rect2:
+	# Keep the painted frame as wide as possible while leaving room for the surrounding illustration.
+	var center: Vector2 = area.get_center()
+	var limit_top: float = lerpf(picture.position.y, area.position.y, 0.5)
+	var limit_bottom: float = lerpf(picture.end.y, area.end.y, 0.5)
+	var height: float = 2.0 * minf(center.y - limit_top, limit_bottom - center.y)
+	var wall_size: Vector2 = design.wall_size()
+	var factor: float = minf(area.size.x / wall_size.x, height / wall_size.y)
+	var extent: Vector2 = wall_size * factor
+	return Rect2(center - extent * 0.5, extent)
+
+func _wall_regions(picture: Rect2, grid: Rect2) -> Array[Dictionary]:
+	# Align the painted frame with the new tile grid by resizing the surrounding art in separate regions.
+	var wall: Rect2 = WallArt.wall_rect(location)
+	var source: PackedVector2Array = PackedVector2Array([Vector2.ZERO, wall.position, wall.end, Vector2.ONE])
+	var destination: PackedVector2Array = PackedVector2Array([picture.position, grid.position, grid.end, picture.end])
+	var regions: Array[Dictionary] = []
+	for row: int in range(3):
+		for column: int in range(3):
+			regions.append({
+				"source": _wall_region_rect(source, column, row),
+				"destination": _wall_region_rect(destination, column, row),
+			})
+	return regions
+
+func _wall_region_rect(cuts: PackedVector2Array, column: int, row: int) -> Rect2:
+	var start: Vector2 = Vector2(cuts[column].x, cuts[row].y)
+	var end: Vector2 = Vector2(cuts[column + 1].x, cuts[row + 1].y)
+	return Rect2(start, end - start)
+
+func _draw_wall(grid: Rect2) -> void:
+	if grid.size.x < 1.0 or grid.size.y < 1.0: return
 	var factor: float = grid.size.x / design.wall_size().x
 	var transform: Transform2D = Transform2D(0.0, Vector2.ONE * factor, 0.0, grid.position)
-	draw_rect(area, Color("#f8f0dc"))
+	draw_rect(grid, Color("#f8f0dc"))
 	for part: Dictionary in _draw_parts:
 		draw_colored_polygon(transform * PackedVector2Array(part.vertices), part.color)
 	if not export_only:
