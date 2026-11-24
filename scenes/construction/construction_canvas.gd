@@ -325,6 +325,12 @@ func cancel_gesture() -> void:
 	_update_gizmo()
 	queue_redraw()
 
+func cancel_edit_with_escape() -> bool:
+	if not _can_edit(): return false
+	if not (_dragging or _panning or _rotating or _pending_place or (drawing_tool and not pan_tool)): return false
+	cancel_selection_for_pan()
+	return true
+
 func zoom_by(factor: float, screen_anchor: Vector2 = Vector2(-1, -1)) -> void:
 	_auto_fit = false
 	var anchor: Vector2 = size * 0.5 if screen_anchor.x < 0.0 else screen_anchor
@@ -664,8 +670,7 @@ func _gui_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo and not event.ctrl_pressed and not event.meta_pressed:
 		if not _can_edit():
 			return
-		if event.keycode == KEY_ESCAPE:
-			cancel_selection_for_pan()
+		if event.keycode == KEY_ESCAPE and cancel_edit_with_escape():
 			accept_event()
 		elif event.keycode in [KEY_ENTER, KEY_KP_ENTER] and drawing_tool and not pan_tool:
 			add_at_cursor()

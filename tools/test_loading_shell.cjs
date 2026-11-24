@@ -71,6 +71,78 @@ function shell(options = {}) {
 
 async function flush() { await Promise.resolve(); await Promise.resolve(); }
 
+const exitFlowScript = [...exported.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
+  .map(match => match[1]).find(source => source.includes('window.quadInstallExitFlow ='));
+
+function exitFlowPage() {
+  const listeners = new Map();
+  const window = {
+    addEventListener(type, listener, capture = false) {
+      const key = type + ':' + capture;
+      assert.equal(listeners.has(key), false, 'Listeners are registered only once');
+      listeners.set(key, listener);
+    },
+    removeEventListener(type, listener, capture = false) {
+      const key = type + ':' + capture;
+      assert.equal(listeners.get(key), listener, 'The original listener is removed');
+      listeners.delete(key);
+    },
+  };
+  vm.runInNewContext(exitFlowScript, {window});
+  return {
+    window,
+    dispatch(type, values = {}) {
+      const event = {
+        cancelable: true,
+        returnValue: '',
+        defaultPrevented: false,
+        stopped: false,
+        preventDefault() { this.defaultPrevented = true; },
+        stopImmediatePropagation() { this.stopped = true; },
+        ...values,
+      };
+      (listeners.get(type + ':true') ?? listeners.get(type + ':false'))?.(event);
+      return event;
+    },
+  };
+}
+
+test('gameplay refresh shortcuts open the same exit flow without refreshing the page', () => {
+  const page = exitFlowPage();
+  let requests = 0;
+  page.window.quadInstallExitFlow(() => { requests += 1; });
+  assert.equal(page.dispatch('keydown', {key: 'F5'}).defaultPrevented, false);
+  page.window.quadSetActivityActive(true);
+  page.window.quadSetActivityActive(true);
+  for (const shortcut of [{key: 'F5'}, {key: 'r', ctrlKey: true}, {key: 'R', metaKey: true, shiftKey: true}]) {
+    const event = page.dispatch('keydown', shortcut);
+    assert.equal(event.defaultPrevented, true);
+    assert.equal(event.stopped, true);
+  }
+  assert.equal(page.dispatch('keydown', {key: 'F5', repeat: true}).defaultPrevented, true);
+  assert.equal(page.dispatch('keydown', {key: 'F5', cancelable: false}).defaultPrevented, false);
+  assert.equal(page.dispatch('keydown', {key: 'F5', altKey: true}).defaultPrevented, false);
+  assert.equal(page.dispatch('keydown', {key: 'r'}).defaultPrevented, false);
+  assert.equal(page.dispatch('keydown', {key: 'Escape'}).defaultPrevented, false);
+  assert.equal(requests, 3);
+  page.window.quadSetActivityActive(false);
+  page.window.quadSetActivityActive(false);
+  assert.equal(page.dispatch('keydown', {key: 'r', ctrlKey: true}).defaultPrevented, false);
+});
+
+test('native reload confirmation is registered only during an activity', () => {
+  const page = exitFlowPage();
+  assert.equal(page.dispatch('beforeunload').defaultPrevented, false);
+  page.window.quadSetActivityActive(true);
+  const reload = page.dispatch('beforeunload');
+  assert.equal(reload.defaultPrevented, true);
+  assert.equal(reload.returnValue, true);
+  // Dismissing the browser popup leaves the listener active.
+  assert.equal(page.dispatch('beforeunload').defaultPrevented, true);
+  page.window.quadSetActivityActive(false);
+  assert.equal(page.dispatch('beforeunload').defaultPrevented, false);
+});
+
 const dailyQuizScript = [...exported.matchAll(/<script>\s*([\s\S]*?)<\/script>/g)]
   .map(match => match[1]).find(source => source.includes('window.QuadDailyQuiz ='));
 

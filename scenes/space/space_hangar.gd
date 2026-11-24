@@ -610,10 +610,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if _confirmation.visible:
 		_confirmation.hide()
 		_clear_quote()
-	elif _launch_panel.visible:
-		if _launch_done: home_requested.emit()
-		else: _finish_launch()
-	else: home_requested.emit()
+	elif _launch_panel.visible and not _launch_done:
+		_finish_launch()
+	else: return
 	get_viewport().set_input_as_handled()
 
 func _responsive() -> void:

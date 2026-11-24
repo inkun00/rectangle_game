@@ -153,7 +153,10 @@ func _ready() -> void:
 	visibility_changed.connect(func():
 		if not is_visible_in_tree():
 			_stop_drawing_work()
-			cancel_gesture())
+			cancel_gesture()
+			if is_instance_valid(_gallery): _gallery.hide()
+			if is_instance_valid(_color_dialog): _color_dialog.hide()
+			_color_picker.get_popup().hide())
 	if not testing:
 		load_drawing(false)
 	_refresh()
@@ -1599,9 +1602,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	elif event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE:
 		cancel_gesture()
 		document.delete_selected()
-	elif event.keycode == KEY_ESCAPE:
-		canvas.select_tool()
-		document.select_shape(-1)
+	elif event.keycode == KEY_ESCAPE and canvas.has_active_gesture():
+		canvas.cancel_gesture()
 	elif event.keycode in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN] and not document.get_selected().is_empty():
 		cancel_gesture()
 		var direction: Vector2 = Vector2.ZERO

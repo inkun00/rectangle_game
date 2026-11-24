@@ -141,6 +141,9 @@ func cancel_gesture() -> void:
 	_hover.clear()
 	queue_redraw()
 
+func has_active_gesture() -> bool:
+	return _creating or _selecting_box or _has_transform_gesture()
+
 func _has_transform_gesture() -> bool:
 	return _dragging or _resizing or _rotating or _vertex_index >= 0
 
@@ -192,7 +195,7 @@ func _gui_input(event: InputEvent) -> void:
 		_update_hover(point)
 		queue_redraw()
 	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE:
+		if event.keycode == KEY_ESCAPE and has_active_gesture():
 			cancel_gesture()
 			accept_event()
 		elif event.keycode in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN] and not document.get_selected().is_empty():

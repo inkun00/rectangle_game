@@ -2587,11 +2587,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		_edit(_active_doc().duplicate_selected)
 	elif event.keycode == KEY_DELETE:
 		_edit(_active_doc().delete_selected)
+	elif event.keycode == KEY_ESCAPE and canvas.inspection_visible:
+		_return_to_design()
 	elif event.keycode == KEY_ESCAPE:
-		if _is_editable_mode() and not canvas.inspection_visible:
-			canvas.cancel_selection_for_pan()
-		else:
-			_return_to_design()
+		if not canvas.cancel_edit_with_escape(): return
 	else:
 		return
 	get_viewport().set_input_as_handled()

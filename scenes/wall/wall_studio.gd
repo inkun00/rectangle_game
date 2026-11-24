@@ -84,7 +84,9 @@ func _ready() -> void:
 	_scroll.add_child(_body)
 	_build_piece_menu()
 	visibility_changed.connect(func() -> void:
-		if not is_visible_in_tree(): _piece_menu.hide())
+		if not is_visible_in_tree():
+			_piece_menu.hide()
+			if is_instance_valid(_form): _form.hide())
 	_selected_order = design.commission_id
 	resized.connect(_layout)
 	_build()

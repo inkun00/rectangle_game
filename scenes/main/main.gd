@@ -95,6 +95,11 @@ var _construction_screen: ConstructionStudio
 var _world_hud: Control
 var _modal_overlay: Control
 var _modal_body: VBoxContainer
+var _exit_activity_dialog: ConfirmationDialog
+var _exit_focus_before: Control
+var _browser_window: JavaScriptObject
+var _browser_exit_callback: JavaScriptObject
+var _browser_activity_active: bool = false
 var _toast: Label
 var _toast_timer: Timer
 var _autosave: Timer
@@ -194,6 +199,7 @@ func _ready() -> void:
 	_journal_changed()
 	_adventure_changed()
 	learning_progress.changed.connect(_learning_changed)
+	_install_browser_exit_flow()
 	if not testing: _resume_pending_publications.call_deferred()
 	if (not testing or show_startup_learning_for_testing) and not StartupDailyCompletion.completed_today(startup_completion_path):
 		_start_learning_gate()
@@ -1201,7 +1207,8 @@ func _clear_feature_loading() -> void:
 
 func _restore_feature_controls() -> void:
 	if world != null and _in_world:
-		world.set_controls_enabled(not is_instance_valid(_modal_overlay) and (_tutorial == null or not _tutorial.blocks_gameplay()))
+		var modal_open: bool = is_instance_valid(_modal_overlay) or is_instance_valid(_feature_loading_overlay) or _exit_dialog_visible()
+		world.set_controls_enabled(not modal_open and (_tutorial == null or not _tutorial.blocks_gameplay()))
 
 func _cancel_feature_navigation() -> void:
 	_feature_navigation += 1
@@ -1212,6 +1219,8 @@ func _cancel_feature_navigation() -> void:
 	_restore_feature_controls()
 
 func _leave_activity() -> void:
+	if _exit_dialog_visible(): _exit_activity_dialog.hide()
+	_exit_focus_before = null
 	_cancel_feature_navigation()
 	if is_instance_valid(_ending_dialog): _ending_dialog.hide()
 	if is_instance_valid(_ending_scene):
@@ -1254,6 +1263,78 @@ func _show_home() -> void:
 	_home_screen.show()
 	_responsive()
 	_home_screen.focus_primary()
+
+func _has_active_activity() -> bool:
+	if is_instance_valid(_startup_learning) or is_instance_valid(_opening_screen) or is_instance_valid(_ending_scene): return false
+	return (_in_world
+		or (is_instance_valid(_drawing_screen) and _drawing_screen.visible)
+		or (is_instance_valid(_construction_screen) and _construction_screen.visible)
+		or (is_instance_valid(wall_studio) and wall_studio.visible)
+		or (is_instance_valid(_learning_screen) and _learning_screen.visible)
+		or (is_instance_valid(_space_screen) and _space_screen.visible))
+
+func _exit_dialog_visible() -> bool:
+	return is_instance_valid(_exit_activity_dialog) and _exit_activity_dialog.visible
+
+func _install_browser_exit_flow() -> void:
+	if not OS.has_feature("web"): return
+	var browser: JavaScriptObject = JavaScriptBridge.get_interface("window")
+	if browser == null or browser.quadInstallExitFlow == null: return
+	_browser_window = browser
+	_browser_exit_callback = JavaScriptBridge.create_callback(_on_browser_return_request)
+	_browser_window.quadInstallExitFlow(_browser_exit_callback)
+
+func _on_browser_return_request(_arguments: Array) -> void:
+	_request_return_to_main.call_deferred()
+
+func _sync_browser_activity() -> void:
+	if _browser_window == null: return
+	var active: bool = _has_active_activity()
+	if active == _browser_activity_active: return
+	_browser_activity_active = active
+	_browser_window.quadSetActivityActive(active)
+
+func _request_return_to_main() -> void:
+	if not _has_active_activity() or _exit_dialog_visible(): return
+	if is_instance_valid(_ending_dialog) and _ending_dialog.visible: return
+	if is_instance_valid(_feature_loading_overlay): _cancel_feature_navigation()
+	if not is_instance_valid(_exit_activity_dialog):
+		_exit_activity_dialog = ConfirmationDialog.new()
+		_exit_activity_dialog.name = "ExitActivityDialog"
+		_exit_activity_dialog.title = "활동 종료"
+		_exit_activity_dialog.dialog_text = "현재 활동을 끝내고 메인 메뉴로 돌아갈까요?"
+		_exit_activity_dialog.ok_button_text = "메인 메뉴로"
+		_exit_activity_dialog.cancel_button_text = "계속하기"
+		_exit_activity_dialog.transient = true
+		_exit_activity_dialog.transient_to_focused = true
+		_exit_activity_dialog.exclusive = true
+		_exit_activity_dialog.theme = _ui.theme
+		_exit_activity_dialog.get_label().autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_exit_activity_dialog.get_label().horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_exit_activity_dialog.get_label().add_theme_font_size_override("font_size", 20)
+		for button: Button in [_exit_activity_dialog.get_ok_button(), _exit_activity_dialog.get_cancel_button()]:
+			ButtonArt.apply(button)
+			button.custom_minimum_size.y = 44
+		_exit_activity_dialog.confirmed.connect(_confirm_return_to_main)
+		_exit_activity_dialog.canceled.connect(_cancel_return_to_main)
+		_ui.add_child(_exit_activity_dialog)
+	_exit_focus_before = get_viewport().gui_get_focus_owner()
+	_clear_touch_inputs()
+	_exit_activity_dialog.popup_centered_clamped(Vector2i(455, 170), 0.9)
+	_exit_activity_dialog.get_cancel_button().grab_focus()
+	_restore_feature_controls()
+	if _tutorial != null: _tutorial.refresh.call_deferred()
+
+func _confirm_return_to_main() -> void:
+	if _has_active_activity(): _show_home()
+
+func _cancel_return_to_main() -> void:
+	if _exit_dialog_visible(): _exit_activity_dialog.hide()
+	if is_instance_valid(_exit_focus_before) and _exit_focus_before.is_visible_in_tree():
+		_exit_focus_before.grab_focus()
+	_exit_focus_before = null
+	_restore_feature_controls()
+	if _tutorial != null: _tutorial.refresh.call_deferred()
 
 func _show_opening() -> void:
 	if is_instance_valid(_startup_learning): return
@@ -1988,7 +2069,7 @@ func _add_menu_action(grid: GridContainer, caption: String, action: Callable, it
 func _show_controls() -> void:
 	var body: VBoxContainer = _open_modal("조작 방법")
 	body.add_child(QuadTheme.paragraph("방향키 / A·D로 좌우 이동\nSpace / W / 위쪽 방향키로 점프\nG로 가까운 물건 줍기 · E로 주민과 대화\nZ / F로 바라보는 방향 공격\nQ로 회복약 사용", 20, QuadTheme.INK))
-	body.add_child(QuadTheme.paragraph("가방 I · 부탁 수첩 J · 지도 M · 이야기 H\nTab / Esc로 메뉴 열기\n메뉴에서는 Tab으로 이동 · Enter로 선택 · Esc로 닫기", 18, QuadTheme.INK))
+	body.add_child(QuadTheme.paragraph("가방 I · 부탁 수첩 J · 지도 M · 이야기 H\nTab으로 메뉴 열기 · 탐험 중 Esc로 메인 메뉴 돌아가기\n메뉴에서는 Tab으로 이동 · Enter로 선택 · Esc로 닫기", 18, QuadTheme.INK))
 	body.add_child(QuadTheme.paragraph("물건은 가까이 닿아도 모을 수 있어요. 부탁을 받기 전에 주워도 괜찮아요. 위쪽 물건은 발판에 올라가 찾아보세요.", 18))
 	body.add_child(QuadTheme.button("모험 계속하기", _close_modal, true))
 
@@ -2201,7 +2282,7 @@ func _close_modal(restore_focus: bool = true) -> void:
 		if is_instance_valid(_modal_focus_before) and _modal_focus_before.is_visible_in_tree():
 			_modal_focus_before.grab_focus()
 		_modal_focus_before = null
-	if world != null and _in_world: world.set_controls_enabled(_tutorial == null or not _tutorial.blocks_gameplay())
+	_restore_feature_controls()
 	if _tutorial != null: _tutorial.refresh.call_deferred()
 
 func _sync_village_rewards() -> Dictionary:
@@ -2255,6 +2336,7 @@ func _load(notify_user: bool, path: String = WorldSaveStore.SAVE_PATH) -> bool:
 
 func _responsive() -> void:
 	if _ui == null or _ui_layer == null: return
+	_sync_browser_activity()
 	var window: Window = get_window()
 	var creation_visible: bool = is_instance_valid(_startup_learning) or (is_instance_valid(_home_screen) and (_home_screen.visible or (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible) or (is_instance_valid(_space_screen) and _space_screen.visible) or is_instance_valid(_opening_screen) or is_instance_valid(_ending_scene)))
 	creation_visible = creation_visible or (is_instance_valid(wall_studio) and wall_studio.visible)
@@ -2282,6 +2364,7 @@ func _ui_size() -> Vector2:
 	return _ui.size if _ui != null and _ui.size.x > 0.0 else get_viewport().get_visible_rect().size
 
 func _input(event: InputEvent) -> void:
+	if _exit_dialog_visible(): return
 	if is_instance_valid(_startup_learning):
 		if event is InputEventKey and event.keycode == KEY_ESCAPE: get_viewport().set_input_as_handled()
 		return
@@ -2301,7 +2384,7 @@ func _input(event: InputEvent) -> void:
 	if event.keycode == KEY_ESCAPE and is_instance_valid(_modal_overlay):
 		_close_modal()
 		get_viewport().set_input_as_handled()
-	elif _in_world and not is_instance_valid(_modal_overlay) and event.keycode in [KEY_TAB, KEY_ESCAPE]:
+	elif _in_world and not is_instance_valid(_modal_overlay) and event.keycode == KEY_TAB:
 		_show_game_menu()
 		get_viewport().set_input_as_handled()
 
@@ -2342,16 +2425,16 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: _clear_touch_inputs()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if _exit_dialog_visible(): return
 	if is_instance_valid(_startup_learning): return
 	if is_instance_valid(_feature_loading_overlay): return
 	if is_instance_valid(_opening_screen): return
 	if is_instance_valid(_ending_scene) or (is_instance_valid(_ending_dialog) and _ending_dialog.visible): return
-	if is_instance_valid(_space_screen) and _space_screen.visible: return
 	if _tutorial != null and _tutorial.blocks_gameplay(): return
 	if not event is InputEventKey or not event.pressed or event.echo: return
-	if (is_instance_valid(_drawing_screen) and _drawing_screen.visible) or (is_instance_valid(_construction_screen) and _construction_screen.visible) or (is_instance_valid(_learning_screen) and _learning_screen.visible): return
-	if event.keycode == KEY_ESCAPE:
-		_close_modal()
+	var reload_shortcut: bool = event.keycode == KEY_F5 or ((event.ctrl_pressed or event.meta_pressed) and event.keycode == KEY_R)
+	if _has_active_activity() and (event.keycode == KEY_ESCAPE or reload_shortcut):
+		_request_return_to_main()
 		get_viewport().set_input_as_handled()
 		return
 	if is_instance_valid(_modal_overlay): return

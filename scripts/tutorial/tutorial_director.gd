@@ -208,6 +208,7 @@ func refresh() -> void:
 
 
 func _foreign_modal_open() -> bool:
+	if app._exit_dialog_visible(): return true
 	if is_instance_valid(app._feature_loading_overlay): return true
 	if is_instance_valid(app._modal_overlay): return true
 	if is_instance_valid(app._construction_screen) and app._construction_screen.visible and is_instance_valid(app._construction_screen._modal): return true
@@ -232,7 +233,7 @@ func _apply_gate() -> void:
 		if construction_changed: app._construction_screen._refresh()
 	if app.world != null:
 		app.world.peaceful = app.learning_progress.peaceful or (active and mode == "world")
-		app.world.set_controls_enabled(app._in_world and not blocked and not _release_pending and not is_instance_valid(app._modal_overlay) and not is_instance_valid(app._feature_loading_overlay))
+		app.world.set_controls_enabled(app._in_world and not blocked and not _release_pending and not is_instance_valid(app._modal_overlay) and not is_instance_valid(app._feature_loading_overlay) and not app._exit_dialog_visible())
 
 
 func _physics_process(_delta: float) -> void:

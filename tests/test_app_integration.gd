@@ -143,6 +143,117 @@ static func run(t: Node) -> void:
 		if FileAccess.file_exists(path): DirAccess.remove_absolute(path)
 	restored.free()
 	await t.get_tree().process_frame
+	await _test_return_to_main(t)
+
+static func _test_return_to_main(t: Node) -> void:
+	var app: QuadrilateralApp = AppScene.instantiate()
+	app.testing = true
+	t.add_child(app)
+	await t.get_tree().process_frame
+	_press_activity_key(t, KEY_ESCAPE)
+	t.assert_false(_exit_dialog_open(app), "Escape on the main menu has no activity to close")
+
+	app._home_screen.adventure_requested.emit()
+	app._tutorial.cancel()
+	app._show_inventory()
+	_press_activity_key(t, KEY_ESCAPE)
+	t.assert_false(is_instance_valid(app._modal_overlay), "Escape closes the active inventory before asking to leave the activity")
+	t.assert_false(_exit_dialog_open(app), "Closing the inventory does not also open the exit confirmation")
+	_press_activity_key(t, KEY_TAB)
+	t.assert_true(is_instance_valid(app._modal_overlay), "Tab still opens the village game menu")
+	_press_activity_key(t, KEY_ESCAPE)
+
+	_press_activity_key(t, KEY_ESCAPE)
+	t.assert_true(_exit_dialog_open(app), "Escape from idle exploration asks before leaving the village")
+	if _exit_dialog_open(app):
+		app._tutorial._apply_gate()
+		await t.get_tree().process_frame
+		t.assert_true(app._in_world and not app.world.controls_enabled, "The prompt pauses the current activity while awaiting a choice")
+		app._exit_activity_dialog.get_cancel_button().pressed.emit()
+		await t.get_tree().process_frame
+		t.assert_false(_exit_dialog_open(app), "Cancel dismisses the exit confirmation")
+		t.assert_true(app._in_world and app.world.controls_enabled, "Cancel returns control to the same village activity")
+		app.world.player.position = Vector2(700.0, QuadrilateralWorld.GROUND_Y)
+		app.world.player.velocity = Vector2.ZERO
+		var before: Dictionary = app.world.serialize()
+		_press_activity_key(t, KEY_ESCAPE)
+		t.assert_true(_exit_dialog_open(app), "The player can reopen the confirmation after cancelling")
+		if _exit_dialog_open(app):
+			app._exit_activity_dialog.get_ok_button().pressed.emit()
+			await t.get_tree().process_frame
+			t.assert_true(app._home_screen.visible and not app._in_world, "Confirming returns directly to the main menu")
+			t.assert_false(app.world.controls_enabled, "Leaving the world keeps its hidden controls disabled")
+			t.assert_eq(app._world_data, before, "The game remembers the village after the confirmed return")
+
+	app._show_home()
+	app._home_screen.wall_requested.emit()
+	await t.get_tree().process_frame
+	var studio: WallStudio = app.wall_studio
+	t.assert_true(is_instance_valid(studio) and studio.visible, "The wall workbench opens from the main menu")
+	if is_instance_valid(studio) and studio.visible:
+		studio._start_free()
+		await t.get_tree().process_frame
+		studio._arm("square")
+		studio._place(Vector2(60, 45), false)
+		var tile: Dictionary = studio._draft.to_dict()
+		studio._preview.begin_transform("rotate")
+		t.assert_eq(studio._preview._transform_mode, "rotate", "The selected tile piece enters the rotation tool")
+		_press_activity_key(t, KEY_ESCAPE)
+		t.assert_eq(studio._preview._transform_mode, "", "Escape cancels the wall rotation tool first")
+		t.assert_false(_exit_dialog_open(app), "Cancelling the active edit does not also open the exit confirmation")
+		_press_activity_key(t, KEY_ESCAPE)
+		t.assert_true(_exit_dialog_open(app), "Escape from the idle wall workbench requests confirmation")
+		if _exit_dialog_open(app):
+			_press_activity_key(t, KEY_ESCAPE)
+			await t.get_tree().process_frame
+			t.assert_false(_exit_dialog_open(app), "Escape dismisses the native confirmation dialog")
+			t.assert_true(studio.visible and not app._home_screen.visible, "Cancelling leaves the wall workbench active")
+			app._request_return_to_main()
+			t.assert_true(_exit_dialog_open(app), "The browser shortcut entry point uses the same confirmation")
+			if _exit_dialog_open(app):
+				app._exit_activity_dialog.get_ok_button().pressed.emit()
+				await t.get_tree().process_frame
+				t.assert_true(app._home_screen.visible and not studio.visible, "Confirming from the workbench returns to the main menu")
+				t.assert_eq(studio._draft.to_dict(), tile, "Returning to the main menu preserves the editable draft")
+				app._home_screen.wall_requested.emit()
+				await t.get_tree().process_frame
+				t.assert_true(studio.visible and studio._draft.to_dict() == tile, "Reopening the workbench restores the same tile")
+
+	app._show_home()
+	app._home_screen.drawing_requested.emit()
+	await t.get_tree().process_frame
+	app._tutorial.cancel()
+	await _test_focused_canvas_exit(t, app, app._drawing_screen.canvas, KEY_ESCAPE, "drawing")
+	app._show_home()
+	app._home_screen.construction_requested.emit()
+	await t.get_tree().process_frame
+	app._tutorial.cancel()
+	await _test_focused_canvas_exit(t, app, app._construction_screen.canvas, KEY_F5, "construction")
+	app.free()
+	await t.get_tree().process_frame
+
+static func _test_focused_canvas_exit(t: Node, app: QuadrilateralApp, canvas: Control, key: Key, activity: String) -> void:
+	canvas.grab_focus()
+	t.assert_true(canvas.is_visible_in_tree() and canvas.has_focus(), "The %s canvas initially has keyboard focus" % activity)
+	_press_activity_key(t, key)
+	t.assert_true(_exit_dialog_open(app), "The exit shortcut works with the %s canvas focused" % activity)
+	if _exit_dialog_open(app):
+		app._exit_activity_dialog.get_cancel_button().pressed.emit()
+		await t.get_tree().process_frame
+		t.assert_true(canvas.is_visible_in_tree() and canvas.has_focus(), "Cancelling restores the %s canvas and its focus" % activity)
+
+static func _exit_dialog_open(app: QuadrilateralApp) -> bool:
+	return is_instance_valid(app._exit_activity_dialog) and app._exit_activity_dialog.visible
+
+static func _press_activity_key(t: Node, code: Key) -> void:
+	var input: InputEventKey = InputEventKey.new()
+	input.keycode = code
+	input.physical_keycode = code
+	input.pressed = true
+	t.get_tree().root.push_input(input)
+	var release: InputEventKey = input.duplicate() as InputEventKey
+	release.pressed = false
+	t.get_tree().root.push_input(release)
 
 static func _pickup(app: QuadrilateralApp, id: String) -> Dictionary:
 	for item: Dictionary in app.world.collectibles:
