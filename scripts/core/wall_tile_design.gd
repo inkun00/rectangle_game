@@ -9,7 +9,10 @@ const PALETTE: Array[Color] = [
 	Color("#363e73"), Color("#72ada2"), Color("#995778"), Color("#ffffff"),
 ]
 const PALETTE_NAMES: Array[String] = ["모래색", "청록색", "산호색", "금색", "남색", "옥색", "자주색", "흰색"]
+const MAX_CUSTOM_COLORS: int = 256
 const GRID_STEP: float = 5.0
+const MAX_REPEAT_COLUMNS: int = 12
+const MAX_REPEAT_ROWS: int = 8
 const MAX_PIECES: int = 64
 const DEFAULT_TILE_SIZE: Vector2 = Vector2(150, 100)
 const COMMISSIONS: Dictionary = {
@@ -34,7 +37,47 @@ var finished: bool = false
 
 var _size: Vector2 = DEFAULT_TILE_SIZE
 var _parts: Array[Dictionary] = []
+var _custom_colors: Array[Color] = []
 var _history: History = History.new()
+
+
+func palette_size() -> int:
+	return PALETTE.size() + _custom_colors.size()
+
+
+func palette_color(index: int) -> Color:
+	if not _integer_in(index, 0, palette_size() - 1):
+		return Color.TRANSPARENT
+	if index < PALETTE.size():
+		return PALETTE[index]
+	return _custom_colors[index - PALETTE.size()]
+
+
+func palette_index(color: Color) -> int:
+	if not _valid_palette_color(color):
+		return -1
+	var normalized: Color = Color.html(color.to_html(false))
+	var built_in: int = PALETTE.find(normalized)
+	if built_in >= 0:
+		return built_in
+	var custom: int = _custom_colors.find(normalized)
+	return PALETTE.size() + custom if custom >= 0 else -1
+
+
+func add_palette_color(color: Color) -> int:
+	if not _valid_palette_color(color):
+		return -1
+	var existing: int = palette_index(color)
+	if existing >= 0:
+		return existing
+	if _custom_colors.size() >= MAX_CUSTOM_COLORS:
+		return -1
+	_custom_colors.append(Color.html(color.to_html(false)))
+	return palette_size() - 1
+
+
+static func _valid_palette_color(color: Color) -> bool:
+	return color.r >= 0.0 and color.r <= 1.0 and color.g >= 0.0 and color.g <= 1.0 and color.b >= 0.0 and color.b <= 1.0
 
 
 func set_commission(id: String) -> bool:
@@ -235,7 +278,17 @@ static func _closer_snap(best: Vector2, candidate: Vector2, low: Vector2, high: 
 	return candidate.clamp(low, high)
 
 
-func _snap_polygons(pieces: Array[PackedVector2Array], excluded: Array[int], bounds: Rect2, offset: Vector2, tolerance: float) -> Vector2:
+static func _grid_alignment(anchor: Vector2, low: Vector2, high: Vector2, tolerance: float, step: float) -> Vector2:
+	if not is_finite(step) or step <= 0.0:
+		return Vector2.ZERO
+	var correction: Vector2 = anchor.snappedf(step) - anchor
+	for axis: int in range(2):
+		if absf(correction[axis]) > tolerance or correction[axis] < low[axis] or correction[axis] > high[axis]:
+			correction[axis] = 0.0
+	return correction
+
+
+func _snap_polygons(pieces: Array[PackedVector2Array], excluded: Array[int], bounds: Rect2, offset: Vector2, tolerance: float, grid_step: float) -> Vector2:
 	var clamped: Vector2 = offset.clamp(-bounds.position, _size - bounds.end)
 	if not is_finite(tolerance) or tolerance <= 0.0:
 		return clamped
@@ -273,20 +326,22 @@ func _snap_polygons(pieces: Array[PackedVector2Array], excluded: Array[int], bou
 					closest = _closer_snap(closest, vertex - moved_edge_point, low, high, limit)
 	if corner_snap.is_finite():
 		return clamped + corner_snap
-	return clamped + closest if closest.is_finite() else clamped
+	if closest.is_finite():
+		return clamped + closest
+	return clamped + _grid_alignment(moved_bounds.position, low, high, tolerance, grid_step)
 
 
-func snap_translation(indices: Array[int], offset: Vector2, tolerance: float) -> Vector2:
+func snap_translation(indices: Array[int], offset: Vector2, tolerance: float, grid_step: float = 0.0) -> Vector2:
 	var selection: Array[int] = expand_selection(indices)
 	if selection.is_empty() or not offset.is_finite():
 		return Vector2.ZERO
 	var pieces: Array[PackedVector2Array] = []
 	for index: int in selection:
 		pieces.append(_world_vertices(_parts[index]))
-	return _snap_polygons(pieces, selection, _selection_bounds(selection), offset, tolerance)
+	return _snap_polygons(pieces, selection, _selection_bounds(selection), offset, tolerance, grid_step)
 
 
-func snap_vertex(index: int, point: Vector2, tolerance: float) -> Vector2:
+func snap_vertex(index: int, point: Vector2, tolerance: float, grid_step: float = 0.0) -> Vector2:
 	if not point.is_finite():
 		return Vector2.ZERO
 	var clamped: Vector2 = point.clamp(Vector2.ZERO, _size)
@@ -312,7 +367,9 @@ func snap_vertex(index: int, point: Vector2, tolerance: float) -> Vector2:
 			closest = _closer_snap(closest, edge_point - clamped, low, high, limit)
 	if corner_snap.is_finite():
 		return clamped + corner_snap
-	return clamped + closest if closest.is_finite() else clamped
+	if closest.is_finite():
+		return clamped + closest
+	return clamped + _grid_alignment(clamped, low, high, tolerance, grid_step)
 
 
 func duplicate_pieces(indices: Array[int]) -> Array[int]:
@@ -411,7 +468,7 @@ func mirror_pieces(indices: Array[int]) -> bool:
 
 func color_pieces(indices: Array[int], palette_index: int) -> bool:
 	var selection: Array[int] = expand_selection(indices)
-	if selection.is_empty() or not _integer_in(palette_index, 0, PALETTE.size() - 1):
+	if selection.is_empty() or not _integer_in(palette_index, 0, palette_size() - 1):
 		return false
 	var next: Array[Dictionary] = _parts.duplicate(true)
 	for index: int in selection:
@@ -446,18 +503,20 @@ static func _from_world(points: PackedVector2Array, kind: String, palette_index:
 
 func _clamped_center(local: PackedVector2Array, at: Vector2) -> Vector2:
 	var bounds: Rect2 = Geometry.bounds(local)
-	return at.snappedf(GRID_STEP).clamp(-bounds.position, _size - bounds.end)
+	return at.clamp(-bounds.position, _size - bounds.end)
 
 
-func add_piece(kind: String, at: Vector2, palette_index: int = 0, snap_tolerance: float = 0.0) -> int:
-	if not _known_kind(kind) or not at.is_finite() or _parts.size() >= MAX_PIECES or not _integer_in(palette_index, 0, PALETTE.size() - 1):
+func add_piece(kind: String, at: Vector2, palette_index: int = 0, snap_tolerance: float = 0.0, grid_step: float = GRID_STEP) -> int:
+	if not _known_kind(kind) or not at.is_finite() or _parts.size() >= MAX_PIECES or not _integer_in(palette_index, 0, palette_size() - 1):
 		return -1
 	var part: Dictionary = _from_world(Geometry.create_vertices(kind, Vector2(34, 25)), kind, palette_index)
-	part.position = _clamped_center(part.vertices, at)
-	if snap_tolerance > 0.0 and is_finite(snap_tolerance):
+	var magnetic: bool = snap_tolerance > 0.0 and is_finite(snap_tolerance)
+	var center: Vector2 = at.snappedf(grid_step) if not magnetic and grid_step > 0.0 and is_finite(grid_step) else at
+	part.position = _clamped_center(part.vertices, center)
+	if magnetic:
 		var points: PackedVector2Array = _world_vertices(part)
 		var pieces: Array[PackedVector2Array] = [points]
-		part.position = Vector2(part.position) + _snap_polygons(pieces, [], Geometry.bounds(points), Vector2.ZERO, snap_tolerance)
+		part.position = Vector2(part.position) + _snap_polygons(pieces, [], Geometry.bounds(points), Vector2.ZERO, snap_tolerance, grid_step)
 	if not _valid(part, _size):
 		return -1
 	var next: Array[Dictionary] = _parts.duplicate()
@@ -478,7 +537,7 @@ func move_piece(index: int, center: Vector2) -> bool:
 	if not _index_valid(index) or not center.is_finite():
 		return false
 	var part: Dictionary = _parts[index].duplicate()
-	part.position = _clamped_center(part.vertices, center)
+	part.position = _clamped_center(part.vertices, center.snappedf(GRID_STEP))
 	return _replace(index, part)
 
 
@@ -519,7 +578,7 @@ func set_vertex(index: int, corner: int, point_on_tile: Vector2, snap_grid: bool
 
 
 func set_color(index: int, palette_index: int) -> bool:
-	if not _index_valid(index) or not _integer_in(palette_index, 0, PALETTE.size() - 1):
+	if not _index_valid(index) or not _integer_in(palette_index, 0, palette_size() - 1):
 		return false
 	var part: Dictionary = _parts[index].duplicate()
 	part.palette_index = palette_index
@@ -538,7 +597,7 @@ func hit_test(at: Vector2) -> int:
 
 
 func set_repeat(wide: int, high: int) -> bool:
-	if wide < 2 or wide > 8 or high < 2 or high > 6:
+	if wide < 2 or wide > MAX_REPEAT_COLUMNS or high < 2 or high > MAX_REPEAT_ROWS:
 		return false
 	columns = wide
 	rows = high
@@ -567,10 +626,10 @@ func motif_parts() -> Array[Dictionary]:
 	return result
 
 
-static func _rendered_part(part: Dictionary, index: int) -> Dictionary:
+func _rendered_part(part: Dictionary, index: int) -> Dictionary:
 	return {
 		"index": index, "position": part.position, "vertices": _world_vertices(part), "kind": part.kind,
-		"palette_index": part.palette_index, "color": PALETTE[int(part.palette_index)], "group_id": part.get("group_id", 0)
+		"palette_index": part.palette_index, "color": palette_color(int(part.palette_index)), "group_id": part.get("group_id", 0)
 	}
 
 
@@ -654,7 +713,13 @@ func to_dict() -> Dictionary:
 		if part.has("group_id"):
 			record["group_id"] = part.group_id
 		encoded.append(record)
-	return {"version": 2, "commission": commission_id, "columns": columns, "rows": rows, "layout": layout, "completed": completed.duplicate(), "finished": finished, "tile_size": [int(_size.x), int(_size.y)], "parts": encoded}
+	var saved: Dictionary = {"version": 2, "commission": commission_id, "columns": columns, "rows": rows, "layout": layout, "completed": completed.duplicate(), "finished": finished, "tile_size": [int(_size.x), int(_size.y)], "parts": encoded}
+	if not _custom_colors.is_empty():
+		var colors: Array[String] = []
+		for color: Color in _custom_colors:
+			colors.append(color.to_html(false))
+		saved["custom_colors"] = colors
+	return saved
 
 
 static func _point_pair(raw: Variant) -> bool:
@@ -666,10 +731,10 @@ static func _point_pair(raw: Variant) -> bool:
 	return true
 
 
-static func _read_part(raw: Variant, extent: Vector2) -> Dictionary:
+static func _read_part(raw: Variant, extent: Vector2, max_palette_index: int) -> Dictionary:
 	if not raw is Dictionary or not _known_kind(raw.get("kind")) or not _point_pair(raw.get("position")):
 		return {}
-	if not _integer_in(raw.get("palette_index"), 0, PALETTE.size() - 1) or not raw.get("vertices") is Array or raw.vertices.size() != 4:
+	if not _integer_in(raw.get("palette_index"), 0, max_palette_index) or not raw.get("vertices") is Array or raw.vertices.size() != 4:
 		return {}
 	var local: PackedVector2Array = PackedVector2Array()
 	var sum: Vector2 = Vector2.ZERO
@@ -756,7 +821,7 @@ func restore(data: Dictionary) -> bool:
 	var order_ids: Array = ["harbor", "garden", "station"] if legacy else COMMISSIONS.keys()
 	if not order_ids.has(data.get("commission")) or not LAYOUTS.has(data.get("layout")):
 		return false
-	if not _integer_in(data.get("columns"), 2, 8) or not _integer_in(data.get("rows"), 2, 6):
+	if not _integer_in(data.get("columns"), 2, 8 if legacy else MAX_REPEAT_COLUMNS) or not _integer_in(data.get("rows"), 2, 6 if legacy else MAX_REPEAT_ROWS):
 		return false
 	if not data.get("completed") is Array or data.completed.size() > order_ids.size():
 		return false
@@ -767,6 +832,7 @@ func restore(data: Dictionary) -> bool:
 		paid.append(id)
 	var extent: Vector2
 	var checked: Array[Dictionary] = []
+	var custom_colors: Array[Color] = []
 	if legacy:
 		var converted: Dictionary = _read_legacy(data)
 		if converted.is_empty():
@@ -784,9 +850,20 @@ func restore(data: Dictionary) -> bool:
 			return false
 		if not data.get("parts") is Array or data.parts.size() > MAX_PIECES:
 			return false
+		var raw_colors: Variant = data.get("custom_colors", [])
+		if not raw_colors is Array or raw_colors.size() > MAX_CUSTOM_COLORS:
+			return false
+		for raw_color: Variant in raw_colors:
+			if not raw_color is String or raw_color.length() != 6 or not Color.html_is_valid(raw_color):
+				return false
+			var color: Color = Color.html(raw_color)
+			if PALETTE.has(color) or custom_colors.has(color):
+				return false
+			custom_colors.append(color)
 		var group_sizes: Dictionary[int, int] = {}
+		var max_palette_index: int = PALETTE.size() + custom_colors.size() - 1
 		for raw: Variant in data.parts:
-			var part: Dictionary = _read_part(raw, extent)
+			var part: Dictionary = _read_part(raw, extent, max_palette_index)
 			if part.is_empty():
 				return false
 			if part.has("group_id"):
@@ -800,6 +877,7 @@ func restore(data: Dictionary) -> bool:
 			return false
 	_size = extent
 	_parts = checked
+	_custom_colors = custom_colors
 	commission_id = str(data.commission)
 	columns = int(data.columns)
 	rows = int(data.rows)

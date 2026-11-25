@@ -10,9 +10,65 @@ static func run(t: Node) -> void:
 	_test_snapping(t)
 	_test_repetition(t)
 	_test_commissions(t)
+	_test_custom_palette(t)
 	_test_legacy(t)
 	_test_invalid_saves(t)
 	_test_free_draft_ledger(t)
+
+
+static func _test_custom_palette(t: Node) -> void:
+	var design: Design = Design.new()
+	var built_in_count: int = Design.PALETTE.size()
+	design.add_piece("rectangle", Vector2(40, 40), 0)
+	var old_save: Dictionary = design.to_dict()
+	t.assert_false(old_save.has("custom_colors"), "Built-in-only saves keep the previous shape")
+	t.assert_eq(design.add_palette_color(Design.PALETTE[0]), 0, "Adding a built-in shade reuses its original index")
+	t.assert_eq(design.add_palette_color(Color(INF, 0.0, 0.0)), -1, "Nonfinite channels cannot be added")
+	var color: Color = Color("#112233")
+	var custom: int = design.add_palette_color(color)
+	t.assert_eq(custom, built_in_count, "Picked colors append after the existing swatches")
+	t.assert_eq(design.add_palette_color(Color(color.r + 0.001, color.g, color.b, 0.5)), custom, "Same RGB8 shade reuses one opaque swatch")
+	var second: int = design.add_piece("rectangle", Vector2(90, 40), custom)
+	t.assert_eq(design.wall_parts()[1].color, color, "New tile colors reach every repeated wall drawing")
+	t.assert_true(design.color_pieces([0], custom), "Existing pieces can be painted with custom colors")
+	design.finish_tile()
+	t.assert_false(design.evaluate().ok, "Repeated use of a custom swatch counts as one shade")
+	t.assert_true(design.undo(), "Undo restores the piece's prior paint")
+	t.assert_eq(design.motif_parts()[0].color, Design.PALETTE[0], "Undo keeps the original built-in color")
+	t.assert_eq(design.palette_index(color), custom, "Undo keeps the custom swatch available")
+	design.finish_tile()
+	t.assert_true(design.evaluate().ok, "A custom shade counts toward commission color requirements")
+	t.assert_true(design.redo(), "Redo reapplies custom paint")
+	t.assert_eq(design.motif_parts()[0].color, color, "Redo resolves the same custom shade")
+	t.assert_true(design.set_color(second, 1), "Custom paint can be replaced with a built-in shade")
+
+	var saved: Dictionary = JSON.parse_string(JSON.stringify(design.to_dict()))
+	t.assert_eq(saved.custom_colors, ["112233"], "The custom palette stores opaque RGB hex strings")
+	var loaded: Design = Design.new()
+	t.assert_true(loaded.restore(saved), "A custom-color tile survives the JSON round trip")
+	t.assert_eq(loaded.motif_parts(), design.motif_parts(), "Restored tiles retain their exact colors and indices")
+	for invalid_palette: Variant in [null, ["112233ff"], ["zzzzzz"], ["112233", "112233"], ["F4E7CA"]]:
+		var invalid: Dictionary = saved.duplicate(true)
+		invalid.custom_colors = invalid_palette
+		t.assert_false(loaded.restore(invalid), "Malformed or duplicate swatches cannot enter a live palette")
+	var invalid_index: Dictionary = saved.duplicate(true)
+	invalid_index.parts[0].palette_index = custom + 1
+	t.assert_false(loaded.restore(invalid_index), "Saved pieces must reference an existing swatch")
+	t.assert_eq(loaded.to_dict(), design.to_dict(), "Failed restores retain the artwork and its palette")
+	t.assert_true(loaded.start_tile("garden"), "The player can start another commission tile")
+	t.assert_eq(loaded.palette_index(color), custom, "A new tile reuses the draft's custom swatches")
+	t.assert_true(loaded.restore(old_save), "Older V2 saves still restore without a custom palette")
+	t.assert_eq(loaded.to_dict(), old_save, "Loading an older draft restores its original data")
+
+	var full: Design = Design.new()
+	for channel: int in range(Design.MAX_CUSTOM_COLORS):
+		full.add_palette_color(Color8(channel, 0, 1))
+	t.assert_eq(full.palette_size(), built_in_count + Design.MAX_CUSTOM_COLORS, "The palette holds the full number of custom shades")
+	t.assert_eq(full.add_palette_color(Color8(42, 0, 1)), built_in_count + 42, "Existing custom colors stay selectable at capacity")
+	t.assert_eq(full.add_palette_color(Color8(1, 0, 2)), -1, "At capacity the palette rejects an additional new swatch")
+	var oversized: Dictionary = full.to_dict()
+	oversized.custom_colors.append("010002")
+	t.assert_false(loaded.restore(oversized), "A save cannot exceed the same custom-color limit")
 
 
 static func _test_free_draft_ledger(t: Node) -> void:
@@ -177,6 +233,7 @@ static func _test_group_editor(t: Node) -> void:
 
 
 static func _test_snapping(t: Node) -> void:
+	t.assert_eq(Design.GRID_STEP, 5.0, "The visible wall grid uses half-size five-unit cells")
 	var design: Design = Design.new()
 	var moving: int = design.add_piece("square", Vector2(35, 45), 1)
 	var neighbor: int = design.add_piece("square", Vector2(90, 45), 3)
@@ -284,6 +341,7 @@ static func _test_legacy(t: Node) -> void:
 	for id: String in shapes:
 		var design := Design.new()
 		t.assert_true(design.restore(_old_save(id)), "Previously released motifs migrate")
+		t.assert_eq(design.palette_size(), Design.PALETTE.size(), "Legacy motifs use the original fixed palette")
 		t.assert_eq(design.total_income(), 22000000, "Old paid clients retain their exact wallet values")
 		t.assert_eq(design.claim(), 0, "Legacy receipt cannot be paid again")
 		t.assert_eq(design.tile_size(), Vector2(200, 300), "Legacy rectangular aspect ratio is preserved")

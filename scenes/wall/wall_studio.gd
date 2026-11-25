@@ -7,6 +7,8 @@ const Preview = preload("res://scenes/wall/wall_pattern_preview.gd")
 const Catalog = preload("res://scripts/construction/construction_catalog.gd")
 const Metadata = preload("res://scripts/export/art_submission_metadata.gd")
 const Buttons = preload("res://scripts/ui/button_art.gd")
+const GRID_OPTIONS: Array[float] = [10.0, Design.GRID_STEP, 2.5]
+const TILE_DENSITIES: Array[float] = [1.0, 1.5, 2.0]
 
 enum PieceAction { DUPLICATE, DELETE, ROTATE, RESIZE, GROUP, UNGROUP }
 
@@ -28,6 +30,8 @@ var _selection: Array[int] = []
 var _menu_selection: Array[int] = []
 var _piece_menu: PopupMenu
 var _kind: String = ""
+var _snap_enabled: bool = true
+var _grid_step: float = Design.GRID_STEP
 var _ink: int = 1
 var _scroll: ScrollContainer
 var _body: VBoxContainer
@@ -44,6 +48,11 @@ var _author: LineEdit
 var _work_title: LineEdit
 var _description: TextEdit
 var _validation: Label
+var _color_panel: VBoxContainer
+var _color_picker: ColorPicker
+var _saved_color_list: ItemList
+var _saved_colors: VBoxContainer
+var _palette_note: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -160,6 +169,11 @@ func _build() -> void:
 			_action(choices, "WallOrders", "다른 의뢰 보기", _go.bind("orders"))
 		"tile": _tile_tools(tools)
 		"filled":
+			_paragraph(tools, "담장에 붙일 타일 크기")
+			var sizes: HFlowContainer = _flow(tools)
+			var size_labels: Array[String] = ["보통", "작게", "아주 작게"]
+			for i: int in range(TILE_DENSITIES.size()):
+				_action(sizes, "WallRepeatSize_%d" % i, size_labels[i], _resize_wall_tiles.bind(TILE_DENSITIES[i]), true)
 			var nav: HFlowContainer = _flow(tools)
 			if not free_mode: _action(nav, "WallSubmit", "의뢰인에게 납품", _submit, false, true)
 			_action(nav, "WallEditTile", "타일 고치기", _go.bind("tile"))
@@ -235,16 +249,20 @@ func _tile_tools(tools: VBoxContainer) -> void:
 	_action(selection, "WallPiecePrevious", "이전 조각", _cycle.bind(-1))
 	_action(selection, "WallPieceNext", "다음 조각", _cycle.bind(1))
 	_action(selection, "WallPieceActions", "조각 편집", _show_piece_tools)
+	var grid_tools: HFlowContainer = _flow(tools)
+	var grid_labels: Array[String] = ["큰 격자", "보통 격자", "작은 격자"]
+	for i: int in range(GRID_OPTIONS.size()):
+		_action(grid_tools, "WallGridSize_%d" % i, grid_labels[i], _set_grid_step.bind(GRID_OPTIONS[i]), true)
+	var snap: Button = _action(grid_tools, "WallSnap", "자석", _toggle_snap, true)
+	snap.tooltip_text = "가까운 격자선, 조각의 변과 꼭짓점, 타일 테두리에 붙여요."
 	var palette: HFlowContainer = _flow(tools)
 	for i: int in range(Design.PALETTE.size()):
 		var button: Button = _action(palette, "WallColor_%d" % i, str(Design.PALETTE_NAMES[i]), _color.bind(i), true)
-		var swatch: GradientTexture2D = GradientTexture2D.new()
-		swatch.gradient = Gradient.new()
-		swatch.gradient.colors = PackedColorArray([Design.PALETTE[i], Design.PALETTE[i]])
-		swatch.width = 16
-		swatch.height = 16
-		button.icon = swatch
+		button.icon = _swatch(Design.PALETTE[i], 16)
 		button.expand_icon = false
+	var more_colors: Button = _action(palette, "WallMoreColors", "색 더 고르기", _toggle_color_panel, true)
+	more_colors.tooltip_text = "더 많은 색을 고르고 내 팔레트에 저장해요."
+	_build_color_panel(tools)
 	var transforms: HFlowContainer = _flow(tools)
 	_action(transforms, "WallRotate", "15° 돌리기", _edit.bind("rotate"))
 	_action(transforms, "WallMirror", "좌우 뒤집기", _edit.bind("mirror"))
@@ -269,7 +287,7 @@ func _arm(kind: String) -> void:
 func _place(point: Vector2, snap: bool = true) -> void:
 	if _kind.is_empty(): return
 	var tolerance: float = _preview.snap_tolerance() if snap else 0.0
-	var added: int = _draft.add_piece(_kind, point, _ink, tolerance)
+	var added: int = _draft.add_piece(_kind, point, _ink, tolerance, _grid_step if tolerance > 0.0 else 0.0)
 	if added < 0:
 		_note.text = "조각 전체가 타일 안에 들어가도록 안쪽을 눌러 주세요."
 		return
@@ -279,6 +297,27 @@ func _place(point: Vector2, snap: bool = true) -> void:
 
 func _center_place() -> void:
 	_place(_draft.tile_size() * 0.5, false)
+
+func _set_grid_step(step: float) -> void:
+	_grid_step = step
+	_preview.cancel_drag()
+	refresh()
+
+func _toggle_snap() -> void:
+	_snap_enabled = not _snap_enabled
+	_preview.cancel_drag()
+	refresh()
+
+func _repeat_at(density: float) -> Vector2i:
+	var order: Dictionary = Design.COMMISSIONS[_draft.commission_id]
+	return Vector2i(ceili(int(order.columns) * density), ceili(int(order.rows) * density))
+
+func _resize_wall_tiles(density: float) -> void:
+	var count: Vector2i = _repeat_at(density)
+	if count == Vector2i(_draft.columns, _draft.rows):
+		refresh()
+	elif _draft.set_repeat(count.x, count.y):
+		_changed()
 
 func _select_pieces(indices: Array[int]) -> void:
 	_kind = ""
@@ -298,10 +337,133 @@ func _cycle(step: int) -> void:
 		_select_pieces([index])
 		return
 
-func _color(index: int) -> void:
+func _color(index: int, palette_changed: bool = false) -> void:
 	_ink = index
-	if not _selection.is_empty() and _draft.color_pieces(_selection, index): _changed()
+	var recolored: bool = not _selection.is_empty() and _draft.color_pieces(_selection, index)
+	if recolored or palette_changed: _changed()
 	else: refresh()
+
+func _build_color_panel(tools: VBoxContainer) -> void:
+	_color_panel = VBoxContainer.new()
+	_color_panel.name = "WallColorPanel"
+	_color_panel.hide()
+	tools.add_child(_color_panel)
+	var groups: BoxContainer = BoxContainer.new()
+	groups.vertical = true
+	groups.add_theme_constant_override("separation", 12)
+	_color_panel.add_child(groups)
+	groups.resized.connect(func() -> void: groups.vertical = groups.size.x < 490.0)
+	var picker_column: VBoxContainer = VBoxContainer.new()
+	groups.add_child(picker_column)
+	var swatches: VBoxContainer = VBoxContainer.new()
+	swatches.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	groups.add_child(swatches)
+	_saved_colors = VBoxContainer.new()
+	swatches.add_child(_saved_colors)
+	_paragraph(_saved_colors, "내 팔레트")
+	_saved_color_list = _color_list(_saved_colors, "WallSavedColors", "내 팔레트")
+	_saved_color_list.custom_minimum_size.y = 66.0
+	_saved_color_list.item_selected.connect(_use_saved_color)
+	_reload_saved_colors()
+	_paragraph(swatches, "추천 색 48가지")
+	var suggestions: ItemList = _color_list(swatches, "WallColorSuggestions", "추천 색")
+	for saturation_and_value: Vector2 in [Vector2(0.32, 0.98), Vector2(0.62, 0.92), Vector2(0.84, 0.81), Vector2(0.71, 0.52)]:
+		for hue: int in range(12):
+			_add_color_item(suggestions, Color.from_hsv(float(hue) / 12.0, saturation_and_value.x, saturation_and_value.y))
+	suggestions.item_selected.connect(func(index: int) -> void:
+		var color: Color = suggestions.get_item_metadata(index)
+		_color_picker.color = color
+		_palette_note.text = "")
+	_paragraph(picker_column, "그라디언트에서 직접 고르기")
+	_color_picker = ColorPicker.new()
+	_color_picker.name = "WallColorGradient"
+	_color_picker.accessibility_name = "색상 그라디언트"
+	_color_picker.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_color_picker.edit_alpha = false
+	_color_picker.edit_intensity = false
+	_color_picker.color_modes_visible = false
+	_color_picker.sliders_visible = false
+	_color_picker.sampler_visible = false
+	_color_picker.presets_visible = false
+	_color_picker.hex_visible = false
+	_color_picker.add_theme_constant_override("sv_width", 200)
+	_color_picker.add_theme_constant_override("sv_height", 128)
+	_color_picker.color = _draft.palette_color(_ink)
+	picker_column.add_child(_color_picker)
+	var actions: HFlowContainer = _flow(picker_column)
+	_action(actions, "WallAddPaletteColor", "팔레트에 추가", _add_palette_color, false, true)
+	_palette_note = _paragraph(picker_column, "")
+	_color_picker.color_changed.connect(func(_value: Color) -> void: _palette_note.text = "")
+
+func _color_list(parent: Control, id: String, label: String) -> ItemList:
+	var list: ItemList = ItemList.new()
+	list.name = id
+	list.accessibility_name = label
+	list.custom_minimum_size.y = 86.0
+	list.fixed_icon_size = Vector2i(29, 29)
+	list.max_columns = 0
+	list.fixed_column_width = 34
+	list.same_column_width = true
+	list.allow_reselect = true
+	parent.add_child(list)
+	return list
+
+func _swatch(color: Color, size_px: int) -> GradientTexture2D:
+	var texture: GradientTexture2D = GradientTexture2D.new()
+	texture.gradient = Gradient.new()
+	texture.gradient.colors = PackedColorArray([color, color])
+	texture.width = size_px
+	texture.height = size_px
+	return texture
+
+func _add_color_item(list: ItemList, color: Color) -> void:
+	var index: int = list.add_icon_item(_swatch(color, 29))
+	list.set_item_metadata(index, color)
+	list.set_item_tooltip(index, "#" + color.to_html(false).to_upper())
+
+func _reload_saved_colors() -> void:
+	_saved_color_list.clear()
+	for index: int in range(Design.PALETTE.size(), design.palette_size()):
+		_add_color_item(_saved_color_list, design.palette_color(index))
+	_saved_colors.visible = _saved_color_list.item_count > 0
+
+func _toggle_color_panel() -> void:
+	_color_panel.visible = _controls.WallMoreColors.button_pressed
+	if _color_panel.visible:
+		_color_picker.color = _draft.palette_color(_ink)
+		_palette_note.text = ""
+
+func _add_palette_color() -> void:
+	var color: Color = _color_picker.color
+	var old_shared_size: int = design.palette_size()
+	var shared_index: int = design.add_palette_color(color)
+	if shared_index < 0:
+		_palette_note.text = "내 팔레트가 가득 찼어요. 저장한 색을 골라 써 보세요."
+		return
+	var shared_changed: bool = design.palette_size() > old_shared_size
+	if shared_changed:
+		_add_color_item(_saved_color_list, design.palette_color(shared_index))
+		_saved_colors.show()
+		_saved_color_list.select(_saved_color_list.item_count - 1)
+		_saved_color_list.ensure_current_is_visible.call_deferred()
+	if _apply_saved_color(design.palette_color(shared_index), shared_changed):
+		_palette_note.text = "내 팔레트에 색을 추가했어요." if shared_changed else "선택한 색을 적용했어요."
+
+func _use_saved_color(index: int) -> void:
+	var color: Color = _saved_color_list.get_item_metadata(index)
+	_color_picker.color = color
+	if _apply_saved_color(color):
+		_palette_note.text = "선택한 색을 적용했어요."
+
+func _apply_saved_color(color: Color, shared_changed: bool = false) -> bool:
+	var old_draft_size: int = _draft.palette_size()
+	var index: int = _draft.add_palette_color(color)
+	if index < 0:
+		if shared_changed: _changed()
+		_palette_note.text = "이 타일에서 사용할 수 있는 색을 모두 채웠어요."
+		return false
+	_color(index, shared_changed or _draft.palette_size() > old_draft_size)
+	return true
 
 func _selection_center() -> Vector2:
 	var points: PackedVector2Array = PackedVector2Array()
@@ -441,6 +603,8 @@ func refresh() -> void:
 	set_balance(_balance)
 	var order: Dictionary = Design.COMMISSIONS[_selected_order]
 	_preview.placing = not _kind.is_empty()
+	_preview.snap_enabled = _snap_enabled
+	_preview.grid_step = _grid_step
 	if _stage == "tile": _selection = _draft.expand_selection(_selection)
 	_preview.selected_indices = _selection.duplicate()
 	_preview.refresh()
@@ -463,7 +627,11 @@ func refresh() -> void:
 			_controls.WallPlaceCenter.disabled = _kind.is_empty()
 			_controls.WallUndo.disabled = not _draft.can_undo()
 			_controls.WallRedo.disabled = not _draft.can_redo()
-			_overview.text = "빈 곳에서 끌어 여러 조각을 골라요. 우클릭이나 ‘조각 편집’으로 메뉴를 열어요. 조각을 옮기면 가까운 변이나 타일 테두리에 붙어요."
+			for i: int in range(GRID_OPTIONS.size()):
+				_controls["WallGridSize_%d" % i].set_pressed_no_signal(_grid_step == GRID_OPTIONS[i])
+			_controls.WallSnap.set_pressed_no_signal(_snap_enabled)
+			_controls.WallSnap.text = "자석 켜짐" if _snap_enabled else "자석 꺼짐"
+			_overview.text = "빈 곳에서 끌어 여러 조각을 골라요. 우클릭이나 ‘조각 편집’으로 메뉴를 열어요."
 			if _selection.size() > 1:
 				_note.text = "그룹 · 조각 %d개" % _selection.size() if _draft.selection_group(_selection) > 0 else "조각 %d개 선택" % _selection.size()
 			elif _selection.size() == 1:
@@ -477,6 +645,10 @@ func refresh() -> void:
 			if free_mode:
 				_overview.text = "%s · 자유 작품" % order.title
 			else: _overview.text = "%s\n%s" % [order.title, "납품 완료 · 받은 의뢰비 " + Catalog.format_won(int(order.reward)) if report.claimed else str(report.feedback)]
+			var count: Vector2i = Vector2i(_draft.columns, _draft.rows)
+			_overview.text += "\n타일 가로 %d장 · 세로 %d장" % [count.x, count.y]
+			for i: int in range(TILE_DENSITIES.size()):
+				_controls["WallRepeatSize_%d" % i].set_pressed_no_signal(count == _repeat_at(TILE_DENSITIES[i]))
 			if not free_mode: _controls.WallSubmit.disabled = not _draft.finished or not report.ok or report.claimed
 			_controls.WallPublish.disabled = not _draft.finished
 			_note.text = _status

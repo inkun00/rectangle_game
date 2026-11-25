@@ -19,6 +19,8 @@ var design: Design
 var view_kind: String = "blank"
 var selected_indices: Array[int] = []
 var placing: bool = false
+var snap_enabled: bool = true
+var grid_step: float = Design.GRID_STEP
 var location: String = ""
 var backdrop: Texture2D
 var export_only: bool = false
@@ -36,6 +38,7 @@ var _corner: int = -1
 var _vertex_target: Vector2
 var _additive: bool = false
 var _invalid_preview: bool = false
+var _snap_marker: Vector2 = Vector2.INF
 var _preview_points: Dictionary[int, PackedVector2Array] = {}
 var _draw_parts: Array[Dictionary] = []
 
@@ -98,11 +101,12 @@ func _draw_tile() -> void:
 	var area: Rect2 = _sheet_rect()
 	draw_rect(area, Color("#f8f0dc"))
 	var factor: float = area.size.x / design.tile_size().x
-	for x: int in range(0, ceili(design.tile_size().x), 10):
-		var a: Vector2 = area.position + Vector2(x * factor, 0)
+	var grid_pixels: float = grid_step * factor
+	for x: int in range(1, ceili(design.tile_size().x / grid_step)):
+		var a: Vector2 = area.position + Vector2(x * grid_pixels, 0)
 		draw_line(a, a + Vector2(0, area.size.y), Color("#d9d3bd"), 1)
-	for y: int in range(0, ceili(design.tile_size().y), 10):
-		var a: Vector2 = area.position + Vector2(0, y * factor)
+	for y: int in range(1, ceili(design.tile_size().y / grid_step)):
+		var a: Vector2 = area.position + Vector2(0, y * grid_pixels)
 		draw_line(a, a + Vector2(area.size.x, 0), Color("#d9d3bd"), 1)
 	var to_screen: Transform2D = Transform2D(0.0, Vector2.ONE * factor, 0.0, area.position)
 	for part: Dictionary in _draw_parts:
@@ -111,6 +115,10 @@ func _draw_tile() -> void:
 		points.append(points[0])
 		draw_polyline(points, Color("#544f48"), 1.3, true)
 	_draw_selection(to_screen)
+	if _snap_marker.is_finite():
+		var marker: Vector2 = to_screen * _snap_marker
+		draw_circle(marker, 6.0, Color.WHITE, false, 3.0, true)
+		draw_circle(marker, 6.0, SELECTION_COLOR, false, 1.5, true)
 	draw_rect(area, Color("#fbc773") if has_focus() else Color("#c9bd9d"), false, 2)
 
 func _vertices(index: int) -> PackedVector2Array:
@@ -227,7 +235,7 @@ func _tile_units(pixels: float) -> float:
 	return pixels * design.tile_size().x / _sheet_rect().size.x
 
 func snap_tolerance() -> float:
-	return _tile_units(SNAP_DISTANCE)
+	return _tile_units(SNAP_DISTANCE) if snap_enabled else 0.0
 
 func place_at(tile_position: Vector2) -> void:
 	if view_kind == "tile" and placing: piece_placed.emit(tile_position)
@@ -279,8 +287,7 @@ func _marquee_indices() -> Array[int]:
 
 func _keyboard_offset(request: Vector2) -> Vector2:
 	var bounds: Rect2 = _selection_bounds(selected_indices, false)
-	var anchor: Vector2 = _draw_parts[selected_indices[0]].position if selected_indices.size() == 1 else Vector2.ZERO
-	return ((anchor + request).snappedf(Design.GRID_STEP) - anchor).clamp(-bounds.position, design.tile_size() - bounds.end)
+	return request.clamp(-bounds.position, design.tile_size() - bounds.end)
 
 func nudge(delta: Vector2) -> void:
 	if view_kind != "tile" or selected_indices.is_empty() or _pointer != NO_POINTER or not delta.is_finite(): return
@@ -292,6 +299,7 @@ func cancel_drag() -> void:
 	_corner = -1
 	_preview_points.clear()
 	_invalid_preview = false
+	_snap_marker = Vector2.INF
 	_offset = Vector2.ZERO
 	_degrees = 0.0
 	_scale = 1.0
@@ -360,11 +368,15 @@ func _preview_transform(pivot: Vector2, degrees: float, factor: float, offset: V
 func _preview_vertex(delta: Vector2) -> void:
 	var index: int = selected_indices[0]
 	var points: PackedVector2Array = PackedVector2Array(_draw_parts[index].vertices).duplicate()
-	var snapped: Vector2 = design.snap_vertex(index, points[_corner] + delta, snap_tolerance())
-	points[_corner] = snapped
+	var target: Vector2 = points[_corner] + delta
+	var direct: Vector2 = target.clamp(Vector2.ZERO, design.tile_size())
+	points[_corner] = design.snap_vertex(index, target, snap_tolerance(), grid_step)
+	if not Geometry.is_valid(points) and not points[_corner].is_equal_approx(direct):
+		points[_corner] = direct
 	_invalid_preview = not Geometry.is_valid(points)
 	if _invalid_preview: return
-	_vertex_target = snapped
+	_vertex_target = points[_corner]
+	if not _vertex_target.is_equal_approx(direct): _snap_marker = _vertex_target
 	_preview_points[index] = points
 
 func _drag(id: int, at: Vector2, snap_angle: bool = false) -> void:
@@ -372,6 +384,7 @@ func _drag(id: int, at: Vector2, snap_angle: bool = false) -> void:
 	var point: Vector2 = _to_tile(at)
 	var delta: Vector2 = point - _grab
 	_cursor = point.clamp(Vector2.ZERO, design.tile_size())
+	_snap_marker = Vector2.INF
 	if delta.length() < _tile_units(DRAG_DISTANCE):
 		_preview_points.clear()
 		_invalid_preview = false
@@ -382,8 +395,11 @@ func _drag(id: int, at: Vector2, snap_angle: bool = false) -> void:
 	else:
 		match _gesture:
 			"move":
-				var offset: Vector2 = design.snap_translation(selected_indices, delta, snap_tolerance())
+				var bounds: Rect2 = _selection_bounds(selected_indices, false)
+				var direct: Vector2 = delta.clamp(-bounds.position, design.tile_size() - bounds.end)
+				var offset: Vector2 = design.snap_translation(selected_indices, delta, snap_tolerance(), grid_step)
 				_preview_transform(Vector2.ZERO, 0.0, 1.0, offset)
+				if not _invalid_preview and not offset.is_equal_approx(direct): _snap_marker = bounds.position + offset
 			"vertex": _preview_vertex(delta)
 			"rotate":
 				var current: Vector2 = _direction + delta
@@ -445,5 +461,5 @@ func _gui_input(event: InputEvent) -> void:
 			clear_transform()
 			accept_event()
 		elif steps.has(event.keycode):
-			nudge(Vector2(steps[event.keycode]) * 5.0)
+			nudge(Vector2(steps[event.keycode]) * (grid_step if snap_enabled else 1.0))
 			accept_event()
