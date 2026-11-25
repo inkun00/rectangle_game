@@ -276,7 +276,7 @@ function validateSubmission(raw) {
   if (typeof raw.id !== 'string' || !ID_PATTERN.test(raw.id)) {
     throw new InputError('작품을 확인할 수 없어요. 게임에서 작품을 다시 열어 주세요.');
   }
-  const author = textField(raw.author, 40, '작성자 이름');
+  const author = textField(raw.author, 40, '제작자 이름');
   const nameLabel = kind === 'earth_house' ? '집 이름' : kind === 'spaceship' ? '우주선 이름' : `${work} 제목`;
   const title = textField(raw.title, 80, nameLabel);
   const description = textField(raw.description, 1000, `${work} 설명`, true);
@@ -371,7 +371,7 @@ function escapeHtml(value) {
 function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
   const projectPrice = PROJECT_PRICES.get(submission.kind);
   const descriptionLabel = submission.kind === 'wall' ? '담장 설명' : specialGallery(submission.kind) === SPECIAL_GALLERIES.ship ? '우주선 설명' : projectPrice ? '건물 설명' : '그림 설명';
-  const body = [`작성자: ${escapeHtml(submission.author)}`, `${descriptionLabel}: ${escapeHtml(submission.description)}`];
+  const body = [`제작자: ${escapeHtml(submission.author)}`, `${descriptionLabel}: ${escapeHtml(submission.description)}`];
   if (submission.kind !== 'drawing' && submission.kind !== 'wall' && submission.kind !== 'ship_exhibit') {
     body.push(`${(projectPrice ?? DRAWING_PRICE).label}: ${submission.price.toLocaleString('en-US')}원`);
   }
@@ -380,7 +380,7 @@ function createPadletBody(submission, origin = PUBLIC_ORIGIN) {
       type: 'post',
       attributes: {
         content: {
-          subject: `${submission.title} · ${submission.author}`,
+          subject: submission.title,
           body: body.join('\n\n'),
           attachment: { url: imageUrl(submission.id, origin), caption: submission.title },
         },

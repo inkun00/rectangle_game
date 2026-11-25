@@ -132,8 +132,8 @@ test('publishes the picture and its display fields without a work number', async
   assert.equal(deps.calls[0].url, `${drawingBoardApi}/posts`);
   assert.equal(deps.calls[0].options.headers['X-API-KEY'], deps.env.PADLET_API_KEY);
   const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
-  assert.equal(content.subject, `${base.title} · ${base.author}`);
-  assert.match(content.body, /작성자: 사각이/);
+  assert.equal(content.subject, base.title);
+  assert.match(content.body, /제작자: 사각이/);
   assert.match(content.body, /네모난 집과 파란 하늘/);
   assert.match(content.body, /게임 내 그림 가격: 2,600원/);
   assert.doesNotMatch(content.body, /작품 번호/);
@@ -162,7 +162,8 @@ test('publishes an independent drawing once on the drawing board without pricing
   assert.equal(deps.calls.length, 1);
   assert.equal(deps.calls[0].url, `${drawingBoardApi}/posts`);
   const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
-  assert.equal(content.body, `작성자: ${base.author}\n\n그림 설명: ${base.description}`);
+  assert.equal(content.subject, base.title);
+  assert.equal(content.body, `제작자: ${base.author}\n\n그림 설명: ${base.description}`);
   assert.equal(content.attachment.url, publicPngUrl);
 });
 
@@ -195,9 +196,9 @@ test('routes buildings apart from drawings and spaceships while preserving price
     assert.equal(deps.calls[0].url, `${boardApi}/posts`);
     assert.equal(deps.blob.json(manifestPath).board_url, boardUrl);
     const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
-    assert.equal(content.subject, `${projectName} · ${base.author}`);
+    assert.equal(content.subject, projectName);
     assert.equal(content.attachment.caption, projectName);
-    assert.match(content.body, /작성자: 사각이/);
+    assert.match(content.body, /제작자: 사각이/);
     assert.ok(content.body.includes(`${descriptionLabel}: ${base.description}`));
     assert.match(content.body, priceLine);
     assert.doesNotMatch(content.body, /작품 번호/);
@@ -224,7 +225,8 @@ test('unpaid walls and completed ships use their own galleries and recover stabl
     assert.equal(result.json.post_url, url);
     assert.equal(deps.calls[0].url, `https://api.padlet.dev/v1/boards/${boardId}/posts`);
     const content = JSON.parse(deps.calls[0].options.body).data.attributes.content;
-    assert.ok(content.body.includes(`${label}: ${base.description}`));
+    assert.equal(content.subject, base.title);
+    assert.equal(content.body, `제작자: ${base.author}\n\n${label}: ${base.description}`);
     assert.doesNotMatch(content.body, /가격|재료비|제작비|0원/);
     assert.deepEqual(deps.blob.files.get(pngPath).bytes, png);
     assert.equal((await call(createSubmissionHandler(deps), submission)).json.post_url, url);
@@ -703,12 +705,13 @@ test('image route supports HEAD and conditional reads but never exposes JSON man
   }
 });
 
-test('the entered author is plain text in the subject and escaped in the HTML body', async () => {
+test('the subject preserves the artwork title and the creator name is escaped in the HTML body', async () => {
   const deps = environment();
-  assert.equal((await call(createSubmissionHandler(deps), { ...base, author: '<작가 & 친구>', description: '<script>alert(1)</script>' })).json.ok, true);
+  const title = '봄 · 여름';
+  assert.equal((await call(createSubmissionHandler(deps), { ...base, title, author: '<작가 & 친구>', description: '<script>alert(1)</script>' })).json.ok, true);
   const attributes = JSON.parse(deps.calls[0].options.body).data.attributes;
   assert.equal(attributes.author, undefined);
-  assert.equal(attributes.content.subject, `${base.title} · <작가 & 친구>`);
-  assert.match(attributes.content.body, /&lt;작가 &amp; 친구&gt;/);
+  assert.equal(attributes.content.subject, title);
+  assert.match(attributes.content.body, /제작자: &lt;작가 &amp; 친구&gt;/);
   assert.equal(attributes.content.body.includes('<script>'), false);
 });

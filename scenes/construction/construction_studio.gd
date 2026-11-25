@@ -2113,8 +2113,8 @@ func _open_building_publication(record_index: int = -1, from_picker: bool = fals
 	if record_index >= 0:
 		_modal_body.add_child(_label("%03d · %s 님의 집" % [record_index + 1, str(state.records[record_index].client)], 18, BLUE))
 	_money_line(_modal_body, str(offer.price_label), int(offer.price), true)
-	_modal_body.add_child(_label("작성자 이름, 제목, 설명, 금액과 건물 이미지가 전시관에 함께 올라가요.", 16, MUTED))
-	_publication_author = _publication_line("작성자 이름", "전시관에 표시할 이름이나 별명을 적어 주세요", SubmissionMetadata.MAX_AUTHOR_LENGTH)
+	_modal_body.add_child(_label("제작자 이름, 제목, 설명, 금액과 건물 이미지가 전시관에 함께 올라가요.", 16, MUTED))
+	_publication_author = _publication_line("제작자 이름", "전시관에 표시할 이름이나 별명을 적어 주세요", SubmissionMetadata.MAX_AUTHOR_LENGTH)
 	_publication_author.name = "BuildingPublicationAuthor"
 	_publication_author.text = publication_author_name
 	_publication_title = _publication_line("건물 제목", "완성한 건물의 제목을 적어 주세요", SubmissionMetadata.MAX_TITLE_LENGTH)

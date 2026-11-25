@@ -74,7 +74,7 @@ func _ready() -> void:
 	_column.add_child(_cards)
 	_drawing_button = _build_mode("Drawing", "그림 작업실", "사각형으로 의뢰인의 그림을 완성해요.", _menu_texture("drawing"), "그림 그리기", func(): drawing_requested.emit())
 	_build_mode("Construction", "건축 공방", "재료를 골라 의뢰인이 꿈꾸는 집을 지어요.", _menu_texture("building"), "집 짓기", func(): construction_requested.emit())
-	_build_mode("Wall", "타일 공방", "사각형으로 만든 타일을 반복해 담장 의뢰를 완성해요.", preload("res://assets/generated/home-atlas/wall.svg"), "담장 꾸미기", func(): wall_requested.emit())
+	_build_mode("Wall", "타일 공방", "사각형으로 만든 타일을 반복해 담장 의뢰를 완성해요.", _menu_texture("wall"), "담장 꾸미기", func(): wall_requested.emit())
 	_build_mode("Adventure", "사각형 마을", "여섯 지역을 탐험하며 주민의 부탁을 들어줘요.", _menu_texture("village"), "마을 주민 심부름하기", func(): adventure_requested.emit())
 	_exhibition_button = _build_mode("Exhibition", "작품 전시장", "친구들이 만든 작품을 패들릿에서 구경해요.", _menu_texture("arrival"), "전시장 보기", _open_exhibition_chooser)
 	_ending_choice = _build_mode("Ending", "사각이의 내일", "지구에 살 집과 사각성으로 갈 우주선 중 하나를 골라요.", _menu_texture("choice"), ENDING_CHOICE_TITLE, func(): ending_choice_requested.emit())

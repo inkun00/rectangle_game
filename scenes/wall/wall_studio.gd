@@ -523,10 +523,10 @@ func _build_form() -> void:
 	var fields: VBoxContainer = VBoxContainer.new()
 	fields.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(fields)
-	_paragraph(fields, "작성자")
+	_paragraph(fields, "제작자")
 	_author = LineEdit.new()
 	_author.name = "WallAuthor"
-	_author.accessibility_name = "작성자 이름"
+	_author.accessibility_name = "제작자 이름"
 	_author.max_length = Metadata.MAX_AUTHOR_LENGTH
 	fields.add_child(_author)
 	_paragraph(fields, "담장 제목")

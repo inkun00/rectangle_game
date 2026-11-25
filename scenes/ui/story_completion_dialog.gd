@@ -41,7 +41,7 @@ func _ready() -> void:
 	column.add_child(_form)
 	_publication_details = QuadTheme.paragraph("", 16, QuadTheme.INK)
 	_form.add_child(_publication_details)
-	_author = _line(QuadTheme.paragraph("작성자 이름", 16, QuadTheme.INK), ArtSubmissionMetadata.MAX_AUTHOR_LENGTH)
+	_author = _line(QuadTheme.paragraph("제작자 이름", 16, QuadTheme.INK), ArtSubmissionMetadata.MAX_AUTHOR_LENGTH)
 	_title_label = QuadTheme.paragraph("", 16, QuadTheme.INK)
 	_title = _line(_title_label, ArtSubmissionMetadata.MAX_TITLE_LENGTH)
 	_form.add_child(QuadTheme.paragraph("작품 설명", 16, QuadTheme.INK))
@@ -65,7 +65,7 @@ func open_project(branch: String, price: int, author: String, resume: bool = fal
 	_work = "우리 집" if branch == "earth" else "우주선"
 	title = "우리 집에서 새 출발" if branch == "earth" else "사각성으로 출발"
 	if _exhibition_only: title = "완성한 우주선 등록"
-	_publication_details.text = "작성자 이름, 작품 제목과 설명, 이미지가 우주선 전시장에 올라가요." if exhibition_only else "작성자 이름, 작품 제목과 설명, 금액, 이미지가 패들릿 전시관에 함께 올라가요."
+	_publication_details.text = "제작자 이름, 작품 제목과 설명, 이미지가 우주선 전시장에 올라가요." if exhibition_only else "제작자 이름, 작품 제목과 설명, 금액, 이미지가 패들릿 전시관에 함께 올라가요."
 	_price.text = ("재료비 " if branch == "earth" else "부품 제작비 ") + ConstructionCatalog.format_won(price)
 	_resume = resume
 	_busy = false

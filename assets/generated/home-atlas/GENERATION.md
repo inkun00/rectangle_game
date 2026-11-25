@@ -26,6 +26,14 @@ Use case: illustration-story. Original landscape very wide 3:2 game menu illustr
 ```
 
 
-## 타일 공방
+## 이전 타일 공방 이미지
 
-wall.svg는 게임의 정사각형 액자 무늬를 표현한 자체 제작 벡터 도해다. 가운데 정사각형과 네 사다리꼴을 이어 만든 타일을 두 색 조합으로 반복했다.
+기존 `wall.svg`는 게임의 정사각형 액자 무늬를 표현한 자체 제작 벡터 도해다. 가운데 정사각형과 네 사다리꼴을 이어 만든 타일을 두 색 조합으로 반복했다.
+
+## 타일 공방 메뉴 이미지
+
+`wall.webp`는 메인 화면의 타일 공방 카드에 표시한다. 2026-11-25에 게임 메인 화면을 재질 참고 이미지로 제공해 내장 ImageGen으로 생성했다. 원본은 1729 × 910 PNG이며, 원본 비율을 유지해 768 × 404 WebP로 저장했다. 크기 조정에 Godot의 Lanczos 보간을 적용했고 WebP 품질은 0.88이다.
+
+```text
+Create one new landscape game menu-card illustration for the Korean elementary math game Quadrilateral World, called the Tile Workshop (타일 공방). The immediately preceding screenshot is a STYLE REFERENCE ONLY. Match its drawing studio, construction workshop and quadrilateral village images: a tactile miniature diorama of hand-cut thick warm cardstock and paper clay, visible fine paper fibers, softly beveled edges, layered construction, warmly lit golden afternoon, pleasing natural small shadows, appealing warm cream and ochre with muted deep teal, terracotta and sage. Deliver only one full bleed illustration, no game UI, type, lettering, panel frame, or watermark. Scene: close, nearly eye-level three-quarter view of a real miniature workshop cottage facade physically attached to its return wall beneath a deep teal eave, on a soft warm sunlit stone path. On the actual warm cream exterior wall, a large rectangular portion is being covered by a beautiful orderly repeating band of large teal, terracotta and golden quadrilateral tiles, composed of clearly readable squares, rectangles and rhombi; the tiles are paper clay with small individual shadows and slight material thickness. A small patch at the edge remains unfilled. In the very lower foreground a simple wooden workbench or low crate holds a few spare colored tiles and a small hand trowel, with a hint of paper garden foliage near the base of the house. The dominant object is the attached tiled exterior facade, readily readable at thumbnail size. The overall impression should be one of the same physical miniature sets as the neighboring tan house and village cards. Keep three-dimensional perspective, warm palette, prominent large simple shapes, and image filling the edges. Aim for 1.9:1 horizontal crop, all important content within the central 80% of the image height. Avoid flat grids, UI preview swatches, isolated free-standing panels, people, glossy plastic, dark vignette, or dense ornament.
+```

@@ -17,7 +17,7 @@
 Codex 내장 ImageGen으로 홈, 시작 문제, 작업실, 메뉴와 버튼을 제작했다. 홈과 웹 로딩 화면의 사각이는 오프닝 원화를 참고했다. 각 문서에 생성 프롬프트와 게임에서 사용하는 WebP 파일을 기록했다.
 
 - [공통 버튼과 메뉴판, 체크 표시, 그림 작업실 배경](adventure-ui-v2/GENERATION.md)
-- [홈의 사각이와 활동 메뉴 일러스트](home-atlas/GENERATION.md)
+- [홈의 사각이와 활동 메뉴 일러스트](home-atlas/GENERATION.md)와 [타일 공방 메뉴 이미지](home-atlas/GENERATION.md#타일-공방-메뉴-이미지)
 - [시작 문제의 도형 교구 배경](geometry-desk-v1/GENERATION.md)
 - [브라우저 로딩 화면의 밤마을](browser-arrival-v1/GENERATION.md)
 

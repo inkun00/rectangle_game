@@ -1206,10 +1206,10 @@ func _open_submission_form(exhibit: bool = false) -> void:
 		column.add_child(_sale_details)
 		_publication_note = QuadTheme.paragraph("", 16, QuadTheme.INK)
 		column.add_child(_publication_note)
-		column.add_child(QuadTheme.paragraph("작성자 이름 · 최대 40자", 18, QuadTheme.INK))
+		column.add_child(QuadTheme.paragraph("제작자 이름 · 최대 40자", 18, QuadTheme.INK))
 		_sale_author = LineEdit.new()
 		_sale_author.name = "SoldArtAuthor"
-		_sale_author.placeholder_text = "작가 이름이나 별명을 적어 주세요"
+		_sale_author.placeholder_text = "제작자 이름이나 별명을 적어 주세요"
 		_sale_author.max_length = SubmissionMetadata.MAX_AUTHOR_LENGTH
 		_sale_author.text = sale_author_name
 		_sale_author.custom_minimum_size.y = 46
@@ -1257,7 +1257,7 @@ func _open_submission_form(exhibit: bool = false) -> void:
 			interaction_context_changed.emit())
 		add_child(_sale_dialog)
 	_sale_dialog.title = "내 그림 등록" if _exhibition else "그림 의뢰 · 완성작 제출"
-	_publication_note.text = "작가 이름, 제목, 설명, 그림이 패들릿에 올라가요." if _exhibition else "이름, 제목, 설명, 받은 보상과 그림 이미지가 패들릿에 함께 올라가요."
+	_publication_note.text = "제작자 이름, 제목, 설명, 그림이 패들릿에 올라가요." if _exhibition else "제작자 이름, 제목, 설명, 받은 보상과 그림 이미지가 패들릿에 함께 올라가요."
 	var key: String = ("personal_exhibit" if is_personal_drawing else "regular_exhibit") if _exhibition else "commission"
 	if key != _form_key:
 		if not _form_key.is_empty(): _metadata_drafts[_form_key] = [_sale_title.text, _sale_description.text]
